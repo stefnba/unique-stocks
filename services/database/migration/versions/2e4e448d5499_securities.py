@@ -22,16 +22,20 @@ def upgrade() -> None:
             CREATE TABLE IF NOT EXISTS securities (
                 id SERIAL4 PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
-                type_id INT4 REFERENCES security_types(id),
+                category_id INT4 REFERENCES security_categories(id),
                 exchange_id INT4 REFERENCES exchanges(id),
                 ticker VARCHAR(255) NOT NULL,
                 isin VARCHAR(255) NOT NULL,
+                wkn VARCHAR(255) NOT NULL,
+                ric VARCHAR(255) NOT NULL,
+                bloomberg VARCHAR(255) NOT NULL,
                 country CHAR(2) NOT NULL,
                 currency CHAR(3) NOT NULL,
                 created_at timestamp without time zone default (now() at time zone 'utc'),
                 updated_at timestamp without time zone
             );
             CREATE UNIQUE INDEX IF NOT EXISTS ticker_unique_idx ON securities(ticker);
+            CREATE UNIQUE INDEX IF NOT EXISTS isin_unique_idx ON securities(isin);
 		"""
     )
 
