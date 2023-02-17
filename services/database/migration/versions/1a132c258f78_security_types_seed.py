@@ -24,6 +24,7 @@ def upgrade() -> None:
                 ('etf'),
                 ('crypto'),
                 ('index'),
+                ('commodity'),
                 ('option');
 		"""
     )
