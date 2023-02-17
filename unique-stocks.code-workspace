@@ -1,0 +1,17 @@
+{
+	"folders": [
+        {
+            "path": ".",
+            "name": "Root"
+        },
+		{
+			"path": "./services/database",
+            "name": "Database"
+		},
+		{
+			"path": "./services/airflow",
+            "name": "Airflow"
+		}
+    ],
+    "settings": {}
+}
