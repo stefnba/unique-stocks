@@ -21,7 +21,7 @@ def upgrade() -> None:
         """
 			CREATE TABLE IF NOT EXISTS security_types (
                 id SERIAL4 PRIMARY KEY,
-                type VARCHAR(255) NOT NULL,
+                type VARCHAR(255) NOT NULL UNIQUE,
                 created_at timestamp without time zone default (now() at time zone 'utc'),
                 updated_at timestamp without time zone
             );
