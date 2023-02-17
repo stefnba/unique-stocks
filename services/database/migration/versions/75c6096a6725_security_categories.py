@@ -1,5 +1,5 @@
 # pylint: disable=no-member,missing-function-docstring,invalid-name
-"""security_types
+"""security_categories
 
 Revision ID: 75c6096a6725
 Revises: 2e4e448d5499
@@ -19,9 +19,9 @@ depends_on = None
 def upgrade() -> None:
     op.execute(
         """
-			CREATE TABLE IF NOT EXISTS security_types (
+			CREATE TABLE IF NOT EXISTS security_categories (
                 id SERIAL4 PRIMARY KEY,
-                type VARCHAR(255) NOT NULL UNIQUE,
+                category VARCHAR(255) NOT NULL UNIQUE,
                 created_at timestamp without time zone default (now() at time zone 'utc'),
                 updated_at timestamp without time zone
             );
@@ -32,6 +32,6 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.execute(
         """
-			DROP TABLE IF EXISTS security_types;
+			DROP TABLE IF EXISTS security_categories;
 		"""
     )

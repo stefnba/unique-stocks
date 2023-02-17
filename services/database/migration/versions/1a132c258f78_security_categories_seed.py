@@ -1,5 +1,5 @@
 # pylint: disable=no-member,missing-function-docstring,invalid-name
-"""security_types_seed
+"""security_categories_seed
 
 Revision ID: 1a132c258f78
 Revises: 2e4e448d5499
@@ -19,7 +19,7 @@ depends_on = None
 def upgrade() -> None:
     op.execute(
         """
-			INSERT INTO security_types (type) VALUES 
+			INSERT INTO security_categories (category) VALUES 
                 ('stock'),
                 ('etf'),
                 ('crypto'),
@@ -33,6 +33,6 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.execute(
         """
-			TRUNCATE security_types;
+			TRUNCATE security_categories;
 		"""
     )
