@@ -1,17 +1,17 @@
 # pylint: disable=no-member,missing-function-docstring,invalid-name
-"""security_categories_seed
+"""securities_types_seed
 
-Revision ID: 1a132c258f78
-Revises: 2e4e448d5499
-Create Date: 2023-02-17 16:15:31.127751
+Revision ID: 8f5fd45e2ee2
+Revises: d96a65f24c8a
+Create Date: 2023-02-18 15:05:59.055269
 
 """
 from alembic import op
 
 
 # revision identifiers, used by Alembic.
-revision = "1a132c258f78"
-down_revision = "75c6096a6725"
+revision = "8f5fd45e2ee2"
+down_revision = "d96a65f24c8a"
 branch_labels = None
 depends_on = None
 
@@ -19,9 +19,12 @@ depends_on = None
 def upgrade() -> None:
     op.execute(
         """
-			INSERT INTO security_categories (category) VALUES 
-                ('stock'),
+			INSERT INTO securities_types (type) VALUES 
+                ('equity'),
                 ('etf'),
+                ('etc'),
+                ('bond'),
+                ('mutualfund'),
                 ('crypto'),
                 ('index'),
                 ('commodity'),
@@ -33,6 +36,6 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.execute(
         """
-			TRUNCATE security_categories;
+			TRUNCATE securities_types;
 		"""
     )
