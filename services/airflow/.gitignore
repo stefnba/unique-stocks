@@ -1,3 +1,6 @@
 .env
 
 .conda/
+
+airflow/logs
+airflow/plugins
