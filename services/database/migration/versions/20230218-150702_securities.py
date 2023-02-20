@@ -19,22 +19,25 @@ depends_on = None
 def upgrade() -> None:
     op.execute(
         """
+            --sql
 			CREATE TABLE IF NOT EXISTS securities (
                 id SERIAL4 PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                acronym VARCHAR(255),
+                name VARCHAR NOT NULL,
+                acronym VARCHAR,
                 type_id INT4 REFERENCES securities_types(id),
                 exchange_id INT4 REFERENCES exchanges(id),
-                ticker VARCHAR(255) NOT NULL,
-                isin VARCHAR(255) NOT NULL,
+                ticker VARCHAR NOT NULL,
+                isin VARCHAR NOT NULL,
                 is_watched BOOLEAN DEFAULT TRUE,
                 parent_id INT REFERENCES securities_parents(id), 
-                figi VARCHAR(255),
+                figi VARCHAR,
                 country CHAR(2) NOT NULL,
                 currency CHAR(3) NOT NULL,
+                is_active BOOLEAN DEFAULT TRUE,
                 created_at timestamp without time zone default (now() at time zone 'utc'),
                 updated_at timestamp without time zone
             );
+            --sql
             CREATE UNIQUE INDEX IF NOT EXISTS ticker_unique_idx ON securities(ticker);
 		"""
     )
@@ -43,6 +46,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.execute(
         """
-			DROP TABLE IF EXISTS securities;
+            --sql
+			DROP TABLE IF EXISTS securities CASCADE;
 		"""
     )

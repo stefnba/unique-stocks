@@ -19,6 +19,7 @@ depends_on = None
 def upgrade() -> None:
     op.execute(
         """
+            --sql
 			INSERT INTO securities_types (type) VALUES 
                 ('equity'),
                 ('etf'),
@@ -36,6 +37,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.execute(
         """
+            --sql
 			TRUNCATE securities_types;
 		"""
     )
