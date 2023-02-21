@@ -7,10 +7,10 @@ Create Date: 2023-02-18 15:05:59.055269
 
 """
 from alembic import op
-from sqlalchemy.sql import table, column
-from sqlalchemy import String, Integer, Date
+from sqlalchemy.sql import column
+from sqlalchemy import String, Integer
 
-from utils.seed import seed_table_from_csv
+from db.utils.seed import seed_table_from_csv
 
 
 # revision identifiers, used by Alembic.
@@ -23,7 +23,7 @@ depends_on = None
 def upgrade() -> None:
     seed_table_from_csv(
         table_name="securities_types",
-        file_path="./seeds/securities_types.csv",
+        file_path="./db/seeds/securities_types.csv",
         columns=[column("type", String), column("id", Integer)],
     )
 
