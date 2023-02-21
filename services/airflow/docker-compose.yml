@@ -69,6 +69,9 @@ x-airflow-common: &airflow-common
             condition: service_healthy
         postgres:
             condition: service_healthy
+    networks:
+            - unique-stocks-internal
+            - default
 
 services:
     postgres:
@@ -283,3 +286,7 @@ services:
 
 volumes:
     postgres-db-volume:
+
+networks:
+  unique-stocks-internal:
+    name: unique-stocks-internal
