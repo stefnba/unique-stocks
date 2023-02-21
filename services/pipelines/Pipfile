@@ -1,0 +1,20 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+azure-identity = "*"
+azure-storage-file-datalake = "*"
+python-dotenv = "*"
+requests = "*"
+pandas = "*"
+polars = "*"
+
+[dev-packages]
+black = "*"
+pylint = "*"
+
+[requires]
+python_version = "3.11"
+python_full_version = "3.11.1"
