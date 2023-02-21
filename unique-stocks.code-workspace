@@ -9,8 +9,8 @@
             "name": "Database"
 		},
 		{
-			"path": "./services/airflow",
-            "name": "Airflow"
+			"path": "./services/pipelines",
+            "name": "Pipelines"
 		}
     ],
     "settings": {}

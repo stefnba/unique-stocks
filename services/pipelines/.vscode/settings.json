@@ -1,0 +1,14 @@
+{
+    "editor.formatOnSave": false,
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "[python]": {
+        "editor.defaultFormatter": null
+    },
+    "python.formatting.blackArgs": ["--line-length", "120"],
+    "python.defaultInterpreterPath": "./.conda/bin/python",
+    "python.linting.pylintPath": "./.conda/bin/pylint",
+    "python.formatting.provider": "black",
+    "python.analysis.typeCheckingMode": "basic",
+
+    "editor.indentSize": 4
+}
