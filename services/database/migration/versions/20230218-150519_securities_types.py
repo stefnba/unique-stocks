@@ -19,11 +19,13 @@ depends_on = None
 def upgrade() -> None:
     op.execute(
         """
+            --sql
 			CREATE TABLE IF NOT EXISTS securities_types (
                 id SERIAL4 PRIMARY KEY,
-                type VARCHAR(255) NOT NULL UNIQUE,
+                type VARCHAR NOT NULL UNIQUE,
                 created_at timestamp without time zone default (now() at time zone 'utc'),
-                updated_at timestamp without time zone
+                updated_at timestamp without time zone,
+                is_active BOOLEAN DEFAULT TRUE
             );
 		"""
     )
@@ -32,6 +34,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.execute(
         """
-			DROP TABLE IF EXISTS securities_types;
+            --sql
+			DROP TABLE IF EXISTS securities_types CASCADE;
 		"""
     )

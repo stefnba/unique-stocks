@@ -7,6 +7,10 @@ Create Date: 2023-02-18 15:05:59.055269
 
 """
 from alembic import op
+from sqlalchemy.sql import table, column
+from sqlalchemy import String, Integer, Date
+
+from utils.seed import seed_table_from_csv
 
 
 # revision identifiers, used by Alembic.
@@ -17,25 +21,17 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute(
-        """
-			INSERT INTO securities_types (type) VALUES 
-                ('equity'),
-                ('etf'),
-                ('etc'),
-                ('bond'),
-                ('mutualfund'),
-                ('crypto'),
-                ('index'),
-                ('commodity'),
-                ('option');
-		"""
+    seed_table_from_csv(
+        table_name="securities_types",
+        file_path="./seeds/securities_types.csv",
+        columns=[column("type", String), column("id", Integer)],
     )
 
 
 def downgrade() -> None:
     op.execute(
         """
+            --sql
 			TRUNCATE securities_types;
 		"""
     )
