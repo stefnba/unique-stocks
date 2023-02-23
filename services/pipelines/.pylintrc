@@ -1,0 +1,9 @@
+[MASTER]
+disable=
+    C0114, # missing-module-docstring
+    not-context-manager,
+    C0115, # missing-class-docstring
+    R0903, # too-few-public-methods
+    C0116, # missing-function-docstring
+extension-pkg-whitelist=
+    pydantic

@@ -1,6 +1,6 @@
 # Python setup with pipenv
 setup:
-	mkdir ./.venv && pipenv shell --python 3.11
+	mkdir ./.venv && pipenv shell --python 3.10
 install-dev:
 	pipenv install --dev
 packages-lock:
