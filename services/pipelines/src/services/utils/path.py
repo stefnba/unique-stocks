@@ -1,0 +1,40 @@
+from datetime import datetime
+
+
+def build_path(*args: str | list[str] | None) -> str:
+    """
+    Joins given arguments into an path or url. Slashes are
+    stripped for each argument.
+    """
+    def join(args: list[str]):
+        return "/".join(map(lambda x: str(x).strip("/"), [a for a in args if a is not None]))
+
+    # remove None
+    _args = [join(a) if isinstance(a, list) else a for a in args]
+    _args = [a for a in _args if a is not None]
+    print(_args)
+
+    return join(_args)
+
+
+def build_file_path(directory: str | list[str], filename: str, extension: str) -> str:
+    """
+    Builds a full file path from parent directory, filename and extension.
+    """
+    filename_with_ext = f'{filename.strip(".")}.{extension.lstrip(".")}'.strip("/")
+    return build_path(directory, filename_with_ext)
+
+
+def path_with_dateime(format: str = '%Y/%m/%d') -> str:
+    """
+    Helper function to build a path with current datetime.
+
+    Args:
+        format (str, optional): Format how the data should be returned. Defaults to '%Y/%m/%d'.
+
+    Returns:
+        str: Current datetime in specified format as string
+    """
+    now = datetime.now()
+    print(now)
+    return now.strftime(format)
