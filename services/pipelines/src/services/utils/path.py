@@ -9,7 +9,6 @@ def build_path(*args: str | list[str] | None) -> str:
     def join(args: list[str]):
         return "/".join(map(lambda x: str(x).strip("/"), [a for a in args if a is not None]))
 
-    # remove None
     _args = [join(a) if isinstance(a, list) else a for a in args]
     _args = [a for a in _args if a is not None]
     print(_args)
@@ -25,7 +24,7 @@ def build_file_path(directory: str | list[str], filename: str, extension: str) -
     return build_path(directory, filename_with_ext)
 
 
-def path_with_dateime(format: str = '%Y/%m/%d') -> str:
+def path_with_dateime(date_format: str = '%Y/%m/%d') -> str:
     """
     Helper function to build a path with current datetime.
 
@@ -36,5 +35,4 @@ def path_with_dateime(format: str = '%Y/%m/%d') -> str:
         str: Current datetime in specified format as string
     """
     now = datetime.now()
-    print(now)
-    return now.strftime(format)
+    return now.strftime(date_format)
