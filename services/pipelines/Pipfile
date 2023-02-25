@@ -18,6 +18,7 @@ flake8 = "*"
 pydantic = "*"
 isort = "*"
 mypy = "*"
+types-requests = "*"
 
 [requires]
 python_version = "3"
