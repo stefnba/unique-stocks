@@ -16,7 +16,8 @@ black = "*"
 pylint = "*"
 flake8 = "*"
 pydantic = "*"
+isort = "*"
+mypy = "*"
 
 [requires]
-python_version = "3.10"
-python_full_version = "3.10.10"
+python_version = "3"

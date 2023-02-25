@@ -3,7 +3,11 @@ from ..base import Api
 
 class IsoExchangesApi(Api):
     """
-    This International Standard specifies a universal method of identifying exchanges, trading platforms, regulated or non-regulated markets and trade reporting facilities as sources of prices and related information in order to facilitate automated processing. For more info, see https://www.iso20022.org/market-identifier-codes
+    This International Standard specifies a universal method of identifying exchanges,
+    trading platforms, regulated or non-regulated markets and trade reporting
+    facilities as sources of prices and related information in order to facilitate
+    automated processing. For more info,
+    see https://www.iso20022.org/market-identifier-codes
     """
 
     client_key = "IsoExchangesApi"
