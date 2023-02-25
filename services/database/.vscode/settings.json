@@ -1,14 +1,23 @@
 {
-    "editor.formatOnSave": false,
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": true
+    },
     "editor.defaultFormatter": "esbenp.prettier-vscode",
     "[python]": {
         "editor.defaultFormatter": null
     },
-    "python.formatting.blackArgs": ["--line-length", "120"],
     "python.defaultInterpreterPath": "./.venv/bin/python",
-    "python.linting.pylintPath": "./.venv/bin/pylint",
     "python.formatting.provider": "black",
+    "python.terminal.activateEnvironment": true,
     "python.analysis.typeCheckingMode": "basic",
-
-    "editor.indentSize": 4
+    "editor.indentSize": 4,
+    "python.linting.lintOnSave": true,
+    "python.linting.enabled": true,
+    "python.linting.mypyEnabled": true,
+    "python.linting.mypyPath": "./.venv/bin/mypy",
+    "python.linting.flake8Enabled": true,
+    "python.linting.flake8Path": "./.venv/bin/flake8",
+    "python.linting.pylintEnabled": true,
+    "python.linting.pylintPath": "./.venv/bin/pylint"
 }

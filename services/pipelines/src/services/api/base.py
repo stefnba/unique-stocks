@@ -1,13 +1,13 @@
 # pylint: disable=R0913:too-many-arguments
 import os
-from typing import Optional
 from io import BytesIO
+from typing import Optional
+
 import requests
-from requests.exceptions import Timeout, JSONDecodeError, HTTPError, TooManyRedirects
+from requests.exceptions import HTTPError, JSONDecodeError, Timeout, TooManyRedirects
 
 from ..utils.path import build_path
-from .types import RequestFileBytes, Methods, RequestFileDisk, RequestParams
-
+from .types import Methods, RequestFileBytes, RequestFileDisk, RequestParams
 
 
 class Api:
@@ -15,8 +15,8 @@ class Api:
     Base Class for calling APIs
     """
 
-    client_key = None
-    _base_url = None
+    client_key = str | None
+    _base_url = str | None
     _base_params = {}
     _base_headers = {}
 
@@ -29,11 +29,17 @@ class Api:
         json: Optional[dict] = None,
     ):
         response = self._make_request(
-            endpoint=endpoint, method=method, params=params, headers=headers, json=json, stream=True
+            endpoint=endpoint,
+            method=method,
+            params=params,
+            headers=headers,
+            json=json,
+            stream=True,
         )
         return response.text
 
-    def _download_file_to_bytes(self,
+    def _download_file_to_bytes(
+        self,
         endpoint: str,
         method: Methods = "GET",
         params: Optional[dict] = None,
@@ -43,16 +49,25 @@ class Api:
         """
         Make a request to and return downloaded file as bytes
         """
-        
+
         response = self._make_request(
-            endpoint=endpoint, method=method, params=params, headers=headers, json=json, stream=True
+            endpoint=endpoint,
+            method=method,
+            params=params,
+            headers=headers,
+            json=json,
+            stream=True,
         )
         filename, file_extension = os.path.splitext(endpoint)
         print(filename, file_extension)
         memory = BytesIO()
         memory.write(response.content)
 
-        return RequestFileBytes(content=memory.getbuffer().tobytes(), extension=file_extension, name=filename)
+        return RequestFileBytes(
+            content=memory.getbuffer().tobytes(),
+            extension=file_extension,
+            name=filename,
+        )
 
     def _download_file_to_disk(
         self,
@@ -67,15 +82,21 @@ class Api:
         Make a request to download a file and save it to disk
         """
         response = self._make_request(
-            endpoint=endpoint, method=method, params=params, headers=headers, json=json, stream=True
+            endpoint=endpoint,
+            method=method,
+            params=params,
+            headers=headers,
+            json=json,
+            stream=True,
         )
-        with open(file_destination, 'wb') as file:
-            for chunk in response.iter_content(chunk_size=8192): 
+        with open(file_destination, "wb") as file:
+            for chunk in response.iter_content(chunk_size=8192):
                 file.write(chunk)
         filename, file_extension = os.path.splitext(file_destination)
 
-        return RequestFileDisk(extension=file_extension, path=file_destination, name=filename)
-        
+        return RequestFileDisk(
+            extension=file_extension, path=file_destination, name=filename
+        )
 
     def _request_file(
         self,
@@ -86,7 +107,12 @@ class Api:
         json: Optional[dict] = None,
     ):
         response = self._make_request(
-            endpoint=endpoint, method=method, params=params, headers=headers, json=json, stream=True
+            endpoint=endpoint,
+            method=method,
+            params=params,
+            headers=headers,
+            json=json,
+            stream=True,
         )
         return response
 
@@ -111,7 +137,9 @@ class Api:
         Returns:
             _type_: _description_
         """
-        response = self._make_request(endpoint=endpoint, method=method, params=params, headers=headers, json=json)
+        response = self._make_request(
+            endpoint=endpoint, method=method, params=params, headers=headers, json=json
+        )
         try:
             return response.json()
         except JSONDecodeError:
@@ -145,7 +173,13 @@ class Api:
 
         try:
             response = requests.request(
-                method=method, params=params, url=url, headers=headers, timeout=(2, 5), json=json, stream=stream, 
+                method=method,
+                params=params,
+                url=url,
+                headers=headers,
+                timeout=(2, 5),
+                json=json,
+                stream=stream,
             )
 
             response.raise_for_status()

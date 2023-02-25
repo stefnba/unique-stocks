@@ -4,18 +4,20 @@ Learn more on:
 https://learn.microsoft.com/en-us/python/api/azure-storage-file-datalake/azure.storage.filedatalake.datalakeserviceclient?view=azure-python
 """
 
-from azure.core.paging import ItemPaged
-
 from azure.core.exceptions import ClientAuthenticationError, ResourceExistsError
+from azure.core.paging import ItemPaged
 from azure.storage.filedatalake import (
-    DataLakeServiceClient,
-    FileSystemClient,
     DataLakeDirectoryClient,
     DataLakeFileClient,
+    DataLakeServiceClient,
+    FileSystemClient,
     PathProperties,
 )
-from .base import AzureBaseClient
+
 from ..utils import build_path
+from .base import AzureBaseClient
+from .types import DataLakeFileUpload
+
 
 class AzureDataLakeClient(AzureBaseClient):
     """
@@ -36,7 +38,9 @@ class AzureDataLakeClient(AzureBaseClient):
 
         try:
             credential = self.auth()
-            self.service_client = DataLakeServiceClient(account_url=self.account_url, credential=credential)
+            self.service_client = DataLakeServiceClient(
+                account_url=self.account_url, credential=credential
+            )
         except ClientAuthenticationError as exception:
             print("dd", exception)
             raise
@@ -50,7 +54,9 @@ class AzureDataLakeClient(AzureBaseClient):
         Create file systems/containers and return file system client
         """
         try:
-            file_system_client = self.service_client.create_file_system(file_system=name)
+            file_system_client = self.service_client.create_file_system(
+                file_system=name
+            )
             self.file_system_client = file_system_client
             return file_system_client
 
@@ -62,7 +68,9 @@ class AzureDataLakeClient(AzureBaseClient):
         """
         Get a client to interact with the specified file system/container.
         """
-        file_system_client = self.service_client.get_file_system_client(file_system=name)
+        file_system_client = self.service_client.get_file_system_client(
+            file_system=name
+        )
         self.file_system_client = file_system_client
         return file_system_client
 
@@ -87,7 +95,9 @@ class AzureDataLakeClient(AzureBaseClient):
             if file_system_client is None:
                 file_system_client = self.file_system_client
             if file_system_client is None:
-                raise Exception("Directory cannot be created, no FileSystemClient provided.")
+                raise Exception(
+                    "Directory cannot be created, no FileSystemClient provided."
+                )
             directory_client = file_system_client.create_directory(name)
 
             return directory_client
@@ -96,13 +106,19 @@ class AzureDataLakeClient(AzureBaseClient):
             print(exception)
             raise exception
 
-    def list_directory_contents(self, file_system: str, directory: str | None = None) -> ItemPaged[PathProperties]:
+    def list_directory_contents(
+        self, file_system: str, directory: str | None = None
+    ) -> ItemPaged[PathProperties]:
         """
         List directory contents by calling the FileSystemClient.get_paths method.
         """
         try:
-            file_system_client = self.service_client.get_file_system_client(file_system=file_system)
-            paths: ItemPaged[PathProperties] = file_system_client.get_paths(path=directory)
+            file_system_client = self.service_client.get_file_system_client(
+                file_system=file_system
+            )
+            paths: ItemPaged[PathProperties] = file_system_client.get_paths(
+                path=directory
+            )
 
             for path in paths:
                 print(path.name)
@@ -126,7 +142,9 @@ class AzureDataLakeClient(AzureBaseClient):
         Download a file from the Data Lake.
         """
         try:
-            file_client = self.service_client.get_file_client(file_system=file_system, file_path=remote_file)
+            file_client = self.service_client.get_file_client(
+                file_system=file_system, file_path=remote_file
+            )
             downloadde_file = file_client.download_file()
             downloaded_bytes = downloadde_file.readall()
 
@@ -142,21 +160,26 @@ class AzureDataLakeClient(AzureBaseClient):
         Upload a file to the Data Lake.
         """
         try:
-            file_client = self.service_client.get_file_client(file_system=file_system, file_path=remote_file)
+            file_client = self.service_client.get_file_client(
+                file_system=file_system, file_path=remote_file
+            )
             file_client.create_file()
             file_client.upload_data(local_file, overwrite=True)
-        
+
         except Exception as exception:
             print(exception)
             raise exception
 
-
-    def upload_file(self, remote_file: str | list[str], file_system: str, local_file: str | bytes):
+    def upload_file(
+        self, remote_file: str | list[str], file_system: str, local_file: str | bytes
+    ) -> DataLakeFileUpload:
         """
         Upload a file to the Data Lake.
         """
         try:
-            file_client = self.service_client.get_file_client(file_system=file_system, file_path=build_path(remote_file))
+            file_client = self.service_client.get_file_client(
+                file_system=file_system, file_path=build_path(remote_file)
+            )
             file_client.create_file()
 
             file_contents = None
@@ -168,12 +191,22 @@ class AzureDataLakeClient(AzureBaseClient):
                 file_contents = local_file
 
             if file_contents is None:
-                raise Exception('adf')
+                raise Exception("adf")
 
-            file_client.append_data(data=file_contents, offset=0, length=len(file_contents))
+            file_client.append_data(
+                data=file_contents, offset=0, length=len(file_contents)
+            )
             file_client.flush_data(len(file_contents))
 
-            return file_client
+            print(file_client.__dict__)
+
+            return DataLakeFileUpload(
+                file_name="",
+                file_system=file_client.file_system_name,
+                file_extension="",
+                file_path=file_client.path_name,
+                storage_account=file_client.account_name,
+            )
 
         except Exception as exception:
             print(exception)

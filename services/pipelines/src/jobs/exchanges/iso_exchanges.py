@@ -14,5 +14,5 @@ def donwload_iso_exchange_list():
     remote_location = build_file_path(
         directory=["raw", "exchanges", path_with_dateime()], filename=f'{path_with_dateime("%Y%m%d-%H%M%S")}_{source}', extension=file.extension
     )
-    upload = client.upload_file(remote_file=remote_location, file_system="dev", local_file=file.content)
-    print(upload.__dict__)
+    uploaded_file = client.upload_file(remote_file=remote_location, file_system="dev", local_file=file.content)
+    print(uploaded_file)
