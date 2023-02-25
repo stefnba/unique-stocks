@@ -1,14 +1,14 @@
 import csv
-import json
-from sqlalchemy.sql import table
-from sqlalchemy.sql.elements import ColumnClause
-from typing import Type
 
 from alembic import op
+from sqlalchemy.sql import table
+from sqlalchemy.sql.elements import ColumnClause
+
 
 def seed_table_from_csv(file_path: str, table_name: str, columns: list[ColumnClause]):
     """
-    Populates a table from a .csv file. It's a workaround since PostgreSQL does not allow COPY command from a non-superuser.
+    Populates a table from a .csv file. It's a workaround since PostgreSQL does not
+    allow COPY command from a non-superuser.
 
     Args:
         file_path (str): Path the .csv file
@@ -18,7 +18,7 @@ def seed_table_from_csv(file_path: str, table_name: str, columns: list[ColumnCla
     db_rows = []
     with open(file_path, "r") as file:
         csv_reader = csv.DictReader(file)
-        
+
         for file_rows in csv_reader:
             db_rows.append(file_rows)
 
