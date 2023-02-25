@@ -11,7 +11,10 @@ psycopg2-binary = "*"
 [dev-packages]
 black = "*"
 pylint = "*"
+flake8 = "*"
+pydantic = "*"
+isort = "*"
+mypy = "*"
 
 [requires]
-python_version = "3.11"
-python_full_version = "3.11.1"
+python_version = "3"
