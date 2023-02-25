@@ -1,11 +1,11 @@
 #!make
 include .env
 
+# Python setup with pipenv
 ifeq ($(PY_VERSION),)
 PY_VERSION := 3.10
 endif
 
-# Python setup with pipenv
 setup:
 	mkdir ./.venv && pipenv shell --python ${PY_VERSION}
 install-dev:
