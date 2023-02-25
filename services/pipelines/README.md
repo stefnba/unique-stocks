@@ -1,18 +1,18 @@
-# Airflow
+# Pipelines
 
-## Setup
+## Getting Started
 
-Create and activate virtual enviornment (python)
+Create and activate virtual enviornment.
 
 ```bash
-conda create -p .conda python=3.10
-conda activate "$PWD/.conda"
+make setup
+
 ```
 
 Install packages
 
 ```bash
-make packages
+make install-dev
 ```
 
 Initialize containers
