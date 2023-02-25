@@ -7,7 +7,7 @@ import requests
 from requests.exceptions import HTTPError, JSONDecodeError, Timeout, TooManyRedirects
 
 from ..utils.path import build_path
-from .types import Methods, RequestFileBytes, RequestFileDisk, RequestParams
+from .types import Methods, RequestFileBytes, RequestFileDisk
 
 
 class Api:
@@ -15,10 +15,10 @@ class Api:
     Base Class for calling APIs
     """
 
-    client_key = str | None
-    _base_url = str | None
-    _base_params = {}
-    _base_headers = {}
+    client_key: str | None
+    _base_url: str | None
+    _base_params: dict = {}
+    _base_headers: dict = {}
 
     def _request_text(
         self,
