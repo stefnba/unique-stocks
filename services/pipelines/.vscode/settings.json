@@ -21,6 +21,7 @@
     "python.linting.pylintEnabled": true,
     "python.linting.pylintPath": "./.venv/bin/pylint",
     "files.exclude": {
-        "**/__pycache__": true
+        "**/__pycache__": true,
+        ".mypy_cache": true
     }
 }
