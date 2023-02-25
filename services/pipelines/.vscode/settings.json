@@ -19,5 +19,8 @@
     "python.linting.flake8Enabled": true,
     "python.linting.flake8Path": "./.venv/bin/flake8",
     "python.linting.pylintEnabled": true,
-    "python.linting.pylintPath": "./.venv/bin/pylint"
+    "python.linting.pylintPath": "./.venv/bin/pylint",
+    "files.exclude": {
+        "**/__pycache__": true
+    }
 }
