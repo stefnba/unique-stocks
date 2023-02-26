@@ -3,6 +3,7 @@ Interact with Azure Data Lake Gen 2 through the DataLakeServiceClient.
 Learn more on:
 https://learn.microsoft.com/en-us/python/api/azure-storage-file-datalake/azure.storage.filedatalake.datalakeserviceclient?view=azure-python
 """
+import os
 
 from azure.core.exceptions import ClientAuthenticationError, ResourceExistsError
 from azure.core.paging import ItemPaged
@@ -14,7 +15,8 @@ from azure.storage.filedatalake import (
     PathProperties,
 )
 
-from ..utils import build_path
+from utils import build_path
+
 from .base import AzureBaseClient
 from .types import DataLakeFileUpload
 
@@ -137,6 +139,27 @@ class AzureDataLakeClient(AzureBaseClient):
         self.file_client = file_client
         return file_client
 
+    def download_file_into_memory(self, file_system: str, remote_file: str):
+        """
+        Download a file from the Data Lake into memory.
+
+        Args:
+            file_system (str): Container
+            remote_file (str): Path to object within container
+        """
+        try:
+            file_client = self.service_client.get_file_client(
+                file_system=file_system, file_path=remote_file
+            )
+            downloadde_file = file_client.download_file()
+            downloaded_bytes = downloadde_file.readall()
+
+            return downloaded_bytes
+
+        except Exception as exception:
+            print(exception)
+            raise exception
+
     def download_file(self, file_system: str, remote_file: str, local_file_path: str):
         """
         Download a file from the Data Lake.
@@ -171,7 +194,10 @@ class AzureDataLakeClient(AzureBaseClient):
             raise exception
 
     def upload_file(
-        self, remote_file: str | list[str], file_system: str, local_file: str | bytes
+        self,
+        remote_file: str | list[str | None],
+        file_system: str,
+        local_file: str | bytes,
     ) -> DataLakeFileUpload:
         """
         Upload a file to the Data Lake.
@@ -198,12 +224,14 @@ class AzureDataLakeClient(AzureBaseClient):
             )
             file_client.flush_data(len(file_contents))
 
-            print(file_client.__dict__)
+            # print(file_client.__dict__)
+
+            file_name, file_extension = os.path.splitext(file_client.path_name)
 
             return DataLakeFileUpload(
-                file_name="",
+                file_name=file_name,
                 file_system=file_client.file_system_name,
-                file_extension="",
+                file_extension=file_extension.strip("."),
                 file_path=file_client.path_name,
                 storage_account=file_client.account_name,
             )
