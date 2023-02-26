@@ -10,7 +10,7 @@ class IsoExchangesApi(Api):
     see https://www.iso20022.org/market-identifier-codes
     """
 
-    client_key = "IsoExchangesApi"
+    client_key = "IsoExchanges"
     _base_url = "https://www.iso20022.org/sites/default/files/ISO10383_MIC/"
 
     @classmethod
