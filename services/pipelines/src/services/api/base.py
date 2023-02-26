@@ -1,12 +1,13 @@
 # pylint: disable=R0913:too-many-arguments
 import os
 from io import BytesIO
-from typing import Optional
+from typing import Optional, cast
 
 import requests
 from requests.exceptions import HTTPError, JSONDecodeError, Timeout, TooManyRedirects
 
-from ..utils.path import build_path
+from utils.path import build_path
+
 from .types import Methods, RequestFileBytes, RequestFileDisk
 
 
@@ -15,7 +16,7 @@ class Api:
     Base Class for calling APIs
     """
 
-    client_key: str | None
+    client_key: str
     _base_url: str | None
     _base_params: dict = {}
     _base_headers: dict = {}
@@ -59,7 +60,6 @@ class Api:
             stream=True,
         )
         filename, file_extension = os.path.splitext(endpoint)
-        print(filename, file_extension)
         memory = BytesIO()
         memory.write(response.content)
 
@@ -123,7 +123,7 @@ class Api:
         params: Optional[dict] = None,
         headers: Optional[dict] = None,
         json: Optional[dict] = None,
-    ):
+    ) -> dict:
         """
         Make a request to return json object
 
@@ -141,7 +141,7 @@ class Api:
             endpoint=endpoint, method=method, params=params, headers=headers, json=json
         )
         try:
-            return response.json()
+            return cast(dict, response.json())
         except JSONDecodeError:
             print("JSON not possible")
             raise
@@ -181,6 +181,8 @@ class Api:
                 json=json,
                 stream=stream,
             )
+
+            print(response.url)
 
             response.raise_for_status()
 
