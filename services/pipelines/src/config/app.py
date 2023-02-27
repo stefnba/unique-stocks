@@ -1,4 +1,8 @@
+from typing import Literal
+
 from pydantic import BaseModel
+
+Env = Literal["Production", "Development"]
 
 
 class AppConfig(BaseModel):
@@ -6,4 +10,4 @@ class AppConfig(BaseModel):
     Application configurations.
     """
 
-    test = 1
+    env: Env = "Development"
