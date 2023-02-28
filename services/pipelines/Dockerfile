@@ -1,6 +1,7 @@
 FROM apache/airflow:2.5.1-python3.10
 
 ARG AIRFLOW_HOME
+ARG AIRFLOW_PROJ_DIR
 
 USER root
 
@@ -16,4 +17,4 @@ RUN pip install psycopg2 --no-cache-dir --user
 
 WORKDIR $AIRFLOW_HOME
 
-COPY ./src/airflow/scripts/init.sh .
+COPY "$AIRFLOW_PROJ_DIR/scripts/init.sh" .
