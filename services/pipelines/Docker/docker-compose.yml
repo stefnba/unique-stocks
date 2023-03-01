@@ -22,6 +22,9 @@ x-airflow-common: &airflow-common
     depends_on: &airflow-common-depends-on
         airflow-postgres:
             condition: service_healthy
+    networks:
+        - unique-stocks-network
+        - default
 
 services:
     airflow-webserver:
@@ -59,3 +62,8 @@ services:
 
 volumes:
     airflow-postgres-data:
+
+networks:
+    unique-stocks-network:
+        name: unique-stocks-network
+        external: true
