@@ -3,6 +3,7 @@ version: '3.8'
 x-airflow-common: &airflow-common
     build:
         context: .
+        dockerfile: docker/Dockerfile
         args:
             AIRFLOW_HOME: ${AIRFLOW_HOME:-/app/airflow}
             AIRFLOW_PROJ_DIR: ${AIRFLOW_PROJ_DIR:-./pipelines}
