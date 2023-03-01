@@ -1,3 +1,5 @@
+# pylint: disable=W0106:expression-not-assigned
+# pyright: reportUnusedExpression=false
 from datetime import datetime
 
 
@@ -5,9 +7,6 @@ import requests
 from airflow import DAG
 from airflow.decorators import task
 from include.test import test
-
-
-# from test.test import test
 
 with DAG(
     dag_id="exchange_list",
@@ -72,8 +71,3 @@ with DAG(
         >> merge()
         >> load_db()
     )
-
-    # run_this = print_context()
-    # virtual_classic = task()
-
-    # run_this >> virtual_classic
