@@ -17,4 +17,4 @@ RUN pip install psycopg2 --no-cache-dir --user
 
 WORKDIR $AIRFLOW_HOME
 
-COPY "$AIRFLOW_PROJ_DIR/scripts/init.sh" .
+COPY "$AIRFLOW_PROJ_DIR/../scripts/airflow_init.sh" .

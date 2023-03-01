@@ -2,7 +2,7 @@ from config import config
 from services.api import IsoExchangesApi
 from services.azure import datalake_client
 
-from .utils import build_remote_location_exchange_list
+from .remote_locations import build_remote_location_exchange_list
 
 ApiClient = IsoExchangesApi
 
