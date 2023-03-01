@@ -17,6 +17,6 @@ install-prod:
 
 # Docker
 docker-up-prod:
-	docker compose -f docker/docker-compose.yml --project-directory . up -d --build --force-recreate
+	docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml --project-directory . up -d --build --force-recreate --remove-orphans
 docker-up:
-	docker compose -f docker/docker-compose.yml --project-directory . up -d --build --force-recreate
+	docker compose -f docker/docker-compose.yml --project-directory . up -d --build --force-recreate --remove-orphans
