@@ -12,6 +12,7 @@ from .remote_locations import (
 )
 
 ApiClient = EodHistoricalDataApi
+ASSET_SOURCE = ApiClient.client_key
 
 
 def download_details_for_exchanges():
@@ -28,8 +29,6 @@ def download_exchange_details(exchange: str):
     """
     Retrieves details for a given exchange
     """
-    # config
-    asset_source = ApiClient.client_key
 
     # api data
     exhange_details = ApiClient.get_exchange_details(exhange_code=exchange)
@@ -37,7 +36,7 @@ def download_exchange_details(exchange: str):
     # upload to datalake
     datalake_client.upload_file(
         remote_file=build_remote_location_exchange_details(
-            asset_source=asset_source,
+            asset_source=ASSET_SOURCE,
             file_extension="json",
             exchange=exchange,
         ),
@@ -51,8 +50,6 @@ def download_exchanges():
     Retrieves list of exchange from eodhistoricaldata.com and uploads
     into the Data Lake.
     """
-    # config
-    asset_source = ApiClient.client_key
 
     # api data
     exchanges_json = ApiClient.list_exhanges()
@@ -60,7 +57,7 @@ def download_exchanges():
     # upload to datalake
     uploaded_file = datalake_client.upload_file(
         remote_file=build_remote_location_exchange_list(
-            asset_source=asset_source, file_extension="json"
+            asset_source=ASSET_SOURCE, file_extension="json"
         ),
         file_system=config.azure.file_system,
         local_file=formats.convert_json_to_bytes(exchanges_json),
@@ -76,6 +73,8 @@ def transform_exchanges(file_path: str):
     Args:
         file_path (str): _description_
     """
+
+    # donwload file
     file_content = datalake_client.download_file_into_memory(
         file_system=config.azure.file_system, remote_file=file_path
     )
@@ -92,5 +91,13 @@ def transform_exchanges(file_path: str):
         }
     )
 
-    print(df.head())
-    print(json.loads(file_content))
+    # upload to datalake
+    uploaded_file = datalake_client.upload_file(
+        remote_file=build_remote_location_exchange_list(
+            asset_source=ASSET_SOURCE, file_extension="parquet"
+        ),
+        file_system=config.azure.file_system,
+        local_file=df.to_pandas().to_parquet(),
+    )
+
+    return uploaded_file.file_path
