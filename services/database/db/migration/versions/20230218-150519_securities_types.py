@@ -7,7 +7,10 @@ Create Date: 2023-02-18 15:05:19.593273
 
 """
 from alembic import op
+from sqlalchemy import Integer, String
+from sqlalchemy.sql import column
 
+from db.utils.seed import seed_table_from_csv
 
 # revision identifiers, used by Alembic.
 revision = "d96a65f24c8a"
@@ -28,6 +31,11 @@ def upgrade() -> None:
                 is_active BOOLEAN DEFAULT TRUE
             );
 		"""
+    )
+    seed_table_from_csv(
+        table_name="securities_types",
+        file_path="./db/seeds/securities_types.csv",
+        columns=[column("type", String), column("id", Integer)],
     )
 
 

@@ -8,10 +8,9 @@ Create Date: 2023-02-18 15:04:00.313749
 """
 from alembic import op
 
-
 # revision identifiers, used by Alembic.
 revision = "4bc5d460d52c"
-down_revision = 'd919d2929391'
+down_revision = "d919d2929391"
 branch_labels = None
 depends_on = None
 
@@ -31,7 +30,9 @@ def upgrade() -> None:
                 country CHAR(2) REFERENCES countries(id) NOT NULL,
                 currency CHAR(3) REFERENCES currencies(id) NOT NULL,
                 timezone INT REFERENCES timezones(id) NOT NULL,
-                is_active BOOLEAN DEFAULT TRUE,
+                valid_from timestamp without time zone,
+                valid_until timestamp without time zone,
+                is_current BOOLEAN DEFAULT FALSE,
                 created_at timestamp without time zone default (now() at time zone 'utc'),
                 updated_at timestamp without time zone,
                 enriched_at timestamp without time zone,

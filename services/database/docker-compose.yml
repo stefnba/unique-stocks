@@ -22,11 +22,12 @@ services:
             - ./db/scripts:/docker-entrypoint-initdb.d/
             - pg-data:/var/lib/postgresql/data/
         networks:
-            - unique-stocks-internal
+            - unique-stocks-network
 
 volumes:
     pg-data:
 
 networks:
-   unique-stocks-internal:
-        name: unique-stocks-internal
+    unique-stocks-network:
+        name: unique-stocks-network
+        external: true
