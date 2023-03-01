@@ -1,8 +1,8 @@
 import json
 
-from services.api import EodHistoricalDataApi
-from services.azure import datalake_client
-from utils import build_file_path, formats, path_with_dateime
+from include.services.api import EodHistoricalDataApi
+from include.services.azure import datalake_client
+from include.utils import build_file_path, formats, path_with_dateime
 
 
 def download_indices():

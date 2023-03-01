@@ -1,12 +1,11 @@
-# pylint: disable=W0106:expression-not-assigned
+# pylint: disable=W0106:expression-not-assigned, C0415:import-outside-toplevel
 # pyright: reportUnusedExpression=false
 from datetime import datetime
 
-
-import requests
 from airflow import DAG
 from airflow.decorators import task
-from include.test import test
+from include.jobs.exchanges.eod import download_exchanges
+
 
 with DAG(
     dag_id="exchange_list",
@@ -19,13 +18,8 @@ with DAG(
     @task()
     def ingest_eod():
         # test()
-        test()
-        r = requests.get(
-            "https://gist.githubusercontent.com/rnirmal/\
-                e01acfdaf54a6f9b24e91ba4cae63518/raw/\
-                    6b589a5c5a851711e20c5eb28f9d54742d1fe2dc/datasets.csv"
-        )
-        print(r.text)
+        raw_file = download_exchanges()
+        return raw_file
 
     @task()
     def transform_eod(**context):
