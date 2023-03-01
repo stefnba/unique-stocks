@@ -4,7 +4,6 @@ from datetime import datetime
 
 from airflow import DAG
 from airflow.decorators import task
-from include.jobs.exchanges.eod import download_exchanges
 
 
 with DAG(
@@ -17,19 +16,22 @@ with DAG(
 
     @task()
     def ingest_eod():
-        # test()
+        from include.jobs.exchanges.eod import download_exchanges
+
         raw_file = download_exchanges()
         return raw_file
 
     @task()
     def transform_eod(**context):
-        a = context["ti"].xcom_pull(task_ids="ingest_eod")
-        print("arg is", a)
+        file_path = context["ti"].xcom_pull(task_ids="ingest_eod")
+        print("arg is", file_path)
 
     @task()
     def ingest_iso():
-        test = "3333"
-        return test
+        from include.jobs.exchanges.iso import donwload_iso_exchange_list
+
+        raw_file = donwload_iso_exchange_list()
+        return raw_file
 
     @task()
     def transform_iso():
@@ -38,8 +40,10 @@ with DAG(
 
     @task()
     def ingest_marketstack():
-        test = "3333"
-        return test
+        from include.jobs.exchanges.market_stack import download_exchanges
+
+        raw_file = download_exchanges()
+        return raw_file
 
     @task()
     def transform_marketstack():
