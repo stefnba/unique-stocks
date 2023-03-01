@@ -8,3 +8,7 @@ disable=
 extension-pkg-whitelist=
     pydantic
 max-line-length = 88
+
+[HEADER]
+
+good-names=df

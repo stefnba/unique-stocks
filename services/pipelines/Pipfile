@@ -10,12 +10,12 @@ python-dotenv = "*"
 requests = "*"
 pandas = "*"
 polars = "*"
+pydantic = "*"
 
 [dev-packages]
 black = "*"
 pylint = "*"
 flake8 = "*"
-pydantic = "*"
 isort = "*"
 mypy = "*"
 types-requests = "*"
