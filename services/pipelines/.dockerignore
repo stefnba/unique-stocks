@@ -4,4 +4,5 @@
 # ... except for dependencies and source
 !Pipfile
 !Pipfile.lock
-!src/
+!pipelines/
+!scripts/

@@ -1,11 +1,12 @@
 import json
 
-from config import config
-from services.api import EodHistoricalDataApi
-from services.azure import datalake_client
-from utils import formats
+import polars as pl
+from include.config import config
+from include.services.api import EodHistoricalDataApi
+from include.services.azure import datalake_client
+from include.utils import formats
 
-from .utils import (
+from .remote_locations import (
     build_remote_location_exchange_details,
     build_remote_location_exchange_list,
 )
@@ -78,4 +79,18 @@ def transform_exchanges(file_path: str):
     file_content = datalake_client.download_file_into_memory(
         file_system=config.azure.file_system, remote_file=file_path
     )
+
+    df = pl.DataFrame(json.loads(file_content))
+    df = df[["Name", "Code", "OperatingMIC", "CountryISO2", "Currency"]]
+    df = df.rename(
+        {
+            "CountryISO2": "country",
+            "Name": "name",
+            "Currency": "currency",
+            "OperatingMIC": "mic_operating",
+            "Code": "code",
+        }
+    )
+
+    print(df.head())
     print(json.loads(file_content))

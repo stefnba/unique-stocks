@@ -4,19 +4,21 @@ x-airflow-common: &airflow-common
     build:
         context: .
         args:
-            AIRFLOW_HOME: ${AIRFLOW_HOME:-/opt/airflow}
-            AIRFLOW_PROJ_DIR: ${AIRFLOW_PROJ_DIR:-./src/airflow}
+            AIRFLOW_HOME: ${AIRFLOW_HOME:-/app/airflow}
+            AIRFLOW_PROJ_DIR: ${AIRFLOW_PROJ_DIR:-./pipelines}
     env_file:
         - .env
     environment: &airflow-common-env
         AIRFLOW__WEBSERVER__SECRET_KEY: adsfasldfo3o3oifoawdoifo23eklksdflkasdSIADFUIY#
-        AIRFLOW_HOME: ${AIRFLOW_HOME}
+        AIRFLOW_HOME: ${AIRFLOW_HOME:-/app/airflow}
         AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@airflow-postgres/${AIRFLOW_DB_NAME}
+        PYTHONPATH: /app/airflow # allow packages from outside dags folder
     user: '${AIRFLOW_UID:-50000}:0'
     volumes:
-        - ${AIRFLOW_PROJ_DIR:-./src/airflow}/dags:${AIRFLOW_HOME:-/opt/airflow}/dags
-        - ${AIRFLOW_PROJ_DIR:-./src/airflow}/logs:${AIRFLOW_HOME:-/opt/airflow}/logs
-        - ${AIRFLOW_PROJ_DIR:-./src/airflow}/plugins:${AIRFLOW_HOME:-/opt/airflow}/plugins
+        - ${AIRFLOW_PROJ_DIR:-./pipelines}/dags:${AIRFLOW_HOME:-/app/airflow}/dags
+        - ${AIRFLOW_PROJ_DIR:-./pipelines}/logs:${AIRFLOW_HOME:-/app/airflow}/logs
+        - ${AIRFLOW_PROJ_DIR:-./pipelines}/plugins:${AIRFLOW_HOME:-/app/airflow}/plugins
+        - ${AIRFLOW_PROJ_DIR:-./pipelines}/include:${AIRFLOW_HOME:-/app/airflow}/include
     depends_on: &airflow-common-depends-on
         # redis:
         #     condition: service_healthy
@@ -30,7 +32,7 @@ services:
             - airflow-postgres
         ports:
             - '8080:8080'
-        entrypoint: ${AIRFLOW_HOME}/init.sh
+        entrypoint: ${AIRFLOW_HOME:-/app/airflow}/airflow_init.sh
         restart: always
 
     airflow-scheduler:
