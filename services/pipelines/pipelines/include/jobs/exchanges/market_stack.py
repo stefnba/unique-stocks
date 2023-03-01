@@ -27,7 +27,7 @@ def download_exchanges():
         local_file=formats.convert_json_to_bytes(exchanges_json),
     )
 
-    return uploaded_file
+    return uploaded_file.file_path
 
 
 def transform_exchanges():

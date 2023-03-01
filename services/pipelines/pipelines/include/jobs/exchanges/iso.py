@@ -1,6 +1,6 @@
-from config import config
-from services.api import IsoExchangesApi
-from services.azure import datalake_client
+from include.config import config
+from include.services.api import IsoExchangesApi
+from include.services.azure import datalake_client
 
 from .remote_locations import build_remote_location_exchange_list
 
@@ -26,4 +26,4 @@ def donwload_iso_exchange_list():
         local_file=echange_file.content,
     )
 
-    return uploaded_file
+    return uploaded_file.file_path
