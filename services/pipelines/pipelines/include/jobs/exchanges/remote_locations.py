@@ -1,10 +1,9 @@
 from typing import Literal
 
+from include.utils import build_file_path, path_with_dateime
 from pydantic import BaseModel
 
-from include.utils import build_file_path, path_with_dateime
-
-FileExtTypes = Literal["csv", "json"]
+FileExtTypes = Literal["csv", "json", "parquet"]
 
 
 class Assets(BaseModel):
