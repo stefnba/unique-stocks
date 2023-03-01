@@ -6,7 +6,7 @@ from typing import Optional, cast
 import requests
 from requests.exceptions import HTTPError, JSONDecodeError, Timeout, TooManyRedirects
 
-from utils.path import build_path
+from include.utils.path import build_path
 
 from .types import Methods, RequestFileBytes, RequestFileDisk
 

@@ -15,7 +15,7 @@ from azure.storage.filedatalake import (
     PathProperties,
 )
 
-from utils import build_path
+from include.utils import build_path
 
 from .base import AzureBaseClient
 from .types import DataLakeFileUpload

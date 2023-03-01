@@ -1,6 +1,6 @@
-from config import config
+from include.config import config
 
-from .datalake_client import AzureDataLakeClient
+from include.services.azure.datalake_client import AzureDataLakeClient
 
 datalake_client = AzureDataLakeClient(config.azure.storage_account_url)
 
