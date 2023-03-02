@@ -4,6 +4,7 @@ Learn more on:
 https://learn.microsoft.com/en-us/python/api/azure-storage-file-datalake/azure.storage.filedatalake.datalakeserviceclient?view=azure-python
 """
 import os
+from typing import Type
 
 from azure.core.exceptions import ClientAuthenticationError, ResourceExistsError
 from azure.core.paging import ItemPaged
@@ -14,8 +15,10 @@ from azure.storage.filedatalake import (
     FileSystemClient,
     PathProperties,
 )
-
-from include.utils import build_path
+from include.utils.remote_location import (
+    DataLakeLocation,
+    translate_data_lake_location_into_string,
+)
 
 from .base import AzureBaseClient
 from .types import DataLakeFileUpload
@@ -195,7 +198,7 @@ class AzureDataLakeClient(AzureBaseClient):
 
     def upload_file(
         self,
-        remote_file: str | list[str | None],
+        remote_file: str | list[str | None] | Type[DataLakeLocation] | DataLakeLocation,
         file_system: str,
         local_file: str | bytes,
     ) -> DataLakeFileUpload:
@@ -204,7 +207,8 @@ class AzureDataLakeClient(AzureBaseClient):
         """
         try:
             file_client = self.service_client.get_file_client(
-                file_system=file_system, file_path=build_path(remote_file)
+                file_system=file_system,
+                file_path=translate_data_lake_location_into_string(remote_file),
             )
             file_client.create_file()
 

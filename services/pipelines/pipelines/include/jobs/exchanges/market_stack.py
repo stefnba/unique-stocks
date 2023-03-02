@@ -1,10 +1,9 @@
+import pandas as pd
 from include.config import config
+from include.jobs.exchanges.remote_locations import ExchangeListLocation
 from include.services.api import MarketStackApi
 from include.services.azure import datalake_client
 from include.utils import formats
-import pandas as pd
-
-from .remote_locations import build_remote_location_exchange_list
 
 ApiClient = MarketStackApi
 
@@ -22,7 +21,7 @@ def download_exchanges():
 
     # upload to datalake
     uploaded_file = datalake_client.upload_file(
-        remote_file=build_remote_location_exchange_list(asset_source=asset_source),
+        remote_file=ExchangeListLocation.raw(asset_source=asset_source),
         file_system=config.azure.file_system,
         local_file=formats.convert_json_to_bytes(exchanges_json),
     )

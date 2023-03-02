@@ -18,11 +18,13 @@ def build_path(*args: str | list[str | None] | None) -> str:
 
 
 def build_file_path(
-    directory: str | list[str | None], filename: str, extension: str
+    directory: str | list[str | None], filename: str | list[str | None], extension: str
 ) -> str:
     """
     Builds a full file path from parent directory, filename and extension.
     """
+    if isinstance(filename, list):
+        filename = "_".join([f for f in filename if f is not None])
     filename_with_ext = f'{filename.strip().strip(".")}.{extension.lstrip(".")}'.strip(
         "/"
     )

@@ -1,65 +1,77 @@
-from typing import Literal
+from dataclasses import dataclass
+from typing import Literal, Optional
 
-from include.utils import build_file_path, path_with_dateime
-from pydantic import BaseModel
-
-FileExtTypes = Literal["csv", "json", "parquet"]
+from include.utils import DataLakeLocation
 
 
-class Assets(BaseModel):
-    asset = "exchange_list"
-
-
-def build_remote_location_exchange_list(
-    asset_source: str, file_extension: FileExtTypes = "csv"
-):
-    """
-    Builds remote location for exchange list files
-
-    Args:
-        asset_source (str): _description_
-        file_extension (FileExtTypes, optional): Format of file to save.
-        Defaults to "csv".
-
-    Returns:
-        _type_: _description_
-    """
+@dataclass
+class ExchangeListLocation(DataLakeLocation):
     asset_category = "exchanges"
     asset = "exchange_list"
+    asset_source: Optional[str] = None
+    stage: Optional[Literal["raw", "processed"]] = None
 
-    return build_file_path(
-        directory=["raw", asset_category, asset, asset_source, path_with_dateime("%Y")],
-        filename=f'{path_with_dateime("%Y%m%d")}_{asset_source}_{asset}',
-        extension=file_extension,
-    )
+    def build_location(self):
+        self.directory = [
+            self.asset_category,
+            self.asset,
+            self.stage,
+            self.asset_source,
+            self.datetime_path("%Y"),
+        ]
+        self.file_name = [
+            self.datetime_path("%Y%m%d"),
+            self.asset_source,
+            self.asset,
+            self.stage,
+        ]
+        self.file_extension = "parquet"
+
+    @classmethod
+    def raw(cls, asset_source: str):
+        location = cls(stage="raw", asset_source=asset_source)
+        location.file_extension = "csv"
+        return location
+
+    @classmethod
+    def processed(cls, asset_source: str):
+        location = cls(stage="processed", asset_source=asset_source)
+        return location
 
 
-def build_remote_location_exchange_details(
-    asset_source: str, exchange: str, file_extension: FileExtTypes = "csv"
-):
-    """_summary_
-
-    Args:
-        asset_source (str): _description_
-        exchange (str): _description_
-        file_extension (FileExtTypes, optional): _description_. Defaults to "csv".
-
-    Returns:
-        _type_: _description_
-    """
+@dataclass
+class ExchangeDetailLocation(DataLakeLocation):
     asset_category = "exchanges"
-    asset = "exchange_details"
+    asset = "exchange_list"
+    asset_source: Optional[str] = None
+    exchange: Optional[str] = None
+    stage: Optional[Literal["raw", "processed"]] = None
 
-    return build_file_path(
-        directory=[
+    def build_location(self):
+        self.directory = [
             "raw",
-            asset_category,
-            asset,
-            asset_source,
-            exchange,
-            path_with_dateime("%Y"),
-        ],
-        filename=f'\
-            {path_with_dateime("%Y%m%d")}_{asset_source}_{exchange}_{asset}',
-        extension=file_extension,
-    )
+            self.asset_category,
+            self.asset,
+            self.stage,
+            self.asset_source,
+            self.exchange,
+            self.datetime_path("%Y"),
+        ]
+        self.file_name = [
+            self.datetime_path("%Y%m%d"),
+            self.asset_source,
+            self.exchange,
+            self.asset,
+            self.stage,
+        ]
+        self.file_extension = "parquet"
+
+    @classmethod
+    def raw(cls, asset_source: str, exchange: str):
+        location = cls(stage="raw", asset_source=asset_source, exchange=exchange)
+        location.file_extension = "csv"
+        return location
+
+    @classmethod
+    def processed(cls, asset_source: str, exchange: str):
+        return cls(stage="processed", asset_source=asset_source, exchange=exchange)
