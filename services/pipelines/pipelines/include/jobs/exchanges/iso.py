@@ -1,8 +1,7 @@
 from include.config import config
+from include.jobs.exchanges.remote_locations import ExchangeListLocation
 from include.services.api import IsoExchangesApi
 from include.services.azure import datalake_client
-
-from .remote_locations import build_remote_location_exchange_list
 
 ApiClient = IsoExchangesApi
 
@@ -21,7 +20,7 @@ def donwload_iso_exchange_list():
 
     # datalake destination
     uploaded_file = datalake_client.upload_file(
-        remote_file=build_remote_location_exchange_list(asset_source=asset_source),
+        remote_file=ExchangeListLocation.raw(asset_source=asset_source),
         file_system=config.azure.file_system,
         local_file=echange_file.content,
     )

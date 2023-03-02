@@ -6,10 +6,7 @@ from include.services.api import EodHistoricalDataApi
 from include.services.azure import datalake_client
 from include.utils import formats
 
-from .remote_locations import (
-    build_remote_location_exchange_details,
-    build_remote_location_exchange_list,
-)
+from .remote_locations import ExchangeDetailLocation, ExchangeListLocation
 
 ApiClient = EodHistoricalDataApi
 ASSET_SOURCE = ApiClient.client_key
@@ -35,10 +32,8 @@ def download_exchange_details(exchange: str):
 
     # upload to datalake
     datalake_client.upload_file(
-        remote_file=build_remote_location_exchange_details(
-            asset_source=ASSET_SOURCE,
-            file_extension="json",
-            exchange=exchange,
+        remote_file=ExchangeDetailLocation.raw(
+            asset_source=ASSET_SOURCE, exchange=exchange
         ),
         file_system=config.azure.file_system,
         local_file=formats.convert_json_to_bytes(exhange_details),
@@ -56,9 +51,7 @@ def download_exchanges():
 
     # upload to datalake
     uploaded_file = datalake_client.upload_file(
-        remote_file=build_remote_location_exchange_list(
-            asset_source=ASSET_SOURCE, file_extension="json"
-        ),
+        remote_file=ExchangeListLocation.raw(asset_source=ASSET_SOURCE),
         file_system=config.azure.file_system,
         local_file=formats.convert_json_to_bytes(exchanges_json),
     )
@@ -93,9 +86,7 @@ def transform_exchanges(file_path: str):
 
     # upload to datalake
     uploaded_file = datalake_client.upload_file(
-        remote_file=build_remote_location_exchange_list(
-            asset_source=ASSET_SOURCE, file_extension="parquet"
-        ),
+        remote_file=ExchangeListLocation.processed(asset_source=ASSET_SOURCE),
         file_system=config.azure.file_system,
         local_file=df.to_pandas().to_parquet(),
     )
