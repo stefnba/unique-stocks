@@ -1,4 +1,5 @@
 # pylint: disable=W0106:expression-not-assigned, C0415:import-outside-toplevel
+# pylint: disable=W0106:expression-not-assigned, C0415:import-outside-toplevel
 # pyright: reportUnusedExpression=false
 from datetime import datetime
 
@@ -67,7 +68,7 @@ with DAG(
     (
         [
             ingest_eod() >> transform_eod(),
-            # ingest_iso() >> transform_iso(),
+            ingest_iso() >> transform_iso(),
             # ingest_marketstack() >> transform_marketstack(),
         ]
         >> merge()
