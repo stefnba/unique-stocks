@@ -28,6 +28,8 @@ RUN pip install pipenv
 RUN pip uninstall psycopg2-binary -y
 RUN pip install psycopg2 --no-cache-dir --user
 
+RUN pip install apache-airflow[crypto] --no-cache-dir --user
+
 WORKDIR $AIRFLOW_HOME
 
 # Install python dependencies
