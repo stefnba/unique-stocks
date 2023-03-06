@@ -42,14 +42,13 @@ class ExchangeListLocation(DataLakeLocation):
 @dataclass
 class ExchangeDetailLocation(DataLakeLocation):
     asset_category = "exchanges"
-    asset = "exchange_list"
+    asset = "exchange_detail"
     asset_source: Optional[str] = None
     exchange: Optional[str] = None
     stage: Optional[Literal["raw", "processed"]] = None
 
     def build_location(self):
         self.directory = [
-            "raw",
             self.asset_category,
             self.asset,
             self.stage,
