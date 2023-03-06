@@ -19,7 +19,7 @@ x-airflow-common: &airflow-common
         - ${AIRFLOW_PROJ_DIR:-./pipelines}/dags:${AIRFLOW_HOME:-/app/airflow}/dags
         - ${AIRFLOW_PROJ_DIR:-./pipelines}/logs:${AIRFLOW_HOME:-/app/airflow}/logs
         - ${AIRFLOW_PROJ_DIR:-./pipelines}/plugins:${AIRFLOW_HOME:-/app/airflow}/plugins
-        - ${AIRFLOW_PROJ_DIR:-./pipelines}/include:${AIRFLOW_HOME:-/app/airflow}/include
+        - ${AIRFLOW_PROJ_DIR:-./pipelines}/services:${AIRFLOW_HOME:-/app/airflow}/services
     depends_on: &airflow-common-depends-on
         airflow-redis:
             condition: service_healthy

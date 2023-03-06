@@ -1,10 +1,10 @@
-import include.jobs.exchanges.market_stack as market_stack
-from include.jobs.exchanges.eod import (
+import services.jobs.exchanges.market_stack as market_stack
+from services.jobs.exchanges.eod import (
     download_details_for_exchanges,
     download_exchanges,
     transform_exchanges,
 )
-from include.jobs.exchanges.iso import donwload_iso_exchange_list
+from services.jobs.exchanges.iso import donwload_iso_exchange_list
 
 
 def main():
