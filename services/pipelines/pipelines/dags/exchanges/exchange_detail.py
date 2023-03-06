@@ -21,7 +21,7 @@ with DAG(
 
     @task()
     def ingest_eod(**context: TaskInstance):
-        from include.jobs.exchanges.eod import download_details_for_exchanges
+        from services.jobs.exchanges.eod import download_details_for_exchanges
 
         exchanges = context["ti"].xcom_pull(task_ids="extract_list_exhanges_eod")
 
@@ -30,7 +30,7 @@ with DAG(
 
     @task()
     def transform_eod(**context: TaskInstance):
-        # from include.jobs.exchanges.eod import transform_exchanges
+        # from services.jobs.exchanges.eod import transform_exchanges
 
         file_path: str = context["ti"].xcom_pull()
         print(file_path)

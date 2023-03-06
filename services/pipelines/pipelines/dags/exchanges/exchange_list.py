@@ -17,14 +17,14 @@ with DAG(
 
     @task()
     def ingest_eod():
-        from include.jobs.exchanges.eod import download_exchanges
+        from services.jobs.exchanges.eod import download_exchanges
 
         raw_file = download_exchanges()
         return raw_file
 
     @task()
     def transform_eod(**context: TaskInstance):
-        from include.jobs.exchanges.eod import transform_exchanges
+        from services.jobs.exchanges.eod import transform_exchanges
 
         file_path: str = context["ti"].xcom_pull(task_ids="ingest_eod")
 
@@ -33,7 +33,7 @@ with DAG(
 
     @task()
     def ingest_iso():
-        from include.jobs.exchanges.iso import donwload_iso_exchange_list
+        from services.jobs.exchanges.iso import donwload_iso_exchange_list
 
         raw_file = donwload_iso_exchange_list()
         return raw_file
@@ -45,7 +45,7 @@ with DAG(
 
     @task()
     def ingest_marketstack():
-        from include.jobs.exchanges.market_stack import download_exchanges
+        from services.jobs.exchanges.market_stack import download_exchanges
 
         raw_file = download_exchanges()
         return raw_file
