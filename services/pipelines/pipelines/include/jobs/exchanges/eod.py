@@ -12,14 +12,15 @@ ApiClient = EodHistoricalDataApi
 ASSET_SOURCE = ApiClient.client_key
 
 
-def download_details_for_exchanges():
+def download_details_for_exchanges(exchange_list: list[str]):
     """
-    Takes a list of exchanges, iterates over them to get exchange details
+    Takes a list of exchanges, iterates over them to call exchange details
     """
-    exchange_list = ["US", "LSE", "XNAS"]
-
+    exchange_detail_paths = []
     for exchange in exchange_list:
-        download_exchange_details(exchange)
+        exchange_detail_paths.append(download_exchange_details(exchange))
+
+    return exchange_detail_paths
 
 
 def download_exchange_details(exchange: str):
@@ -31,13 +32,14 @@ def download_exchange_details(exchange: str):
     exhange_details = ApiClient.get_exchange_details(exhange_code=exchange)
 
     # upload to datalake
-    datalake_client.upload_file(
+    uploaded_file = datalake_client.upload_file(
         remote_file=ExchangeDetailLocation.raw(
             asset_source=ASSET_SOURCE, exchange=exchange
         ),
         file_system=config.azure.file_system,
         local_file=formats.convert_json_to_bytes(exhange_details),
     )
+    return uploaded_file.file_path
 
 
 def download_exchanges():

@@ -13,12 +13,12 @@ class EodHistoricalDataApi(Api):
     _base_params = {"api_token": config.api_keys.eod_historical_data, "fmt": "json"}
 
     @classmethod
-    def list_exhanges(cls):
+    def list_exhanges(cls) -> dict:
         """
-
+        Get list of all supported exchanges
 
         Returns:
-            _type_: _description_
+            dict: JSON of exchanges
         """
 
         endpoint = "/exchanges-list"
@@ -26,7 +26,7 @@ class EodHistoricalDataApi(Api):
         return api.request_json(endpoint)
 
     @classmethod
-    def list_securities_of_exhanges(cls, exhange_code: str):
+    def list_securities_of_exhanges(cls, exhange_code: str) -> dict:
         """_summary_
 
         By default, this API provides only tickers that were active at least a month
@@ -38,7 +38,7 @@ class EodHistoricalDataApi(Api):
             eodhistoricaldata.com
 
         Returns:
-            _type_: _description_
+            dict: JSON of exchanges
         """
 
         endpoint = "exchange-symbol-list/"
@@ -46,8 +46,8 @@ class EodHistoricalDataApi(Api):
         return api.request_json(f"{endpoint}/{exhange_code}")
 
     @classmethod
-    def get_exchange_details(cls, exhange_code: str):
-        """_summary_
+    def get_exchange_details(cls, exhange_code: str) -> dict:
+        """
 
         Args:
             exhange_code (str): Identifying code of exhange as specified on
