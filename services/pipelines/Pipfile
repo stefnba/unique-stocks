@@ -11,6 +11,7 @@ requests = "*"
 pandas = "*"
 polars = "*"
 pydantic = "*"
+pyarrow = "*"
 
 [dev-packages]
 black = "*"
