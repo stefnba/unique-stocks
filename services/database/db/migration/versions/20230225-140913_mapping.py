@@ -26,7 +26,8 @@ def upgrade() -> None:
         CREATE TABLE IF NOT EXISTS mapping (
             id SERIAL4 PRIMARY KEY,
             source VARCHAR NOT NULL,
-            asset VARCHAR NOT NULL,
+            product VARCHAR NOT NULL,
+            field VARCHAR NOT NULL,
             source_value VARCHAR NOT NULL,
             app_value VARCHAR NOT NULL,
             is_seed BOOLEAN,
@@ -39,7 +40,9 @@ def upgrade() -> None:
         --sql
         CREATE INDEX IF NOT EXISTS source_idx ON mapping(source);
         --sql
-        CREATE INDEX IF NOT EXISTS asset_idx ON mapping(asset);
+        CREATE INDEX IF NOT EXISTS field_idx ON mapping(field);
+        --sql
+        CREATE INDEX IF NOT EXISTS product_idx ON mapping(product);
         --sql
         CREATE INDEX IF NOT EXISTS source_value_idx ON mapping(source_value);
         --sql
@@ -52,7 +55,8 @@ def upgrade() -> None:
         columns=[
             column("id", Integer),
             column("source", String),
-            column("asset", Integer),
+            column("product", String),
+            column("field", String),
             column("source_value", Integer),
             column("app_value", Integer),
             column(
