@@ -23,25 +23,38 @@ def upgrade() -> None:
                 id SERIAL4 PRIMARY KEY,
                 name VARCHAR NOT NULL,
                 acronym VARCHAR,
-                code VARCHAR NOT NULL,
-                mic VARCHAR NOT NULL,
+                app_id VARCHAR NOT NULL,
+                source_code VARCHAR,
+                mic VARCHAR,
                 website VARCHAR,
-                city VARCHAR NOT NULL,
-                country CHAR(2) REFERENCES countries(id) NOT NULL,
-                currency CHAR(3) REFERENCES currencies(id) NOT NULL,
-                timezone INT REFERENCES timezones(id) NOT NULL,
+                city VARCHAR,
+                country CHAR(2) REFERENCES countries(id),
+                currency CHAR(3) REFERENCES currencies(id),
+                timezone INT REFERENCES timezones(id),
                 valid_from timestamp without time zone,
                 valid_until timestamp without time zone,
                 is_current BOOLEAN DEFAULT FALSE,
                 created_at timestamp without time zone default (now() at time zone 'utc'),
                 updated_at timestamp without time zone,
-                enriched_at timestamp without time zone,
-                enrichment_source VARCHAR
+                --enriched_at timestamp without time zone,
+                --enrichment_source VARCHAR,
+                is_virtual BOOLEAN DEFAULT FALSE,
+                source VARCHAR NOT NULL
             );
             --sql
-            CREATE UNIQUE INDEX IF NOT EXISTS code_unique_idx ON exchanges(code);
+            CREATE UNIQUE INDEX IF NOT EXISTS source_code_unique_idx ON exchanges(source_code);
+            --sql
+            CREATE UNIQUE INDEX IF NOT EXISTS app_id_unique_idx ON exchanges(app_id);
             --sql
             CREATE UNIQUE INDEX IF NOT EXISTS mic_unique_idx ON exchanges(mic);
+            --sql
+            COMMENT ON COLUMN exchanges.mic is 'Official MIC of exchange';
+            --sql
+            COMMENT ON COLUMN exchanges.app_id is 'Unique identifiert used by unique-stocks to identify exchanges';
+            --sql
+            COMMENT ON COLUMN exchanges.source_code is 'Identifiert used by an API that different from official MIC';
+            --sql
+            COMMENT ON COLUMN exchanges.is_virtual is 'Some API provide additional "virtual" exchanges as a bucket for funds, cryptos, etc.';
 		"""
     )
 

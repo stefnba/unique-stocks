@@ -27,8 +27,8 @@ def upgrade() -> None:
             id SERIAL4 PRIMARY KEY,
             source VARCHAR NOT NULL,
             asset VARCHAR NOT NULL,
-            original_value VARCHAR NOT NULL,
-            translation_value VARCHAR NOT NULL,
+            source_value VARCHAR NOT NULL,
+            app_value VARCHAR NOT NULL,
             is_seed BOOLEAN,
             created_at timestamp without time zone default (now() at time zone 'utc') NOT NULL,
             updated_at timestamp without time zone,
@@ -41,9 +41,9 @@ def upgrade() -> None:
         --sql
         CREATE INDEX IF NOT EXISTS asset_idx ON mapping(asset);
         --sql
-        CREATE INDEX IF NOT EXISTS original_value_idx ON mapping(original_value);
+        CREATE INDEX IF NOT EXISTS source_value_idx ON mapping(source_value);
         --sql
-        CREATE INDEX IF NOT EXISTS translation_value_idx ON mapping(translation_value);
+        CREATE INDEX IF NOT EXISTS app_value_idx ON mapping(app_value);
         """
     )
     seed_table_from_csv(
@@ -53,8 +53,8 @@ def upgrade() -> None:
             column("id", Integer),
             column("source", String),
             column("asset", Integer),
-            column("original_value", Integer),
-            column("translation_value", Integer),
+            column("source_value", Integer),
+            column("app_value", Integer),
             column(
                 "is_seed",
                 String,
