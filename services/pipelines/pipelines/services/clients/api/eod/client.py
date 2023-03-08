@@ -8,8 +8,21 @@ class EodHistoricalDataApiClient(ApiHook):
     """
 
     client_key = "EodHistoricalData"
-    _base_url = "https://eodhistoricaldata.com/api"
+    client_key_short = "eod"
 
+    virtual_exchanges = [
+        "BOND",
+        "CC",
+        "FOREX",
+        "MONEY",
+        "EUFUND",
+        "GBOND",
+        "EUBOND",
+        "MCX",
+    ]
+    exchanges_drop = ["IL", "VX"]
+
+    _base_url = "https://eodhistoricaldata.com/api"
     _base_params = {"api_token": config.api_keys.eod_historical_data, "fmt": "json"}
 
     @classmethod

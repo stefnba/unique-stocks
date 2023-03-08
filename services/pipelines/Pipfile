@@ -12,6 +12,7 @@ pandas = "*"
 polars = "*"
 pydantic = "*"
 pyarrow = "*"
+duckdb = "*"
 
 [dev-packages]
 black = "*"
