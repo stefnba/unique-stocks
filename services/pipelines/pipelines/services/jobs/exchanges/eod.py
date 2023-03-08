@@ -1,5 +1,6 @@
-import json
+import io
 
+import duckdb
 import polars as pl
 from services.clients.api.eod.client import EodHistoricalDataApiClient
 from services.clients.data_lake.azure_data_lake import datalake_client
@@ -46,7 +47,7 @@ class EodExchangeJobs:
         return uploaded_file.file_path
 
     @staticmethod
-    def download_exchanges():
+    def download_exchange_list():
         """
         Retrieves list of exchange from eodhistoricaldata.com and uploads
         into the Data Lake.
@@ -57,7 +58,9 @@ class EodExchangeJobs:
 
         # upload to datalake
         uploaded_file = datalake_client.upload_file(
-            remote_file=ExchangeListLocation.raw(asset_source=ASSET_SOURCE),
+            remote_file=ExchangeListLocation.raw(
+                asset_source=ASSET_SOURCE, file_extension="json"
+            ),
             file_system=config.azure.file_system,
             local_file=formats.convert_json_to_bytes(exchanges_json),
         )
@@ -65,7 +68,7 @@ class EodExchangeJobs:
         return uploaded_file.file_path
 
     @staticmethod
-    def transform_exchanges(file_path: str):
+    def process_raw_exchange_list(file_path: str):
         """
         File content is in JSON format.
 
@@ -78,23 +81,76 @@ class EodExchangeJobs:
             file_system=config.azure.file_system, remote_file=file_path
         )
 
-        df = pl.DataFrame(json.loads(file_content))
-        df = df[["Name", "Code", "OperatingMIC", "CountryISO2", "Currency"]]
-        df = df.rename(
-            {
-                "CountryISO2": "country",
-                "Name": "name",
-                "Currency": "currency",
-                "OperatingMIC": "mic_operating",
-                "Code": "code",
-            }
+        df_exchanges = pl.read_json(io.BytesIO(file_content))
+
+        df_exchanges = df_exchanges.with_columns(
+            [
+                pl.when(pl.col(pl.Utf8) == "Unknown")
+                .then(None)
+                .otherwise(pl.col(pl.Utf8))
+                .keep_name(),
+                pl.lit(ASSET_SOURCE).alias("data_source"),
+            ]
+        )
+        df_exchanges = df_exchanges.with_columns(
+            [
+                pl.when(pl.col(pl.Utf8).str.lengths() == 0)
+                .then(None)
+                .otherwise(pl.col(pl.Utf8))
+                .keep_name(),
+            ]
+        )
+        base_table = duckdb.execute(
+            """
+        --sql
+            SELECT
+                    string_split(OperatingMIC, ',') AS mic,
+                    Name AS name,
+                    NULL AS acronym,
+                    Currency AS currency,
+                    NULL AS city,
+                    CountryISO2 as country,
+                    NULL AS website,
+                    NULL AS timezone,
+                    data_source,
+                    Code AS source_code,
+                    list_contains($1, source_code) as is_virtual,
+                FROM
+                    df_exchanges
+                WHERE
+                    NOT(list_contains($2, source_code));
+        """,
+            [API_CLIENT.virtual_exchanges, API_CLIENT.exchanges_drop],
+        ).pl()
+
+        processed = duckdb.sql(
+            """
+            --sql
+            SELECT
+                COALESCE(trim(mic[1]), source_code) app_id,
+                trim(mic[1]) mic,
+                * EXCLUDE (mic)
+            FROM
+                base_table
+            UNION
+            SELECT
+                COALESCE(trim(mic[2]), source_code) app_id,
+                trim(mic[2]) mic,
+                * EXCLUDE (mic)
+            FROM
+                base_table
+            WHERE
+                source_code == 'US';
+        """
         )
 
-        # upload to datalake
+        parquet_file = processed.df().to_parquet()
+
+        # datalake destination
         uploaded_file = datalake_client.upload_file(
             remote_file=ExchangeListLocation.processed(asset_source=ASSET_SOURCE),
             file_system=config.azure.file_system,
-            local_file=df.to_pandas().to_parquet(),
+            local_file=parquet_file,
         )
 
         return uploaded_file.file_path

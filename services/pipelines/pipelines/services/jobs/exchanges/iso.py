@@ -32,7 +32,7 @@ class IsoExchangeJobs:
         return uploaded_file.file_path
 
     @staticmethod
-    def process_raw(file_path: str):
+    def process_raw_exchange_list(file_path: str):
         """_summary_
 
         Args:

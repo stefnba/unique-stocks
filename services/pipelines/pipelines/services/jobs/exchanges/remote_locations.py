@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Literal, Optional
 
 from services.utils import DataLakeLocation
+from services.utils.remote_location import FileExtTypes
 
 
 @dataclass
@@ -28,9 +29,9 @@ class ExchangeListLocation(DataLakeLocation):
         self.file_extension = "parquet"
 
     @classmethod
-    def raw(cls, asset_source: str):
+    def raw(cls, asset_source: str, file_extension: FileExtTypes = "csv"):
         location = cls(stage="raw", asset_source=asset_source)
-        location.file_extension = "csv"
+        location.file_extension = file_extension
         return location
 
     @classmethod
