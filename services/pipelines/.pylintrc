@@ -7,7 +7,7 @@ disable=
     C0116, # missing-function-docstring
 extension-pkg-whitelist=
     pydantic
-max-line-length = 88
+max-line-length = 120
 
 [HEADER]
 
