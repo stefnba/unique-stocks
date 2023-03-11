@@ -1,4 +1,4 @@
-from services.hooks.azure.data_lake import AzureDataLakeHook
+from services.hooks.azure.datalake import AzureDataLakeHook
 
 __all__ = [
     "AzureDataLakeHook",
