@@ -1,7 +1,7 @@
 import json
 
 
-def convert_json_to_bytes(json_input: dict | str, encoding="utf-8"):
+def json_to_bytes(json_input: dict | str, encoding="utf-8") -> bytes:
     """
     Converts JSON object to bytes that can be used for file uploads.
 
