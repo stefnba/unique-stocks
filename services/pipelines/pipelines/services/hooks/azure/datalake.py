@@ -15,10 +15,7 @@ from azure.storage.filedatalake import (
     FileSystemClient,
     PathProperties,
 )
-from services.utils.remote_location import (
-    DataLakeLocation,
-    translate_data_lake_location_into_string,
-)
+from services.utils.path.datalake_path_builder import DataLakePathBuilder, translate_datalake_path_into_string
 
 from .base import AzureBaseClient
 from .types import DataLakeFileUpload
@@ -43,9 +40,7 @@ class AzureDataLakeHook(AzureBaseClient):
 
         try:
             credential = self.auth()
-            self.service_client = DataLakeServiceClient(
-                account_url=self.account_url, credential=credential
-            )
+            self.service_client = DataLakeServiceClient(account_url=self.account_url, credential=credential)
         except ClientAuthenticationError as exception:
             print("dd", exception)
             raise
@@ -59,9 +54,7 @@ class AzureDataLakeHook(AzureBaseClient):
         Create file systems/containers and return file system client
         """
         try:
-            file_system_client = self.service_client.create_file_system(
-                file_system=name
-            )
+            file_system_client = self.service_client.create_file_system(file_system=name)
             self.file_system_client = file_system_client
             return file_system_client
 
@@ -73,9 +66,7 @@ class AzureDataLakeHook(AzureBaseClient):
         """
         Get a client to interact with the specified file system/container.
         """
-        file_system_client = self.service_client.get_file_system_client(
-            file_system=name
-        )
+        file_system_client = self.service_client.get_file_system_client(file_system=name)
         self.file_system_client = file_system_client
         return file_system_client
 
@@ -100,9 +91,7 @@ class AzureDataLakeHook(AzureBaseClient):
             if file_system_client is None:
                 file_system_client = self.file_system_client
             if file_system_client is None:
-                raise Exception(
-                    "Directory cannot be created, no FileSystemClient provided."
-                )
+                raise Exception("Directory cannot be created, no FileSystemClient provided.")
             directory_client = file_system_client.create_directory(name)
 
             return directory_client
@@ -111,19 +100,13 @@ class AzureDataLakeHook(AzureBaseClient):
             print(exception)
             raise exception
 
-    def list_directory_contents(
-        self, file_system: str, directory: str | None = None
-    ) -> ItemPaged[PathProperties]:
+    def list_directory_contents(self, file_system: str, directory: str | None = None) -> ItemPaged[PathProperties]:
         """
         List directory contents by calling the FileSystemClient.get_paths method.
         """
         try:
-            file_system_client = self.service_client.get_file_system_client(
-                file_system=file_system
-            )
-            paths: ItemPaged[PathProperties] = file_system_client.get_paths(
-                path=directory
-            )
+            file_system_client = self.service_client.get_file_system_client(file_system=file_system)
+            paths: ItemPaged[PathProperties] = file_system_client.get_paths(path=directory)
 
             for path in paths:
                 print(path.name)
@@ -151,9 +134,7 @@ class AzureDataLakeHook(AzureBaseClient):
             remote_file (str): Path to object within container
         """
         try:
-            file_client = self.service_client.get_file_client(
-                file_system=file_system, file_path=remote_file
-            )
+            file_client = self.service_client.get_file_client(file_system=file_system, file_path=remote_file)
             downloadde_file = file_client.download_file()
             downloaded_bytes = downloadde_file.readall()
 
@@ -168,9 +149,7 @@ class AzureDataLakeHook(AzureBaseClient):
         Download a file from the Data Lake.
         """
         try:
-            file_client = self.service_client.get_file_client(
-                file_system=file_system, file_path=remote_file
-            )
+            file_client = self.service_client.get_file_client(file_system=file_system, file_path=remote_file)
             downloadde_file = file_client.download_file()
             downloaded_bytes = downloadde_file.readall()
 
@@ -186,9 +165,7 @@ class AzureDataLakeHook(AzureBaseClient):
         Upload a file to the Data Lake.
         """
         try:
-            file_client = self.service_client.get_file_client(
-                file_system=file_system, file_path=remote_file
-            )
+            file_client = self.service_client.get_file_client(file_system=file_system, file_path=remote_file)
             file_client.create_file()
             file_client.upload_data(local_file, overwrite=True)
 
@@ -198,7 +175,7 @@ class AzureDataLakeHook(AzureBaseClient):
 
     def upload_file(
         self,
-        remote_file: str | list[str | None] | Type[DataLakeLocation] | DataLakeLocation,
+        remote_file: str | list[str | None] | Type[DataLakePathBuilder] | DataLakePathBuilder,
         file_system: str,
         local_file: str | bytes,
     ) -> DataLakeFileUpload:
@@ -208,7 +185,7 @@ class AzureDataLakeHook(AzureBaseClient):
         try:
             file_client = self.service_client.get_file_client(
                 file_system=file_system,
-                file_path=translate_data_lake_location_into_string(remote_file),
+                file_path=translate_datalake_path_into_string(remote_file),
             )
             file_client.create_file()
 
@@ -223,9 +200,7 @@ class AzureDataLakeHook(AzureBaseClient):
             if file_contents is None:
                 raise Exception("adf")
 
-            file_client.append_data(
-                data=file_contents, offset=0, length=len(file_contents)
-            )
+            file_client.append_data(data=file_contents, offset=0, length=len(file_contents))
             file_client.flush_data(len(file_contents))
 
             # print(file_client.__dict__)
