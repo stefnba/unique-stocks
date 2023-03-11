@@ -1,13 +1,15 @@
 # pylint: disable=R0913:too-many-arguments
 import os
 from io import BytesIO
-from typing import Optional, cast
+from typing import Optional, TypeVar, cast
 
 import requests
 from requests.exceptions import HTTPError, JSONDecodeError, Timeout, TooManyRedirects
-from services.utils.path import build_path
+from services.utils.path import path_builder
 
 from .types import Methods, RequestFileBytes, RequestFileDisk
+
+JsonResponse = TypeVar("JsonResponse", dict, list[dict])
 
 
 class ApiHook:
@@ -93,9 +95,7 @@ class ApiHook:
                 file.write(chunk)
         filename, file_extension = os.path.splitext(file_destination)
 
-        return RequestFileDisk(
-            extension=file_extension, path=file_destination, name=filename
-        )
+        return RequestFileDisk(extension=file_extension, path=file_destination, name=filename)
 
     def _request_file(
         self,
@@ -122,7 +122,8 @@ class ApiHook:
         params: Optional[dict] = None,
         headers: Optional[dict] = None,
         json: Optional[dict] = None,
-    ) -> dict:
+        response_type: Optional[JsonResponse] = None,
+    ) -> JsonResponse:
         """
         Make a request to return json object
 
@@ -136,13 +137,11 @@ class ApiHook:
         Returns:
             _type_: _description_
         """
-        response = self._make_request(
-            endpoint=endpoint, method=method, params=params, headers=headers, json=json
-        )
+        response = self._make_request(endpoint=endpoint, method=method, params=params, headers=headers, json=json)
         try:
-            return cast(dict, response.json())
+            return cast(JsonResponse, response.json())
         except JSONDecodeError:
-            print("JSON not possible")
+            print("Failed to parse JSON")
             raise
 
     def _make_request(
@@ -158,17 +157,9 @@ class ApiHook:
         Make API request
         """
 
-        url = build_path(self._base_url, endpoint)
-
-        if isinstance(params, dict):
-            params = {**self._base_params, **params}
-        else:
-            params = self._base_params
-
-        if isinstance(headers, dict):
-            headers = {**self._base_headers, **headers}
-        else:
-            headers = self._base_headers
+        url = path_builder.path(self._base_url, endpoint)
+        params = {**self._base_params, **params} if isinstance(params, dict) else self._base_params
+        headers = {**self._base_headers, **headers} if isinstance(headers, dict) else self._base_headers
 
         try:
             response = requests.request(
@@ -180,8 +171,6 @@ class ApiHook:
                 json=json,
                 stream=stream,
             )
-
-            print(response.url)
 
             response.raise_for_status()
 
