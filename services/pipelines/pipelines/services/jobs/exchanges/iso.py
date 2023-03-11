@@ -3,9 +3,9 @@ import io
 import pandas as pd
 import polars as pl
 from services.clients.api.iso.iso_exhanges import IsoExchangesApiClient
-from services.clients.data_lake.azure_data_lake import datalake_client
+from services.clients.datalake.azure.azure_datalake import datalake_client
 from services.config import config
-from services.jobs.exchanges.remote_locations import ExchangeListLocation
+from services.jobs.exchanges.datalake_path import ExchangeListLocation
 
 API_CLIENT = IsoExchangesApiClient
 ASSET_SOURCE = API_CLIENT.client_key
@@ -48,12 +48,7 @@ class IsoExchangeJobs:
 
         # replace empty string with null
         df = df.with_columns(
-            [
-                pl.when(pl.col(pl.Utf8).str.lengths() == 0)
-                .then(None)
-                .otherwise(pl.col(pl.Utf8))
-                .keep_name()
-            ]
+            [pl.when(pl.col(pl.Utf8).str.lengths() == 0).then(None).otherwise(pl.col(pl.Utf8)).keep_name()]
         )
 
         # filter for only OPRT
@@ -103,22 +98,10 @@ class IsoExchangeJobs:
         # cast to date
         df = df.with_columns(
             [
-                pl.col("created_at")
-                .cast(pl.Utf8)
-                .str.strptime(pl.Date, fmt="%Y%m%d")
-                .cast(pl.Date),
-                pl.col("updated_at")
-                .cast(pl.Utf8)
-                .str.strptime(pl.Date, fmt="%Y%m%d")
-                .cast(pl.Date),
-                pl.col("validated_at")
-                .cast(pl.Utf8)
-                .str.strptime(pl.Date, fmt="%Y%m%d")
-                .cast(pl.Date),
-                pl.col("expires_at")
-                .cast(pl.Utf8)
-                .str.strptime(pl.Date, fmt="%Y%m%d")
-                .cast(pl.Date),
+                pl.col("created_at").cast(pl.Utf8).str.strptime(pl.Date, fmt="%Y%m%d").cast(pl.Date),
+                pl.col("updated_at").cast(pl.Utf8).str.strptime(pl.Date, fmt="%Y%m%d").cast(pl.Date),
+                pl.col("validated_at").cast(pl.Utf8).str.strptime(pl.Date, fmt="%Y%m%d").cast(pl.Date),
+                pl.col("expires_at").cast(pl.Utf8).str.strptime(pl.Date, fmt="%Y%m%d").cast(pl.Date),
             ]
         )
 
@@ -127,9 +110,7 @@ class IsoExchangeJobs:
 
         #
         df_pandas["city"] = df_pandas["city"].str.title()
-        df_pandas["market_name_institution"] = df_pandas[
-            "market_name_institution"
-        ].str.title()
+        df_pandas["market_name_institution"] = df_pandas["market_name_institution"].str.title()
         df_pandas["legal_name"] = df_pandas["legal_name"].str.title()
         df_pandas["comments"] = df_pandas["comments"].str.title()
         df_pandas["website"] = df_pandas["website"].str.lower()

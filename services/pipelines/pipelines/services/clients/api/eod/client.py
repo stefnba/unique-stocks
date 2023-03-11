@@ -1,3 +1,5 @@
+from typing import Optional
+
 from services.config import config
 from services.hooks.api import ApiHook
 
@@ -59,6 +61,12 @@ class EodHistoricalDataApiClient(ApiHook):
         return api.request_json(f"{endpoint}/{exhange_code}")
 
     @classmethod
+    def list_securities_at_exchanges(cls, exhange_code: str) -> dict:
+        endpoint = "exchange-symbol-list"
+        api = cls()
+        return api.request_json(f"{endpoint}/{exhange_code}")
+
+    @classmethod
     def get_exchange_details(cls, exhange_code: str) -> dict:
         """
 
@@ -73,3 +81,22 @@ class EodHistoricalDataApiClient(ApiHook):
         endpoint = "exchange-details"
         api = cls()
         return api.request_json(f"{endpoint}/{exhange_code}")
+
+    @classmethod
+    def get_fundamentals(cls, security_code: str, exchange_code: Optional[str] = None):
+        """
+        Simple access to fundamental data API for stocks, ETFs, Mutual Funds, and Indices from different exchanges and
+        countries. Almost all major US, UK, EU, India, and Asia exchanges.
+
+        Args:
+            code (str): Security for which fundamentals are requested.
+            exchange_code (Optional[str], optional): Exchange filter. Defaults to None.
+
+        Returns:
+            dict: _description_
+        """
+        endpoint = "fundamentals"
+        security = f"{security_code}" if not exchange_code else f"{security_code}.{exchange_code}"
+        api = cls()
+
+        return api.request_json(f"{endpoint}/{security}")

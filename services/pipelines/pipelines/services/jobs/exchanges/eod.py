@@ -2,73 +2,129 @@ import io
 
 import duckdb
 import polars as pl
+import requests
 from services.clients.api.eod.client import EodHistoricalDataApiClient
-from services.clients.data_lake.azure_data_lake import datalake_client
+from services.clients.datalake.azure.azure_datalake import datalake_client
 from services.config import config
-from services.utils import formats
+from services.utils.conversion import converter
 
-from .remote_locations import ExchangeDetailLocation, ExchangeListLocation
+from services.jobs.exchanges.datalake_path import ExchangeListPath, ExchangeDetailPath
 
-API_CLIENT = EodHistoricalDataApiClient
-ASSET_SOURCE = API_CLIENT.client_key
+ApiClient = EodHistoricalDataApiClient
+ASSET_SOURCE = ApiClient.client_key
 
 
 class EodExchangeJobs:
     @staticmethod
-    def download_details_for_exchanges(exchange_list: list[str]):
+    def extract_exchange_codes(file_path: str) -> list[str]:
         """
-        Takes a list of exchanges, iterates over them to call exchange details
+        Extracts exchanges codes from processed exchange list layer.
         """
-        exchange_detail_paths = []
-        for exchange in exchange_list:
-            exchange_detail_paths.append(
-                EodExchangeJobs.download_exchange_details(exchange)
-            )
+        # donwload file
+        file_content = datalake_client.download_file_into_memory(
+            file_system=config.azure.file_system, remote_file=file_path
+        )
 
-        return exchange_detail_paths
+        exchanges = pl.read_parquet(io.BytesIO(file_content))
+
+        exchange_codes = exchanges["source_code"].to_list()
+
+        return exchange_codes
+
+    @staticmethod
+    def prepare_download_of_exchange_securities(exchange_codes: list[str]):
+        """
+        Triggers download of securities listed at each exchange.
+        """
+
+        failed = []
+        exchange_securities_paths = []
+
+        for exchange_code in exchange_codes:
+            try:
+                file_path = EodExchangeJobs.download_exchange_securities(exchange_code)
+                exchange_securities_paths.append(file_path)
+            except requests.exceptions.HTTPError:
+                failed.append(exchange_code)
+
+        print(failed)
+
+        return exchange_securities_paths
+
+    @staticmethod
+    def download_exchange_securities(exchange_code: str):
+        """
+        Retrieves listed securities for a given exchange code.
+        """
+
+        # api data
+        exhange_details = ApiClient.list_securities_at_exchanges(exhange_code=exchange_code)
+
+        # upload to datalake
+        uploaded_file = datalake_client.upload_file(
+            remote_file=ExchangeListPath(stage="raw", asset_source=ASSET_SOURCE, exchange=exchange_code),
+            file_system=config.azure.file_system,
+            local_file=converter.json_to_bytes(exhange_details),
+        )
+        return uploaded_file.file_path
+
+    @staticmethod
+    def prepare_download_of_exchange_details(exchange_codes: list[str]):
+        """
+        Triggers download of details for each code.
+        """
+
+        exchange_details_paths = []
+        for exchange_code in exchange_codes:
+            exchange_details_paths.append(EodExchangeJobs.download_exchange_details(exchange_code))
+
+        return exchange_details_paths
 
     @staticmethod
     def download_exchange_details(exchange_code: str):
         """
-        Retrieves details for a given exchange
+        Retrieves details for a given exchange code.
         """
 
         # api data
-        exhange_details = API_CLIENT.get_exchange_details(exhange_code=exchange_code)
+        exhange_details = ApiClient.get_exchange_details(exhange_code=exchange_code)
 
         # upload to datalake
         uploaded_file = datalake_client.upload_file(
-            remote_file=ExchangeDetailLocation.raw(
-                asset_source=ASSET_SOURCE, exchange=exchange_code
-            ),
+            remote_file=ExchangeDetailPath(stage="raw", asset_source=ASSET_SOURCE, exchange=exchange_code),
             file_system=config.azure.file_system,
-            local_file=formats.convert_json_to_bytes(exhange_details),
+            local_file=converter.json_to_bytes(exhange_details),
         )
         return uploaded_file.file_path
 
     @staticmethod
-    def download_exchange_list():
+    def process_raw_exchange_details(file_path: str):
+        pass
+
+    @staticmethod
+    def download_exchange_list() -> str:
         """
         Retrieves list of exchange from eodhistoricaldata.com and uploads
         into the Data Lake.
+
+        Returns:
+            str: Path to file in data lake
         """
 
         # api data
-        exchanges_json = API_CLIENT.list_exhanges()
+        exchanges_json = ApiClient.list_exhanges()
 
         # upload to datalake
         uploaded_file = datalake_client.upload_file(
-            remote_file=ExchangeListLocation.raw(
-                asset_source=ASSET_SOURCE, file_extension="json"
-            ),
+            remote_file=ExchangeListPath(stage="raw", asset_source=ASSET_SOURCE, file_extension="json"),
             file_system=config.azure.file_system,
-            local_file=formats.convert_json_to_bytes(exchanges_json),
+            local_file=converter.json_to_bytes(exchanges_json),
         )
 
         return uploaded_file.file_path
 
     @staticmethod
-    def process_raw_exchange_list(file_path: str):
+    def process_raw_exchange_list(file_path: str) -> str:
         """
         File content is in JSON format.
 
@@ -85,19 +141,13 @@ class EodExchangeJobs:
 
         df_exchanges = df_exchanges.with_columns(
             [
-                pl.when(pl.col(pl.Utf8) == "Unknown")
-                .then(None)
-                .otherwise(pl.col(pl.Utf8))
-                .keep_name(),
+                pl.when(pl.col(pl.Utf8) == "Unknown").then(None).otherwise(pl.col(pl.Utf8)).keep_name(),
                 pl.lit(ASSET_SOURCE).alias("data_source"),
             ]
         )
         df_exchanges = df_exchanges.with_columns(
             [
-                pl.when(pl.col(pl.Utf8).str.lengths() == 0)
-                .then(None)
-                .otherwise(pl.col(pl.Utf8))
-                .keep_name(),
+                pl.when(pl.col(pl.Utf8).str.lengths() == 0).then(None).otherwise(pl.col(pl.Utf8)).keep_name(),
             ]
         )
         base_table = duckdb.execute(
@@ -120,7 +170,7 @@ class EodExchangeJobs:
                 WHERE
                     NOT(list_contains($2, source_code));
         """,
-            [API_CLIENT.virtual_exchanges, API_CLIENT.exchanges_drop],
+            [ApiClient.virtual_exchanges, ApiClient.exchanges_drop],
         ).pl()
 
         processed = duckdb.sql(
@@ -154,3 +204,19 @@ class EodExchangeJobs:
         )
 
         return uploaded_file.file_path
+
+    @staticmethod
+    def process_index_list(file_path: str):
+        # donwload file
+        file_content = datalake_client.download_file_into_memory(
+            file_system=config.azure.file_system, remote_file=file_path
+        )
+
+        # datalake destination
+        # uploaded_file = datalake_client.upload_file(
+        #     remote_file=ExchangeListLocation.processed(asset_source=ASSET_SOURCE),
+        #     file_system=config.azure.file_system,
+        #     local_file=parquet_file,
+        # )
+
+        # return uploaded_file.file_path
