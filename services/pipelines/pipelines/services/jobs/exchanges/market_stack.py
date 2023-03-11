@@ -4,10 +4,10 @@ import duckdb
 import pandas as pd
 import polars as pl
 from services.clients.api.market_stack.market_stack import MarketStackApiClient
-from services.clients.data_lake.azure_data_lake import datalake_client
+from services.clients.datalake.azure.azure_datalake import datalake_client
 from services.config import config
-from services.jobs.exchanges.remote_locations import ExchangeListLocation
-from services.utils import formats
+from services.jobs.exchanges.datalake_path import ExchangeListLocation
+from services.utils.conversion import converter
 
 API_CLIENT = MarketStackApiClient
 ASSET_SOURCE = API_CLIENT.client_key
@@ -27,11 +27,9 @@ class MarketStackExchangeJobs:
 
         # upload to datalake
         uploaded_file = datalake_client.upload_file(
-            remote_file=ExchangeListLocation.raw(
-                asset_source=ASSET_SOURCE, file_extension="json"
-            ),
+            remote_file=ExchangeListLocation.raw(asset_source=ASSET_SOURCE, file_extension="json"),
             file_system=config.azure.file_system,
-            local_file=formats.convert_json_to_bytes(exchanges_json),
+            local_file=converter.json_to_bytes(exchanges_json),
         )
 
         return uploaded_file.file_path
@@ -48,18 +46,12 @@ class MarketStackExchangeJobs:
         df_exchanges = df_exchanges.with_columns(
             [
                 pl.lit(ASSET_SOURCE).alias("data_source"),
-                pl.when(pl.col(pl.Utf8).str.lengths() == 0)
-                .then(None)
-                .otherwise(pl.col(pl.Utf8))
-                .keep_name(),
+                pl.when(pl.col(pl.Utf8).str.lengths() == 0).then(None).otherwise(pl.col(pl.Utf8)).keep_name(),
             ]
         )
 
         df_mic_correction = pl.from_dicts(
-            [
-                {"mic": k, "mic_corrected": v}
-                for k, v in API_CLIENT.mic_correction.items()
-            ]
+            [{"mic": k, "mic_corrected": v} for k, v in API_CLIENT.mic_correction.items()]
         )
         df_virtual_exchanges = pl.from_dict({"mic": API_CLIENT.virtual_exchanges})
 
