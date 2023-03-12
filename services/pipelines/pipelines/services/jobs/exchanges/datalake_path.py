@@ -19,7 +19,7 @@ class ExchangeDetailPath(ExchangePath):
         """
         add folder with exchange code after asset=exchange_details
         """
-        self.insert_into_existing_path({"exchange": self.exchange}, 3)
+        self.insert_into_dir_path({"exchange": self.exchange}, 3)
 
 
 class ExchangeSecuritiesPath(ExchangePath):

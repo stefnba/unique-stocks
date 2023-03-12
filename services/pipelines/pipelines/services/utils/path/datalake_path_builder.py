@@ -29,7 +29,7 @@ class DatalakePathBuilderBase:
         """
         return self._build_dir(self.directory)
 
-    def insert_into_existing_path(self, obj: DirectoryObject | str, index: int):
+    def insert_into_dir_path(self, obj: DirectoryObject | str, index: int):
         """
         Inserts a new object into pre-defined directory path
 
