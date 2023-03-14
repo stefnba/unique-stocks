@@ -14,6 +14,7 @@ x-airflow-common: &airflow-common
         AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@airflow-postgres/${AIRFLOW_DB_NAME}
         PYTHONPATH: /app/airflow # allow packages from outside dags folder
         AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
+        AIRFLOW__CORE__EXECUTOR: LocalExecutor
     user: '${AIRFLOW_UID:-50000}:0'
     volumes:
         - ${AIRFLOW_PROJ_DIR:-./pipelines}/dags:${AIRFLOW_HOME:-/app/airflow}/dags
