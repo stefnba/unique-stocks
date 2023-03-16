@@ -15,7 +15,13 @@ class IsoExchangesApiClient(ApiHook):
     _base_url = "https://www.iso20022.org/sites/default/files/ISO10383_MIC/"
 
     @classmethod
-    def download_exhange_list(cls):
+    def get_exchanges(cls):
+        """
+        Get list of all registered exchanges under ISO.
+
+        Returns:
+            RequestFileBytes: _description_
+        """
         api = cls()
         endpoint = "ISO10383_MIC.csv"
         return api._download_file_to_bytes(endpoint)
