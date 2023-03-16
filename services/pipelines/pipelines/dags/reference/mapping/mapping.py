@@ -5,20 +5,19 @@ from datetime import datetime
 
 from airflow import DAG
 from airflow.decorators import task
-
 from airflow.models import TaskInstance
 
 
 @task
 def upload():
-    from dags.reference.mapping.jobs.mapping_jobs import MappingJobs
+    from dags.reference.mapping.jobs.mapping import MappingJobs
 
     return MappingJobs.upload()
 
 
 @task
 def process(**context: TaskInstance):
-    from dags.reference.mapping.jobs.mapping_jobs import MappingJobs
+    from dags.reference.mapping.jobs.mapping import MappingJobs
 
     file_path: str = context["ti"].xcom_pull()
 
