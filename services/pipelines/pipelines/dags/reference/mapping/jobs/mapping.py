@@ -1,17 +1,15 @@
 import io
-from pathlib import Path
 
 import polars as pl
 from services.clients.datalake.azure.azure_datalake import datalake_client
 from services.config import config
+from services.utils.path.builder import PathBuilder
 
 
 class MappingJobs:
     @staticmethod
     def upload():
-        csv_file_dir_path = Path(__file__).resolve().parent
-
-        mapping_table = pl.read_csv(Path(csv_file_dir_path, "../data/mapping.csv").resolve().as_posix())
+        mapping_table = pl.read_csv(PathBuilder.build_relative_to_base(base_path=__file__, path="../data/mapping.csv"))
 
         print(mapping_table)
 
