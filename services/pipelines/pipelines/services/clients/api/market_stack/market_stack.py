@@ -19,12 +19,12 @@ class MarketStackApiClient(ApiHook):
     _base_params = {"access_key": config.api_keys.market_stack, "limit": 1000}
 
     @classmethod
-    def list_exhanges(cls):
+    def get_exchanges(cls):
         """
-        List exchanges that are available.
+        Get list of exchanges that are available.
 
         Returns:
-            json: Exchanges
+            dict: JSON of exchanges
         """
 
         endpoint = "/exchanges"
