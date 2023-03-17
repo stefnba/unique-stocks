@@ -10,7 +10,7 @@ from airflow.models import TaskInstance
 
 @task
 def extract_index_codes(**context: TaskInstance):
-    from services.jobs.indices.eod import EodIndexJobs
+    from dags.indices.jobs.eod import EodIndexJobs
 
     # file path for processed indices
     file_path: str = context["ti"].xcom_pull(dag_id="indices", task_ids="process", include_prior_dates=True)
@@ -27,13 +27,13 @@ def manage_one_index(index_code: str):
 
     @task
     def download_members_of_index(index: str):
-        from services.jobs.indices.eod import EodIndexJobs
+        from dags.indices.jobs.eod import EodIndexJobs
 
         return EodIndexJobs.download_members_of_index(index)
 
     @task
     def process_members_of_index(file_path):
-        from services.jobs.indices.eod import EodIndexJobs
+        from dags.indices.jobs.eod import EodIndexJobs
 
         return EodIndexJobs.process_members_of_index(file_path)
 

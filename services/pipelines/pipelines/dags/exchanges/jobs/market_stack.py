@@ -3,19 +3,19 @@ import io
 import duckdb
 import pandas as pd
 import polars as pl
+from dags.exchanges.jobs.datalake_path import ExchangesPath
 from services.clients.api.market_stack.market_stack import MarketStackApiClient
 from services.clients.datalake.azure.azure_datalake import datalake_client
 from services.config import config
-from services.jobs.exchanges.datalake_path import ExchangeListLocation
 from services.utils.conversion import converter
 
-API_CLIENT = MarketStackApiClient
-ASSET_SOURCE = API_CLIENT.client_key
+ApiClient = MarketStackApiClient
+ASSET_SOURCE = ApiClient.client_key
 
 
 class MarketStackExchangeJobs:
     @staticmethod
-    def download_exchange_list():
+    def download_exchanges():
         """
         Retrieves list of exchange from eodhistoricaldata.com and uploads
         into the Data Lake.
@@ -23,11 +23,11 @@ class MarketStackExchangeJobs:
         # config
 
         # api data
-        exchanges_json = API_CLIENT.list_exhanges()
+        exchanges_json = ApiClient.get_exchanges()
 
         # upload to datalake
         uploaded_file = datalake_client.upload_file(
-            remote_file=ExchangeListLocation.raw(asset_source=ASSET_SOURCE, file_extension="json"),
+            remote_file=ExchangesPath(asset_source=ASSET_SOURCE, file_type="json", stage="raw"),
             file_system=config.azure.file_system,
             local_file=converter.json_to_bytes(exchanges_json),
         )
@@ -35,7 +35,7 @@ class MarketStackExchangeJobs:
         return uploaded_file.file_path
 
     @staticmethod
-    def process_raw_exchange_list(file_path: str):
+    def process_raw_exchanges(file_path: str):
         # donwload file
         file_content = datalake_client.download_file_into_memory(
             file_system=config.azure.file_system, remote_file=file_path
@@ -50,10 +50,8 @@ class MarketStackExchangeJobs:
             ]
         )
 
-        df_mic_correction = pl.from_dicts(
-            [{"mic": k, "mic_corrected": v} for k, v in API_CLIENT.mic_correction.items()]
-        )
-        df_virtual_exchanges = pl.from_dict({"mic": API_CLIENT.virtual_exchanges})
+        df_mic_correction = pl.from_dicts([{"mic": k, "mic_corrected": v} for k, v in ApiClient.mic_correction.items()])
+        df_virtual_exchanges = pl.from_dict({"mic": ApiClient.virtual_exchanges})
 
         processed = duckdb.sql(
             """
@@ -85,7 +83,7 @@ class MarketStackExchangeJobs:
 
         # datalake destination
         uploaded_file = datalake_client.upload_file(
-            remote_file=ExchangeListLocation.processed(asset_source=ASSET_SOURCE),
+            remote_file=ExchangesPath(asset_source=ASSET_SOURCE, stage="processed"),
             file_system=config.azure.file_system,
             local_file=parquet_file,
         )
