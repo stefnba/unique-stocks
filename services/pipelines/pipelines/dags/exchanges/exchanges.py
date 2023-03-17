@@ -10,7 +10,7 @@ from airflow.models import TaskInstance
 
 @task()
 def ingest_eod():
-    from services.jobs.exchanges.eod import EodExchangeJobs
+    from dags.exchanges.jobs.eod import EodExchangeJobs
 
     raw_file_path = EodExchangeJobs.download_exchange_list()
     return raw_file_path
@@ -18,7 +18,7 @@ def ingest_eod():
 
 @task
 def extract_codes(**context: TaskInstance):
-    from services.jobs.exchanges.eod import EodExchangeJobs
+    from dags.exchanges.jobs.eod import EodExchangeJobs
 
     file_path = context["ti"].xcom_pull()
     return EodExchangeJobs.extract_exchange_codes(file_path)
@@ -26,7 +26,7 @@ def extract_codes(**context: TaskInstance):
 
 @task()
 def ingest_eod_details(**context: TaskInstance):
-    from services.jobs.exchanges.eod import EodExchangeJobs
+    from dags.exchanges.jobs.eod import EodExchangeJobs
 
     exchange_code: str = context["ti"].xcom_pull()
 
@@ -38,7 +38,7 @@ def ingest_eod_details(**context: TaskInstance):
 
 @task()
 def process_eod_details():
-    from services.jobs.exchanges.eod import EodExchangeJobs
+    from dags.exchanges.jobs.eod import EodExchangeJobs
 
     raw_file_path = EodExchangeJobs.download_exchange_list()
     return raw_file_path
@@ -52,7 +52,7 @@ def merge_eod_details(**context: TaskInstance):
 
 @task()
 def process_eod(**context: TaskInstance):
-    from services.jobs.exchanges.eod import EodExchangeJobs
+    from dags.exchanges.jobs.eod import EodExchangeJobs
 
     raw_file_path: str = context["ti"].xcom_pull(task_ids="ingest_eod")
 
@@ -62,14 +62,14 @@ def process_eod(**context: TaskInstance):
 
 @task()
 def ingest_iso():
-    from services.jobs.exchanges.iso import IsoExchangeJobs
+    from dags.exchanges.jobs.iso import IsoExchangeJobs
 
     return IsoExchangeJobs.download_exchanges()
 
 
 @task()
 def process_iso(**context: TaskInstance):
-    from services.jobs.exchanges.iso import IsoExchangeJobs
+    from dags.exchanges.jobs.iso import IsoExchangeJobs
 
     raw_file_path: str = context["ti"].xcom_pull(task_ids="ingest_iso")
 
@@ -78,7 +78,7 @@ def process_iso(**context: TaskInstance):
 
 @task()
 def ingest_marketstack():
-    from services.jobs.exchanges.market_stack import MarketStackExchangeJobs
+    from dags.exchanges.jobs.market_stack import MarketStackExchangeJobs
 
     raw_file = MarketStackExchangeJobs.download_exchanges()
     return raw_file
@@ -86,7 +86,7 @@ def ingest_marketstack():
 
 @task()
 def process_marketstack(**context: TaskInstance):
-    from services.jobs.exchanges.market_stack import MarketStackExchangeJobs
+    from dags.exchanges.jobs.market_stack import MarketStackExchangeJobs
 
     raw_file_path: str = context["ti"].xcom_pull(task_ids="ingest_marketstack")
 

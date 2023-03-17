@@ -21,11 +21,11 @@ with DAG(
 
     @task()
     def ingest_eod(**context: TaskInstance):
-        from services.jobs.exchanges.eod import download_details_for_exchanges
+        from dags.exchanges.jobs.eod import EodExchangeJobs
 
         exchanges = context["ti"].xcom_pull(task_ids="extract_list_exhanges_eod")
 
-        raw_file = download_details_for_exchanges(exchanges)
+        raw_file = EodExchangeJobs.download_exchange_details(exchanges)
         return raw_file
 
     @task()

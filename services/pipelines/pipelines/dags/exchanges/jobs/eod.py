@@ -3,12 +3,11 @@ import io
 import duckdb
 import polars as pl
 import requests
+from dags.exchanges.jobs.datalake_path import ExchangeDetailPath, ExchangesPath
 from services.clients.api.eod.client import EodHistoricalDataApiClient
 from services.clients.datalake.azure.azure_datalake import datalake_client
 from services.config import config
 from services.utils.conversion import converter
-
-from services.jobs.exchanges.datalake_path import ExchangeListPath, ExchangeDetailPath
 
 ApiClient = EodHistoricalDataApiClient
 ASSET_SOURCE = ApiClient.client_key
@@ -20,7 +19,7 @@ class EodExchangeJobs:
         """
         Extracts exchanges codes from processed exchange list layer.
         """
-        # donwload file
+        # download file
         file_content = datalake_client.download_file_into_memory(
             file_system=config.azure.file_system, remote_file=file_path
         )
@@ -58,11 +57,11 @@ class EodExchangeJobs:
         """
 
         # api data
-        exhange_details = ApiClient.list_securities_at_exchanges(exhange_code=exchange_code)
+        exhange_details = ApiClient.get_securities_listed_at_exhange(exhange_code=exchange_code)
 
         # upload to datalake
         uploaded_file = datalake_client.upload_file(
-            remote_file=ExchangeListPath(stage="raw", asset_source=ASSET_SOURCE, exchange=exchange_code),
+            remote_file=ExchangesPath(stage="raw", asset_source=ASSET_SOURCE),
             file_system=config.azure.file_system,
             local_file=converter.json_to_bytes(exhange_details),
         )
@@ -112,11 +111,11 @@ class EodExchangeJobs:
         """
 
         # api data
-        exchanges_json = ApiClient.list_exhanges()
+        exchanges_json = ApiClient.get_exchanges()
 
         # upload to datalake
         uploaded_file = datalake_client.upload_file(
-            remote_file=ExchangeListPath(stage="raw", asset_source=ASSET_SOURCE, file_extension="json"),
+            remote_file=ExchangesPath(stage="raw", asset_source=ASSET_SOURCE, file_type="json"),
             file_system=config.azure.file_system,
             local_file=converter.json_to_bytes(exchanges_json),
         )
@@ -198,25 +197,9 @@ class EodExchangeJobs:
 
         # datalake destination
         uploaded_file = datalake_client.upload_file(
-            remote_file=ExchangeListLocation.processed(asset_source=ASSET_SOURCE),
+            remote_file=ExchangesPath(asset_source=ASSET_SOURCE, stage="processed"),
             file_system=config.azure.file_system,
             local_file=parquet_file,
         )
 
         return uploaded_file.file_path
-
-    @staticmethod
-    def process_index_list(file_path: str):
-        # donwload file
-        file_content = datalake_client.download_file_into_memory(
-            file_system=config.azure.file_system, remote_file=file_path
-        )
-
-        # datalake destination
-        # uploaded_file = datalake_client.upload_file(
-        #     remote_file=ExchangeListLocation.processed(asset_source=ASSET_SOURCE),
-        #     file_system=config.azure.file_system,
-        #     local_file=parquet_file,
-        # )
-
-        # return uploaded_file.file_path

@@ -18,13 +18,13 @@ with DAG(
 
     @task()
     def ingest():
-        from services.jobs.indices.eod import EodIndexJobs
+        from dags.indices.jobs.eod import EodIndexJobs
 
         return EodIndexJobs.download_index_list()
 
     @task
     def process(**context: TaskInstance):
-        from services.jobs.indices.eod import EodIndexJobs
+        from dags.indices.jobs.eod import EodIndexJobs
 
         file_path = context["ti"].xcom_pull()
         print(file_path)
