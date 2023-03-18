@@ -103,7 +103,7 @@ def merge(**context: TaskInstance):
 
 @task()
 def load_into_db(**context: TaskInstance):
-    file_paths: str = context["ti"].xcom_pull()
+    context["ti"].xcom_pull()
     return "test"
 
 
