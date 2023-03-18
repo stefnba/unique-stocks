@@ -149,7 +149,7 @@ class DatalakePathBuilderBase:
         return path_builder.path(input_path.build_final_path())
 
 
-@dataclass(repr=False)
+@dataclass
 class DatalakePathConfig(DatalakePathBuilderBase):
     """
     Class to specify path generic logic in datalake with build_path() method.
@@ -161,7 +161,7 @@ class DatalakePathConfig(DatalakePathBuilderBase):
     asset_source: str
     product: str = field(init=False)
     asset: str = field(init=False)
-    file_type: DatalakeFileTypes = field(init=False, default="parquet")
+    file_type: Optional[DatalakeFileTypes] = field(init=False)
 
     def set_path(self):
         self.directory = [
@@ -171,6 +171,7 @@ class DatalakePathConfig(DatalakePathBuilderBase):
                 "asset": self.asset,
                 "source": self.asset_source,
                 "y": self.helpers.path_with_dateime("%Y"),
+                "m": self.helpers.path_with_dateime("%m"),
             },
         ]
         self.file_name = [
