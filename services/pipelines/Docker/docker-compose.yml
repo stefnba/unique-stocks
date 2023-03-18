@@ -20,7 +20,7 @@ x-airflow-common: &airflow-common
         - ${AIRFLOW_PROJ_DIR:-./pipelines}/dags:${AIRFLOW_HOME:-/app/airflow}/dags
         - ${AIRFLOW_PROJ_DIR:-./pipelines}/logs:${AIRFLOW_HOME:-/app/airflow}/logs
         - ${AIRFLOW_PROJ_DIR:-./pipelines}/plugins:${AIRFLOW_HOME:-/app/airflow}/plugins
-        - ${AIRFLOW_PROJ_DIR:-./pipelines}/services:${AIRFLOW_HOME:-/app/airflow}/services
+        - ${AIRFLOW_PROJ_DIR:-./pipelines}/shared:${AIRFLOW_HOME:-/app/airflow}/shared
     depends_on: &airflow-common-depends-on
         airflow-postgres:
             condition: service_healthy

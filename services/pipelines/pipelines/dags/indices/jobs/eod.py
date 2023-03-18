@@ -3,10 +3,10 @@ import io
 import duckdb
 import polars as pl
 from dags.indices.jobs.datalake_path import IndexMembersPath, IndicesPath
-from services.clients.api.eod.client import EodHistoricalDataApiClient
-from services.clients.datalake.azure.azure_datalake import datalake_client
-from services.config import config
-from services.utils.conversion import converter
+from shared.clients.api.eod.client import EodHistoricalDataApiClient
+from shared.clients.datalake.azure.azure_datalake import datalake_client
+from shared.config import config
+from shared.utils.conversion import converter
 
 ApiClient = EodHistoricalDataApiClient
 ASSET_SOURCE = ApiClient.client_key

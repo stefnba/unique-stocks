@@ -4,10 +4,10 @@ import duckdb
 import pandas as pd
 import polars as pl
 from dags.exchanges.jobs.datalake_path import ExchangesPath
-from services.clients.api.market_stack.market_stack import MarketStackApiClient
-from services.clients.datalake.azure.azure_datalake import datalake_client
-from services.config import config
-from services.utils.conversion import converter
+from shared.clients.api.market_stack.market_stack import MarketStackApiClient
+from shared.clients.datalake.azure.azure_datalake import datalake_client
+from shared.config import config
+from shared.utils.conversion import converter
 
 ApiClient = MarketStackApiClient
 ASSET_SOURCE = ApiClient.client_key

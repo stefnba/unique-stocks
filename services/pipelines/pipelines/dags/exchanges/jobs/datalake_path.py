@@ -1,7 +1,8 @@
 from dataclasses import dataclass
-from services.utils.path.datalake_path_builder import DatalakePathConfig
-from services.utils.path.types import DatalakeFileTypes
 from typing import Optional
+
+from shared.utils.path.datalake_path_builder import DatalakePathConfig
+from shared.utils.path.types import DatalakeFileTypes
 
 
 class ExchangesBasePath(DatalakePathConfig):

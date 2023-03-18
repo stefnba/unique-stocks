@@ -1,6 +1,6 @@
 from dags.reference.currencies.clients.currency_client import CurrencyApiClient
-from services.clients.datalake.azure.azure_datalake import datalake_client
-from services.config import config
+from shared.clients.datalake.azure.azure_datalake import datalake_client
+from shared.config import config
 
 
 class CurrencyJobs:
@@ -18,8 +18,9 @@ class CurrencyJobs:
 
     @staticmethod
     def process_currencies(file_path: str):
-        import polars as pl
         import io
+
+        import polars as pl
 
         #  download file
         file_content = datalake_client.download_file_into_memory(
