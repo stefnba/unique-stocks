@@ -15,7 +15,7 @@ class MappingJobs:
 
         # upload to datalake
         uploaded_file = datalake_client.upload_file(
-            remote_file="references/raw/mapping/mapping_reference.csv",
+            remote_file="raw/references/mapping/mapping_reference.csv",
             file_system=config.azure.file_system,
             local_file=bytes(mapping_table.write_csv().encode()),
         )
@@ -32,7 +32,7 @@ class MappingJobs:
 
         # upload to datalake
         uploaded_file = datalake_client.upload_file(
-            remote_file="references/processed/mapping/mapping_reference.parquet",
+            remote_file="processed/references/mapping/mapping_reference.parquet",
             file_system=config.azure.file_system,
             local_file=df.to_pandas().to_parquet(),
         )

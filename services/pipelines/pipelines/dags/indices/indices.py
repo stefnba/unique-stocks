@@ -32,7 +32,7 @@ with DAG(
 
     @task
     def curate(**context: TaskInstance):
-        file_path = context["ti"].xcom_pull()
+        context["ti"].xcom_pull()
         return "Indeices downloaded"
 
     trigger_dag_index_members = TriggerDagRunOperator(

@@ -10,7 +10,7 @@ class CountryJobs:
 
         # upload to datalake
         uploaded_file = datalake_client.upload_file(
-            remote_file="references/raw/countries/countries_reference.csv",
+            remote_file="raw/references/countries/countries_reference.csv",
             file_system=config.azure.file_system,
             local_file=countries,
         )
@@ -31,7 +31,7 @@ class CountryJobs:
 
         # upload to datalake
         uploaded_file = datalake_client.upload_file(
-            remote_file="references/processed/countries/countries_reference.parquet",
+            remote_file="processed/references/countries/countries_reference.parquet",
             file_system=config.azure.file_system,
             local_file=df.to_pandas().to_parquet(),
         )

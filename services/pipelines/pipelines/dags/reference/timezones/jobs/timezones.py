@@ -13,7 +13,7 @@ class TimezoneJobs:
 
         # upload to datalake
         uploaded_file = datalake_client.upload_file(
-            remote_file="references/raw/timezones/timezones_reference.csv",
+            remote_file="raw/references/timezones/timezones_reference.csv",
             file_system=config.azure.file_system,
             local_file=currencies,
         )
@@ -30,7 +30,7 @@ class TimezoneJobs:
 
         # upload to datalake
         uploaded_file = datalake_client.upload_file(
-            remote_file="references/processed/timezones/timezones_reference.parquet",
+            remote_file="processed/references/timezones/timezones_reference.parquet",
             file_system=config.azure.file_system,
             local_file=df.to_pandas().to_parquet(),
         )

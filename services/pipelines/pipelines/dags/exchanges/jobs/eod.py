@@ -149,7 +149,7 @@ class EodExchangeJobs:
                 pl.when(pl.col(pl.Utf8).str.lengths() == 0).then(None).otherwise(pl.col(pl.Utf8)).keep_name(),
             ]
         )
-        base_table = duckdb.execute(
+        duckdb.execute(
             """
         --sql
             SELECT

@@ -10,7 +10,7 @@ class CurrencyJobs:
 
         # upload to datalake
         uploaded_file = datalake_client.upload_file(
-            remote_file="references/raw/currencies/currencies_reference.csv",
+            remote_file="raw/references/currencies/currencies_reference.csv",
             file_system=config.azure.file_system,
             local_file=currencies,
         )
@@ -33,7 +33,7 @@ class CurrencyJobs:
 
         # upload to datalake
         uploaded_file = datalake_client.upload_file(
-            remote_file="references/processed/currencies/currencies_reference.parquet",
+            remote_file="processed/references/currencies/currencies_reference.parquet",
             file_system=config.azure.file_system,
             local_file=df.to_pandas().to_parquet(),
         )
