@@ -16,12 +16,10 @@ duckdb = "*"
 
 [dev-packages]
 black = "*"
-pylint = "*"
-flake8 = "*"
-isort = "*"
 mypy = "*"
 types-requests = "*"
 psycopg = {extras = ["binary"], version = "*"}
+ruff = "*"
 
 [requires]
 python_version = "3"
