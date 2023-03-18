@@ -15,7 +15,7 @@ from azure.storage.filedatalake import (
     FileSystemClient,
     PathProperties,
 )
-from services.utils.path.datalake_path_builder import DataLakePathBuilder, translate_datalake_path_into_string
+from services.utils.path.datalake_path_builder import DatalakePathBuilderBase
 
 from .base import AzureBaseClient
 from .types import DataLakeFileUpload
@@ -175,7 +175,7 @@ class AzureDataLakeHook(AzureBaseClient):
 
     def upload_file(
         self,
-        remote_file: str | list[str | None] | Type[DataLakePathBuilder] | DataLakePathBuilder,
+        remote_file: str | list[str | None] | Type[DatalakePathBuilderBase] | DatalakePathBuilderBase,
         file_system: str,
         local_file: str | bytes,
     ) -> DataLakeFileUpload:
@@ -185,7 +185,7 @@ class AzureDataLakeHook(AzureBaseClient):
         try:
             file_client = self.service_client.get_file_client(
                 file_system=file_system,
-                file_path=translate_datalake_path_into_string(remote_file),
+                file_path=DatalakePathBuilderBase.path_to_string(remote_file),
             )
             file_client.create_file()
 
