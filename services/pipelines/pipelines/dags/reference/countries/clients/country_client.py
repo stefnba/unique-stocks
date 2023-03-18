@@ -1,4 +1,4 @@
-from services.hooks.api import ApiHook
+from shared.hooks.api import ApiHook
 
 
 class CountryApiClient(ApiHook):

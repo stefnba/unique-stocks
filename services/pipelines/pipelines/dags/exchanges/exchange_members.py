@@ -10,7 +10,7 @@ from airflow.models import TaskInstance
 
 @task
 def extract_exchange_codes(**context: TaskInstance):
-    from services.jobs.indices.eod import EodIndexJobs
+    from shared.jobs.indices.eod import EodIndexJobs
 
     # file path for processed exchanges
     file_path: str = context["ti"].xcom_pull(dag_id="exchanges", task_ids="merge", include_prior_dates=True)
@@ -27,13 +27,13 @@ def manage_one_exchange(exchange_code: str):
 
     @task
     def download_securities_of_exchange(exchange: str):
-        from services.jobs.indices.eod import EodIndexJobs
+        from shared.jobs.indices.eod import EodIndexJobs
 
         return EodIndexJobs.download_members_of_index(exchange)
 
     @task
     def process_securities_of_exchange(file_path):
-        from services.jobs.indices.eod import EodIndexJobs
+        from shared.jobs.indices.eod import EodIndexJobs
 
         return EodIndexJobs.process_members_of_index(file_path)
 

@@ -30,7 +30,7 @@ with DAG(
 
     @task()
     def transform_eod(**context: TaskInstance):
-        # from services.jobs.exchanges.eod import transform_exchanges
+        # from shared.jobs.exchanges.eod import transform_exchanges
 
         file_path: str = context["ti"].xcom_pull()
         print(file_path)

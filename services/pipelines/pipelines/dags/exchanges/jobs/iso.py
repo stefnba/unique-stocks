@@ -1,7 +1,7 @@
 from dags.exchanges.jobs.datalake_path import ExchangesPath
-from services.clients.api.iso.iso_exhanges import IsoExchangesApiClient
-from services.clients.datalake.azure.azure_datalake import datalake_client
-from services.config import config
+from shared.clients.api.iso.iso_exhanges import IsoExchangesApiClient
+from shared.clients.datalake.azure.azure_datalake import datalake_client
+from shared.config import config
 
 ApiClient = IsoExchangesApiClient
 ASSET_SOURCE = ApiClient.client_key

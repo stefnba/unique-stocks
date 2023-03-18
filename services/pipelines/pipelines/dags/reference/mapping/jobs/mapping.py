@@ -1,9 +1,9 @@
 import io
 
 import polars as pl
-from services.clients.datalake.azure.azure_datalake import datalake_client
-from services.config import config
-from services.utils.path.builder import PathBuilder
+from shared.clients.datalake.azure.azure_datalake import datalake_client
+from shared.config import config
+from shared.utils.path.builder import PathBuilder
 
 
 class MappingJobs:
