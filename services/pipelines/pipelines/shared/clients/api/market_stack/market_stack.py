@@ -15,7 +15,7 @@ class MarketStackApiClient(ApiHook):
     }
     virtual_exchanges = ["INDX"]
 
-    _base_url = "http://api.marketstack.com/v1/"
+    _base_url = "http://api.marketstack.com/v1"
     _base_params = {"access_key": config.api_keys.market_stack, "limit": 1000}
 
     @classmethod
@@ -27,7 +27,7 @@ class MarketStackApiClient(ApiHook):
             dict: JSON of exchanges
         """
 
-        endpoint = "/exchanges"
+        endpoint = "exchanges"
         api = cls()
         response = api.request_json(endpoint)
         return response["data"]
