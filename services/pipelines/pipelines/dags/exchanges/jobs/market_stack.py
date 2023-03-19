@@ -50,8 +50,8 @@ class MarketStackExchangeJobs:
             ]
         )
 
-        pl.from_dicts([{"mic": k, "mic_corrected": v} for k, v in ApiClient.mic_correction.items()])
-        pl.from_dict({"mic": ApiClient.virtual_exchanges})
+        df_mic_correction = pl.from_dicts([{"mic": k, "mic_corrected": v} for k, v in ApiClient.mic_correction.items()])
+        df_virtual_exchanges = pl.from_dict({"mic": ApiClient.virtual_exchanges})
 
         processed = duckdb.sql(
             """

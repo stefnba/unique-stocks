@@ -8,7 +8,7 @@ from airflow.decorators import task
 from airflow.models import TaskInstance
 
 
-@task()
+@task
 def ingest_eod():
     from dags.exchanges.jobs.eod import EodExchangeJobs
 
@@ -24,7 +24,7 @@ def extract_codes(**context: TaskInstance):
     return EodExchangeJobs.extract_exchange_codes(file_path)
 
 
-@task()
+@task
 def ingest_eod_details(**context: TaskInstance):
     from dags.exchanges.jobs.eod import EodExchangeJobs
 
@@ -36,7 +36,7 @@ def ingest_eod_details(**context: TaskInstance):
     return raw_file_path
 
 
-@task()
+@task
 def process_eod_details():
     from dags.exchanges.jobs.eod import EodExchangeJobs
 
@@ -44,13 +44,13 @@ def process_eod_details():
     return raw_file_path
 
 
-@task()
+@task
 def merge_eod_details(**context: TaskInstance):
     file_path: str = context["ti"].xcom_pull()
     return file_path
 
 
-@task()
+@task
 def process_eod(**context: TaskInstance):
     from dags.exchanges.jobs.eod import EodExchangeJobs
 
@@ -60,14 +60,14 @@ def process_eod(**context: TaskInstance):
     return processed_file_path
 
 
-@task()
+@task
 def ingest_iso():
     from dags.exchanges.jobs.iso import IsoExchangeJobs
 
     return IsoExchangeJobs.download_exchanges()
 
 
-@task()
+@task
 def process_iso(**context: TaskInstance):
     from dags.exchanges.jobs.iso import IsoExchangeJobs
 
@@ -76,7 +76,7 @@ def process_iso(**context: TaskInstance):
     return IsoExchangeJobs.process_exchanges(raw_file_path)
 
 
-@task()
+@task
 def ingest_marketstack():
     from dags.exchanges.jobs.market_stack import MarketStackExchangeJobs
 
@@ -84,7 +84,7 @@ def ingest_marketstack():
     return raw_file
 
 
-@task()
+@task
 def process_marketstack(**context: TaskInstance):
     from dags.exchanges.jobs.market_stack import MarketStackExchangeJobs
 
@@ -94,14 +94,29 @@ def process_marketstack(**context: TaskInstance):
     return processed_file_path
 
 
-@task()
+@task
+def combine():
+    return {
+        "eod_exchange_path": "processed/product=exchanges/asset=exchanges/source=EodHistoricalData/y=2023/m=03/20230312_EodHistoricalData_exchanges_processed.parquet",
+        "iso_exchange_path": "processed/product=exchanges/asset=exchanges/source=IsoExchanges/y=2023/m=03/20230312_IsoExchanges_exchanges_processed.parquet",
+        "ms_exchange_path": "processed/product=exchanges/asset=exchanges/source=MarketStack/y=2023/m=03/20230312_MarketStack_exchanges_processed.parquet",
+    }
+
+
+@task
 def merge(**context: TaskInstance):
-    file_paths: str = context["ti"].xcom_pull()
-    print(file_paths)
-    return file_paths
+    from dags.exchanges.jobs.merge import ExchangeSources, merge_exchanges
+
+    file_paths: ExchangeSources = {
+        "eod_exchange_path": context["ti"].xcom_pull(task_ids="process_eod"),
+        "iso_exchange_path": context["ti"].xcom_pull(task_ids="process_iso"),
+        "ms_exchange_path": context["ti"].xcom_pull(task_ids="process_marketstack"),
+    }
+
+    merge_exchanges(file_paths)
 
 
-@task()
+@task
 def load_into_db(**context: TaskInstance):
     context["ti"].xcom_pull()
     return "test"
