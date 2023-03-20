@@ -1,7 +1,8 @@
 {
     "editor.formatOnSave": true,
     "editor.codeActionsOnSave": {
-        "source.organizeImports": true
+        "source.organizeImports": true,
+        "source.fixAll": false
     },
     "editor.defaultFormatter": "esbenp.prettier-vscode",
     "[python]": {
@@ -17,10 +18,11 @@
     "python.linting.enabled": true,
     "python.linting.mypyEnabled": true,
     "python.linting.mypyPath": "./.venv/bin/mypy",
-    "python.linting.flake8Enabled": false,
-    "python.linting.pylintEnabled": false,
+    // "python.linting.flake8Enabled": false,
+    // "python.linting.pylintEnabled": false,
     "files.exclude": {
         "**/__pycache__": true,
-        ".mypy_cache": true
+        ".mypy_cache": true,
+        ".ruff_cache": true
     }
 }
