@@ -12,4 +12,4 @@ def json_to_bytes(json_input: dict | str, encoding="utf-8") -> bytes:
         _type_: JSON object as bytes
     """
 
-    return bytes(json.dumps(json_input).encode(encoding))
+    return json.dumps(json_input).encode(encoding)
