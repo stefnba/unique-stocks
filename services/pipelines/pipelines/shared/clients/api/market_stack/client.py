@@ -27,7 +27,7 @@ class MarketStackApiClient(ApiHook):
             dict: JSON of exchanges
         """
 
-        endpoint = "exchanges"
+        endpoint = "/exchanges"
         api = cls()
         response = api.request_json(endpoint)
         return response["data"]

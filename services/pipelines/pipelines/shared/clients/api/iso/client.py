@@ -23,5 +23,5 @@ class IsoExchangesApiClient(ApiHook):
             RequestFileBytes: _description_
         """
         api = cls()
-        endpoint = "ISO10383_MIC.csv"
+        endpoint = "/ISO10383_MIC.csv"
         return api._download_file_to_bytes(endpoint)
