@@ -57,7 +57,7 @@ class EodHistoricalDataApiClient(ApiHook):
             dict: JSON of exchanges
         """
 
-        endpoint = "exchange-symbol-list/"
+        endpoint = "/exchange-symbol-list/"
         api = cls()
         return api.request_json(f"{endpoint}/{exhange_code}")
 
@@ -74,7 +74,7 @@ class EodHistoricalDataApiClient(ApiHook):
             _type_: _description_
         """
 
-        endpoint = "exchange-details"
+        endpoint = "/exchange-details"
         api = cls()
         return api.request_json(f"{endpoint}/{exhange_code}")
 
@@ -91,8 +91,10 @@ class EodHistoricalDataApiClient(ApiHook):
         Returns:
             dict: _description_
         """
-        endpoint = "fundamentals"
-        security = f"{security_code}" if not exchange_code else f"{security_code}.{exchange_code}"
         api = cls()
+        endpoint = "/fundamentals"
+
+        # some securities need exchange code, other don't
+        security = f"{security_code}" if not exchange_code else f"{security_code}.{exchange_code}"
 
         return api.request_json(f"{endpoint}/{security}")
