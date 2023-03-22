@@ -1,9 +1,13 @@
 from pydantic import BaseModel
+from shared.utils.path.types import FilePath
 
 
-class DataLakeFileUpload(BaseModel):
+class DatalakeProperties(BaseModel):
+    storage_account: str
     file_system: str
-    file_name: str
-    file_path: str
-    file_extension: str
-    storage_account: str | None
+    storage_account_url: str
+
+
+class DatalakeFile(BaseModel):
+    file: FilePath
+    datalake: DatalakeProperties
