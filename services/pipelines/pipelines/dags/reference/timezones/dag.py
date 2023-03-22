@@ -8,14 +8,14 @@ from airflow.models import TaskInstance
 
 @task
 def ingest():
-    from dags.reference.timezones.jobs.timezones import TimezoneJobs
+    from dags.reference.timezones.jobs.timezone import TimezoneJobs
 
     return TimezoneJobs.download()
 
 
 @task
 def process(**context: TaskInstance):
-    from dags.reference.timezones.jobs.timezones import TimezoneJobs
+    from dags.reference.timezones.jobs.timezone import TimezoneJobs
 
     file_path: str = context["ti"].xcom_pull()
     return TimezoneJobs.process(file_path)

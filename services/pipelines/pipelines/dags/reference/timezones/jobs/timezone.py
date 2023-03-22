@@ -1,7 +1,8 @@
 import io
 
 import polars as pl
-from dags.reference.timezones.clients.timezones import TimezoneApiClient
+from dags.reference.timezones.clients.timezone import TimezoneApiClient
+from dags.reference.timezones.jobs.config import TimezonesPath
 from shared.clients.datalake.azure.azure_datalake import datalake_client
 
 
@@ -12,7 +13,7 @@ class TimezoneJobs:
 
         # upload to datalake
         uploaded_file = datalake_client.upload_file(
-            destination_file_path="raw/references/timezones/timezones_reference.csv",
+            destination_file_path=TimezonesPath(zone="raw", file_type="csv"),
             file=currencies,
         )
         return uploaded_file.file.full_path
@@ -26,7 +27,7 @@ class TimezoneJobs:
 
         # upload to datalake
         uploaded_file = datalake_client.upload_file(
-            destination_file_path="processed/references/timezones/timezones_reference.parquet",
+            destination_file_path=TimezonesPath(zone="processed"),
             file=df.to_pandas().to_parquet(),
         )
         return uploaded_file.file.full_path

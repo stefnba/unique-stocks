@@ -1,6 +1,7 @@
 import io
 
 import polars as pl
+from dags.reference.mapping.jobs.config import MappingPath
 from shared.clients.datalake.azure.azure_datalake import datalake_client
 from shared.utils.path.builder import FilePathBuilder
 
@@ -12,11 +13,9 @@ class MappingJobs:
             FilePathBuilder.build_relative_file_path(base_path=__file__, path="../data/mapping.csv")
         )
 
-        print(mapping_table)
-
         # upload to datalake
         uploaded_file = datalake_client.upload_file(
-            destination_file_path="raw/references/mapping/mapping_reference.csv",
+            destination_file_path=MappingPath(zone="raw", file_type="csv"),
             file=bytes(mapping_table.write_csv().encode()),
         )
         return uploaded_file.file.full_path
@@ -30,7 +29,7 @@ class MappingJobs:
 
         # upload to datalake
         uploaded_file = datalake_client.upload_file(
-            destination_file_path="processed/references/mapping/mapping_reference.parquet",
+            destination_file_path=MappingPath(zone="processed"),
             file=df.to_pandas().to_parquet(),
         )
         return uploaded_file.file.full_path

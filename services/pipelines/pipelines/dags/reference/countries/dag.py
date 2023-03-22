@@ -9,26 +9,26 @@ from airflow.models import TaskInstance
 
 
 @task
-def upload():
-    from dags.reference.mapping.jobs.mapping import MappingJobs
+def download():
+    from dags.reference.countries.jobs.country import CountryJobs
 
-    return MappingJobs.upload()
+    return CountryJobs.download_countries()
 
 
 @task
 def process(**context: TaskInstance):
-    from dags.reference.mapping.jobs.mapping import MappingJobs
+    from dags.reference.countries.jobs.country import CountryJobs
 
     file_path: str = context["ti"].xcom_pull()
 
-    return MappingJobs.process(file_path)
+    CountryJobs.process_countries(file_path)
 
 
 with DAG(
-    dag_id="mapping_reference",
+    dag_id="countries",
     schedule=None,
     start_date=datetime(2023, 1, 1),
     catchup=False,
     tags=["reference"],
 ) as dag:
-    upload() >> process()
+    download() >> process()

@@ -5,20 +5,19 @@ from datetime import datetime
 
 from airflow import DAG
 from airflow.decorators import task
-
 from airflow.models import TaskInstance
 
 
 @task
 def download():
-    from dags.reference.currencies.jobs.currency_jobs import CurrencyJobs
+    from dags.reference.currencies.jobs.currency import CurrencyJobs
 
     return CurrencyJobs.download_currencies()
 
 
 @task
 def process(**context: TaskInstance):
-    from dags.reference.currencies.jobs.currency_jobs import CurrencyJobs
+    from dags.reference.currencies.jobs.currency import CurrencyJobs
 
     file_path: str = context["ti"].xcom_pull()
 
@@ -26,7 +25,7 @@ def process(**context: TaskInstance):
 
 
 with DAG(
-    dag_id="currencies_reference",
+    dag_id="currencies",
     schedule=None,
     start_date=datetime(2023, 1, 1),
     catchup=False,
