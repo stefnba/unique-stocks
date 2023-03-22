@@ -1,18 +1,23 @@
-from typing import Literal, Optional
+from typing import Literal, Optional, TypeVar
 
 from pydantic import BaseModel
+from shared.utils.path.types import PathParams
+
+EndpointParam = PathParams
+
+JsonResponse = TypeVar("JsonResponse", dict, list[dict])
 
 
-class RequestFileReturnBase(BaseModel):
+class RequestFileReturn(BaseModel):
     extension: str
     name: str
 
 
-class RequestFileBytes(RequestFileReturnBase):
+class RequestFileBytesReturn(RequestFileReturn):
     content: bytes
 
 
-class RequestFileDisk(RequestFileReturnBase):
+class RequestFileDiskReturn(RequestFileReturn):
     path: str
 
 

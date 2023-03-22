@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from shared.config.api_keys import ApiKeys
 from shared.config.app import AppConfig
 from shared.config.azure import AzureConfig
+from shared.config.datalake import DatalakeConfig
 
 
 class GlobalConfig(BaseModel):
@@ -17,6 +18,7 @@ class GlobalConfig(BaseModel):
     api_keys = ApiKeys()
     app = AppConfig()
     azure = AzureConfig()
+    datalake = DatalakeConfig()
 
 
 config = GlobalConfig()

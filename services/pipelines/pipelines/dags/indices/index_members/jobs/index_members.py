@@ -2,10 +2,9 @@ import io
 
 import duckdb
 import polars as pl
-from dags.indices.index_members.jobs.datalake_path import IndexMembersPath, IndicesPath
+from dags.indices.index_members.jobs.config import IndexMembersPath
 from shared.clients.api.eod.client import EodHistoricalDataApiClient
 from shared.clients.datalake.azure.azure_datalake import datalake_client
-from shared.config import config
 from shared.utils.conversion import converter
 
 ApiClient = EodHistoricalDataApiClient
@@ -18,9 +17,7 @@ VIRTUAL_EXCHANGE_CODE = "INDX"
 class IndexMembersJobs:
     @staticmethod
     def extract_index_codes(file_path: str):
-        file_content = datalake_client.download_file_into_memory(
-            file_system=config.azure.file_system, remote_file=file_path
-        )
+        file_content = datalake_client.download_file_into_memory(file_path=file_path)
 
         df = pl.read_parquet(io.BytesIO(file_content))
         return list(df["code"].unique())[:10]
@@ -31,20 +28,19 @@ class IndexMembersJobs:
 
         # upload to datalake
         uploaded_file = datalake_client.upload_file(
-            remote_file=IndexMembersPath(stage="raw", asset_source=ASSET_SOURCE, file_type="json", index=index_code),
-            file_system=config.azure.file_system,
-            local_file=converter.json_to_bytes(members),
+            destination_file_path=IndexMembersPath(
+                zone="raw", asset_source=ASSET_SOURCE, file_type="json", index=index_code
+            ),
+            file=converter.json_to_bytes(members),
         )
 
-        return uploaded_file.file_path
+        return uploaded_file.file.full_path
 
     @staticmethod
     def process_members_of_index(file_path: str):
         import json
 
-        file_content = datalake_client.download_file_into_memory(
-            file_system=config.azure.file_system, remote_file=file_path
-        )
+        file_content = datalake_client.download_file_into_memory(file_path=file_path)
         data_dict = json.loads(file_content)
 
         members = list(data_dict["Components"].values())
@@ -86,9 +82,8 @@ class IndexMembersJobs:
 
         # datalake destination
         uploaded_file = datalake_client.upload_file(
-            remote_file=IndexMembersPath(stage="processed", asset_source=ASSET_SOURCE, index=index_code),
-            file_system=config.azure.file_system,
-            local_file=df_upload.to_parquet(),
+            destination_file_path=IndexMembersPath(zone="processed", asset_source=ASSET_SOURCE, index=index_code),
+            file=df_upload.to_parquet(),
         )
 
-        return uploaded_file.file_name
+        return uploaded_file.file.full_path
