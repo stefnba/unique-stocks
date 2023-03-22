@@ -3,10 +3,9 @@ import io
 import duckdb
 import pandas as pd
 import polars as pl
-from dags.exchanges.jobs.datalake_path import ExchangesPath
-from shared.clients.api.market_stack.market_stack import MarketStackApiClient
+from dags.exchanges.jobs.config import ExchangesPath
+from shared.clients.api.market_stack.client import MarketStackApiClient
 from shared.clients.datalake.azure.azure_datalake import datalake_client
-from shared.config import config
 from shared.utils.conversion import converter
 
 ApiClient = MarketStackApiClient
@@ -27,19 +26,16 @@ class MarketStackExchangeJobs:
 
         # upload to datalake
         uploaded_file = datalake_client.upload_file(
-            remote_file=ExchangesPath(asset_source=ASSET_SOURCE, file_type="json", stage="raw"),
-            file_system=config.azure.file_system,
-            local_file=converter.json_to_bytes(exchanges_json),
+            destination_file_path=ExchangesPath(asset_source=ASSET_SOURCE, file_type="json", zone="raw"),
+            file=converter.json_to_bytes(exchanges_json),
         )
 
-        return uploaded_file.file_path
+        return uploaded_file.file.full_path
 
     @staticmethod
     def process_raw_exchanges(file_path: str):
         # donwload file
-        file_content = datalake_client.download_file_into_memory(
-            file_system=config.azure.file_system, remote_file=file_path
-        )
+        file_content = datalake_client.download_file_into_memory(file_path=file_path)
 
         df_exchanges = pl.from_pandas(pd.read_json(io.BytesIO(file_content)))
 
@@ -83,9 +79,8 @@ class MarketStackExchangeJobs:
 
         # datalake destination
         uploaded_file = datalake_client.upload_file(
-            remote_file=ExchangesPath(asset_source=ASSET_SOURCE, stage="processed"),
-            file_system=config.azure.file_system,
-            local_file=parquet_file,
+            destination_file_path=ExchangesPath(asset_source=ASSET_SOURCE, zone="processed"),
+            file=parquet_file,
         )
 
-        return uploaded_file.file_path
+        return uploaded_file.file.full_path

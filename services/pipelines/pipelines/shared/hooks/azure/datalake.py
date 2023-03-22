@@ -3,7 +3,7 @@ Interact with Azure Data Lake Gen 2 through the DataLakeServiceClient.
 Learn more on:
 https://learn.microsoft.com/en-us/python/api/azure-storage-file-datalake/azure.storage.filedatalake.datalakeserviceclient?view=azure-python
 """
-import os
+
 from typing import TYPE_CHECKING, Optional, Type
 
 from azure.core.exceptions import ClientAuthenticationError, ResourceExistsError
@@ -17,7 +17,7 @@ from azure.storage.filedatalake import (
 )
 from shared.hooks.azure.base import AzureBaseClient
 from shared.hooks.azure.types import DatalakeFile, DatalakeProperties
-from shared.utils.path.builder import PathBuilder
+from shared.utils.path.builder import FilePathBuilder
 from shared.utils.path.types import PathParams
 
 if TYPE_CHECKING:
@@ -128,7 +128,7 @@ class AzureDatalakeHook(AzureBaseClient):
         self.file_client = file_client
         return file_client
 
-    def download_file_into_memory(self, file_path: str, file_system: Optional[str]) -> bytes:
+    def download_file_into_memory(self, file_path: str, file_system: Optional[str] = None) -> bytes:
         """
         Download a file from the Datalake into memory.
 
@@ -202,8 +202,9 @@ class AzureDatalakeHook(AzureBaseClient):
         Uploads a file - either from bytes or local file system - into Datalke.
 
         Args:
-            file (str | bytes): _description_
-            destination_file_path (PathArgs | Type[DatalakePath] | DatalakePath): _description_
+            file (str | bytes): File to upload.
+            destination_file_path (PathArgs | Type[DatalakePath] | DatalakePath): Path on Datalake where file should be
+                uploaded to.
             file_system (Optional[str]): Container. If not provided, will look for self.file_system.
 
 
@@ -211,7 +212,7 @@ class AzureDatalakeHook(AzureBaseClient):
             DatalakeFile: Uploaded file with DatalakeFile properties.
         """
         _file_system = file_system or self.file_system
-        _destination_file_path = PathBuilder.convert_to_path(destination_file_path)
+        _destination_file_path = FilePathBuilder.convert_to_file_path(destination_file_path)
 
         if not _file_system:
             raise Exception("No file system specified.")
@@ -242,7 +243,7 @@ class AzureDatalakeHook(AzureBaseClient):
             if not uploaded_file_path.startswith("/"):
                 uploaded_file_path = f"/{uploaded_file_path}"
 
-            uploaded_file = PathBuilder.parse_file_path(uploaded_file_path)
+            uploaded_file = FilePathBuilder.parse_file_path(uploaded_file_path)
 
             return DatalakeFile(
                 file=uploaded_file,

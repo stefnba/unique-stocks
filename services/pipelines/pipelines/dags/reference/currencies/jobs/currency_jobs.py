@@ -10,11 +10,10 @@ class CurrencyJobs:
 
         # upload to datalake
         uploaded_file = datalake_client.upload_file(
-            remote_file="raw/references/currencies/currencies_reference.csv",
-            file_system=config.azure.file_system,
-            local_file=currencies,
+            destination_file_path="raw/references/currencies/currencies_reference.csv",
+            file=currencies,
         )
-        return uploaded_file.file_path
+        return uploaded_file.file.full_path
 
     @staticmethod
     def process_currencies(file_path: str):
@@ -23,9 +22,7 @@ class CurrencyJobs:
         import polars as pl
 
         #  download file
-        file_content = datalake_client.download_file_into_memory(
-            file_system=config.azure.file_system, remote_file=file_path
-        )
+        file_content = datalake_client.download_file_into_memory(file_path=file_path)
 
         print(file_content)
 
@@ -33,8 +30,7 @@ class CurrencyJobs:
 
         # upload to datalake
         uploaded_file = datalake_client.upload_file(
-            remote_file="processed/references/currencies/currencies_reference.parquet",
-            file_system=config.azure.file_system,
-            local_file=df.to_pandas().to_parquet(),
+            destination_file_path="processed/references/currencies/currencies_reference.parquet",
+            file=df.to_pandas().to_parquet(),
         )
-        return uploaded_file.file_path
+        return uploaded_file.file.full_path

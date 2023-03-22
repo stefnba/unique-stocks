@@ -3,7 +3,6 @@ from typing import TypedDict
 import duckdb
 from shared.clients.datalake.azure.azure_datalake import datalake_client
 from shared.clients.datalake.azure.file_system import abfs_client, build_abfs_path
-from shared.config import config
 
 
 class ExchangeSources(TypedDict):
@@ -56,9 +55,8 @@ def merge_exchanges(file_paths: ExchangeSources):
 
     # datalake destination
     uploaded_file = datalake_client.upload_file(
-        remote_file="curated/product=exchanges/exchanges.parquet",
-        file_system=config.azure.file_system,
-        local_file=merged.df().to_parquet(),
+        destination_file_path="curated/product=exchanges/exchanges.parquet",
+        file=merged.df().to_parquet(),
     )
 
-    return uploaded_file.file_path
+    return uploaded_file.file.full_path

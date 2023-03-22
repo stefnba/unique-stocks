@@ -1,20 +1,16 @@
-# pylint: disable=R0913:too-many-arguments
 import os
 from io import BytesIO
-from typing import Optional, TypeVar, cast
+from typing import Optional, cast
 
 import requests
 from requests.exceptions import HTTPError, JSONDecodeError, Timeout, TooManyRedirects
-from shared.utils.path import path_builder
-
-from .types import Methods, RequestFileBytes, RequestFileDisk
-
-JsonResponse = TypeVar("JsonResponse", dict, list[dict])
+from shared.hooks.api.types import EndpointParam, JsonResponse, Methods, RequestFileBytesReturn, RequestFileDiskReturn
+from shared.utils.path.builder import FilePathBuilder, UrlBuilder
 
 
 class ApiHook:
     """
-    Base hook for calling APIs
+    Hook for calling APIs.
     """
 
     client_key: str
@@ -24,7 +20,7 @@ class ApiHook:
 
     def _request_text(
         self,
-        endpoint: str,
+        endpoint: EndpointParam,
         method: Methods = "GET",
         params: Optional[dict] = None,
         headers: Optional[dict] = None,
@@ -42,14 +38,14 @@ class ApiHook:
 
     def _download_file_to_bytes(
         self,
-        endpoint: str,
+        endpoint: EndpointParam,
         method: Methods = "GET",
         params: Optional[dict] = None,
         headers: Optional[dict] = None,
         json: Optional[dict] = None,
-    ) -> RequestFileBytes:
+    ) -> RequestFileBytesReturn:
         """
-        Make a request to and return downloaded file as bytes
+        Make a request to and return downloaded file as bytes.
         """
 
         response = self._make_request(
@@ -60,27 +56,28 @@ class ApiHook:
             json=json,
             stream=True,
         )
-        filename, file_extension = os.path.splitext(endpoint)
+        file = FilePathBuilder.parse_file_path(endpoint)
+
         memory = BytesIO()
         memory.write(response.content)
 
-        return RequestFileBytes(
+        return RequestFileBytesReturn(
             content=memory.getbuffer().tobytes(),
-            extension=file_extension,
-            name=filename,
+            extension=file.extension,
+            name=file.stem_name,
         )
 
     def _download_file_to_disk(
         self,
-        endpoint: str,
+        endpoint: EndpointParam,
         file_destination: str,
         method: Methods = "GET",
         params: Optional[dict] = None,
         headers: Optional[dict] = None,
         json: Optional[dict] = None,
-    ) -> RequestFileDisk:
+    ) -> RequestFileDiskReturn:
         """
-        Make a request to download a file and save it to disk
+        Make a request to download a file and save it to disk.
         """
         response = self._make_request(
             endpoint=endpoint,
@@ -95,11 +92,11 @@ class ApiHook:
                 file.write(chunk)
         filename, file_extension = os.path.splitext(file_destination)
 
-        return RequestFileDisk(extension=file_extension, path=file_destination, name=filename)
+        return RequestFileDiskReturn(extension=file_extension, path=file_destination, name=filename)
 
     def _request_file(
         self,
-        endpoint: str,
+        endpoint: EndpointParam,
         method: Methods = "GET",
         params: Optional[dict] = None,
         headers: Optional[dict] = None,
@@ -117,7 +114,7 @@ class ApiHook:
 
     def request_json(
         self,
-        endpoint: str,
+        endpoint: EndpointParam,
         method: Methods = "GET",
         params: Optional[dict] = None,
         headers: Optional[dict] = None,
@@ -125,7 +122,7 @@ class ApiHook:
         response_type: Optional[JsonResponse] = None,
     ) -> JsonResponse:
         """
-        Make a request to return json object
+        Make a request to return json object.
 
         Args:
             endpoint (str): _description_
@@ -146,7 +143,7 @@ class ApiHook:
 
     def _make_request(
         self,
-        endpoint: str,
+        endpoint: EndpointParam,
         method: Methods = "GET",
         params: Optional[dict] = None,
         headers: Optional[dict] = None,
@@ -154,10 +151,10 @@ class ApiHook:
         stream=False,
     ):
         """
-        Make API request
+        Handler for making API requests.
         """
 
-        url = path_builder.path(self._base_url, endpoint)
+        url = UrlBuilder.build_url(self._base_url, endpoint)
         params = {**self._base_params, **params} if isinstance(params, dict) else self._base_params
         headers = {**self._base_headers, **headers} if isinstance(headers, dict) else self._base_headers
 

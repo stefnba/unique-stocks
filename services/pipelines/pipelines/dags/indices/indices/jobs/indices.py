@@ -2,11 +2,10 @@ import io
 
 import duckdb
 import polars as pl
-from dags.indices.indices.jobs.datalake_path import IndicesPath
+from dags.indices.indices.jobs.config import IndicesPath
 from shared.clients.api.eod.client import EodHistoricalDataApiClient
 from shared.clients.datalake.azure.azure_datalake import datalake_client
 from shared.clients.datalake.azure.file_system import abfs_client, build_abfs_path
-from shared.config import config
 from shared.utils.conversion import converter
 
 ApiClient = EodHistoricalDataApiClient
@@ -34,12 +33,11 @@ class IndexJobs:
 
         # upload to datalake
         uploaded_file = datalake_client.upload_file(
-            remote_file=IndicesPath(stage="raw", asset_source=ASSET_SOURCE, file_type="json"),
-            file_system=config.azure.file_system,
-            local_file=converter.json_to_bytes(indices),
+            destination_file_path=IndicesPath(zone="raw", asset_source=ASSET_SOURCE, file_type="json"),
+            file=converter.json_to_bytes(indices),
         )
 
-        return uploaded_file.file_path
+        return uploaded_file.file.full_path
 
     @staticmethod
     def process(file_path: str) -> str:
@@ -51,9 +49,7 @@ class IndexJobs:
         """
 
         # download file
-        file_content = datalake_client.download_file_into_memory(
-            file_system=config.azure.file_system, remote_file=file_path
-        )
+        file_content = datalake_client.download_file_into_memory(file_path=file_path)
 
         df = pl.read_json(io.BytesIO(file_content))
 
@@ -81,12 +77,11 @@ class IndexJobs:
 
         # datalake destination
         uploaded_file = datalake_client.upload_file(
-            remote_file=IndicesPath(stage="processed", asset_source=ASSET_SOURCE),
-            file_system=config.azure.file_system,
-            local_file=df_upload.to_parquet(),
+            destination_file_path=IndicesPath(zone="processed", asset_source=ASSET_SOURCE),
+            file=df_upload.to_parquet(),
         )
 
-        return uploaded_file.file_path
+        return uploaded_file.file.full_path
 
     @staticmethod
     def curate(file_path: str):
@@ -101,7 +96,6 @@ class IndexJobs:
 
         # datalake destination
         datalake_client.upload_file(
-            remote_file="/curated/product=indices/indices.parquet",
-            file_system=config.azure.file_system,
-            local_file=data.df().to_parquet(),
+            destination_file_path="/curated/product=indices/indices.parquet",
+            file=data.df().to_parquet(),
         )

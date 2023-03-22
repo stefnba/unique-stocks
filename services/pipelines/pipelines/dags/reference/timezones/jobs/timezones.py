@@ -3,7 +3,6 @@ import io
 import polars as pl
 from dags.reference.timezones.clients.timezones import TimezoneApiClient
 from shared.clients.datalake.azure.azure_datalake import datalake_client
-from shared.config import config
 
 
 class TimezoneJobs:
@@ -13,25 +12,21 @@ class TimezoneJobs:
 
         # upload to datalake
         uploaded_file = datalake_client.upload_file(
-            remote_file="raw/references/timezones/timezones_reference.csv",
-            file_system=config.azure.file_system,
-            local_file=currencies,
+            destination_file_path="raw/references/timezones/timezones_reference.csv",
+            file=currencies,
         )
-        return uploaded_file.file_path
+        return uploaded_file.file.full_path
 
     @staticmethod
     def process(file_path: str):
         #  download file
-        file_content = datalake_client.download_file_into_memory(
-            file_system=config.azure.file_system, remote_file=file_path
-        )
+        file_content = datalake_client.download_file_into_memory(file_path=file_path)
 
         df = pl.read_csv(io.BytesIO(file_content), null_values=["Nil"])
 
         # upload to datalake
         uploaded_file = datalake_client.upload_file(
-            remote_file="processed/references/timezones/timezones_reference.parquet",
-            file_system=config.azure.file_system,
-            local_file=df.to_pandas().to_parquet(),
+            destination_file_path="processed/references/timezones/timezones_reference.parquet",
+            file=df.to_pandas().to_parquet(),
         )
-        return uploaded_file.file_path
+        return uploaded_file.file.full_path

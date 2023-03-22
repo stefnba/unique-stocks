@@ -1,7 +1,6 @@
-from dags.exchanges.jobs.datalake_path import ExchangesPath
-from shared.clients.api.iso.iso_exhanges import IsoExchangesApiClient
+from dags.exchanges.jobs.config import ExchangesPath
+from shared.clients.api.iso.client import IsoExchangesApiClient
 from shared.clients.datalake.azure.azure_datalake import datalake_client
-from shared.config import config
 
 ApiClient = IsoExchangesApiClient
 ASSET_SOURCE = ApiClient.client_key
@@ -20,12 +19,11 @@ class IsoExchangeJobs:
 
         # datalake destination
         uploaded_file = datalake_client.upload_file(
-            remote_file=ExchangesPath(asset_source=ASSET_SOURCE, stage="raw", file_type="csv"),
-            file_system=config.azure.file_system,
-            local_file=exchange_file.content,
+            destination_file_path=ExchangesPath(asset_source=ASSET_SOURCE, zone="raw", file_type="csv"),
+            file=exchange_file.content,
         )
 
-        return uploaded_file.file_path
+        return uploaded_file.file.full_path
 
     @staticmethod
     def process_exchanges(file_path: str):
@@ -36,10 +34,8 @@ class IsoExchangeJobs:
 
         print("asdflksfalsdfjalksdfjlkasjdfkl", file_path)
 
-        file_content = datalake_client.download_file_into_memory(
-            file_system=config.azure.file_system, remote_file=file_path
-        )
-        df1 = pl.read_csv(file=io.BytesIO(file_content), encoding="ISO8859-1")
+        file_content = datalake_client.download_file_into_memory(file_path=file_path)
+        df1 = pl.read_csv(io.BytesIO(file_content), encoding="ISO8859-1")
 
         print(df1.columns)
         print(df1.head())
@@ -93,9 +89,8 @@ class IsoExchangeJobs:
 
         # datalake destination
         uploaded_file = datalake_client.upload_file(
-            remote_file=ExchangesPath(asset_source=ASSET_SOURCE, stage="processed"),
-            file_system=config.azure.file_system,
-            local_file=df.to_parquet(),
+            destination_file_path=ExchangesPath(asset_source=ASSET_SOURCE, zone="processed"),
+            file=df.to_parquet(),
         )
 
-        return uploaded_file.file_path
+        return uploaded_file.file.full_path
