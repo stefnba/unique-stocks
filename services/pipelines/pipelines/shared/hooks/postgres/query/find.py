@@ -1,9 +1,9 @@
 from typing import Optional
 
-from psycopg.abc import Params, Query
+from psycopg.abc import Params
 from shared.hooks.postgres.query.base import QueryBase
 from shared.hooks.postgres.query.filter import Filter
-from shared.hooks.postgres.types import FilterParams
+from shared.hooks.postgres.types import FilterParams, QueryInput
 
 # from psycopg.sql import SQL
 
@@ -11,7 +11,7 @@ from shared.hooks.postgres.types import FilterParams
 class FindQuery(QueryBase, Filter):
     def find(
         self,
-        query: Query,
+        query: QueryInput,
         params: Optional[Params] = None,
         filters: Optional[FilterParams] = None,
     ):
@@ -19,9 +19,10 @@ class FindQuery(QueryBase, Filter):
         Simplifies building of SELECT query.
 
         Args:
-            query (Query): _description_
-            params (Optional[Params], optional): _description_. Defaults to None.
-            filters (Optional[FilterParams], optional): _description_. Defaults to None.
+            query (QueryInput): SQL query.
+            params (Optional[Params], optional): Parameters provided to SQL query. Defaults to None.
+            filters (Optional[FilterParams], optional): Additional filter for WHERE clause of SELECT query.
+            Defaults to None.
         """
         _query = self._init_query(query)
 

@@ -1,11 +1,12 @@
 from typing import Optional
 
-from psycopg.abc import Params, Query
+from psycopg.abc import Params
 from shared.hooks.postgres.query.base import QueryBase
+from shared.hooks.postgres.types import QueryInput
 
 
 class RunQuery(QueryBase):
-    def run(self, query: Query, params: Optional[Params] = None):
+    def run(self, query: QueryInput, params: Optional[Params] = None):
         """
         Executes any query to the database.
 

@@ -1,11 +1,12 @@
 from typing import Optional
 
 import psycopg
-from psycopg.abc import Params, Query
+from psycopg.abc import Params
 from psycopg.rows import dict_row
 from psycopg.sql import SQL, Composable, Composed, Identifier
 from shared.hooks.postgres.query.record import PgRecord
-from shared.hooks.postgres.types import ReturningParams
+from shared.hooks.postgres.types import QueryInput, ReturningParams
+from shared.utils.sql.file import QueryFile
 
 # from pydantic import BaseModel
 
@@ -13,7 +14,7 @@ from shared.hooks.postgres.types import ReturningParams
 class QueryBase:
     _conn_uri: str
 
-    def _execute(self, query: Query, params: Optional[Params] = None) -> PgRecord:
+    def _execute(self, query: QueryInput, params: Optional[Params] = None) -> PgRecord:
         """
         Executes a query to the database.
         Attention: Connection must be closed manually with .close()
@@ -34,7 +35,7 @@ class QueryBase:
         try:
             with psycopg.connect(self._conn_uri, row_factory=dict_row) as conn:
                 cur = conn.cursor()
-                cur.execute(query=query, params=params)
+                cur.execute(query=self._init_query(query), params=params)
                 return PgRecord(cur)
 
         except psycopg.errors.UniqueViolation as error:
@@ -45,7 +46,7 @@ class QueryBase:
             if conn:
                 conn.close()
 
-    def _init_query(self, query: Query) -> Composed:
+    def _init_query(self, query: QueryInput) -> Composed:
         """
         Translates type `Query` into `Composed` type.
 
@@ -60,15 +61,16 @@ class QueryBase:
             _query = query
         if isinstance(query, str):
             _query = SQL(query)
+        if isinstance(query, QueryFile):
+            _query = query.sql
         return Composed([_query])
 
-    # def _concatenate_query(self, *queries: Composable):
-    #     return Composed(queries)
-
-    def _query_as_string(self, query: Query) -> str:
+    def _query_as_string(self, query: QueryInput) -> str:
         conn = psycopg.connect(self._conn_uri)
         _query = ""
 
+        if isinstance(query, QueryFile):
+            _query = query.sql.as_string(conn)
         if isinstance(query, Composable):
             _query = query.as_string(conn)
         elif isinstance(query, SQL):
