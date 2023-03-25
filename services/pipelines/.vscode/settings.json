@@ -20,6 +20,14 @@
     "python.linting.mypyPath": "./.venv/bin/mypy",
     // "python.linting.flake8Enabled": false,
     // "python.linting.pylintEnabled": false,
+    "search.exclude": {
+        "**/node_modules": true,
+        "**/bower_components": true,
+        "**/*.code-search": true,
+        "**/__pycache__": true,
+        ".mypy_cache": true,
+        ".ruff_cache": true
+    },
     "files.exclude": {
         "**/__pycache__": true,
         ".mypy_cache": true,
