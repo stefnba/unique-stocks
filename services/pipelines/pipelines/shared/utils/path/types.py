@@ -1,18 +1,6 @@
-from typing import Literal, Sequence
+from typing import Sequence
 
 from pydantic import BaseModel
-
-DatalakeFileTypes = Literal["csv", "json", "parquet"]
-DatalakeDirParams = str | list[str]
-
-
-class DatalakeDate(BaseModel):
-    year: str
-    month: str
-    day: str
-    hour: str
-    minute: str
-    second: str
 
 
 class UrlPath(BaseModel):
