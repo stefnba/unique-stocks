@@ -10,10 +10,7 @@ psycopg2-binary = "*"
 
 [dev-packages]
 black = "*"
-pylint = "*"
-flake8 = "*"
-pydantic = "*"
-isort = "*"
+ruff = "*"
 mypy = "*"
 
 [requires]
