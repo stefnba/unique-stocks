@@ -12,7 +12,7 @@ from airflow.models import TaskInstance
 def download():
     from dags.reference.countries.jobs.country import CountryJobs
 
-    return CountryJobs.download_countries()
+    return CountryJobs.download()
 
 
 @task
@@ -21,7 +21,16 @@ def process(**context: TaskInstance):
 
     file_path: str = context["ti"].xcom_pull()
 
-    CountryJobs.process_countries(file_path)
+    return CountryJobs.process(file_path)
+
+
+@task
+def curate(**context: TaskInstance):
+    from dags.reference.countries.jobs.country import CountryJobs
+
+    file_path: str = context["ti"].xcom_pull()
+
+    CountryJobs.curate(file_path)
 
 
 with DAG(
@@ -31,4 +40,4 @@ with DAG(
     catchup=False,
     tags=["reference"],
 ) as dag:
-    download() >> process()
+    download() >> process() >> curate()
