@@ -1,9 +1,7 @@
-from typing import Any, Dict, Literal, Sequence, TypedDict, TypeVar, Union
+from typing import Any, Dict, Literal, Sequence, TypedDict, TypeVar
 
 from psycopg.abc import Query
 from pydantic import BaseModel
-
-# create_model_from_typeddict
 
 
 class ConnectionObject(TypedDict):
@@ -39,8 +37,6 @@ class FilterObject(TypedDict):
     value: Any | None
     operator: FilterOperator
 
-
-ConnectionInfo = Union[str, ConnectionObject, ConnectionModel]
 
 DbModelRecord = TypeVar("DbModelRecord", bound=BaseModel)
 
