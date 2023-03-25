@@ -1,9 +1,15 @@
 import pathlib
-from typing import Sequence, Type
+from typing import TYPE_CHECKING, Sequence, Type
 from urllib.parse import urlparse
 
-from shared.utils.path.datelake_builder import DatalakePath
-from shared.utils.path.types import FileNameParams, FilePath, PathParams, PathParamsOptional, UrlPath
+from shared.config import config
+from shared.utils.path.types import (FileNameParams, FilePath, PathParams,
+                                     PathParamsOptional, UrlPath)
+
+DatalakeZones = config.datalake.zones
+
+if TYPE_CHECKING:
+    from shared.utils.path.datalake.path import DatalakePath
 
 
 class PathBuilder:
@@ -144,7 +150,7 @@ class UrlBuilder(PathBuilder):
 
 class FilePathBuilder(PathBuilder):
     @classmethod
-    def convert_to_file_path(cls, path: PathParams | DatalakePath | Type[DatalakePath]) -> str:
+    def convert_to_file_path(cls, path: PathParams | "DatalakePath" | Type["DatalakePath"]) -> str:
         """
         Converts path args of various formats into a file path.
 
@@ -154,6 +160,8 @@ class FilePathBuilder(PathBuilder):
         Returns:
             str: full path including file name and extension
         """
+        from shared.utils.path.datalake.path import DatalakePath
+
         # string
         if isinstance(path, str):
             return path

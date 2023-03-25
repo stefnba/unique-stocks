@@ -1,11 +1,16 @@
 from datetime import datetime
 from string import Template
+from typing import TYPE_CHECKING, Optional, Type
 
-from pydantic import BaseModel
 from shared.config import config
-from shared.utils.path.types import DatalakeDate, DatalakeDirParams, DatalakeFileTypes
+from shared.utils.path.builder import FilePathBuilder
+from shared.utils.path.datalake.types import DatalakeDate, DatalakeDirParams, DatalakeFileTypes
+from shared.utils.path.types import PathParams
 
-DataLakeZones = config.datalake.zones
+if TYPE_CHECKING:
+    from shared.utils.path.datalake.path import DatalakePath
+
+DatalakeZones = config.datalake.zones
 
 
 class DatalakePathBuilder:
@@ -41,7 +46,6 @@ class DatalakePathBuilder:
         Returns:
             str: Absolute file Path.
         """
-        from shared.utils.path.builder import FilePathBuilder  # avoid circular import
 
         file_type = self.file_type if hasattr(self, "file_type") else self.__file_type_default
 
@@ -90,36 +94,15 @@ class DatalakePathBuilder:
 
         return DatalakeDate(year=year, day=day, month=month, minute=minute, hour=hour, second=second)
 
+    @classmethod
+    def build_abfs_path(
+        cls, path: PathParams | "DatalakePath" | Type["DatalakePath"], file_system: Optional[str] = None
+    ):
+        print(path)
+        _file_system = file_system or config.azure.file_system
+        _path = FilePathBuilder.convert_to_file_path(path)
 
-class DatalakePath(
-    DatalakePathBuilder,
-    BaseModel,
-):
-    """
-    Base class for creating complete paths in the datalake.
+        if not _file_system:
+            raise Exception("No file system specified.")
 
-    The following properties need to be specified:
-    - directory
-    - file_name
-    - file_type
-
-    All others are optional and only need to be specified if they are list in child class.
-
-
-    """
-
-    zone: DataLakeZones  # type: ignore
-
-    def _get_args(self) -> dict:
-        """
-        Returns all args specified for pydantic BaseModel.
-        method.
-
-        Returns:
-            _type_: _description_
-        """
-        return self.dict()
-
-    class Config:
-        extra = "allow"
-        # exclude = {"_args", "_template_path"}
+        return f"abfs://{_file_system}/{_path.lstrip('/')}"

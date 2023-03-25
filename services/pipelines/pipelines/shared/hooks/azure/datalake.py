@@ -21,7 +21,7 @@ from shared.utils.path.builder import FilePathBuilder
 from shared.utils.path.types import PathParams
 
 if TYPE_CHECKING:
-    from shared.utils.path.datelake_builder import DatalakePath
+    from shared.utils.path.datalake.path import DatalakePath
 
 
 class AzureDatalakeHook(AzureBaseClient):
