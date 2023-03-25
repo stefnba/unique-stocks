@@ -1,4 +1,4 @@
-from dags.exchanges.jobs.config import ExchangesPath
+from dags.exchanges.exchanges.jobs.config import ExchangesPath
 from shared.clients.api.iso.client import IsoExchangesApiClient
 from shared.clients.datalake.azure.azure_datalake import datalake_client
 

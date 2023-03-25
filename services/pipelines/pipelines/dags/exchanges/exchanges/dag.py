@@ -6,11 +6,12 @@ from datetime import datetime
 from airflow import DAG
 from airflow.decorators import task
 from airflow.models import TaskInstance
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 
 @task
 def ingest_eod():
-    from dags.exchanges.jobs.eod import EodExchangeJobs
+    from dags.exchanges.exchanges.jobs.eod import EodExchangeJobs
 
     raw_file_path = EodExchangeJobs.download_exchange_list()
     return raw_file_path
@@ -18,27 +19,15 @@ def ingest_eod():
 
 @task
 def extract_codes(**context: TaskInstance):
-    from dags.exchanges.jobs.eod import EodExchangeJobs
+    from dags.exchanges.exchanges.jobs.eod import EodExchangeJobs
 
     file_path = context["ti"].xcom_pull()
     return EodExchangeJobs.extract_exchange_codes(file_path)
 
 
 @task
-def ingest_eod_details(**context: TaskInstance):
-    from dags.exchanges.jobs.eod import EodExchangeJobs
-
-    exchange_code: str = context["ti"].xcom_pull()
-
-    EodExchangeJobs.download_exchange_details(exchange_code)
-
-    raw_file_path = EodExchangeJobs.download_exchange_list()
-    return raw_file_path
-
-
-@task
 def process_eod_details():
-    from dags.exchanges.jobs.eod import EodExchangeJobs
+    from dags.exchanges.exchanges.jobs.eod import EodExchangeJobs
 
     raw_file_path = EodExchangeJobs.download_exchange_list()
     return raw_file_path
@@ -52,7 +41,7 @@ def merge_eod_details(**context: TaskInstance):
 
 @task
 def process_eod(**context: TaskInstance):
-    from dags.exchanges.jobs.eod import EodExchangeJobs
+    from dags.exchanges.exchanges.jobs.eod import EodExchangeJobs
 
     raw_file_path: str = context["ti"].xcom_pull(task_ids="ingest_eod")
 
@@ -62,14 +51,14 @@ def process_eod(**context: TaskInstance):
 
 @task
 def ingest_iso():
-    from dags.exchanges.jobs.iso import IsoExchangeJobs
+    from dags.exchanges.exchanges.jobs.iso import IsoExchangeJobs
 
     return IsoExchangeJobs.download_exchanges()
 
 
 @task
 def process_iso(**context: TaskInstance):
-    from dags.exchanges.jobs.iso import IsoExchangeJobs
+    from dags.exchanges.exchanges.jobs.iso import IsoExchangeJobs
 
     raw_file_path: str = context["ti"].xcom_pull(task_ids="ingest_iso")
 
@@ -78,7 +67,7 @@ def process_iso(**context: TaskInstance):
 
 @task
 def ingest_marketstack():
-    from dags.exchanges.jobs.market_stack import MarketStackExchangeJobs
+    from dags.exchanges.exchanges.jobs.market_stack import MarketStackExchangeJobs
 
     raw_file = MarketStackExchangeJobs.download_exchanges()
     return raw_file
@@ -86,7 +75,7 @@ def ingest_marketstack():
 
 @task
 def process_marketstack(**context: TaskInstance):
-    from dags.exchanges.jobs.market_stack import MarketStackExchangeJobs
+    from dags.exchanges.exchanges.jobs.market_stack import MarketStackExchangeJobs
 
     raw_file_path: str = context["ti"].xcom_pull(task_ids="ingest_marketstack")
 
@@ -105,7 +94,7 @@ def combine():
 
 @task
 def merge(**context: TaskInstance):
-    from dags.exchanges.jobs.merge import ExchangeSources, merge_exchanges
+    from dags.exchanges.exchanges.jobs.merge import ExchangeSources, merge_exchanges
 
     file_paths: ExchangeSources = {
         "eod_exchange_path": context["ti"].xcom_pull(task_ids="process_eod"),
@@ -122,6 +111,13 @@ def load_into_db(**context: TaskInstance):
     return "test"
 
 
+trigger_exchange_securities_dag = TriggerDagRunOperator(
+    task_id="trigger_exchange_securities",
+    trigger_dag_id="exchange_securities",
+    wait_for_completion=False,
+)
+
+
 with DAG(
     dag_id="exchanges",
     schedule=None,
@@ -129,17 +125,13 @@ with DAG(
     catchup=False,
     tags=["exchanges"],
 ) as dag:
-    process_eod_task = process_eod()
-    # merge_eod_details_task = merge_eod_details()
-
     (
         [
-            ingest_eod() >> process_eod_task,
+            ingest_eod() >> process_eod(),
             ingest_iso() >> process_iso(),
             ingest_marketstack() >> process_marketstack(),
         ]
         >> merge()
+        >> trigger_exchange_securities_dag
         >> load_into_db()
     )
-
-    # process_eod_task >> extract_codes() >> ingest_eod_details() >> process_eod_details() >> merge_eod_details_task

@@ -3,7 +3,7 @@ import io
 import duckdb
 import pandas as pd
 import polars as pl
-from dags.exchanges.jobs.config import ExchangesPath
+from dags.exchanges.exchanges.jobs.config import ExchangesPath
 from shared.clients.api.market_stack.client import MarketStackApiClient
 from shared.clients.datalake.azure.azure_datalake import datalake_client
 from shared.utils.conversion import converter
