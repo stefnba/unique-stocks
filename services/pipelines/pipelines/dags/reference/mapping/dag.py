@@ -24,6 +24,15 @@ def process(**context: TaskInstance):
     return MappingJobs.process(file_path)
 
 
+@task
+def curate(**context: TaskInstance):
+    from dags.reference.mapping.jobs.mapping import MappingJobs
+
+    file_path: str = context["ti"].xcom_pull()
+
+    return MappingJobs.curate(file_path)
+
+
 with DAG(
     dag_id="mapping",
     schedule=None,
@@ -31,4 +40,4 @@ with DAG(
     catchup=False,
     tags=["reference"],
 ) as dag:
-    upload() >> process()
+    upload() >> process() >> curate()

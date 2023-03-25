@@ -1,4 +1,4 @@
-from shared.utils.path.datelake_builder import DatalakeFileTypes, DatalakePath
+from shared.utils.path.datalake.path import DatalakeFileTypes, DatalakePath, DatalakeZones
 
 
 class ReferenceBasePath(DatalakePath):
@@ -9,8 +9,22 @@ class ReferenceBasePath(DatalakePath):
     file_type: DatalakeFileTypes = "parquet"
     directory = [
         "${zone}",
-        "product=${product}",
+        "${product}",
         "asset=${asset}",
         "year=${year}",
         "month=${month}",
+    ]
+
+
+class ReferenceFinalBasePath(DatalakePath):
+    product = "reference"
+    zone: DatalakeZones = "curated"  # type: ignore
+    asset: str
+
+    file_name = "${asset}"
+    file_type: DatalakeFileTypes = "parquet"
+    directory = [
+        "${zone}",
+        "${product}",
+        "asset=${asset}",
     ]

@@ -70,3 +70,4 @@ EodHistoricalData,exchange,source_code,EUBOND,EUBOND,TRUE,TRUE,01.01.23
 EodHistoricalData,exchange,source_code,TW,XTAI,TRUE,TRUE,01.01.23
 EodHistoricalData,exchange,source_code,US,XNAS,TRUE,TRUE,01.01.23
 EodHistoricalData,exchange,source_code,US,XNYS,TRUE,TRUE,01.01.23
+,country,,UK,GB,TRUE,TRUE,01.01.23

@@ -1,4 +1,4 @@
-from shared.utils.path.datelake_builder import DatalakeFileTypes, DatalakePath
+from shared.utils.path.datalake.path import DatalakeFileTypes, DatalakePath
 
 
 class IndexMembersPath(DatalakePath):
