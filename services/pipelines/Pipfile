@@ -14,12 +14,12 @@ pydantic = "*"
 pyarrow = "*"
 duckdb = "*"
 adlfs = "*"
+psycopg = {extras = ["binary"], version = "*"}
 
 [dev-packages]
 black = "*"
 mypy = "*"
 types-requests = "*"
-psycopg = {extras = ["binary"], version = "*"}
 ruff = "*"
 
 [requires]
