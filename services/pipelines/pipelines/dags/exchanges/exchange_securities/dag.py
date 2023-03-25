@@ -10,13 +10,13 @@ from airflow.models import TaskInstance
 
 @task
 def extract_exchange_codes(**context: TaskInstance):
-    from shared.jobs.indices.eod import EodIndexJobs
+    from dags.exchanges.exchange_securities.jobs.eod import EodExchangeSecurityJobs
 
     # file path for processed exchanges
-    file_path: str = context["ti"].xcom_pull(dag_id="exchanges", task_ids="merge", include_prior_dates=True)
+    file_path: str = context["ti"].xcom_pull(dag_id="exchanges", task_ids="process_eod", include_prior_dates=True)
 
-    codes = EodIndexJobs.extract_index_codes(file_path)
-    return codes
+    # codes = EodExchangeJobs.extract_index_codes(file_path)
+    return ["XETRA", "SW"]
 
 
 @task_group
@@ -27,15 +27,15 @@ def manage_one_exchange(exchange_code: str):
 
     @task
     def download_securities_of_exchange(exchange: str):
-        from shared.jobs.indices.eod import EodIndexJobs
+        from dags.exchanges.exchange_securities.jobs.eod import EodExchangeSecurityJobs
 
-        return EodIndexJobs.download_members_of_index(exchange)
+        return EodExchangeSecurityJobs.download_securities(exchange)
 
     @task
-    def process_securities_of_exchange(file_path):
-        from shared.jobs.indices.eod import EodIndexJobs
+    def process_securities_of_exchange(file_path: str):
+        from dags.exchanges.exchange_securities.jobs.eod import EodExchangeSecurityJobs
 
-        return EodIndexJobs.process_members_of_index(file_path)
+        return EodExchangeSecurityJobs.process_securities(exchange_code, file_path)
 
     download_securities_of_exchange_task = download_securities_of_exchange(exchange_code)
     process_securities_of_exchange(download_securities_of_exchange_task)
@@ -49,7 +49,7 @@ def merge_all_exchange_securities(**context: TaskInstance):
 
 
 with DAG(
-    dag_id="exchange_members",
+    dag_id="exchange_securities",
     schedule=None,
     start_date=datetime(2023, 1, 1),
     catchup=False,

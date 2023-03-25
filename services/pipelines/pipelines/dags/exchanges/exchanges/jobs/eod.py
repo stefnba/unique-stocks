@@ -3,7 +3,7 @@ import io
 import duckdb
 import polars as pl
 import requests
-from dags.exchanges.jobs.config import ExchangeDetailsPath, ExchangesPath
+from dags.exchanges.exchanges.jobs.config import ExchangesPath
 from shared.clients.api.eod.client import EodHistoricalDataApiClient
 from shared.clients.datalake.azure.azure_datalake import datalake_client
 from shared.utils.conversion import converter
@@ -62,38 +62,6 @@ class EodExchangeJobs:
             file=converter.json_to_bytes(exhange_details),
         )
         return uploaded_file.file.full_path
-
-    @staticmethod
-    def prepare_download_of_exchange_details(exchange_codes: list[str]):
-        """
-        Triggers download of details for each code.
-        """
-
-        exchange_details_paths = []
-        for exchange_code in exchange_codes:
-            exchange_details_paths.append(EodExchangeJobs.download_exchange_details(exchange_code))
-
-        return exchange_details_paths
-
-    @staticmethod
-    def download_exchange_details(exchange_code: str):
-        """
-        Retrieves details for a given exchange code.
-        """
-
-        # api data
-        exhange_details = ApiClient.get_exchange_details(exhange_code=exchange_code)
-
-        # upload to datalake
-        uploaded_file = datalake_client.upload_file(
-            destination_file_path=ExchangeDetailsPath(zone="raw", asset_source=ASSET_SOURCE, exchange=exchange_code),
-            file=converter.json_to_bytes(exhange_details),
-        )
-        return uploaded_file.file.full_path
-
-    @staticmethod
-    def process_raw_exchange_details(file_path: str):
-        pass
 
     @staticmethod
     def download_exchange_list() -> str:

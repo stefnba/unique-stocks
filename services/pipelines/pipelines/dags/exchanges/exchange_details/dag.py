@@ -8,7 +8,7 @@ from airflow.decorators import task
 from airflow.models import TaskInstance
 
 with DAG(
-    dag_id="exchange_detail",
+    dag_id="exchange_details",
     schedule=None,
     start_date=datetime(2023, 1, 1),
     catchup=False,
@@ -21,7 +21,7 @@ with DAG(
 
     @task()
     def ingest_eod(**context: TaskInstance):
-        from dags.exchanges.jobs.eod import EodExchangeJobs
+        from dags.exchanges.exchange_details.jobs.eod import EodExchangeJobs
 
         exchanges = context["ti"].xcom_pull(task_ids="extract_list_exhanges_eod")
 
