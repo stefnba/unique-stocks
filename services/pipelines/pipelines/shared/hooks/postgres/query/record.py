@@ -63,7 +63,7 @@ class PgRecord:
         try:
             import pandas as pd
         except ImportError:
-            raise Exception("pandas library not installed.")
+            raise ImportError("pandas library not installed.")
 
         results = self.get_all()
 
@@ -73,7 +73,7 @@ class PgRecord:
         try:
             import polars as pl
         except ImportError:
-            raise Exception("polars library not installed.")
+            raise ImportError("polars library not installed.")
 
         results = self.get_all()
 

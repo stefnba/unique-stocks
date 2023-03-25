@@ -2,6 +2,7 @@ from typing import Any, Dict, Literal, Sequence, TypedDict, TypeVar
 
 from psycopg.abc import Query
 from pydantic import BaseModel
+from shared.utils.sql.file import QueryFile
 
 
 class ConnectionObject(TypedDict):
@@ -41,6 +42,7 @@ class FilterObject(TypedDict):
 DbModelRecord = TypeVar("DbModelRecord", bound=BaseModel)
 
 QueryParams = Dict[str, Any]
+QueryInput = Query | QueryFile
 
 DbModelSub = TypeVar("DbModelSub", bound=BaseModel)
 
