@@ -88,9 +88,6 @@ class EodExchangeJobs:
     def process_raw_exchange_list(file_path: str) -> str:
         """
         File content is in JSON format.
-
-        Args:
-            file_path (str): _description_
         """
 
         # donwload file
