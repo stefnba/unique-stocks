@@ -4,8 +4,98 @@
 from datetime import datetime
 
 from airflow import DAG
-from airflow.decorators import task
+from airflow.decorators import task, task_group
 from airflow.models import TaskInstance
+
+
+@task
+def extract_exchange_codes(**context: TaskInstance):
+    from dags.exchanges.exchange_details.jobs.exchange_details import ExchangeDetailsJobs
+
+    return ExchangeDetailsJobs.extract_exchange_codes("dddd")
+
+
+@task_group
+def one_exchange(exchange_code: str):
+    """
+    Manages downloading and processing of one exchange.
+    """
+
+    @task
+    def download_details_of_exchange(index: str):
+        from dags.exchanges.exchange_details.jobs.exchange_details import ExchangeDetailsJobs
+
+        return ExchangeDetailsJobs.download_details(index)
+
+    @task
+    def extract_details(file_path):
+        from dags.exchanges.exchange_details.jobs.exchange_details import ExchangeDetailsJobs
+
+        return ExchangeDetailsJobs.extract_raw_details(file_path)
+
+    @task
+    def process_details_of_exchange(raw_details):
+        from dags.exchanges.exchange_details.jobs.exchange_details import ExchangeDetailsJobs
+
+        return ExchangeDetailsJobs.process_details(raw_details)
+
+    @task
+    def process_holidays_of_exchange(raw_details):
+        from dags.exchanges.exchange_details.jobs.exchange_details import ExchangeDetailsJobs
+
+        return ExchangeDetailsJobs.process_holidays(raw_details)
+
+    download_details_of_exchange_task = download_details_of_exchange(exchange_code)
+
+    extract_details_task = extract_details(download_details_of_exchange_task)
+
+    process_details_of_exchange(extract_details_task)
+    process_holidays_of_exchange(extract_details_task)
+
+
+@task
+def merge_details(**context: TaskInstance):
+    from dags.exchanges.exchange_details.jobs.exchange_details import ExchangeDetailsJobs
+
+    exchange_details_path: list[str | list[str]] = context["ti"].xcom_pull(
+        task_ids="one_exchange.process_details_of_exchange"
+    )
+
+    exchange_details_path = [path for path in exchange_details_path]
+
+    return ExchangeDetailsJobs.merge(exchange_details_path)
+
+
+@task
+def merge_holidays(**context: TaskInstance):
+    from dags.exchanges.exchange_details.jobs.exchange_details import ExchangeDetailsJobs
+
+    exchange_holidays_paths: list[str | list[str]] = context["ti"].xcom_pull(
+        task_ids="one_exchange.process_holidays_of_exchange"
+    )
+
+    exchange_holidays_paths = [path for path in exchange_holidays_paths]
+
+    return ExchangeDetailsJobs.merge(exchange_holidays_paths)
+
+
+@task
+def curate_merged_details(**context: TaskInstance):
+    from dags.exchanges.exchange_details.jobs.exchange_details import ExchangeDetailsJobs
+
+    file_path: str = context["ti"].xcom_pull(task_ids="merge_details")
+
+    return ExchangeDetailsJobs.curate_merged_details(file_path)
+
+
+@task
+def curate_merged_holidays(**context: TaskInstance):
+    from dags.exchanges.exchange_details.jobs.exchange_details import ExchangeDetailsJobs
+
+    file_path: str = context["ti"].xcom_pull(task_ids="merge_holidays")
+
+    return ExchangeDetailsJobs.curate_merged_holidays(file_path)
+
 
 with DAG(
     dag_id="exchange_details",
@@ -14,36 +104,10 @@ with DAG(
     catchup=False,
     tags=["exchanges"],
 ) as dag:
+    merge_details_task = merge_details()
+    merge_holidays_task = merge_holidays()
 
-    @task()
-    def extract_list_exhanges_eod():
-        return ["US", "LSE"]
+    one_exchange.expand(exchange_code=extract_exchange_codes()) >> [merge_details_task, merge_holidays_task]
 
-    @task()
-    def ingest_eod(**context: TaskInstance):
-        from dags.exchanges.exchange_details.jobs.eod import EodExchangeJobs
-
-        exchanges = context["ti"].xcom_pull(task_ids="extract_list_exhanges_eod")
-
-        raw_file = EodExchangeJobs.download_exchange_details(exchanges)
-        return raw_file
-
-    @task()
-    def transform_eod(**context: TaskInstance):
-        # from shared.jobs.exchanges.eod import transform_exchanges
-
-        file_path: str = context["ti"].xcom_pull()
-        print(file_path)
-        return file_path
-
-    @task()
-    def merge(**context: TaskInstance):
-        file_paths: str = context["ti"].xcom_pull(task_ids=["transform_eod"])
-        print(file_paths)
-
-    (
-        [
-            extract_list_exhanges_eod() >> ingest_eod() >> transform_eod(),
-        ]
-        >> merge()
-    )
+    merge_details_task >> curate_merged_details()
+    merge_holidays_task >> curate_merged_holidays()

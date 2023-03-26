@@ -1,4 +1,6 @@
-from shared.utils.path.datalake.path import DatalakeFileTypes, DatalakePath
+import uuid
+
+from shared.utils.path.datalake.path import DatalakeFileTypes, DatalakePath, DatalakeZones
 
 
 class ExchangeDetailsPath(DatalakePath):
@@ -17,4 +19,19 @@ class ExchangeDetailsPath(DatalakePath):
         "source=${asset_source}",
         "year=${year}",
         "month=${month}",
+    ]
+
+
+class ExchangeHolidaysPath(ExchangeDetailsPath):
+    asset = "exchange_holidays"
+
+
+class TempPath(DatalakePath):
+    zone: DatalakeZones = "temp"  # type: ignore
+    file_type: DatalakeFileTypes = "parquet"
+    key = uuid.uuid4().hex
+
+    file_name = "${year}${month}${day}_${key}"
+    directory = [
+        "${zone}",
     ]
