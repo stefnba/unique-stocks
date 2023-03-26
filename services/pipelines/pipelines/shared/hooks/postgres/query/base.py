@@ -8,8 +8,6 @@ from shared.hooks.postgres.query.record import PgRecord
 from shared.hooks.postgres.types import QueryInput, ReturningParams
 from shared.utils.sql.file import QueryFile
 
-# from pydantic import BaseModel
-
 
 class QueryBase:
     _conn_uri: str
@@ -35,11 +33,11 @@ class QueryBase:
         try:
             with psycopg.connect(self._conn_uri, row_factory=dict_row) as conn:
                 cur = conn.cursor()
-                cur.execute(query=self._init_query(query), params=params)
+                cur.execute(query=query if not isinstance(query, QueryFile) else query.sql, params=params)
                 return PgRecord(cur)
 
         except psycopg.errors.UniqueViolation as error:
-            print("vioatl", error.sqlstate, error.pgresult, query_as_string)
+            print("vioalation", error.sqlstate, error.pgresult, query_as_string)
             raise
 
         finally:
@@ -48,37 +46,34 @@ class QueryBase:
 
     def _init_query(self, query: QueryInput) -> Composed:
         """
-        Translates type `Query` into `Composed` type.
-
-        Args:
-            query (Query): Query provided to method.
-
-        Returns:
-            Composed:
+        Converts a query of type `Query` into a `Composed` type.
         """
-        _query = SQL("")
+        if isinstance(query, Composed):
+            return query
         if isinstance(query, SQL):
-            _query = query
+            return Composed([query])
         if isinstance(query, str):
-            _query = SQL(query)
+            return Composed([SQL(query)])
         if isinstance(query, QueryFile):
-            _query = query.sql
-        return Composed([_query])
+            return Composed([SQL(query.sql)])
+        if isinstance(query, bytes):
+            return Composed([query.decode()])
 
     def _query_as_string(self, query: QueryInput) -> str:
+        """
+        Converts final query from any type QueryInput into string.
+        Useful for logging, etc.
+        """
         conn = psycopg.connect(self._conn_uri)
-        _query = ""
 
         if isinstance(query, QueryFile):
-            _query = query.sql.as_string(conn)
-        if isinstance(query, Composable):
-            _query = query.as_string(conn)
-        elif isinstance(query, SQL):
-            _query = query.as_string(conn)
-        elif isinstance(query, str):
-            _query = query
-
-        return _query
+            return str(query.sql)
+        if isinstance(query, Composable) or isinstance(query, SQL):
+            return query.as_string(conn)
+        if isinstance(query, str):
+            return query
+        if isinstance(query, bytes):
+            return query.decode()
 
 
 class UpdateAddBase:
