@@ -12,7 +12,7 @@ class QueryFile:
     SQL query from an external .sql file.
     """
 
-    _sql: SQL
+    _sql: LiteralString
     _path: str
 
     def __init__(self, path: str | QueryFilePath) -> None:
@@ -28,13 +28,11 @@ class QueryFile:
         with open(path, "r") as file:
             sql = file.read()
 
-            if isinstance(sql, str):
-                # print(len(sql))
-                sql = sql.strip()
-                self._sql = SQL(cast(LiteralString, sql))
-                return
+            if not isinstance(sql, str):
+                raise ValueError("QueryFile content must be of type str.")
 
-            raise ValueError("QueryFile content must be of type str.")
+            sql = sql.strip()
+            self._sql = cast(LiteralString, sql)
 
     def set_file_path(self, path: str | QueryFilePath) -> None:
         """
