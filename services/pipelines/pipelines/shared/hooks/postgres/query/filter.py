@@ -20,13 +20,24 @@ class Filter:
     def __build_filter_list(self, filter_list: list[FilterObject]) -> Composed:
         if len(filter_list) == 0:
             return Composed("")
-        filters = SQL(" AND ").join([self.__build_one_filter(f) for f in filter_list])
-        return Composed([SQL(" WHERE "), filters])
 
-    def __build_one_filter(self, filter_object: FilterObject) -> Composed:  # noqa
-        operator = filter_object["operator"]
+        filters = [self.__build_one_filter(f) for f in filter_list]  # can include None
+        _filters = [f for f in filters if f is not None]
+
+        print(_filters)
+
+        if len(_filters) == 0:
+            return Composed("")
+
+        return Composed([SQL(" WHERE "), SQL(" AND ").join(_filters)])
+
+    def __build_one_filter(self, filter_object: FilterObject) -> Composed | None:
+        operator = filter_object["operator"] if "operator" in filter_object else "EQUAL"
         column = filter_object["column"]
         value = filter_object["value"]
+
+        if not value:
+            return None
 
         if operator == "EQUAL":
             return self.__build_standard_filter_clause(column=column, value=value, operator=SQL("="))
@@ -51,7 +62,8 @@ class Filter:
                 raise ValueError("Filter value must be of type list for IN operator.")
             value_list = SQL(", ").join([Literal(v) for v in value])
             return SQL("{column} = ({value})").format(column=Identifier(column), value=value_list)
-        return Composed("")
+
+        return None
 
     def __build_standard_filter_clause(
         self, column: str, value: Any, operator: SQL = SQL("="), value_required=True
