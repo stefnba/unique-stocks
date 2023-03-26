@@ -1,4 +1,5 @@
 import io
+import json
 
 import duckdb
 import polars as pl
@@ -38,8 +39,6 @@ class IndexMembersJobs:
 
     @staticmethod
     def process_members_of_index(file_path: str):
-        import json
-
         file_content = datalake_client.download_file_into_memory(file_path=file_path)
         data_dict = json.loads(file_content)
 

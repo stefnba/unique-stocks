@@ -22,7 +22,7 @@ def extract_index_codes(**context: TaskInstance):
 @task_group
 def one_index(index_code: str):
     """
-    Manages downloading and processing of one index
+    Manages downloading and processing of one index.
     """
 
     @task

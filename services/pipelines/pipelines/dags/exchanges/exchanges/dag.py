@@ -1,5 +1,3 @@
-# pylint: disable=W0106:expression-not-assigned, C0415:import-outside-toplevel
-# pylint: disable=W0106:expression-not-assigned, C0415:import-outside-toplevel
 # pyright: reportUnusedExpression=false
 from datetime import datetime
 
@@ -66,7 +64,7 @@ def process_iso(**context: TaskInstance):
 
 
 @task
-def ingest_marketstack():
+def ingest_msk():
     from dags.exchanges.exchanges.jobs.market_stack import MarketStackExchangeJobs
 
     raw_file = MarketStackExchangeJobs.download_exchanges()
@@ -74,10 +72,10 @@ def ingest_marketstack():
 
 
 @task
-def process_marketstack(**context: TaskInstance):
+def process_msk(**context: TaskInstance):
     from dags.exchanges.exchanges.jobs.market_stack import MarketStackExchangeJobs
 
-    raw_file_path: str = context["ti"].xcom_pull(task_ids="ingest_marketstack")
+    raw_file_path: str = context["ti"].xcom_pull(task_ids="ingest_msk")
 
     processed_file_path = MarketStackExchangeJobs.process_raw_exchanges(raw_file_path)
     return processed_file_path
@@ -129,7 +127,7 @@ with DAG(
         [
             ingest_eod() >> process_eod(),
             ingest_iso() >> process_iso(),
-            ingest_marketstack() >> process_marketstack(),
+            ingest_msk() >> process_msk(),
         ]
         >> merge()
         >> trigger_exchange_securities_dag
