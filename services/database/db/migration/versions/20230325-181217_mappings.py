@@ -1,9 +1,9 @@
 # pylint: disable=no-member,missing-function-docstring,invalid-name
-"""mapping
+"""mappings
 
-Revision ID: 7acf219a25a8
-Revises: 912f2d1e65fc
-Create Date: 2023-02-25 14:09:13.333169
+Revision ID: b9f9efc9f0d1
+Revises: cccf9790cfb3
+Create Date: 2023-03-25 18:12:17.611997
 
 """
 from alembic import op
@@ -13,8 +13,8 @@ from sqlalchemy.sql import column
 from db.utils.seed import seed_table_from_csv
 
 # revision identifiers, used by Alembic.
-revision = "7acf219a25a8"
-down_revision = "912f2d1e65fc"
+revision = "b9f9efc9f0d1"
+down_revision = "cccf9790cfb3"
 branch_labels = None
 depends_on = None
 
@@ -23,48 +23,48 @@ def upgrade() -> None:
     op.execute(
         """
         --sql
-        CREATE TABLE IF NOT EXISTS mapping (
+        CREATE TABLE IF NOT EXISTS mappings (
             id SERIAL4 PRIMARY KEY,
             source VARCHAR NOT NULL,
             product VARCHAR NOT NULL,
             field VARCHAR NOT NULL,
             source_value VARCHAR NOT NULL,
-            app_value VARCHAR NOT NULL,
+            uid VARCHAR NOT NULL,
             is_seed BOOLEAN,
             created_at timestamp without time zone default (now() at time zone 'utc') NOT NULL,
             updated_at timestamp without time zone,
             valid_from timestamp without time zone,
             valid_until timestamp without time zone,
-            is_current BOOLEAN DEFAULT FALSE
+            is_active BOOLEAN DEFAULT TRUE
             );
         --sql
-        CREATE INDEX IF NOT EXISTS source_idx ON mapping(source);
+        CREATE INDEX IF NOT EXISTS source_idx ON mappings(source);
         --sql
-        CREATE INDEX IF NOT EXISTS field_idx ON mapping(field);
+        CREATE INDEX IF NOT EXISTS field_idx ON mappings(field);
         --sql
-        CREATE INDEX IF NOT EXISTS product_idx ON mapping(product);
+        CREATE INDEX IF NOT EXISTS product_idx ON mappings(product);
         --sql
-        CREATE INDEX IF NOT EXISTS source_value_idx ON mapping(source_value);
+        CREATE INDEX IF NOT EXISTS source_value_idx ON mappings(source_value);
         --sql
-        CREATE INDEX IF NOT EXISTS app_value_idx ON mapping(app_value);
-        """
+        CREATE INDEX IF NOT EXISTS app_value_idx ON mappings(uid);
+		"""
     )
     seed_table_from_csv(
-        table_name="mapping",
-        file_path="./db/seeds/mapping.csv",
+        table_name="mappings",
+        file_path="./db/seeds/mappings.csv",
         columns=[
             column("id", Integer),
             column("source", String),
             column("product", String),
             column("field", String),
             column("source_value", Integer),
-            column("app_value", Integer),
+            column("uid", Integer),
             column(
                 "is_seed",
                 String,
             ),
             column(
-                "is_current",
+                "is_active",
                 String,
             ),
             column(
@@ -80,5 +80,5 @@ def downgrade() -> None:
         """
         --sql
         DROP TABLE IF EXISTS mapping CASCADE;
-        """
+		"""
     )

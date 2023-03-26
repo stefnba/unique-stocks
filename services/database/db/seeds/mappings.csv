@@ -1,4 +1,4 @@
-source,product,field,source_value,app_value,is_seed,is_current,valid_from
+source,product,field,source_value,uid,is_seed,is_active,valid_from
 EodHistoricalData,exchange,source_code,LSE,XLON,TRUE,TRUE,01.01.23
 EodHistoricalData,exchange,source_code,V,XTSX,TRUE,TRUE,01.01.23
 EodHistoricalData,exchange,source_code,NEO,NEOE,TRUE,TRUE,01.01.23
