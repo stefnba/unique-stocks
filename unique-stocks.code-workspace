@@ -13,5 +13,14 @@
             "name": "Pipelines"
 		}
     ],
-    "settings": {}
+    "settings": {
+        "files.associations": {
+            "*.sql": "postgres"
+        },
+        "vscode-postgres.prettyPrintJSONfields": true,
+        "[postgres]": {
+            "editor.defaultFormatter": "bradymholt.pgformatter"
+        },
+        "pgFormatter.placeholder": "\\$[a-zA-Z]+"
+    }
 }
