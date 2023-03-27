@@ -98,7 +98,18 @@ class DatalakePathBuilder:
     def build_abfs_path(
         cls, path: PathParams | "DatalakePath" | Type["DatalakePath"], file_system: Optional[str] = None
     ):
-        print(path)
+        """
+        Constructs a abfs file system path for Azure DataLake Gen 2 by prepending `abfs://{file_system}/` to the
+        specified path.
+
+        Args:
+            path: Path on file system.
+            file_system: Defaults to `config.azure.file_system`.
+
+
+        Returns:
+            str: abfs:// file system path.
+        """
         _file_system = file_system or config.azure.file_system
         _path = FilePathBuilder.convert_to_file_path(path)
 
