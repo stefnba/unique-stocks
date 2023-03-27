@@ -1,6 +1,6 @@
+import sys
 from typing import cast
 
-from psycopg.sql import SQL
 from pydantic import create_model_from_typeddict
 from shared.utils.path.builder import FilePathBuilder
 from shared.utils.sql.types import QueryFilePath
@@ -16,6 +16,11 @@ class QueryFile:
     _path: str
 
     def __init__(self, path: str | QueryFilePath) -> None:
+        # set base path based on where class was initiated
+        if isinstance(path, str) and path.startswith("./"):
+            namespace = sys._getframe(1).f_globals  # caller's globals
+            path = {"base_path": str(namespace.get("__file__")), "path": path}
+
         self.set_file_path(path)
         self.extract_sql()
 
