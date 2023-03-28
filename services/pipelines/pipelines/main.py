@@ -1,19 +1,22 @@
-from dags.exchanges.jobs.config import ExchangesPath
-from shared.clients.api.iso.client import IsoExchangesApiClient
-from shared.clients.datalake.azure.azure_datalake import datalake_client
-from shared.utils.path.builder import UrlBuilder
+# from shared.clients.datalake.azure.azure_datalake import datalake_client
+
+from shared.clients.datalake.azure.file_system import abfs_client
+from shared.hooks.duck.hook import DuckDbHook
+from shared.utils.sql.file import QueryFile
 
 
 def main():
-    # upload = datalake_client.upload_file(
-    #     "adf".encode(), ExchangesPath(file_type="csv", zone="temp", asset_source="EOD")
-    # )
-    # print(upload.dict())
+    duck = DuckDbHook(file_system=abfs_client)
 
-    print(UrlBuilder.build_url("base", "/asdfasdf/", "asdf"))
+    test = duck.db.read_parquet(duck.helpers.build_abfs_path("temp/20230326_043cc83e3d9d4a27ace3ea5190a55177.parquet"))
 
-    IsoExchangesApiClient.get_exchanges()
-    # print(PathBuilder.build_file_path(file_name="/asdf", file_type="csv", file_path=["/asdf", "ASdf"]))
+    # test = pl.DataFrame({"col1": [1, 2], "col2": [3, 4]})
+
+    query = QueryFile("./sql.sql")
+
+    result = duck.query(query, data=test)
+
+    print(result.pl())
 
 
 if __name__ == "__main__":
