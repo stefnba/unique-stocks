@@ -25,3 +25,8 @@ migrate-create:
 migrate-history:
 	alembic -c ./db/alembic.ini history
 
+
+# Docker
+docker-up:
+	docker compose up -d --build --force-recreate --remove-orphans
+
