@@ -1,3 +1,4 @@
+import sys
 from string import Template
 from typing import Any, Optional
 
@@ -10,10 +11,12 @@ from fsspec import AbstractFileSystem
 # from shared.utils.sql.file import QueryFile
 from shared.hooks.duck.types import BindingsParams, QueryInput
 from shared.utils.path.datalake.builder import DatalakePathBuilder
+from shared.utils.sql.file import QueryFile
 
 
 class DuckDbHelpers:
     build_abfs_path = DatalakePathBuilder.build_abfs_path
+    QueryFile = QueryFile
 
 
 class DuckDbHook:
@@ -34,8 +37,11 @@ class DuckDbHook:
         """
         Run a duckdb SQL query.
 
+        Important: If a path to a .sql file is provided for query arg, it needs to be specified directly and not
+        returned by another function as sys._getframe(1).f_globals then picks up the wrong base_path.
+
         Args:
-            statement (QueryInput): Query can be a string or QueryFile.
+            statement (QueryInput): Query can be a LiteralString, QueryFile or path to a .sql file.
 
         Returns:
             DuckDBPyRelation: _description_
@@ -44,6 +50,10 @@ class DuckDbHook:
         dataframes = self._collect_dataframes(**bindings)
         for key, df in dataframes.items():
             self.db.register(key, df)
+
+        if isinstance(query, str) and query.endswith(".sql"):
+            namespace = sys._getframe(1).f_globals  # caller's globals
+            query = QueryFile({"base_path": str(namespace.get("__file__")), "path": query})
 
         _query = self._query_to_string(query, **bindings)
         print(_query)

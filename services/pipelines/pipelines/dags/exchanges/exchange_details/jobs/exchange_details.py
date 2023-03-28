@@ -7,8 +7,8 @@ from dags.exchanges.exchange_details.jobs.config import ExchangeDetailsPath, Exc
 from shared.clients.api.eod.client import EodHistoricalDataApiClient
 from shared.clients.datalake.azure.azure_datalake import datalake_client
 from shared.clients.datalake.azure.file_system import abfs_client
-from shared.clients.db.postgres.client import db_client
-from shared.clients.db.postgres.repositories import DbRepositories
+from shared.clients.db.postgres.repositories import DbQueryRepositories
+from shared.clients.duck.client import duck
 from shared.utils.conversion import converter
 from shared.utils.path.datalake.builder import DatalakePathBuilder
 
@@ -48,13 +48,12 @@ class ExchangeDetailsJobs:
         exhange_details = ApiClient.get_exchange_details(exhange_code=exchange_code)
 
         # upload to datalake
-        uploaded_file = datalake_client.upload_file(
+        return datalake_client.upload_file(
             destination_file_path=ExchangeDetailsPath(
                 zone="raw", asset_source=ASSET_SOURCE, exchange=exchange_code, file_type="json"
             ),
             file=converter.json_to_bytes(exhange_details),
-        )
-        return uploaded_file.file.full_path
+        ).file.full_path
 
     @staticmethod
     def curate_merged_details(file_path: str):
@@ -72,27 +71,13 @@ class ExchangeDetailsJobs:
         - abc
         - abc
         """
-        db = duckdb.connect()
-        db.register_filesystem(abfs_client)
 
-        abfs_file_path = DatalakePathBuilder.build_abfs_path(file_path)
-
-        mappings_df = DbRepositories.mappings.get_mappings(product="exchange", source=ASSET_SOURCE)
-        holidays_df = db.read_parquet(abfs_file_path).pl()
-
-        print(mappings_df)
-        print(holidays_df)
-
-        merged = db.sql(
-            """
-            --sql
-            SELECT holidays_df.*, mappings_df.uid
-            FROM holidays_df
-            LEFT JOIN mappings_df
-            ON holidays_df.exchange_code = mappings_df.source_value
-            ;
-            """
+        merged = duck.query(
+            query="./sql/merge.sql",
+            holidays_df=duck.db.read_parquet(duck.helpers.build_abfs_path(file_path)),
+            mappings_df=DbQueryRepositories.mappings.get_mappings(product="exchange", source=ASSET_SOURCE),
         )
+
         print(merged.pl())
 
         # todo delete temp file
