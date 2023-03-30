@@ -1,4 +1,4 @@
-from dags.exchanges.jobs.config import ExchangesPath
+from dags.exchanges.exchanges.jobs.config import ExchangesPath
 
 
 class IndicesPath(ExchangesPath):
