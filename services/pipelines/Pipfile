@@ -21,6 +21,7 @@ black = "*"
 mypy = "*"
 types-requests = "*"
 ruff = "*"
+ipykernel = "*"
 
 [requires]
 python_version = "3"
