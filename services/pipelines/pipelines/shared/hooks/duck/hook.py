@@ -9,7 +9,7 @@ from duckdb import DuckDBPyConnection, DuckDBPyRelation
 from fsspec import AbstractFileSystem
 
 # from shared.utils.sql.file import QueryFile
-from shared.hooks.duck.types import BindingsParams, QueryInput
+from shared.hooks.duck.types import BindingsParams, GetDataFormats, GetDataHandlers, QueryInput
 from shared.utils.path.datalake.builder import DatalakePathBuilder
 from shared.utils.sql.file import QueryFile
 
@@ -56,9 +56,33 @@ class DuckDbHook:
             query = QueryFile({"base_path": str(namespace.get("__file__")), "path": query})
 
         _query = self._query_to_string(query, **bindings)
-        print(_query)
         result = self.db.sql(_query)
         return result
+
+    def get_data(
+        self, path: str, handler: Optional[GetDataHandlers] = None, format: GetDataFormats = "parquet"
+    ) -> DuckDBPyRelation:
+        """
+        Wrapper function for DuckDB to read various file formats.
+
+         Args:
+             path (str): path to file.
+             handler (azure_abfs): Handles constructions of e.g. remote file paths. For example `azure_abfs` adds
+             `abfs://{file_system}/` to a path.
+             format (json | csv | parquet): File format. Defaults to "parquet".
+
+         Returns:
+             DuckDBPyRelation: _description_
+        """
+        if handler == "azure_abfs":
+            path = self.helpers.build_abfs_path(path)
+
+        if format == "parquet":
+            return self.db.read_parquet(path)
+        if format == "json":
+            return self.db.read_json(path)
+        if format == "csv":
+            return self.db.read_csv(path)
 
     def _collect_dataframes(self, **bindings: BindingsParams) -> dict[str, Any]:
         """
