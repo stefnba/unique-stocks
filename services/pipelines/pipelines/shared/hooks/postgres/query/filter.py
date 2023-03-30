@@ -24,8 +24,6 @@ class Filter:
         filters = [self.__build_one_filter(f) for f in filter_list]  # can include None
         _filters = [f for f in filters if f is not None]
 
-        print(_filters)
-
         if len(_filters) == 0:
             return Composed("")
 
