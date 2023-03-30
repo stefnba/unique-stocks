@@ -16,7 +16,7 @@ from azure.storage.filedatalake import (
     PathProperties,
 )
 from shared.hooks.azure.base import AzureBaseClient
-from shared.hooks.azure.types import DatalakeFile, DatalakeProperties
+from shared.hooks.azure.types import DatalakeFile, DatalakeProperties, UploadMode
 from shared.utils.path.builder import FilePathBuilder
 from shared.utils.path.types import PathParams
 
@@ -177,19 +177,29 @@ class AzureDatalakeHook(AzureBaseClient):
             print(exception)
             raise exception
 
-    def upload_file_bulk(self, remote_file: str, file_system: str, local_file: bytes):
+    def delete_file(
+        self,
+        file_path: PathParams | Type["DatalakePath"] | "DatalakePath",
+        file_system: Optional[str] = None,
+    ):
         """
-        Upload a file to the Data Lake.
+        Delete a file from the Datalake.
 
-        Method not fully implemented.
+        Args:
+            file_path: Path of file to be deleted.
+            file_system: File system, i.e. container. Defaults to None.
         """
+        _file_system = file_system or self.file_system
+        _file_path = FilePathBuilder.convert_to_file_path(file_path)
+
+        if not _file_system:
+            raise Exception("No file system specified.")
+
         try:
-            file_client = self.service_client.get_file_client(file_system=file_system, file_path=remote_file)
-            file_client.create_file()
-            file_client.upload_data(local_file, overwrite=True)
-
+            file_client = self.service_client.get_file_client(file_system=_file_system, file_path=_file_path)
+            file_client.delete_file()
         except Exception as exception:
-            print(exception)
+            print("File could not be deleted.")
             raise exception
 
     def upload_file(
@@ -197,9 +207,10 @@ class AzureDatalakeHook(AzureBaseClient):
         file: str | bytes,
         destination_file_path: PathParams | Type["DatalakePath"] | "DatalakePath",
         file_system: Optional[str] = None,
+        mode: UploadMode = "upload",
     ) -> DatalakeFile:
         """
-        Uploads a file - either from bytes or local file system - into Datalke.
+        Uploads a file - either from bytes or local file system - into Datalake.
 
         Args:
             file (str | bytes): File to upload.
@@ -234,8 +245,12 @@ class AzureDatalakeHook(AzureBaseClient):
             if file_contents is None:
                 raise ValueError("No file content provided.")
 
-            file_client.append_data(data=file_contents, offset=0, length=len(file_contents))
-            file_client.flush_data(len(file_contents))
+            if mode == "append":
+                file_client.append_data(data=file_contents, offset=0, length=len(file_contents))
+                file_client.flush_data(len(file_contents))
+
+            else:
+                file_client.upload_data(file_contents, overwrite=True)
 
             uploaded_file_path = file_client.path_name
 
