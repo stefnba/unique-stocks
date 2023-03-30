@@ -28,29 +28,21 @@ def one_exchange(exchange_code: str):
         return ExchangeDetailsJobs.download_details(index)
 
     @task
-    def extract_details(file_path):
+    def transform_details_of_exchange(raw_details):
         from dags.exchanges.exchange_details.jobs.exchange_details import ExchangeDetailsJobs
 
-        return ExchangeDetailsJobs.extract_raw_details(file_path)
+        return ExchangeDetailsJobs.transform_details(raw_details)
 
     @task
-    def process_details_of_exchange(raw_details):
+    def transform_holidays_of_exchange(raw_details):
         from dags.exchanges.exchange_details.jobs.exchange_details import ExchangeDetailsJobs
 
-        return ExchangeDetailsJobs.process_details(raw_details)
-
-    @task
-    def process_holidays_of_exchange(raw_details):
-        from dags.exchanges.exchange_details.jobs.exchange_details import ExchangeDetailsJobs
-
-        return ExchangeDetailsJobs.process_holidays(raw_details)
+        return ExchangeDetailsJobs.transform_holidays(raw_details)
 
     download_details_of_exchange_task = download_details_of_exchange(exchange_code)
 
-    extract_details_task = extract_details(download_details_of_exchange_task)
-
-    process_details_of_exchange(extract_details_task)
-    process_holidays_of_exchange(extract_details_task)
+    transform_details_of_exchange(download_details_of_exchange_task)
+    transform_holidays_of_exchange(download_details_of_exchange_task)
 
 
 @task
@@ -58,12 +50,10 @@ def merge_details(**context: TaskInstance):
     from dags.exchanges.exchange_details.jobs.exchange_details import ExchangeDetailsJobs
 
     exchange_details_path: list[str | list[str]] = context["ti"].xcom_pull(
-        task_ids="one_exchange.process_details_of_exchange"
+        task_ids="one_exchange.transform_details_of_exchange"
     )
 
-    exchange_details_path = [path for path in exchange_details_path]
-
-    return ExchangeDetailsJobs.merge(exchange_details_path)
+    return ExchangeDetailsJobs.merge([path for path in exchange_details_path])
 
 
 @task
@@ -71,12 +61,10 @@ def merge_holidays(**context: TaskInstance):
     from dags.exchanges.exchange_details.jobs.exchange_details import ExchangeDetailsJobs
 
     exchange_holidays_paths: list[str | list[str]] = context["ti"].xcom_pull(
-        task_ids="one_exchange.process_holidays_of_exchange"
+        task_ids="one_exchange.transform_holidays_of_exchange"
     )
 
-    exchange_holidays_paths = [path for path in exchange_holidays_paths]
-
-    return ExchangeDetailsJobs.merge(exchange_holidays_paths)
+    return ExchangeDetailsJobs.merge([path for path in exchange_holidays_paths])
 
 
 @task
