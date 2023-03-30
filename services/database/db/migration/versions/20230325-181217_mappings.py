@@ -79,6 +79,6 @@ def downgrade() -> None:
     op.execute(
         """
         --sql
-        DROP TABLE IF EXISTS mapping CASCADE;
+        DROP TABLE IF EXISTS mappings CASCADE;
 		"""
     )
