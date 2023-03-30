@@ -1,5 +1,9 @@
+from typing import Literal
+
 from pydantic import BaseModel
 from shared.utils.path.types import FilePath
+
+UploadMode = Literal["append", "upload"]
 
 
 class DatalakeProperties(BaseModel):
