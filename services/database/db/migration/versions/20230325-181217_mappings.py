@@ -27,15 +27,16 @@ def upgrade() -> None:
             id SERIAL4 PRIMARY KEY,
             source VARCHAR NOT NULL,
             product VARCHAR NOT NULL,
-            field VARCHAR NOT NULL,
+            field VARCHAR,
             source_value VARCHAR NOT NULL,
             uid VARCHAR NOT NULL,
-            is_seed BOOLEAN,
+            is_seed BOOLEAN DEFAULT FALSE,
             created_at timestamp without time zone default (now() at time zone 'utc') NOT NULL,
             updated_at timestamp without time zone,
             valid_from timestamp without time zone,
             valid_until timestamp without time zone,
-            is_active BOOLEAN DEFAULT TRUE
+            is_active BOOLEAN DEFAULT TRUE,
+            UNIQUE (product, field, uid)
             );
         --sql
         CREATE INDEX IF NOT EXISTS source_idx ON mappings(source);
