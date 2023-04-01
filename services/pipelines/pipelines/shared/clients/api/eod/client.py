@@ -98,3 +98,20 @@ class EodHistoricalDataApiClient(ApiHook):
         security = f"{security_code}" if not exchange_code else f"{security_code}.{exchange_code}"
 
         return api.request_json(f"{endpoint}/{security}")
+
+    @classmethod
+    def get_historical_eod_quotes(cls, security_code: str, exchange_code: str):
+        """
+        Historical stock price data end of day.
+
+        Args:
+            security_code (str): _description_
+            exchange_code (str): _description_
+
+        Returns:
+            _type_: _description_
+        """
+        api = cls()
+        endpoint = "/eod"
+
+        return api.request_json(f"{endpoint}/{security_code}.{exchange_code}")
