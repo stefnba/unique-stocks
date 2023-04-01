@@ -28,6 +28,7 @@ class DuckDbHook:
         self.options = options
 
         self.db = duckdb.connect(":memory:")
+        self.db.execute("SET GLOBAL pandas_analyze_sample=100000")
         self.db.query(self.options)
 
         if file_system:
