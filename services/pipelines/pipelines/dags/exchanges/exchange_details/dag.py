@@ -12,7 +12,9 @@ from airflow.models import TaskInstance
 def extract_exchange_codes(**context: TaskInstance):
     from dags.exchanges.exchange_details.jobs.exchange_details import ExchangeDetailsJobs
 
-    return ExchangeDetailsJobs.extract_exchange_codes("dddd")
+    file_path = context["ti"].xcom_pull(dag_id="exchanges", task_ids="process_eod", include_prior_dates=True)
+
+    return ExchangeDetailsJobs.extract_exchange_codes(file_path)
 
 
 @task_group
@@ -23,21 +25,31 @@ def one_exchange(exchange_code: str):
 
     @task
     def download_details_of_exchange(index: str):
+        import logging
+
         from dags.exchanges.exchange_details.jobs.exchange_details import ExchangeDetailsJobs
 
-        return ExchangeDetailsJobs.download_details(index)
+        logging.warning("Watch out!")
+
+        try:
+            return ExchangeDetailsJobs.download_details(index)
+        except Exception as e:
+            logging.warning(index, "Watch out!", e)
+            return None
 
     @task
     def transform_details_of_exchange(raw_details):
         from dags.exchanges.exchange_details.jobs.exchange_details import ExchangeDetailsJobs
 
-        return ExchangeDetailsJobs.transform_details(raw_details)
+        if raw_details:
+            return ExchangeDetailsJobs.transform_details(raw_details)
 
     @task
     def transform_holidays_of_exchange(raw_details):
         from dags.exchanges.exchange_details.jobs.exchange_details import ExchangeDetailsJobs
 
-        return ExchangeDetailsJobs.transform_holidays(raw_details)
+        if raw_details:
+            return ExchangeDetailsJobs.transform_holidays(raw_details)
 
     download_details_of_exchange_task = download_details_of_exchange(exchange_code)
 

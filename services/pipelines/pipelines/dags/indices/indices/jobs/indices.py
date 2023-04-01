@@ -5,7 +5,7 @@ import polars as pl
 from dags.indices.indices.jobs.config import IndicesPath
 from shared.clients.api.eod.client import EodHistoricalDataApiClient
 from shared.clients.datalake.azure.azure_datalake import datalake_client
-from shared.clients.datalake.azure.file_system import abfs_client, build_abfs_path
+from shared.clients.duck.client import duck
 from shared.utils.conversion import converter
 
 ApiClient = EodHistoricalDataApiClient
@@ -31,16 +31,13 @@ class IndexJobs:
         """
         indices = ApiClient.get_securities_listed_at_exhange(VIRTUAL_EXCHANGE_CODE)
 
-        # upload to datalake
-        uploaded_file = datalake_client.upload_file(
+        return datalake_client.upload_file(
             destination_file_path=IndicesPath(zone="raw", asset_source=ASSET_SOURCE, file_type="json"),
             file=converter.json_to_bytes(indices),
-        )
-
-        return uploaded_file.file.full_path
+        ).file.full_path
 
     @staticmethod
-    def process(file_path: str) -> str:
+    def transform(file_path: str) -> str:
         """
         Processed list of indices downloaded from EOD.
 
@@ -48,40 +45,21 @@ class IndexJobs:
             str: File path processed .parquet file.
         """
 
-        # download file
-        file_content = datalake_client.download_file_into_memory(file_path=file_path)
+        indices = duck.get_data(file_path, handler="azure_abfs", format="json").pl()
 
-        df = pl.read_json(io.BytesIO(file_content))
-
-        df = df.with_columns(
+        indices = indices.with_columns(
             [
                 pl.when(pl.col(pl.Utf8) == "Unknown").then(None).otherwise(pl.col(pl.Utf8)).keep_name(),
                 pl.lit(ASSET_SOURCE).alias("data_source"),
             ]
         )
 
-        df_upload = duckdb.sql(
-            """
-                --sql
-                SELECT
-                    Code AS code,
-                    Name as name,
-                    Currency AS currency,
-                    Type AS type,
-                    Isin AS isin,
-                    data_source
-                FROM
-                    df;
-            """
-        ).df()
+        transformed = duck.query("./sql/transform_raw.sql", indices=indices).df()
 
-        # datalake destination
-        uploaded_file = datalake_client.upload_file(
+        return datalake_client.upload_file(
             destination_file_path=IndicesPath(zone="processed", asset_source=ASSET_SOURCE),
-            file=df_upload.to_parquet(),
-        )
-
-        return uploaded_file.file.full_path
+            file=transformed.to_parquet(),
+        ).file.full_path
 
     @staticmethod
     def curate(file_path: str):
@@ -89,13 +67,9 @@ class IndexJobs:
         Finalize processing and save file in curated datalake zone.
         """
 
-        db = duckdb.connect()
-        db.register_filesystem(abfs_client)
+        indices = duck.get_data(file_path, handler="azure_abfs")
 
-        data = db.read_parquet(build_abfs_path(file_path))
-
-        # datalake destination
-        datalake_client.upload_file(
+        return datalake_client.upload_file(
             destination_file_path="/curated/product=indices/indices.parquet",
-            file=data.df().to_parquet(),
-        )
+            file=indices.df().to_parquet(),
+        ).file.full_path

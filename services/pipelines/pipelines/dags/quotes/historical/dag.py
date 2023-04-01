@@ -48,11 +48,11 @@ def merge_all_indices(**context: TaskInstance):
 
 
 with DAG(
-    dag_id="index_members",
+    dag_id="historical_quotes",
     schedule=None,
     start_date=datetime(2023, 1, 1),
     catchup=False,
-    tags=["indices", "securities"],
+    tags=["quotes", "securities"],
 ) as dag:
     extract_index_codes_task = extract_index_codes()
     one_index.expand(index_code=extract_index_codes_task) >> merge_all_indices()
