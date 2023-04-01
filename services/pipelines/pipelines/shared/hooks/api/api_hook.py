@@ -118,7 +118,7 @@ class ApiHook:
         method: Methods = "GET",
         params: Optional[dict] = None,
         headers: Optional[dict] = None,
-        json: Optional[dict] = None,
+        json: Optional[dict | list[dict]] = None,
         response_type: Optional[JsonResponse] = None,
     ) -> JsonResponse:
         """
@@ -147,7 +147,7 @@ class ApiHook:
         method: Methods = "GET",
         params: Optional[dict] = None,
         headers: Optional[dict] = None,
-        json: Optional[dict] = None,
+        json: Optional[dict | list[dict]] = None,
         stream=False,
     ):
         """
