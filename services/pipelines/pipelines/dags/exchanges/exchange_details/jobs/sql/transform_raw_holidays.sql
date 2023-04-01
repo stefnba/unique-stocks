@@ -7,9 +7,5 @@ SELECT
     holidays.Date AS date
 FROM
     $holidays_data AS holidays
-    LEFT JOIN $mappings_data AS exchange_codes ON holidays.exchange_source_code = exchange_codes.source_value
-        AND exchange_codes.product = 'exchange'
-        AND exchange_codes.field = 'source_code'
-    LEFT JOIN $mappings_data AS holiday_types ON holidays.Type = holiday_types.source_value
-        AND holiday_types.product = 'exchange'
-        AND holiday_types.field = 'holiday_type'
+    LEFT JOIN $exchange_codes_mapping AS exchange_codes ON holidays.exchange_source_code = exchange_codes.source_value
+    LEFT JOIN $holiday_types_mapping AS holiday_types ON holidays.Type = holiday_types.source_value

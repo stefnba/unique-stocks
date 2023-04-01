@@ -1,4 +1,5 @@
 import json
+import logging
 
 import polars as pl
 from dags.exchanges.exchange_details.jobs.config import (
@@ -26,19 +27,13 @@ class ExchangeDetailsJobs:
         """
         Extracts exchanges codes from processed exchanges.
         """
-        return [
-            "US",
-            "LSE",
-        ]
-        #  "XETRA", "STU", "PA", "SW"]
-        # download file
-        file_content = datalake_client.download_file_into_memory(file_path)
 
-        exchanges = pl.read_parquet(file_content)
+        exchange_source_codes = duck.get_data(
+            file_path,
+            "azure_abfs",
+        ).df()["exchange_source_code"]
 
-        exchange_codes = exchanges["source_code"].to_list()
-
-        return exchange_codes
+        return list(exchange_source_codes)
 
     @staticmethod
     def download_details(exchange_code: str):
@@ -68,10 +63,10 @@ class ExchangeDetailsJobs:
 
         # todo delete temp file
 
-        datalake_client.upload_file(
+        return datalake_client.upload_file(
             destination_file_path=ExchangeDetailsPathCuratedCurrent(),
             file=data.df().to_parquet(),
-        )
+        ).file.full_path
 
     @staticmethod
     def curate_merged_holidays(file_path: str):
@@ -101,14 +96,10 @@ class ExchangeDetailsJobs:
             [DatalakePathBuilder.build_abfs_path(file_path) for file_path in file_paths_flattened]
         ).pl()
 
-        print(holidays)
-
-        uploaded_file = datalake_client.upload_file(
+        return datalake_client.upload_file(
             destination_file_path=TempPath(file_type="parquet"),
             file=holidays.to_pandas().to_parquet(),
-        )
-
-        return uploaded_file.file.full_path
+        ).file.full_path
 
     @staticmethod
     def transform_holidays(file_path: str):
@@ -126,9 +117,14 @@ class ExchangeDetailsJobs:
         holidays = details_raw_data.get("ExchangeHolidays", None)
         exchange_code = details_raw_data.get("Code", None)
 
-        print(exchange_code)
+        holidays_list = list(holidays.values())
 
-        holidays_df = pl.DataFrame(list(holidays.values()))
+        # some exchanges, especially virtual ones like FOREX don't have holidays
+        if len(holidays_list) == 0:
+            logging.info(f"Exchange {exchange_code} has no holidays.")
+            return None
+
+        holidays_df = pl.DataFrame(holidays_list)
         holidays_df = holidays_df.with_columns(
             [
                 pl.col("Date").str.strptime(pl.Date).cast(pl.Date),
@@ -139,11 +135,17 @@ class ExchangeDetailsJobs:
         data = duck.query(
             "./sql/transform_raw_holidays.sql",
             holidays_data=holidays_df,
-            mappings_data=DbQueryRepositories.mappings.get_mappings(source="EodHistoricalData"),
+            exchange_codes_mapping=DbQueryRepositories.mappings.get_mappings(
+                source="EodHistoricalData", product="exchange", field="exchange_code"
+            ),
+            holiday_types_mapping=DbQueryRepositories.mappings.get_mappings(
+                source="EodHistoricalData", product="exchange", field="holiday_type"
+            ),
         ).pl()
 
         uploaded_file_paths = []
         for exchange_uid in list(data["exchange_uid"].unique()):
+            print(exchange_uid)
             # upload to datalake
             uploaded_file = datalake_client.upload_file(
                 destination_file_path=ExchangeHolidaysPath(
@@ -166,10 +168,16 @@ class ExchangeDetailsJobs:
         Save each exchange uid to datalake processed zone.
         """
 
+        exchange_code_mapping = DbQueryRepositories.mappings.get_mappings(
+            source="EodHistoricalData", product="exchange", field="exchange_code"
+        )
+        country_mapping = DbQueryRepositories.mappings.get_mappings(source="EodHistoricalData", product="country")
+
         data = duck.query(
             "./sql/transform_raw_details.sql",
             details_data=duck.get_data(file_path, handler="azure_abfs", format="json"),
-            mappings_data=DbQueryRepositories.mappings.get_mappings(source="EodHistoricalData"),
+            exchange_code_mapping=exchange_code_mapping,
+            country_mapping=country_mapping,
         ).pl()
 
         uploaded_file_paths = []

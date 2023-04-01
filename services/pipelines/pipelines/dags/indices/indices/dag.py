@@ -17,12 +17,12 @@ def ingest():
 
 
 @task
-def process(**context: TaskInstance):
+def transform(**context: TaskInstance):
     from dags.indices.indices.jobs.indices import IndexJobs
 
     file_path = context["ti"].xcom_pull()
     print(file_path)
-    return IndexJobs.process(file_path)
+    return IndexJobs.transform(file_path)
 
 
 @task
@@ -31,9 +31,7 @@ def curate(**context: TaskInstance):
 
     file_path: str = context["ti"].xcom_pull()
 
-    IndexJobs.curate(file_path)
-
-    return "Indices downloaded"
+    return IndexJobs.curate(file_path)
 
 
 trigger_dag_index_members = TriggerDagRunOperator(
@@ -49,4 +47,4 @@ with DAG(
     catchup=False,
     tags=["indices"],
 ) as dag:
-    ingest() >> process() >> trigger_dag_index_members >> curate()
+    ingest() >> transform() >> curate() >> trigger_dag_index_members

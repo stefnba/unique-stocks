@@ -12,40 +12,48 @@ from airflow.models import TaskInstance
 def extract_exchange_codes(**context: TaskInstance):
     from dags.exchanges.exchange_securities.jobs.eod import EodExchangeSecurityJobs
 
-    # file path for processed exchanges
+    # processed exchanges
     file_path: str = context["ti"].xcom_pull(dag_id="exchanges", task_ids="process_eod", include_prior_dates=True)
 
-    # codes = EodExchangeJobs.extract_index_codes(file_path)
-    return ["XETRA", "SW"]
+    return EodExchangeSecurityJobs.extract_exchange_codes(file_path)
 
 
 @task_group
 def manage_one_exchange(exchange_code: str):
     """
-    Manages downloading and processing securities of one exchange
+    Manages downloading and processing securities of one exchange.
     """
+    from shared.types.types import CodeFilePath
 
     @task
     def download_securities_of_exchange(exchange: str):
+        import logging
+
         from dags.exchanges.exchange_securities.jobs.eod import EodExchangeSecurityJobs
 
-        return EodExchangeSecurityJobs.download_securities(exchange)
+        try:
+            return EodExchangeSecurityJobs.download(exchange)
+        except Exception as e:
+            logging.warning(exchange, "Watch out!", e)
+            return None
 
     @task
-    def process_securities_of_exchange(file_path: str):
+    def transform_securities_of_exchange(file_path: str):
         from dags.exchanges.exchange_securities.jobs.eod import EodExchangeSecurityJobs
 
-        return EodExchangeSecurityJobs.process_securities(exchange_code, file_path)
+        if file_path:
+            return EodExchangeSecurityJobs.transform(file_path)
+
+    @task
+    def curate_securities_of_exchange(input: CodeFilePath):
+        from dags.exchanges.exchange_securities.jobs.eod import EodExchangeSecurityJobs
+
+        if input:
+            return EodExchangeSecurityJobs.curate(exchange_uid=input["code"], file_path=input["file_path"])
 
     download_securities_of_exchange_task = download_securities_of_exchange(exchange_code)
-    process_securities_of_exchange(download_securities_of_exchange_task)
-
-
-@task
-def merge_all_exchange_securities(**context: TaskInstance):
-    file_path = context["ti"].xcom_pull()
-    print(file_path)
-    print("process")
+    transform_securities_of_exchange_task = transform_securities_of_exchange(download_securities_of_exchange_task)
+    curate_securities_of_exchange(transform_securities_of_exchange_task)
 
 
 with DAG(
@@ -57,4 +65,4 @@ with DAG(
 ) as dag:
     extract_exchange_codes_task = extract_exchange_codes()
 
-    manage_one_exchange.expand(exchange_code=extract_exchange_codes_task) >> merge_all_exchange_securities()
+    manage_one_exchange.expand(exchange_code=extract_exchange_codes_task)

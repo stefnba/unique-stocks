@@ -1,11 +1,13 @@
 import io
 
-import duckdb
 import polars as pl
 import requests
 from dags.exchanges.exchanges.jobs.config import ExchangesPath
 from shared.clients.api.eod.client import EodHistoricalDataApiClient
 from shared.clients.datalake.azure.azure_datalake import datalake_client
+from shared.clients.db.postgres.repositories import DbQueryRepositories
+from shared.clients.duck.client import duck
+from shared.paths.path import TempPath
 from shared.utils.conversion import converter
 
 ApiClient = EodHistoricalDataApiClient
@@ -90,72 +92,51 @@ class EodExchangeJobs:
         File content is in JSON format.
         """
 
-        # donwload file
-        file_content = datalake_client.download_file_into_memory(file_path=file_path)
+        exchanges = duck.get_data(file_path, handler="azure_abfs", format="json").pl()
+        exchange_code_mappings = DbQueryRepositories.mappings.get_mappings(
+            product="exchange", source="EodHistoricalData", field="exchange_code"
+        )
+        virtual_exchange_mappings = DbQueryRepositories.mappings.get_mappings(
+            product="exchange", source="EodHistoricalData", field="is_virtual"
+        )
 
-        df_exchanges = pl.read_json(io.BytesIO(file_content))
-
-        df_exchanges = df_exchanges.with_columns(
+        exchanges = exchanges.with_columns(
             [
                 pl.when(pl.col(pl.Utf8) == "Unknown").then(None).otherwise(pl.col(pl.Utf8)).keep_name(),
-                pl.lit(ASSET_SOURCE).alias("data_source"),
             ]
         )
-        df_exchanges = df_exchanges.with_columns(
+        exchanges = exchanges.with_columns(
             [
                 pl.when(pl.col(pl.Utf8).str.lengths() == 0).then(None).otherwise(pl.col(pl.Utf8)).keep_name(),
             ]
         )
-        base_table = duckdb.execute(
-            """
-        --sql
-            SELECT
-                    string_split(OperatingMIC, ',') AS mic,
-                    Name AS name,
-                    NULL AS acronym,
-                    Currency AS currency,
-                    NULL AS city,
-                    CountryISO2 as country,
-                    NULL AS website,
-                    NULL AS timezone,
-                    data_source,
-                    Code AS source_code,
-                    list_contains($1, source_code) as is_virtual,
-                FROM
-                    df_exchanges
-                WHERE
-                    NOT(list_contains($2, source_code));
-        """,
-            [ApiClient.virtual_exchanges, ApiClient.exchanges_drop],
-        ).pl()
 
-        processed = duckdb.sql(
-            """
-            --sql
-            SELECT
-                COALESCE(trim(mic[1]), source_code) app_id,
-                trim(mic[1]) mic,
-                * EXCLUDE (mic)
-            FROM
-                base_table
-            UNION
-            SELECT
-                COALESCE(trim(mic[2]), source_code) app_id,
-                trim(mic[2]) mic,
-                * EXCLUDE (mic)
-            FROM
-                base_table
-            WHERE
-                source_code == 'US';
+        transformed = duck.query(
+            "./sql/transform_raw_eod.sql",
+            exchanges=exchanges,
+            exchange_code_mappings=exchange_code_mappings,
+            virtual_exchange_mappings=virtual_exchange_mappings,
+            source=ASSET_SOURCE,
+        ).df()
+
+        return datalake_client.upload_file(
+            destination_file_path=TempPath(file_type="parquet"),
+            file=transformed.to_parquet(),
+        ).file.full_path
+
+    @staticmethod
+    def join_eod_details(exchanges_path: str, details_path: str) -> str:
         """
+        Joins EodHistoricalData exchanges and details for all exchanges.
+        """
+
+        joined = duck.query(
+            "./sql/join_eod_details.sql",
+            exchanges=duck.get_data(exchanges_path, handler="azure_abfs"),
+            details=duck.get_data(details_path, handler="azure_abfs"),
         )
 
-        parquet_file = processed.df().to_parquet()
-
-        # datalake destination
-        uploaded_file = datalake_client.upload_file(
+        return datalake_client.upload_file(
             destination_file_path=ExchangesPath(asset_source=ASSET_SOURCE, zone="processed"),
-            file=parquet_file,
-        )
-
-        return uploaded_file.file.full_path
+            file=joined.df().to_parquet(),
+        ).file.full_path
