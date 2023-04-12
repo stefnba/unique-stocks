@@ -1,25 +1,24 @@
 import json
+import logging
 
-import duckdb
-import pandas as pd
 import polars as pl
-from dags.exchanges.exchange_details.jobs.config import ExchangeDetailsPath, ExchangeHolidaysPath, TempPath
+from dags.exchanges.exchange_details.jobs.config import (
+    ExchangeDetailsPath,
+    ExchangeDetailsPathCuratedCurrent,
+    ExchangeHolidaysPath,
+    ExchangeHolidaysPathCuratedCurrent,
+)
 from shared.clients.api.eod.client import EodHistoricalDataApiClient
 from shared.clients.datalake.azure.azure_datalake import datalake_client
-from shared.clients.datalake.azure.file_system import abfs_client
 from shared.clients.db.postgres.repositories import DbQueryRepositories
 from shared.clients.duck.client import duck
+from shared.paths.path import TempPath
 from shared.utils.conversion import converter
 from shared.utils.path.datalake.builder import DatalakePathBuilder
+from shared.utils.utils.list import flatten_list
 
 ApiClient = EodHistoricalDataApiClient
 ASSET_SOURCE = ApiClient.client_key
-
-
-def flatten_list(input_list):
-    if not isinstance(input_list, list):  # if not list
-        return [input_list]
-    return [x for sub in input_list for x in flatten_list(sub)]  # recurse and collect
 
 
 class ExchangeDetailsJobs:
@@ -28,20 +27,18 @@ class ExchangeDetailsJobs:
         """
         Extracts exchanges codes from processed exchanges.
         """
-        return ["US", "LSE"]
-        # download file
-        file_content = datalake_client.download_file_into_memory(file_path)
 
-        exchanges = pl.read_parquet(file_content)
+        exchange_source_codes = duck.get_data(
+            file_path,
+            "azure_abfs",
+        ).df()["exchange_source_code"]
 
-        exchange_codes = exchanges["source_code"].to_list()
-
-        return exchange_codes
+        return list(exchange_source_codes)
 
     @staticmethod
     def download_details(exchange_code: str):
         """
-        Retrieves details for a given exchange code.
+        Retrieves details from api for a given exchange code and dumps it to datalake raw.
         """
 
         # api data
@@ -59,125 +56,140 @@ class ExchangeDetailsJobs:
     def curate_merged_details(file_path: str):
         """
         Tranformations for curated zone.
-        - abc
-        - abc
+        - map surrogate key
         """
+
+        data = duck.get_data(file_path, handler="azure_abfs")
+
+        # todo delete temp file
+
+        return datalake_client.upload_file(
+            destination_file_path=ExchangeDetailsPathCuratedCurrent(),
+            file=data.df().to_parquet(),
+        ).file.full_path
 
     @staticmethod
     def curate_merged_holidays(file_path: str):
         """
         Tranformations for curated zone.
 
-        - abc
-        - abc
+        - map surrogate key
         """
 
-        merged = duck.query(
-            query="./sql/merge.sql",
-            holidays_df=duck.db.read_parquet(duck.helpers.build_abfs_path(file_path)),
-            mappings_df=DbQueryRepositories.mappings.get_mappings(product="exchange", source=ASSET_SOURCE),
-        )
+        data = duck.get_data(file_path, handler="azure_abfs")
 
-        print(merged.pl())
+        datalake_client.upload_file(
+            destination_file_path=ExchangeHolidaysPathCuratedCurrent(),
+            file=data.df().to_parquet(),
+        )
 
         # todo delete temp file
 
     @staticmethod
     def merge(file_paths: list[str | list[str]]):
-        db = duckdb.connect()
-        db.register_filesystem(abfs_client)
-
+        """
+        Takes various file_paths (can also be nested list of file_paths) and merges them into one file.
+        """
         file_paths_flattened: list[str] = flatten_list(file_paths)
 
-        abfs_file_paths = [DatalakePathBuilder.build_abfs_path(file_path) for file_path in file_paths_flattened]
+        holidays = duck.db.read_parquet(
+            [DatalakePathBuilder.build_abfs_path(file_path) for file_path in file_paths_flattened]
+        ).pl()
 
-        holidays = db.read_parquet(abfs_file_paths).pl()
-
-        # upload to datalake
-        uploaded_file = datalake_client.upload_file(
+        return datalake_client.upload_file(
             destination_file_path=TempPath(file_type="parquet"),
             file=holidays.to_pandas().to_parquet(),
-        )
-
-        return uploaded_file.file.full_path
+        ).file.full_path
 
     @staticmethod
-    def process_holidays(details_raw: dict):
-        processed_file_paths: list[str] = []
+    def transform_holidays(file_path: str):
+        """
+        Transforms holidays of exchange details from EOD
+        - unnesting
+        - maps exchange uid
 
-        exchanges = details_raw.get("OperatingMIC", "").split(",")
-        ex = details_raw.get("Code", "")
+        Save each exchange uid to datalake processed zone.
 
-        for exchange_code in exchanges:
-            exchange_code = exchange_code.strip()
-            holidays = details_raw.get("ExchangeHolidays", None)
 
-            if not holidays:
-                continue
+        """
+        details_raw_data = json.loads(datalake_client.download_file_into_memory(file_path))
 
-            holidays_df = pl.DataFrame(list(holidays.values()))
-            holidays_df = holidays_df.with_columns(
-                [
-                    pl.col("Date").str.strptime(pl.Date).cast(pl.Date),
-                    pl.lit(exchange_code).alias("mic"),
-                    pl.lit(ex).alias("exchange_code"),
-                ]
-            )
+        holidays = details_raw_data.get("ExchangeHolidays", None)
+        exchange_code = details_raw_data.get("Code", None)
 
+        holidays_list = list(holidays.values())
+
+        # some exchanges, especially virtual ones like FOREX don't have holidays
+        if len(holidays_list) == 0:
+            logging.info(f"Exchange {exchange_code} has no holidays.")
+            return None
+
+        holidays_df = pl.DataFrame(holidays_list)
+        holidays_df = holidays_df.with_columns(
+            [
+                pl.col("Date").str.strptime(pl.Date).cast(pl.Date),
+                pl.lit(exchange_code).alias("exchange_source_code"),
+            ]
+        )
+
+        data = duck.query(
+            "./sql/transform_raw_holidays.sql",
+            holidays_data=holidays_df,
+            exchange_codes_mapping=DbQueryRepositories.mappings.get_mappings(
+                source="EodHistoricalData", product="exchange", field="exchange_code"
+            ),
+            holiday_types_mapping=DbQueryRepositories.mappings.get_mappings(
+                source="EodHistoricalData", product="exchange", field="holiday_type"
+            ),
+        ).pl()
+
+        uploaded_file_paths = []
+        for exchange_uid in list(data["exchange_uid"].unique()):
+            print(exchange_uid)
             # upload to datalake
             uploaded_file = datalake_client.upload_file(
                 destination_file_path=ExchangeHolidaysPath(
-                    zone="processed", asset_source=ASSET_SOURCE, exchange=exchange_code
+                    zone="processed", asset_source=ASSET_SOURCE, exchange=exchange_uid
                 ),
-                file=holidays_df.to_pandas().to_parquet(),
+                file=data.filter(pl.col("exchange_uid") == exchange_uid).to_pandas().to_parquet(),
             )
 
-            processed_file_paths.append(uploaded_file.file.full_path)
+            uploaded_file_paths.append(uploaded_file.file.full_path)
 
-        return processed_file_paths
+        return uploaded_file_paths
 
     @staticmethod
-    def process_details(details_raw):
-        # eod api has two exchange for code US (XNAS, XNYS)
-        exchanges = details_raw.get("OperatingMIC", "").split(",")
+    def transform_details(file_path: str):
+        """
+        Transforms raw exchange details
+        - maps exchange uid
+        - maps country
 
-        processed_file_paths: list[str] = []
+        Save each exchange uid to datalake processed zone.
+        """
 
-        for exchange_code in exchanges:
-            exchange_code = exchange_code.strip()
-            processed = {
-                "name": details_raw.get("Name", None),
-                "code": details_raw.get("Code", None),
-                "mic": exchange_code.strip(""),
-                "country": details_raw.get("Country", None),
-                "currency": details_raw.get("Currency", None),
-                "timezone": details_raw.get("Timezone", None),
-                "trading_hours": {
-                    "open": details_raw.get("TradingHours", None).get("Open", None),
-                    "close": details_raw.get("TradingHours", None).get("Close", None),
-                    "open_utc": details_raw.get("TradingHours", None).get("OpenUTC", None),
-                    "close_utc": details_raw.get("TradingHours", None).get("CloseUTC", None),
-                },
-                "working_days": details_raw.get("TradingHours", None).get("WorkingDays", []).split(","),
-                "active_tickers": details_raw.get("ActiveTickers", None),
-                "previous_day_updated_tickers": details_raw.get("PreviousDayUpdatedTickers", None),
-                "updated_tickers": details_raw.get("UpdatedTickers", None),
-            }
+        exchange_code_mapping = DbQueryRepositories.mappings.get_mappings(
+            source="EodHistoricalData", product="exchange", field="exchange_code"
+        )
+        country_mapping = DbQueryRepositories.mappings.get_mappings(source="EodHistoricalData", product="country")
 
+        data = duck.query(
+            "./sql/transform_raw_details.sql",
+            details_data=duck.get_data(file_path, handler="azure_abfs", format="json"),
+            exchange_code_mapping=exchange_code_mapping,
+            country_mapping=country_mapping,
+        ).pl()
+
+        uploaded_file_paths = []
+        for exchange_uid in list(data["exchange_uid"].unique()):
             # upload to datalake
             uploaded_file = datalake_client.upload_file(
                 destination_file_path=ExchangeDetailsPath(
-                    zone="processed", asset_source=ASSET_SOURCE, exchange=exchange_code
+                    zone="processed", asset_source=ASSET_SOURCE, exchange=exchange_uid
                 ),
-                file=pd.DataFrame([processed]).to_parquet(),
+                file=data.filter(pl.col("exchange_uid") == exchange_uid).to_pandas().to_parquet(),
             )
 
-            processed_file_paths.append(uploaded_file.file.full_path)
+            uploaded_file_paths.append(uploaded_file.file.full_path)
 
-        return processed_file_paths
-
-    @staticmethod
-    def extract_raw_details(file_path: str) -> dict:
-        details_raw: dict = json.loads(datalake_client.download_file_into_memory(file_path=file_path))
-
-        return details_raw
+        return uploaded_file_paths

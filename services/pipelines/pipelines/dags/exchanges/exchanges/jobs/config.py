@@ -6,7 +6,7 @@ class ExchangesPath(DatalakePath):
     asset = "exchanges"
     asset_source: str
 
-    file_name = "${year}${month}${day}}_${asset_source}_${asset}_${zone"
+    file_name = "${year}${month}${day}_${asset_source}_${asset}_${zone}"
     file_type: DatalakeFileTypes = "parquet"
     directory = [
         "${zone}",

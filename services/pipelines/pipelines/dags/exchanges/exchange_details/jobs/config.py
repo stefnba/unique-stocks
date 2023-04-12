@@ -1,5 +1,4 @@
-import uuid
-
+from shared.paths.path import directory, directory_current, file_name, file_name_current
 from shared.utils.path.datalake.path import DatalakeFileTypes, DatalakePath, DatalakeZones
 
 
@@ -10,28 +9,27 @@ class ExchangeDetailsPath(DatalakePath):
     exchange: str
     file_type: DatalakeFileTypes = "parquet"
 
-    file_name = "${year}${month}${day}_${asset_source}_${exchange}_${asset}_${zone}"
-    directory = [
-        "${zone}",
-        "product=${product}",
-        "asset=${asset}",
-        "exchange=${exchange}",
-        "source=${asset_source}",
-        "year=${year}",
-        "month=${month}",
-    ]
+    file_name = file_name
+    directory = directory
 
 
 class ExchangeHolidaysPath(ExchangeDetailsPath):
     asset = "exchange_holidays"
 
 
-class TempPath(DatalakePath):
-    zone: DatalakeZones = "temp"  # type: ignore
-    file_type: DatalakeFileTypes = "parquet"
-    key = uuid.uuid4().hex
+class ExchangeDetailsPathCuratedCurrent(ExchangeDetailsPath):
+    zone: DatalakeZones = "curated"  # type: ignore
+    exchange: str = ""
+    asset_source: str = ""
 
-    file_name = "${year}${month}${day}_${key}"
-    directory = [
-        "${zone}",
-    ]
+    directory = directory_current
+    file_name = file_name_current
+
+
+class ExchangeHolidaysPathCuratedCurrent(ExchangeHolidaysPath):
+    zone: DatalakeZones = "curated"  # type: ignore
+    exchange: str = ""
+    asset_source: str = ""
+
+    directory = directory_current
+    file_name = file_name_current

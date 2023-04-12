@@ -1,13 +1,11 @@
-from typing import Literal
-
-from pydantic import BaseModel
-
-Env = Literal["Production", "Development"]
+from pydantic import Field
+from shared.config.env import EnvBaseConfig
+from shared.config.types import EnvironmentTypes
 
 
-class AppConfig(BaseModel):
+class AppConfig(EnvBaseConfig):
     """
     Application configurations.
     """
 
-    env: Env = "Development"
+    env: EnvironmentTypes = Field(env="ENV", default="Development")
