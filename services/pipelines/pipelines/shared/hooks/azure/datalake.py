@@ -21,7 +21,7 @@ from shared.utils.path.builder import FilePathBuilder
 from shared.utils.path.types import PathParams
 
 if TYPE_CHECKING:
-    from shared.utils.path.datalake.path import DatalakePath
+    from shared.utils.path.data_lake.file_path import DataLakeFilePathModel
 
 
 class AzureDatalakeHook(AzureBaseClient):
@@ -179,7 +179,7 @@ class AzureDatalakeHook(AzureBaseClient):
 
     def delete_file(
         self,
-        file_path: PathParams | Type["DatalakePath"] | "DatalakePath",
+        file_path: PathParams | "DataLakeFilePathModel",
         file_system: Optional[str] = None,
     ):
         """
@@ -205,7 +205,7 @@ class AzureDatalakeHook(AzureBaseClient):
     def upload_file(
         self,
         file: str | bytes,
-        destination_file_path: PathParams | Type["DatalakePath"] | "DatalakePath",
+        destination_file_path: PathParams | "DataLakeFilePathModel",
         file_system: Optional[str] = None,
         mode: UploadMode = "upload",
     ) -> DatalakeFile:
@@ -214,7 +214,7 @@ class AzureDatalakeHook(AzureBaseClient):
 
         Args:
             file (str | bytes): File to upload.
-            destination_file_path (PathArgs | Type[DatalakePath] | DatalakePath): Path on Datalake where file should be
+            destination_file_path (PathArgs | Type[DataLakeFilePathModel] | DataLakeFilePathModel): Path on Datalake where file should be
                 uploaded to.
             file_system (Optional[str]): Container. If not provided, will look for self.file_system.
 

@@ -5,6 +5,9 @@ from pydantic import BaseModel
 DatalakeFileTypes = Literal["csv", "json", "parquet"]
 DatalakeDirParams = str | list[str]
 
+DataLakePathPattern = str | list[str]
+DataLakePathVersions = Literal["current", "history"]
+
 
 class DatalakeDate(BaseModel):
     year: str

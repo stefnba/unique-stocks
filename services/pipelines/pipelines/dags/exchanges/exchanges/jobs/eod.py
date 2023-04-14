@@ -2,12 +2,11 @@ import io
 
 import polars as pl
 import requests
-from dags.exchanges.exchanges.jobs.config import ExchangesPath
+from dags.exchanges.exchanges.jobs.utils import ExchangePath
 from shared.clients.api.eod.client import EodHistoricalDataApiClient
 from shared.clients.datalake.azure.azure_datalake import datalake_client
 from shared.clients.db.postgres.repositories import DbQueryRepositories
 from shared.clients.duck.client import duck
-from shared.paths.path import TempPath
 from shared.utils.conversion import converter
 
 ApiClient = EodHistoricalDataApiClient
@@ -60,7 +59,7 @@ class EodExchangeJobs:
 
         # upload to datalake
         uploaded_file = datalake_client.upload_file(
-            destination_file_path=ExchangesPath(zone="raw", asset_source=ASSET_SOURCE),
+            destination_file_path=ExchangePath.raw(source=ASSET_SOURCE, file_type="json"),
             file=converter.json_to_bytes(exhange_details),
         )
         return uploaded_file.file.full_path
@@ -80,7 +79,7 @@ class EodExchangeJobs:
 
         # upload to datalake
         uploaded_file = datalake_client.upload_file(
-            destination_file_path=ExchangesPath(zone="raw", asset_source=ASSET_SOURCE, file_type="json"),
+            destination_file_path=ExchangePath.raw(source=ASSET_SOURCE, file_type="json"),
             file=converter.json_to_bytes(exchanges_json),
         )
 
@@ -120,7 +119,7 @@ class EodExchangeJobs:
         ).df()
 
         return datalake_client.upload_file(
-            destination_file_path=TempPath(file_type="parquet"),
+            destination_file_path=ExchangePath.temp(),
             file=transformed.to_parquet(),
         ).file.full_path
 
@@ -137,6 +136,6 @@ class EodExchangeJobs:
         )
 
         return datalake_client.upload_file(
-            destination_file_path=ExchangesPath(asset_source=ASSET_SOURCE, zone="processed"),
+            destination_file_path=ExchangePath.processed(source=ASSET_SOURCE),
             file=joined.df().to_parquet(),
         ).file.full_path

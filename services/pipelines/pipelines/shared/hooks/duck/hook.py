@@ -10,12 +10,12 @@ from fsspec import AbstractFileSystem
 
 # from shared.utils.sql.file import QueryFile
 from shared.hooks.duck.types import BindingsParams, GetDataFormats, GetDataHandlers, QueryInput
-from shared.utils.path.datalake.builder import DatalakePathBuilder
+from shared.utils.path.data_lake.file_path import DataLakeFilePath
 from shared.utils.sql.file import QueryFile
 
 
 class DuckDbHelpers:
-    build_abfs_path = DatalakePathBuilder.build_abfs_path
+    build_abfs_path = DataLakeFilePath.build_abfs_path
     QueryFile = QueryFile
 
 

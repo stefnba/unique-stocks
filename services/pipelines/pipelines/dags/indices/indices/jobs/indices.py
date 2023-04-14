@@ -1,8 +1,5 @@
-import io
-
-import duckdb
 import polars as pl
-from dags.indices.indices.jobs.config import IndicesPath
+from dags.indices.indices.jobs.utils import IndexPath
 from shared.clients.api.eod.client import EodHistoricalDataApiClient
 from shared.clients.datalake.azure.azure_datalake import datalake_client
 from shared.clients.duck.client import duck
@@ -10,9 +7,7 @@ from shared.utils.conversion import converter
 
 ApiClient = EodHistoricalDataApiClient
 ASSET_SOURCE = ApiClient.client_key
-
-# virtual exchange code of EOD for indices
-VIRTUAL_EXCHANGE_CODE = "INDX"
+INDEX_EXCHANGE_CODE = ApiClient.index_exhange_code
 
 
 class IndexJobs:
@@ -29,10 +24,10 @@ class IndexJobs:
         Returns:
             str: File path of downloaded file.
         """
-        indices = ApiClient.get_securities_listed_at_exhange(VIRTUAL_EXCHANGE_CODE)
+        indices = ApiClient.get_securities_listed_at_exhange(INDEX_EXCHANGE_CODE)
 
         return datalake_client.upload_file(
-            destination_file_path=IndicesPath(zone="raw", asset_source=ASSET_SOURCE, file_type="json"),
+            destination_file_path=IndexPath.raw(source=ASSET_SOURCE, file_type="json"),
             file=converter.json_to_bytes(indices),
         ).file.full_path
 
@@ -57,7 +52,7 @@ class IndexJobs:
         transformed = duck.query("./sql/transform_raw.sql", indices=indices).df()
 
         return datalake_client.upload_file(
-            destination_file_path=IndicesPath(zone="processed", asset_source=ASSET_SOURCE),
+            destination_file_path=IndexPath.processed(source=ASSET_SOURCE),
             file=transformed.to_parquet(),
         ).file.full_path
 
@@ -69,7 +64,12 @@ class IndexJobs:
 
         indices = duck.get_data(file_path, handler="azure_abfs")
 
+        datalake_client.upload_file(
+            destination_file_path=IndexPath.curated(version="history"),
+            file=indices.df().to_parquet(),
+        )
+
         return datalake_client.upload_file(
-            destination_file_path="/curated/product=indices/indices.parquet",
+            destination_file_path=IndexPath.curated(),
             file=indices.df().to_parquet(),
         ).file.full_path

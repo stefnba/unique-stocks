@@ -4,4 +4,4 @@ from pydantic import BaseSettings
 
 
 class DatalakeConfig(BaseSettings):
-    zones = Literal["raw", "processed", "curated", "temp"]
+    zones = Literal["raw", "processed", "curated", "temp", "modeled"]

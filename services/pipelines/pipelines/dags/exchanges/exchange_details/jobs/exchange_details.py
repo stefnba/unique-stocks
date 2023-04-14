@@ -2,19 +2,13 @@ import json
 import logging
 
 import polars as pl
-from dags.exchanges.exchange_details.jobs.config import (
-    ExchangeDetailsPath,
-    ExchangeDetailsPathCuratedCurrent,
-    ExchangeHolidaysPath,
-    ExchangeHolidaysPathCuratedCurrent,
-)
+from dags.exchanges.exchange_details.jobs.utils import ExchangeDetailPath, ExchangeHolidayPath
 from shared.clients.api.eod.client import EodHistoricalDataApiClient
 from shared.clients.datalake.azure.azure_datalake import datalake_client
 from shared.clients.db.postgres.repositories import DbQueryRepositories
 from shared.clients.duck.client import duck
-from shared.paths.path import TempPath
 from shared.utils.conversion import converter
-from shared.utils.path.datalake.builder import DatalakePathBuilder
+from shared.utils.path.data_lake.file_path import DataLakeFilePath
 from shared.utils.utils.list import flatten_list
 
 ApiClient = EodHistoricalDataApiClient
@@ -46,9 +40,7 @@ class ExchangeDetailsJobs:
 
         # upload to datalake
         return datalake_client.upload_file(
-            destination_file_path=ExchangeDetailsPath(
-                zone="raw", asset_source=ASSET_SOURCE, exchange=exchange_code, file_type="json"
-            ),
+            destination_file_path=ExchangeDetailPath.raw(source=ASSET_SOURCE, bin=exchange_code, file_type="json"),
             file=converter.json_to_bytes(exhange_details),
         ).file.full_path
 
@@ -64,7 +56,7 @@ class ExchangeDetailsJobs:
         # todo delete temp file
 
         return datalake_client.upload_file(
-            destination_file_path=ExchangeDetailsPathCuratedCurrent(),
+            destination_file_path=ExchangeDetailPath.curated(bin="aaa"),
             file=data.df().to_parquet(),
         ).file.full_path
 
@@ -79,7 +71,7 @@ class ExchangeDetailsJobs:
         data = duck.get_data(file_path, handler="azure_abfs")
 
         datalake_client.upload_file(
-            destination_file_path=ExchangeHolidaysPathCuratedCurrent(),
+            destination_file_path=ExchangeHolidayPath.curated(bin="XETRAAAA"),
             file=data.df().to_parquet(),
         )
 
@@ -93,11 +85,11 @@ class ExchangeDetailsJobs:
         file_paths_flattened: list[str] = flatten_list(file_paths)
 
         holidays = duck.db.read_parquet(
-            [DatalakePathBuilder.build_abfs_path(file_path) for file_path in file_paths_flattened]
+            [DataLakeFilePath.build_abfs_path(file_path) for file_path in file_paths_flattened]
         ).pl()
 
         return datalake_client.upload_file(
-            destination_file_path=TempPath(file_type="parquet"),
+            destination_file_path=ExchangeDetailPath.temp(),
             file=holidays.to_pandas().to_parquet(),
         ).file.full_path
 
@@ -148,9 +140,7 @@ class ExchangeDetailsJobs:
             print(exchange_uid)
             # upload to datalake
             uploaded_file = datalake_client.upload_file(
-                destination_file_path=ExchangeHolidaysPath(
-                    zone="processed", asset_source=ASSET_SOURCE, exchange=exchange_uid
-                ),
+                destination_file_path=ExchangeHolidayPath.processed(source=ASSET_SOURCE, bin=exchange_uid),
                 file=data.filter(pl.col("exchange_uid") == exchange_uid).to_pandas().to_parquet(),
             )
 
@@ -184,9 +174,7 @@ class ExchangeDetailsJobs:
         for exchange_uid in list(data["exchange_uid"].unique()):
             # upload to datalake
             uploaded_file = datalake_client.upload_file(
-                destination_file_path=ExchangeDetailsPath(
-                    zone="processed", asset_source=ASSET_SOURCE, exchange=exchange_uid
-                ),
+                destination_file_path=ExchangeDetailPath.processed(source=ASSET_SOURCE, bin=exchange_uid),
                 file=data.filter(pl.col("exchange_uid") == exchange_uid).to_pandas().to_parquet(),
             )
 

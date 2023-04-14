@@ -3,13 +3,12 @@ from typing import TYPE_CHECKING, Sequence, Type
 from urllib.parse import urlparse
 
 from shared.config import config
-from shared.utils.path.types import (FileNameParams, FilePath, PathParams,
-                                     PathParamsOptional, UrlPath)
+from shared.utils.path.types import FileNameParams, FilePath, PathParams, PathParamsOptional, UrlPath
 
 DatalakeZones = config.datalake.zones
 
 if TYPE_CHECKING:
-    from shared.utils.path.datalake.path import DatalakePath
+    from shared.utils.path.data_lake.file_path import DataLakeFilePathModel
 
 
 class PathBuilder:
@@ -150,7 +149,7 @@ class UrlBuilder(PathBuilder):
 
 class FilePathBuilder(PathBuilder):
     @classmethod
-    def convert_to_file_path(cls, path: PathParams | "DatalakePath" | Type["DatalakePath"]) -> str:
+    def convert_to_file_path(cls, path: PathParams | "DataLakeFilePathModel") -> str:
         """
         Converts path args of various formats into a file path.
 
@@ -160,7 +159,7 @@ class FilePathBuilder(PathBuilder):
         Returns:
             str: full path including file name and extension
         """
-        from shared.utils.path.datalake.path import DatalakePath
+        from shared.utils.path.data_lake.file_path import DataLakeFilePath, DataLakeFilePathModel
 
         # string
         if isinstance(path, str):
@@ -170,10 +169,10 @@ class FilePathBuilder(PathBuilder):
             _path = cls(path)
             return _path.join_file_paths()
         # class
-        if not isinstance(path, DatalakePath) and issubclass(path, DatalakePath):
-            return str(path)
-        if isinstance(path, DatalakePath):
-            return str(path)
+        # if not isinstance(path, DataLakeFilePathModel) and issubclass(path, DataLakeFilePathModel):
+        #     return str(DataLakeFilePath.Builder(path))
+        if isinstance(path, DataLakeFilePathModel):
+            return str(DataLakeFilePath.Builder(path))
 
     @classmethod
     def build_file_path(
@@ -181,7 +180,7 @@ class FilePathBuilder(PathBuilder):
         file_path: PathParams,
         file_name: FileNameParams,
         file_type: str,
-        file_name_sep: str = "_",
+        file_name_sep: str = "__",
         make_absolute=False,
     ) -> str:
         """

@@ -1,9 +1,8 @@
 import io
 import json
 
-import duckdb
 import polars as pl
-from dags.indices.index_members.jobs.config import IndexMembersPath
+from dags.indices.index_members.jobs.utils import IndexMemberPath
 from shared.clients.api.eod.client import EodHistoricalDataApiClient
 from shared.clients.datalake.azure.azure_datalake import datalake_client
 from shared.clients.duck.client import duck
@@ -11,9 +10,7 @@ from shared.utils.conversion import converter
 
 ApiClient = EodHistoricalDataApiClient
 ASSET_SOURCE = ApiClient.client_key
-
-# virtual exchange code of EOD for indices
-VIRTUAL_EXCHANGE_CODE = "INDX"
+INDEX_EXCHANGE_CODE = ApiClient.index_exhange_code
 
 
 class IndexMembersJobs:
@@ -26,12 +23,10 @@ class IndexMembersJobs:
 
     @staticmethod
     def download(index_code: str):
-        members = ApiClient.get_fundamentals(security_code=index_code, exchange_code=VIRTUAL_EXCHANGE_CODE)
+        members = ApiClient.get_fundamentals(security_code=index_code, exchange_code=INDEX_EXCHANGE_CODE)
 
         return datalake_client.upload_file(
-            destination_file_path=IndexMembersPath(
-                zone="raw", asset_source=ASSET_SOURCE, file_type="json", index=index_code
-            ),
+            destination_file_path=IndexMemberPath.raw(source=ASSET_SOURCE, file_type="json", bin=index_code),
             file=converter.json_to_bytes(members),
         ).file.full_path
 
@@ -52,18 +47,20 @@ class IndexMembersJobs:
 
             return
 
-        members = pl.from_dicts(members)
+        members_df = pl.from_dicts(members)
 
-        members = members.with_columns(
+        members_df = members_df.with_columns(
             [
                 pl.when(pl.col(pl.Utf8) == "Unknown").then(None).otherwise(pl.col(pl.Utf8)).keep_name(),
                 pl.lit(ASSET_SOURCE).alias("data_source"),
             ]
         )
 
-        transformed = duck.query("./sql/transform_raw.sql", members=members, source=ASSET_SOURCE, index_code=index_code)
+        transformed = duck.query(
+            "./sql/transform_raw.sql", members=members_df, source=ASSET_SOURCE, index_code=index_code
+        )
 
         return datalake_client.upload_file(
-            destination_file_path=IndexMembersPath(zone="processed", asset_source=ASSET_SOURCE, index=index_code),
+            destination_file_path=IndexMemberPath.processed(source=ASSET_SOURCE, bin=index_code),
             file=transformed.df().to_parquet(),
         ).file.full_path

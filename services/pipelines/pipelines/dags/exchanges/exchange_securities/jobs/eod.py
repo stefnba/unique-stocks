@@ -1,5 +1,4 @@
-import polars as pl
-from dags.exchanges.exchange_securities.jobs.config import ExchangeSecuritiesPath
+from dags.exchanges.exchange_securities.jobs.utils import ExchangeSecurityPath
 from shared.clients.api.eod.client import EodHistoricalDataApiClient
 from shared.clients.datalake.azure.azure_datalake import datalake_client
 from shared.clients.db.postgres.repositories import DbQueryRepositories
@@ -33,9 +32,7 @@ class EodExchangeSecurityJobs:
         exhange_details = ApiClient.get_securities_listed_at_exhange(exhange_code=exchange_code)
 
         return datalake_client.upload_file(
-            destination_file_path=ExchangeSecuritiesPath(
-                zone="raw", exchange=exchange_code, asset_source=ASSET_SOURCE, file_type="json"
-            ),
+            destination_file_path=ExchangeSecurityPath.raw(bin=exchange_code, source=ASSET_SOURCE, file_type="json"),
             file=converter.json_to_bytes(exhange_details),
         ).file.full_path
 
@@ -44,9 +41,7 @@ class EodExchangeSecurityJobs:
         curated = duck.get_data(file_path, handler="azure_abfs")
 
         return datalake_client.upload_file(
-            destination_file_path=ExchangeSecuritiesPath(
-                zone="curated", exchange=exchange_uid, asset_source=ASSET_SOURCE
-            ),
+            destination_file_path=ExchangeSecurityPath.curated(bin=exchange_uid),
             file=curated.df().to_parquet(),
         ).file.full_path
 
@@ -93,9 +88,7 @@ class EodExchangeSecurityJobs:
 
         return {
             "file_path": datalake_client.upload_file(
-                destination_file_path=ExchangeSecuritiesPath(
-                    zone="processed", exchange=exchange_uid, asset_source=ASSET_SOURCE
-                ),
+                destination_file_path=ExchangeSecurityPath.processed(bin=exchange_uid, source=ASSET_SOURCE),
                 file=transformed.df().to_parquet(),
             ).file.full_path,
             "code": exchange_uid,
