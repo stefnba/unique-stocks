@@ -1,7 +1,7 @@
-from shared.config import config
+from shared.config import CONFIG
 from shared.hooks.postgres.client import PgClient
 
-if config.app.env == "DockerDevelopment":
+if CONFIG.app.env == "DockerDevelopment":
     db_client = PgClient(conn_id="postgres_database")
 else:
     db_client = PgClient(

@@ -1,7 +1,7 @@
 # %%
 
-from dags.exchanges.exchanges.jobs.eod import EodExchangeJobs
-from dags.indices.indices.jobs.indices import IndexJobs
+from dags.exchange.exchange.jobs.eod import EodExchangeJobs
+from dags.index.index.jobs.index import IndexJobs
 
 # %%
 

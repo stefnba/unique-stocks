@@ -14,4 +14,4 @@ class DatalakeProperties(BaseModel):
 
 class DatalakeFile(BaseModel):
     file: FilePath
-    datalake: DatalakeProperties
+    data_lake: DatalakeProperties

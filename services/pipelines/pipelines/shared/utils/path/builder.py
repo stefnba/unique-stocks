@@ -2,10 +2,10 @@ import pathlib
 from typing import TYPE_CHECKING, Sequence, Type
 from urllib.parse import urlparse
 
-from shared.config import config
+from shared.config import CONFIG
 from shared.utils.path.types import FileNameParams, FilePath, PathParams, PathParamsOptional, UrlPath
 
-DatalakeZones = config.datalake.zones
+DatalakeZones = CONFIG.data_lake.zones
 
 if TYPE_CHECKING:
     from shared.utils.path.data_lake.file_path import DataLakeFilePathModel

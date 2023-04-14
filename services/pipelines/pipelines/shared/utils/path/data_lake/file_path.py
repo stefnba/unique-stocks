@@ -4,12 +4,12 @@ from string import Template
 from typing import Any, Dict, Optional, Type
 
 from pydantic import BaseModel
-from shared.config import config
+from shared.config import CONFIG
 from shared.utils.path.builder import FilePathBuilder
 from shared.utils.path.data_lake.types import DatalakeDate, DatalakeFileTypes, DataLakePathPattern, DataLakePathVersions
 from shared.utils.path.types import PathParams
 
-DataLakeZones = config.datalake.zones
+DataLakeZones = CONFIG.data_lake.zones
 
 
 class PathPatterns:
@@ -270,13 +270,13 @@ class DataLakeFilePath:
 
         Args:
             path: Path on file system.
-            file_system: Defaults to `config.azure.file_system`.
+            file_system: Defaults to `configazure.file_system`.
 
 
         Returns:
             str: abfs:// file system path.
         """
-        _file_system = file_system or config.azure.file_system
+        _file_system = file_system or CONFIG.azure.file_system
         _path = FilePathBuilder.convert_to_file_path(path)
 
         if not _file_system:

@@ -1,6 +1,6 @@
 from typing import Optional
 
-from shared.config import config
+from shared.config import CONFIG
 from shared.hooks.api import ApiHook
 
 
@@ -26,7 +26,7 @@ class EodHistoricalDataApiClient(ApiHook):
     index_exhange_code = "INDX"
 
     _base_url = "https://eodhistoricaldata.com/api"
-    _base_params = {"api_token": config.api_keys.eod_historical_data, "fmt": "json"}
+    _base_params = {"api_token": CONFIG.api_keys.eod_historical_data, "fmt": "json"}
 
     @classmethod
     def get_exchanges(cls) -> dict:

@@ -1,4 +1,4 @@
-from shared.config import config
+from shared.config import CONFIG
 from shared.hooks.api import ApiHook
 
 
@@ -11,7 +11,7 @@ class MarketStackApiClient(ApiHook):
     client_key_short = "msk"
 
     _base_url = "http://api.marketstack.com/v1"
-    _base_params = {"access_key": config.api_keys.market_stack, "limit": 1000}
+    _base_params = {"access_key": CONFIG.api_keys.market_stack, "limit": 1000}
 
     @classmethod
     def get_exchanges(cls):

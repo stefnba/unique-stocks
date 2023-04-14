@@ -1,4 +1,4 @@
-from shared.config import config
+from shared.config import CONFIG
 from shared.hooks.api import ApiHook
 
 
@@ -11,7 +11,7 @@ class OpenFigiApiClient(ApiHook):
     client_key_short = "figi"
 
     _base_url = "https://api.openfigi.com/v3/"
-    _base_headers = {"X-OPENFIGI-APIKEY": config.api_keys.open_figi}
+    _base_headers = {"X-OPENFIGI-APIKEY": CONFIG.api_keys.open_figi}
 
     @classmethod
     def get_mappings(cls):
