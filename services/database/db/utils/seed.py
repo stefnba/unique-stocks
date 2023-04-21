@@ -19,8 +19,8 @@ def seed_table_from_csv(file_path: str, table_name: str, columns: list[ColumnCla
     with open(file_path, "r", encoding="utf-8") as file:
         csv_reader = csv.DictReader(file)
 
-        for file_rows in csv_reader:
-            db_rows.append(file_rows)
+        for file_row in csv_reader:
+            db_rows.append({k: (None if v == "" else v) for k, v in file_row.items()})
 
         op.bulk_insert(
             table(table_name, *columns),
