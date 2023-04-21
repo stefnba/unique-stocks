@@ -1,7 +1,7 @@
 SELECT
     "data_iso"."mic" AS "mic",
-    COALESCE("data_msk"."exchange_uid", "data_eod"."exchange_uid", "data_iso"."mic") AS "exchange_uid",
-    COALESCE("data_msk"."exchange_name", "data_eod"."exchange_name", "data_iso"."exchange_name") AS "exchange_name",
+    COALESCE("data_msk"."exchange_uid", "data_eod"."exchange_uid", "data_iso"."mic") AS "uid",
+    COALESCE("data_msk"."exchange_name", "data_eod"."exchange_name", "data_iso"."exchange_name") AS "name",
     COALESCE("data_msk"."acronym", "data_iso"."acronym") AS "acronym",
     COALESCE("data_msk"."website", "data_iso"."website") AS "website",
     COALESCE(data_msk.city, data_iso.city, data_eod.city) AS "city",

@@ -5,6 +5,7 @@ from airflow import DAG
 from airflow.decorators import task
 from airflow.models import TaskInstance
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
+from airflow.providers.postgres.operators.postgres import PostgresOperator
 
 
 @task
@@ -51,16 +52,16 @@ def process_eod(**context: TaskInstance):
 def ingest_iso():
     from dags.exchange.exchange.jobs.iso import IsoExchangeJobs
 
-    return IsoExchangeJobs.download_exchanges()
+    return IsoExchangeJobs.ingest()
 
 
 @task
-def process_iso(**context: TaskInstance):
+def transform_iso(**context: TaskInstance):
     from dags.exchange.exchange.jobs.iso import IsoExchangeJobs
 
     raw_file_path: str = context["ti"].xcom_pull(task_ids="ingest_iso")
 
-    return IsoExchangeJobs.transform_raw_exchanges(raw_file_path)
+    return IsoExchangeJobs.transform_raw(raw_file_path)
 
 
 @task
@@ -83,27 +84,33 @@ def process_msk(**context: TaskInstance):
 
 @task
 def merge(**context: TaskInstance):
-    from dags.exchange.exchange.jobs.merge import ExchangeSources, merge_exchanges
+    from dags.exchange.exchange.jobs.shared import ExchangeSources, SharedExchangeJobs
 
     file_paths: ExchangeSources = {
         "eod_exchange_path": context["ti"].xcom_pull(task_ids="join_eod_details"),
-        "iso_exchange_path": context["ti"].xcom_pull(task_ids="process_iso"),
+        "iso_exchange_path": context["ti"].xcom_pull(task_ids="transform_iso"),
         "msk_exchange_path": context["ti"].xcom_pull(task_ids="process_msk"),
     }
 
-    merge_exchanges(file_paths)
+    return SharedExchangeJobs.merge(file_paths)
 
 
 @task
 def load_into_db(**context: TaskInstance):
-    context["ti"].xcom_pull()
-    return "test"
+    from dags.exchange.exchange.jobs.shared import SharedExchangeJobs
+
+    file_path: str = context["ti"].xcom_pull(task_ids="curate")
+
+    return SharedExchangeJobs.load(file_path=file_path)
 
 
 @task
 def curate(**context: TaskInstance):
-    context["ti"].xcom_pull()
-    return "test"
+    from dags.exchange.exchange.jobs.shared import SharedExchangeJobs
+
+    file_path: str = context["ti"].xcom_pull(task_ids="merge")
+
+    return SharedExchangeJobs.curate(file_path)
 
 
 @task
@@ -131,6 +138,13 @@ trigger_eod_exchange_details_dag = TriggerDagRunOperator(
 )
 
 
+truncate_db_table = PostgresOperator(
+    postgres_conn_id="postgres_database",
+    task_id="truncate_db_table",
+    sql="TRUNCATE TABLE exchange",
+)
+
+
 with DAG(
     dag_id="exchange",
     schedule=None,
@@ -140,12 +154,13 @@ with DAG(
 ) as dag:
     (
         [
-            ingest_eod() >> process_eod() >> trigger_eod_exchange_details_dag >> join_eod_details(),
-            ingest_iso() >> process_iso(),
-            ingest_msk() >> process_msk(),
+            # ingest_eod() >> process_eod() >> trigger_eod_exchange_details_dag >> join_eod_details(),
+            ingest_iso() >> transform_iso(),
+            # ingest_msk() >> process_msk(),
         ]
         >> merge()
-        >> trigger_exchange_securities_dag
+        # >> trigger_exchange_securities_dag
         >> curate()
+        >> truncate_db_table
         >> load_into_db()
     )

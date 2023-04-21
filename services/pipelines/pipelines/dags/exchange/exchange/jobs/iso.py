@@ -10,9 +10,9 @@ ASSET_SOURCE = ApiClient.client_key
 
 class IsoExchangeJobs:
     @staticmethod
-    def download_exchanges():
+    def ingest():
         """
-        Retrieves and upploads into the Data Lake raw ISO list with information
+        Retrieves and uploads into the Data Lake raw ISO list with information
         on exchange and their MIC codes.
         """
 
@@ -25,22 +25,20 @@ class IsoExchangeJobs:
         ).file.full_path
 
     @staticmethod
-    def transform_raw_exchanges(file_path: str):
-        exchange = duck.get_data(file_path, handler="azure_abfs", format="csv").pl()
+    def transform_raw(file_path: str):
+        raw = pl.read_csv(dl_client.download_file_into_memory(file_path), encoding="latin1")
 
-        exchange = exchange.with_columns(
+        raw = raw.with_columns(
             [
                 pl.when(pl.col(pl.Utf8).str.lengths() == 0).then(None).otherwise(pl.col(pl.Utf8)).keep_name(),
             ]
         )
 
-        transformed = duck.query("./sql/transform_raw_iso.sql", exchange=exchange, source=ASSET_SOURCE).df()
-
-        # encoding="ISO8859-1")
+        transformed = duck.query("./sql/transform_raw_iso.sql", exchanges=raw, source=ASSET_SOURCE).df()
 
         transformed["city"] = transformed["city"].str.title()
-        transformed["market_name_institution"] = transformed["market_name_institution"].str.title()
-        transformed["exchange_name"] = transformed["exchange_name"].str.title()
+        transformed["legal_entity_name"] = transformed["legal_entity_name"].str.title()
+        transformed["name"] = transformed["name"].str.title()
         transformed["comments"] = transformed["comments"].str.title()
         transformed["website"] = transformed["website"].str.lower()
 
