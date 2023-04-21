@@ -65,8 +65,6 @@ def downgrade() -> None:
             "uid",
             "uid_description",
             "is_seed",
-            "created_at",
-            "updated_at",
             "valid_from",
             "valid_until",
             "is_active",

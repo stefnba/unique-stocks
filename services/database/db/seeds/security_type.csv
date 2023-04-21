@@ -1,0 +1,11 @@
+parent_id,name,is_leaf
+,equity,False
+1,common_stock,True
+1,etf,True
+,index,
+,commodity,
+,option,
+,crypto,
+,mutual_fund,
+,bond,
+,etc,

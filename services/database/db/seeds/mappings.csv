@@ -1,135 +1,297 @@
-source,product,field,source_value,uid,is_seed,is_active,valid_from
-EodHistoricalData,exchange,exchange_code,US,XNAS,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,US,XNYS,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,LSE,XLON,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,V,XTSX,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,NEO,NEOE,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,TO,XTSE,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,BE,XBER,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,XETRA,XETR,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,DU,XDUS,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,HM,XHAM,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,HA,XHAN,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,MU,XMUN,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,STU,XSTU,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,F,XFRA,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,LU,XLUX,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,VI,XWBO,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,MI,XMIL,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,PA,XPAR,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,BR,XBRU,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,AS,XAMS,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,SW,XSWX,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,LS,XLIS,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,MC,BMEX,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,VX,XSWX,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,IR,XDUB,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,HE,XHEL,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,ST,XSTO,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,OL,XOSL,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,IC,XICE,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,CO,XCSE,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,PR,XPRA,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,HK,XHKG,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,TA,XTAE,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,KO,XKRX,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,KQ,XKOS,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,PSE,XPHS,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,WAR,XWAR,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,BUD,XBUD,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,SG,XSES,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,BSE,XBOM,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,BK,XBKK,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,AU,XASX,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,KAR,XKAR,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,TSE,XJPX,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,SN,XSGO,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,SR,XSAU,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,JSE,XJSE,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,NSE,XNSE,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,JK,XIDX,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,SHG,XSHG,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,SHE,XSHE,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,AT,ASEX,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,CM,XCOL,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,VN,HSTC,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,KLSE,XKLS,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,BA,XBUE,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,SA,BVMF,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,RO,XBSE,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,MX,XMEX,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,ZSE,XZAG,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,IL,XLON,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,IS,XIST,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,CC,CRYP,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,BOND,EOD_BOND,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,FOREX,CDSL,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,EUFUND,EOD_EUFUND,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,MONEY,EOD_MONEY,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,GBOND,EOD_GBOND,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,LIM,XLIM,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,TWO,ROCO,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,MCX,EOD_MCX,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,EUBOND,EOD_EUBOND,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,exchange_code,TW,XTAI,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,USA,US,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,UK,GB,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Canada,CA,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Germany,DE,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Luxembourg,LU,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Austria,AT,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Italy,IT,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,France,FR,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Belgium,BE,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Netherlands,NL,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Switzerland,CH,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Portugal,PT,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Spain,ES,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Ireland,IE,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Finland,FI,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Sweden,SE,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Norway,NO,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Iceland,IS,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Denmark,DK,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Czech Republic,CZ,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Hong Kong,HK,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Israel,IL,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Korea,KR,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Philippines,PH,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Poland,PL,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Hungary,HU,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Singapore,SG,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,India,IN,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Thailand,TH,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Australia,AU,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Pakistan,PK,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Japan,JP,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Chile,CL,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Saudi Arabia,SA,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,South Africa,ZA,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Indonesia,ID,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,China,CN,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Greece,GR,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Sri Lanka,LK,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Vietnam,VN,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Malaysia,MY,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Argentina,AR,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Brazil,BR,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Romania,RO,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Mexico,MX,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Croatia,HR,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Turkey,TR,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Peru,PE,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Taiwan,TW,TRUE,TRUE,01.01.23
-EodHistoricalData,country,,Russia,RU,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,holiday_type,official,0,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,holiday_type,bank,1,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,holiday_type,other,2,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,is_virtual,BOND,1,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,is_virtual,CC,1,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,is_virtual,FOREX,1,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,is_virtual,MONEY,1,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,is_virtual,EUFUND,1,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,is_virtual,GBOND,1,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,is_virtual,EUBOND,1,TRUE,TRUE,01.01.23
-EodHistoricalData,exchange,is_virtual,MCX,1,TRUE,TRUE,01.01.23
+source,product,field,source_value,uid,uid_description,is_seed,valid_from,valid_until,is_active
+EodHistoricalData,exchange,exchange_code,US,XNAS,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,US,XNYS,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,LSE,XLON,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,V,XTSX,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,NEO,NEOE,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,TO,XTSE,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,BE,XBER,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,DU,XDUS,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,HM,XHAM,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,HA,XHAN,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,MU,XMUN,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,STU,XSTU,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,F,XFRA,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,LU,XLUX,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,VI,XWBO,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,MI,XMIL,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,PA,XPAR,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,BR,XBRU,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,AS,XAMS,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,SW,XSWX,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,LS,XLIS,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,MC,BMEX,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,VX,XSWX,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,IR,XDUB,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,HE,XHEL,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,ST,XSTO,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,OL,XOSL,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,IC,XICE,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,CO,XCSE,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,PR,XPRA,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,HK,XHKG,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,TA,XTAE,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,KO,XKRX,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,KQ,XKOS,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,PSE,XPHS,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,WAR,XWAR,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,BUD,XBUD,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,SG,XSES,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,BSE,XBOM,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,BK,XBKK,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,AU,XASX,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,KAR,XKAR,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,TSE,XJPX,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,SN,XSGO,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,SR,XSAU,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,JSE,XJSE,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,NSE,XNSE,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,JK,XIDX,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,SHG,XSHG,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,SHE,XSHE,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,AT,ASEX,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,CM,XCOL,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,VN,HSTC,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,KLSE,XKLS,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,BA,XBUE,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,SA,BVMF,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,RO,XBSE,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,MX,XMEX,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,ZSE,XZAG,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,IL,XLON,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,IS,XIST,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,CC,CRYP,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,BOND,EOD_BOND,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,FOREX,CDSL,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,EUFUND,EOD_EUFUND,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,MONEY,EOD_MONEY,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,GBOND,EOD_GBOND,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,LIM,XLIM,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,TWO,ROCO,mic,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,MCX,EOD_MCX,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,EUBOND,EOD_EUBOND,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,TW,XTAI,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,USA,US,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,UK,GB,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Canada,CA,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Germany,DE,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Luxembourg,LU,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Austria,AT,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Italy,IT,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,France,FR,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Belgium,BE,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Netherlands,NL,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Switzerland,CH,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Portugal,PT,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Spain,ES,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Ireland,IE,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Finland,FI,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Sweden,SE,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Norway,NO,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Iceland,IS,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Denmark,DK,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Czech Republic,CZ,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Hong Kong,HK,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Israel,IL,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Korea,KR,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Philippines,PH,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Poland,PL,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Hungary,HU,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Singapore,SG,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,India,IN,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Thailand,TH,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Australia,AU,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Pakistan,PK,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Japan,JP,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Chile,CL,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Saudi Arabia,SA,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,South Africa,ZA,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Indonesia,ID,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,China,CN,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Greece,GR,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Sri Lanka,LK,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Vietnam,VN,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Malaysia,MY,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Argentina,AR,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Brazil,BR,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Romania,RO,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Mexico,MX,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Croatia,HR,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Turkey,TR,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Peru,PE,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Taiwan,TW,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,country,,Russia,RU,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,holiday_type,official,0,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,holiday_type,bank,1,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,holiday_type,other,2,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,is_virtual,BOND,1,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,is_virtual,CC,1,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,is_virtual,FOREX,1,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,is_virtual,MONEY,1,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,is_virtual,EUFUND,1,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,is_virtual,GBOND,1,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,is_virtual,EUBOND,1,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,is_virtual,MCX,1,,True,2023-01-01 00:00:00,,True
+EodHistoricalData,exchange,exchange_code,XETRA,XETR,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,RE,XBSE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,HB,XBUD,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,AF,XBUE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,BU,XBUL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,VR,XBVC,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,EC,XCAI,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,VS,BVCA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MC,XCAS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,KY,XCAY,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UM,XCHI,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GU,XCIE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UC,XCIS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CF,XCNQ,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SL,XCOL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,DC,XCSE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CY,XCYS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,KH,XCSX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,DS,XCX2,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,DK,XCXD,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TZ,XDAR,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,IH,XDES,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,DB,XDFM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,BD,XDHA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SY,XDSE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,DE,XDSX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,ID,XDUB,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GD,XDUS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,YC,XECM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,EK,XECS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,BQ,XEQT,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GY,XETR,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,JF,XFKA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,DF,FNDK,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GF,XFRA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TH,XGAT,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GN,XGHA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GG,XGSE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GL,XGTG,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,EG,XGUA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GH,XHAM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GI,XHAN,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,FH,XHEL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NR,XHFT,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,HK,XHKG,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,VU,XHNX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,IR,XICE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TW,XICX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,IJ,XIDX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,IQ,XIQS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UL,XISE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TI,XIST,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,JA,XJAM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,JQ,XJAS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SJ,XJSE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PK,XKAR,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,KZ,XKAZ,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,KF,XKFB,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MK,XKLS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,KE,XKON,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,KP,XKRX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,KQ,XKOS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,KB,XKSE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,KK,XKUW,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,LS,XLAO,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,LD,XLDN,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PE,XLIM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PL,XLIS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,LH,XLIT,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SV,XLJU,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,LN,XLON,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,LY,XLSM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,ZL,XLUS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,LX,XLUX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SN,XMAD,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MS,XMAE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MV,XMAL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NC,XMAN,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MZ,XBVM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MP,XMAU,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SQ,XMCE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MM,XMEX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UY,XMNT,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,ME,XMNX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MB,XMOL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MW,XMSW,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GM,XMUN,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,OM,XMUS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,KN,XNAI,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NW,XNAM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UR,XNCM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,AO,XNEC,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NK,XNEP,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,EX,XNEW,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NG,XNGM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,JN,XNGO,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UW,XNGS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UT,XNIM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UQ,XNMS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NL,XNSA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,IS,XNSE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UN,XNYS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NZ,XNZE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,JO,XOSE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NO,XOSL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UU,XOTC,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,XO,XOPV,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PS,XPAE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,FP,XPAR,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UX,XPSX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PM,XPHS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PZ,ISDX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PB,XPOM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PO,XPOS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PP,XPTY,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SX,XQMH,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,QT,XQTX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,EQ,XQUI,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,RQ,XRAS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,LG,XRIS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,RC,XRMZ,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,JS,XSAP,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,KA,XSAT,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,AB,XSAU,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,JU,XSBI,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,C2,XSEC,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SP,XSES,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CC,XSGO,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CS,XSHE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CG,XSHG,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,XE,XSMP,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,FS,XSPS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,C1,XSSC,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,BT,XSSE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,VM,XSTC,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,ZU,XSTE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SS,XSTO,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GS,XSTU,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,EL,XSVA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SD,XSWA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SE,XSWX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,IT,XTAE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TT,XTAI,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,ET,XTAL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,JG,XTAM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,IE,XTEH,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,AL,XTIR,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,JT,XTKS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TP,XTRN,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CT,XTSE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CV,XTSX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TU,XTUN,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UK,UKEX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,S2,XUBS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UG,XUGA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MO,XULA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SA,XVAL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PN,XVPA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,VX,XVTX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PW,XWAR,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,AV,XWBO,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,ZA,XZAG,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,ZH,XZIM,mic,True,2023-01-01 00:00:00,,True
