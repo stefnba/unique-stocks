@@ -3,6 +3,7 @@ from typing import Optional, overload
 import psycopg
 from shared.hooks.postgres.query.query import PgQuery
 from shared.hooks.postgres.types import ConnectionModel, ConnectionObject
+from shared.loggers import logger
 
 
 class PgClient(PgQuery):
@@ -110,4 +111,4 @@ class PgClient(PgQuery):
         """
         with psycopg.connect(self._conn_uri) as conn:
             conn.execute("SELECT 1")
-            print("✅ Connection successful")
+            logger.db.info("✅ Connection successful")

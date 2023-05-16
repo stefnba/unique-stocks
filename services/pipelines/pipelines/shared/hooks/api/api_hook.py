@@ -1,10 +1,11 @@
 import os
 from io import BytesIO
-from typing import Optional, cast
+from typing import Any, Mapping, Optional, Sequence, cast
 
 import requests
 from requests.exceptions import HTTPError, JSONDecodeError, Timeout, TooManyRedirects
 from shared.hooks.api.types import EndpointParam, JsonResponse, Methods, RequestFileBytesReturn, RequestFileDiskReturn
+from shared.loggers import logger
 from shared.utils.path.builder import FilePathBuilder, UrlBuilder
 
 
@@ -118,7 +119,7 @@ class ApiHook:
         method: Methods = "GET",
         params: Optional[dict] = None,
         headers: Optional[dict] = None,
-        json: Optional[dict | list[dict]] = None,
+        json: Optional[Mapping[Any, Any] | Sequence[Mapping[Any, Any]]] = None,
         response_type: Optional[JsonResponse] = None,
     ) -> JsonResponse:
         """
@@ -147,7 +148,7 @@ class ApiHook:
         method: Methods = "GET",
         params: Optional[dict] = None,
         headers: Optional[dict] = None,
-        json: Optional[dict | list[dict]] = None,
+        json: Optional[Mapping | Sequence[Mapping]] = None,
         stream=False,
     ):
         """
@@ -159,6 +160,8 @@ class ApiHook:
         headers = {**self._base_headers, **headers} if isinstance(headers, dict) else self._base_headers
 
         try:
+            logger.api.info("", event=logger.api.events.REQUEST_INIT, extra={"url": url, "method": method})
+
             response = requests.request(
                 method=method,
                 params=params,
@@ -171,10 +174,12 @@ class ApiHook:
 
             response.raise_for_status()
 
+            logger.api.info("", event=logger.api.events.SUCCESS, extra={"url": url, "method": method})
+
             return response
 
-        except Timeout:
-            print("The request timed out")
+        except Timeout as error:
+            logger.api.error(str(error), event=logger.api.events.TIMEOUT, extra={"url": url, "method": method})
             raise
 
         except TooManyRedirects:
@@ -182,6 +187,15 @@ class ApiHook:
             raise
 
         except HTTPError as error:
-            print(error.response.status_code)
-            print("The request timed out")
+            logger.api.error(
+                str(error),
+                event=logger.api.events.ERROR,
+                extra={"url": url, "method": method, "status": error.response.status_code, "message": str(error)},
+            )
+            raise
+
+        except Exception as error:
+            logger.api.error(
+                str(error), event=logger.api.events.ERROR, extra={"url": url, "method": method, "message": str(error)}
+            )
             raise
