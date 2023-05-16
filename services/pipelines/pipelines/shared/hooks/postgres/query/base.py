@@ -34,7 +34,7 @@ class QueryBase:
             with psycopg.connect(self._conn_uri, row_factory=dict_row) as conn:
                 cur = conn.cursor()
                 cur.execute(query=query if not isinstance(query, QueryFile) else query.sql, params=params)
-                return PgRecord(cur)
+                return PgRecord(cur, query=query_as_string)
 
         except psycopg.errors.UniqueViolation as error:
             print("vioalation", error.sqlstate, error.pgresult, query_as_string)
@@ -80,7 +80,7 @@ class UpdateAddBase:
     def _concatenate_returning_query(self, returning: ReturningParams) -> Composed:
         return_clase = SQL(" RETURNING ")
         if isinstance(returning, str):
-            if returning == "*":
+            if returning == "ALL_COLUMNS":
                 return Composed([return_clase, SQL("*")])
 
             return Composed([return_clase, SQL("{}").format(returning)])

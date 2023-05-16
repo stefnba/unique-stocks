@@ -1,5 +1,7 @@
 from typing import List, Optional, Type, overload
 
+from polars.type_aliases import SchemaDefinition
+from psycopg._column import Column
 from psycopg.cursor import Cursor
 from psycopg.rows import class_row, dict_row
 from shared.hooks.postgres.types import DbDictRecord, DbModelRecord
@@ -11,10 +13,15 @@ class PgRecord:
     """
 
     cursor: Cursor
+    query: str
+    columns: Optional[list[Column]]
 
-    def __init__(self, cursor: Cursor) -> None:
+    def __init__(self, cursor: Cursor, query: str) -> None:
         cursor.row_factory = dict_row
         self.cursor = cursor
+        self.columns = cursor.description
+
+        self.query = query
 
     def get_none(self) -> None:
         """
@@ -55,7 +62,13 @@ class PgRecord:
         if return_model:
             cursor.row_factory = class_row(return_model)
 
-        result = cursor.fetchall()
+        try:
+            result = cursor.fetchall()
+
+        except Exception as e:
+            print(e, self.query)
+            result = []
+
         cursor.close()
         return result
 
@@ -69,7 +82,7 @@ class PgRecord:
 
         return pd.DataFrame(results)
 
-    def get_polars_df(self):
+    def get_polars_df(self, schema: Optional[SchemaDefinition] = None):
         try:
             import polars as pl
         except ImportError:
@@ -77,4 +90,7 @@ class PgRecord:
 
         results = self.get_all()
 
-        return pl.DataFrame(results)
+        if len(results) == 0:
+            return pl.DataFrame(schema=[col[0] for col in self.columns or []])
+
+        return pl.DataFrame(results, schema=schema)

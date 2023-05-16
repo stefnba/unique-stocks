@@ -1,33 +1,66 @@
+from typing import Optional, Sequence, Type, overload
+
 from psycopg.sql import SQL, Composed, Identifier, Literal
 from pydantic import BaseModel
 from shared.hooks.postgres.query.base import QueryBase, UpdateAddBase
-from shared.hooks.postgres.types import ConflictParams, QueryData, ReturningParams
+from shared.hooks.postgres.query.record import PgRecord
+from shared.hooks.postgres.types import ConflictParams, QueryColumnModel, QueryData, ReturningParams
 
 
 class AddQuery(QueryBase, UpdateAddBase):
+    @overload
     def add(
         self,
-        data: QueryData | list[QueryData],
+        data: list[QueryData],
         table: str,
-        returning: ReturningParams,
-        conflict: ConflictParams,
-    ):
+        column_model: Type[QueryColumnModel],
+        returning: Optional[ReturningParams] = None,
+        conflict: Optional[ConflictParams] = None,
+    ) -> PgRecord:
+        ...
+
+    @overload
+    def add(
+        self,
+        data: QueryData,
+        table: str,
+        column_model: Optional[Type[QueryColumnModel]] = None,
+        returning: Optional[ReturningParams] = None,
+        conflict: Optional[ConflictParams] = None,
+    ) -> PgRecord:
+        ...
+
+    def add(
+        self,
+        data: list[QueryData] | QueryData,
+        table: str,
+        column_model: Optional[Type[QueryColumnModel]] = None,
+        returning: Optional[ReturningParams] = None,
+        conflict: Optional[ConflictParams] = None,
+    ) -> PgRecord:
+        # check data is not empty
+        if isinstance(data, Sequence):
+            if len(data) == 0:
+                return self._execute(query=SQL(""))
+
         query = Composed(
             [
                 SQL("INSERT INTO {table} ").format(table=Identifier(table)),
-                self.__build_create_add_logic(data),
+                self.__build_create_add_logic(data=data, column_model=column_model),
             ]
         )
-
-        if returning:
-            query += self._concatenate_returning_query(returning)
 
         if conflict:
             query += self.___concatenate_conflict_query(conflict)
 
+        if returning:
+            query += self._concatenate_returning_query(returning)
+
         return self._execute(query=query)
 
-    def __build_create_add_logic(self, data: QueryData | list[QueryData]) -> Composed:
+    def __build_create_add_logic(
+        self, data: QueryData | Sequence[QueryData], column_model: Optional[Type[QueryColumnModel]] = None
+    ) -> Composed:
         """
         Builds the columns and values part of the INSERT INTO statement,
         i.e. `(column1, column2) VALUES (value1, value2)`.
@@ -41,19 +74,29 @@ class AddQuery(QueryBase, UpdateAddBase):
         Returns:
             Composed: _description_
         """
-        # insert many
-        if isinstance(data, list):
-            return self.__build_create_logic_many(data)
-        # insert single
+        # insert many, column_model required
+        if isinstance(data, Sequence):
+            if column_model is None:
+                raise ValueError("Column model must be specified.")
+
+            return self.__build_create_logic_with_column_model(data=data, column_model=column_model)
+
+        # insert single but with column_model
+        if column_model is not None:
+            return self.__build_create_logic_with_column_model(data=[data], column_model=column_model)
+
+        # insert single, no column_model
+        columns: list[str] = []
+        record: dict = {}
         if isinstance(data, dict):
-            _data = data
+            record = data
             columns = list(data.keys())
         elif isinstance(data, BaseModel):
-            _data = data.dict(exclude_unset=True)
+            record = data.dict(exclude_unset=True)
             columns = list(data.dict(exclude_unset=True).keys())
 
         # add values in order as column are specified
-        values = [_data.get(column, None) for column in columns]
+        values = [record.get(column, None) for column in columns]
 
         return Composed(
             [
@@ -61,31 +104,38 @@ class AddQuery(QueryBase, UpdateAddBase):
                 SQL("({columns})").format(columns=SQL(", ").join(Identifier(column) for column in columns)),
                 SQL(" VALUES "),
                 # values
-                SQL("({columns})").format(columns=SQL(", ").join(Literal(value) for value in values)),
+                SQL("({values})").format(values=SQL(", ").join(Literal(value) for value in values)),
             ]
         )
 
-    def __build_create_logic_many(self, data_list: list[QueryData]) -> Composed:
-        # infer columns from first data item in list
-        first_data = data_list[0]
-        columns = []
-        if isinstance(first_data, dict):
-            columns = list(first_data.keys())
-        elif isinstance(first_data, BaseModel):
-            columns = list(first_data.dict(exclude_unset=True).keys())
+    def __build_create_logic_with_column_model(
+        self, data: Sequence[QueryData], column_model: Type[QueryColumnModel]
+    ) -> Composed:
+        """
+        Builds the columns and values part of the INSERT INTO statement,
+        i.e. `(column1, column2) VALUES (value1, value2)`, when a column_model is specified.
+        """
 
+        ColumnModel = column_model
+
+        columns = ColumnModel.__fields__
         values_list: list[Composed] = []
 
-        for data in data_list:
-            _data = {}
-            if isinstance(data, dict):
-                _data = data
-            elif isinstance(data, BaseModel):
-                _data = data.dict(exclude_unset=True)
+        for data_item in data:
+            record = {}
+            # dict
+            if isinstance(data_item, dict):
+                record = ColumnModel(**data_item).dict(exclude_unset=True)
+            # pydantic Model
+            elif isinstance(data_item, BaseModel):
+                record = {}
+                raise Exception("STILL PENDING")
 
-            values = [_data.get(column, None) for column in columns]
-
-            values_list.append(SQL("({columns})").format(columns=SQL(", ").join(Literal(value) for value in values)))
+            values_list.append(
+                SQL("({columns})").format(
+                    columns=SQL(", ").join(Literal(value) for value in [record.get(column, None) for column in columns])
+                )
+            )
 
         return Composed(
             [
@@ -98,4 +148,15 @@ class AddQuery(QueryBase, UpdateAddBase):
         )
 
     def ___concatenate_conflict_query(self, conflict: ConflictParams) -> Composed:
-        return Composed("")
+        """_summary_
+
+        Returns:
+            _type_: _description_
+        """
+        action = SQL("")
+
+        if isinstance(conflict, str):
+            if conflict == "DO_NOTHING":
+                action = SQL("DO NOTHING")
+
+        return Composed([SQL(" ON CONFLICT "), action])

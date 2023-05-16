@@ -5,6 +5,8 @@ from pydantic import BaseModel
 from shared.utils.sql.file import QueryFile
 from typing_extensions import NotRequired
 
+QueryColumnModel = BaseModel
+
 
 class ConnectionObject(TypedDict):
     host: str
@@ -42,7 +44,7 @@ class FilterObject(TypedDict):
 
 DbModelRecord = TypeVar("DbModelRecord", bound=BaseModel)
 
-QueryParams = Dict[str, Any]
+QueryParams = Dict[str, Any] | object
 QueryInput = Query | QueryFile
 
 DbModelSub = TypeVar("DbModelSub", bound=BaseModel)
@@ -54,5 +56,7 @@ DbDictRecord = QueryParams
 FilterParams = Query | list[FilterObject]
 
 
-ReturningParams = str
-ConflictParams = str
+ReturningParams = Literal["ALL_COLUMNS"] | list[str]
+
+ConflictLiteral = Literal["DO_NOTHING"]
+ConflictParams = Dict[str, ConflictLiteral] | ConflictLiteral
