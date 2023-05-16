@@ -18,6 +18,25 @@ class DuckDbHelpers:
     build_abfs_path = DataLakeFilePath.build_abfs_path
     QueryFile = QueryFile
 
+    class Sql:
+        class Identifier:
+            """
+            Identifiers usually represent names of database objects, such as tables or fields.
+            """
+
+            string: str
+
+            def __init__(self, string: str) -> None:
+                self.string = string
+
+            def __str__(self) -> str:
+                return f'"{self.string}"'
+
+            def __repr__(self) -> str:
+                return f'"{self.string}"'
+
+    sql = Sql
+
 
 class DuckDbHook:
     db: DuckDBPyConnection
@@ -34,7 +53,7 @@ class DuckDbHook:
         if file_system:
             self.register_file_system(file_system)
 
-    def query(self, query: QueryInput, **bindings: BindingsParams) -> DuckDBPyRelation:
+    def query(self, query: QueryInput, **bindings: BindingsParams | DuckDbHelpers.Sql.Identifier) -> DuckDBPyRelation:
         """
         Run a duckdb SQL query.
 
@@ -129,6 +148,8 @@ class DuckDbHook:
                 replacements[key] = f"df_{id(value)}"
             elif isinstance(value, str):
                 replacements[key] = f"'{value}'"
+            elif isinstance(value, DuckDbHelpers.Sql.Identifier):
+                replacements[key] = str(value)
             elif isinstance(value, (int, float, bool)):
                 replacements[key] = str(value)
             elif value is None:
