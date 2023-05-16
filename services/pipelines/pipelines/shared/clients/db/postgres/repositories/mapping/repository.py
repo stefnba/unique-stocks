@@ -1,6 +1,6 @@
 from typing import Optional
 
-from shared.clients.db.postgres.repositories.repository import PgRepositories
+from shared.clients.db.postgres.repositories.base import PgRepositories
 from shared.utils.sql.file import QueryFile
 
 
