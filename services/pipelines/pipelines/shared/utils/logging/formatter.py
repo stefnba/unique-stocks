@@ -41,7 +41,10 @@ class BaseFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord):
         log = self.get_record_model(record)
 
-        logged_message = f'{log.created} | {log.level} @ {log.logger} Logger -> "{log.message}"'
+        logged_message = f"{log.created} | {log.level} @ {log.logger} Logger"
+
+        if log.message:
+            logged_message += f' -> "{log.message}"'
 
         if log.event:
             logged_message += f" | event={log.event}"

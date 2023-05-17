@@ -23,7 +23,7 @@ class Logger(Generic[EventsG, ExtraG]):
         self,
         level: Levels = "INFO",
         *,
-        msg: str,
+        msg: Optional[str] = None,
         event: Optional[EventsG] = None,
         extra: Optional[ExtraG] = None,
         **kwargs,
@@ -42,23 +42,33 @@ class Logger(Generic[EventsG, ExtraG]):
 
         self.__logger.log(
             level=level_int,
-            msg=msg,
+            msg=msg or "",
             extra={"extra": extra, "event": event.name if isinstance(event, Enum) else event, **kwargs},
         )
 
-    def error(self, msg: str, event: Optional[EventsG] = None, extra: Optional[ExtraG] = None, **kwargs):
+    def error(
+        self, msg: Optional[str] = None, event: Optional[EventsG] = None, extra: Optional[ExtraG] = None, **kwargs
+    ):
         self.log(level="ERROR", msg=msg, extra=extra, event=event, **kwargs)
 
-    def info(self, msg: str, event: Optional[EventsG] = None, extra: Optional[ExtraG] = None, **kwargs):
+    def info(
+        self, msg: Optional[str] = None, event: Optional[EventsG] = None, extra: Optional[ExtraG] = None, **kwargs
+    ):
         self.log(level="INFO", msg=msg, extra=extra, event=event, **kwargs)
 
-    def warning(self, msg: str, event: Optional[EventsG] = None, extra: Optional[ExtraG] = None, **kwargs):
+    def warning(
+        self, msg: Optional[str] = None, event: Optional[EventsG] = None, extra: Optional[ExtraG] = None, **kwargs
+    ):
         self.log(level="WARNING", msg=msg, extra=extra, event=event, **kwargs)
 
-    def debug(self, msg: str, event: Optional[EventsG] = None, extra: Optional[ExtraG] = None, **kwargs):
+    def debug(
+        self, msg: Optional[str] = None, event: Optional[EventsG] = None, extra: Optional[ExtraG] = None, **kwargs
+    ):
         self.log(level="DEBUG", msg=msg, extra=extra, event=event, **kwargs)
 
-    def critical(self, msg: str, event: Optional[EventsG] = None, extra: Optional[ExtraG] = None, **kwargs):
+    def critical(
+        self, msg: Optional[str] = None, event: Optional[EventsG] = None, extra: Optional[ExtraG] = None, **kwargs
+    ):
         self.log(level="CRITICAL", msg=msg, extra=extra, event=event, **kwargs)
 
     def add_handler(self, handler: BaseHandler):
@@ -70,9 +80,7 @@ class Logger(Generic[EventsG, ExtraG]):
         """
 
         if isinstance(handler, Handlers.File):
-            self.debug(str(handler.file_name))
             handler.file_name = self.__logger.name.lower()
-            self.debug(str(handler.file_name))
 
         _handler = handler.get_handler()
 

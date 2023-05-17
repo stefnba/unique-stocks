@@ -3,6 +3,7 @@ from enum import Enum, auto
 
 class Transform(Enum):
     SUCCESS = auto()
+    MULTIPLE_RECORDS = auto()
 
 
 class Database(Enum):
@@ -13,6 +14,7 @@ class Database(Enum):
 
 class Mapping(Enum):
     NO_MATCH = auto()
+    DIFFERENT_SIZE = auto()
 
 
 class Airflow(Enum):
