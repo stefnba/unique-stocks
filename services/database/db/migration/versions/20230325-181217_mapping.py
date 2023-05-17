@@ -35,6 +35,7 @@ def upgrade() -> None:
             column("product", String),
             column("field", String),
             column("uid_description", String),
+            column("source_description", String),
             column("source_value", Integer),
             column("uid", Integer),
             column(
@@ -62,6 +63,7 @@ def downgrade() -> None:
             "product",
             "field",
             "source_value",
+            "source_description",
             "uid",
             "uid_description",
             "is_seed",

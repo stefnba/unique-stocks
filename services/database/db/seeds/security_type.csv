@@ -1,11 +1,15 @@
-parent_id,name,is_leaf
-,equity,False
-1,common_stock,True
-1,etf,True
-,index,
-,commodity,
-,option,
-,crypto,
-,mutual_fund,
-,bond,
-,etc,
+id,parent_id,name,is_leaf,name_figi,name_figi2,market_sector_figi
+1,,commodity,,,,
+2,,option,,,,
+3,,mutual_fund,,,,
+6,,index,,,,Index
+8,,equity,False,,,Equity
+10,,currency,False,,,Curncy
+13,,fixed_income,False,,,
+7,8,etf,True,ETP,Mutual Fund,Equity
+5,8,common_stock,True,Common Stock,Common Stock,Equity
+9,8,preferred_stock,True,Common Stock,Common Stock,Equity
+11,10,currency,True,,,Curncy
+14,13,bond,,,,
+12,10,crypto,True,,,
+4,1,etc,,,,

@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS mappings(
     product varchar NOT NULL,
     field varchar,
     source_value varchar NOT NULL,
+    source_description varchar,
     uid varchar NOT NULL,
     uid_description varchar,
     is_seed boolean DEFAULT FALSE,
