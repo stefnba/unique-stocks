@@ -151,7 +151,7 @@ class AzureDatalakeHook(AzureBaseClient):
             print(exception)
             raise exception
 
-    def download_file(self, file_path: str, local_file_path: str, file_system: Optional[str]):
+    def download_file(self, file_path: str, local_file_path: str, file_system: Optional[str] = None):
         """
         Download and save a file from the DataLake to local file system.
 
