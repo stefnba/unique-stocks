@@ -1,5 +1,6 @@
 from typing import Optional, Sequence, Type, overload
 
+import polars as pl
 from psycopg.sql import SQL, Composed, Identifier, Literal
 from pydantic import BaseModel
 from shared.hooks.postgres.query.base import QueryBase, UpdateAddBase
@@ -38,6 +39,9 @@ class AddQuery(QueryBase, UpdateAddBase):
         returning: Optional[ReturningParams] = None,
         conflict: Optional[ConflictParams] = None,
     ) -> PgRecord:
+        if isinstance(data, pl.DataFrame):
+            data = data.to_dicts()
+
         # check data is not empty
         if isinstance(data, Sequence):
             if len(data) == 0:
