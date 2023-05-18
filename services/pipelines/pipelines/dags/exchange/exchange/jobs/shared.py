@@ -5,7 +5,7 @@ from dags.exchange.exchange.jobs.utils import ExchangePath
 from shared.clients.data_lake.azure.azure_data_lake import dl_client
 from shared.clients.db.postgres.repositories import DbQueryRepositories
 from shared.clients.duck.client import duck
-from shared.jobs.surrogate_keys.job import SurrogateKeyJobs
+from shared.jobs.surrogate_keys.jobs import map_surrogate_keys
 
 
 class ExchangeSources(TypedDict):
@@ -18,9 +18,9 @@ class SharedExchangeJobs:
     @staticmethod
     def curate(file_path: str):
         # add to mic
-        exchange_id = SurrogateKeyJobs.map_to_data(data=file_path, product="exchange")
+        exchange_id = map_surrogate_keys(data=file_path, product="exchange")
         # add to operating mic
-        operating_exchange_id = SurrogateKeyJobs.map_to_data(
+        operating_exchange_id = map_surrogate_keys(
             data=exchange_id, product="exchange", uid_col_name="operating_mic", id_col_name="operating_exchange_id"
         )
         operating_exchange_id = operating_exchange_id.with_columns(
