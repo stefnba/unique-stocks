@@ -1,4 +1,4 @@
-FROM apache/airflow:2.5.1-python3.10
+FROM apache/airflow:2.6.1-python3.10
 
 ARG AIRFLOW_HOME
 ARG AIRFLOW_PROJ_DIR
