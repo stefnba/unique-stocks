@@ -10,5 +10,11 @@ class ApiExtra(TypedDict):
     message: NotRequired[str]
 
 
+class DataLakeExtra(TypedDict):
+    format: NotRequired[str]
+    path: NotRequired[str]
+    handler: NotRequired[str]
+
+
 class DatabaseExtra(TypedDict):
     query: str

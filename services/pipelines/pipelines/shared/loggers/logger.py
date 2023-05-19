@@ -36,3 +36,9 @@ api = Logger[Events.Api, Types.ApiExtra]("api")
 api.add_handler(handler=console_handler)
 api.add_handler(handler=file_handler)
 api.add_events(Events.Api)
+
+
+datalake = Logger[Events.DataLake, Types.DataLakeExtra]("datalake")
+datalake.add_handler(handler=console_handler)
+datalake.add_handler(handler=file_handler)
+datalake.add_events(Events.DataLake)

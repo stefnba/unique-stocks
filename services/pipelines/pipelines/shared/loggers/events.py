@@ -26,3 +26,12 @@ class Api(Enum):
     SUCCESS = auto()
     TIMEOUT = auto()
     ERROR = auto()
+
+
+class DataLake(Enum):
+    DOWNLOAD_INIT = auto()
+    DOWNLOAD_SUCCESS = auto()
+    DOWNLOAD_ERROR = auto()
+    UPLOAD_INIT = auto()
+    UPLOAD_SUCCESS = auto()
+    UPLOAD_ERROR = auto()
