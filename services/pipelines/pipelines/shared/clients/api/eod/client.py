@@ -12,6 +12,22 @@ class EodHistoricalDataApiClient(ApiHook):
     client_key = "EodHistoricalData"
     client_key_short = "eod"
 
+    us_exchanges = [
+        "NYSE",
+        "NASDAQ",
+        "BATS",
+        "OTCQB",
+        "PINK",
+        "OTCQX",
+        "OTCMKTS",
+        "NMFQS",
+        "NYSE MKT",
+        "OTCBB",
+        "OTCGREY",
+        "BATS",
+        "OTC",
+    ]
+
     virtual_exchanges = [
         "BOND",
         "CC",
@@ -42,7 +58,7 @@ class EodHistoricalDataApiClient(ApiHook):
         return api.request_json(endpoint)
 
     @classmethod
-    def get_securities_listed_at_exhange(cls, exhange_code: str) -> dict:
+    def get_securities_listed_at_exchange(cls, exhange_code: str) -> dict:
         """
         Get list of securities that are listed at this exchange.
 
@@ -95,6 +111,10 @@ class EodHistoricalDataApiClient(ApiHook):
         api = cls()
         endpoint = "/fundamentals"
 
+        # fundamentals need to have generic US exchange symbol
+        if exchange_code in api.us_exchanges:
+            exchange_code = "US"
+
         # some securities need exchange code, other don't
         security = f"{security_code}" if not exchange_code else f"{security_code}.{exchange_code}"
 
@@ -114,5 +134,9 @@ class EodHistoricalDataApiClient(ApiHook):
         """
         api = cls()
         endpoint = "/eod"
+
+        # quotes need to have generic US exchange symbol
+        if exchange_code in api.us_exchanges:
+            exchange_code = "US"
 
         return api.request_json(f"{endpoint}/{security_code}.{exchange_code}")

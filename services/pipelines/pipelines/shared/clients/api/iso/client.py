@@ -10,7 +10,7 @@ class IsoExchangesApiClient(ApiHook):
     see https://www.iso20022.org/market-identifier-codes
     """
 
-    client_key = "IsoExchanges"
+    client_key = "IsoMarketIdentifierCodes"
     client_key_short = "iso"
     _base_url = "https://www.iso20022.org/sites/default/files/ISO10383_MIC/"
 
