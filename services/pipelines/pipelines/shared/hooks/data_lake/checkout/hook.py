@@ -2,6 +2,8 @@ from typing import Any, Callable, Optional, Union, overload
 
 import polars as pl
 from shared.hooks.data_lake.dataset import hook as dataset_hook
+from shared.hooks.data_lake.dataset import types
+from shared.utils.path.data_lake.file_path import DataLakeFilePathModel
 
 # @overload
 # def checkout(checkout_path: str, *, func: Callable[[pl.DataFrame], pl.DataFrame], commit_path: str) -> str:
@@ -24,21 +26,26 @@ from shared.hooks.data_lake.dataset import hook as dataset_hook
 
 
 @overload
-def checkout(checkout_path: Optional[str] = None, *, func: Callable[..., pl.DataFrame]) -> pl.DataFrame:
+def checkout(checkout_path: Optional[str] = None, *, func: Callable[..., types.DataInput]) -> pl.DataFrame:
     ...
 
 
 @overload
-def checkout(checkout_path: Optional[str] = None, *, func: Callable[..., pl.DataFrame], commit_path: str) -> str:
+def checkout(
+    checkout_path: Optional[str] = None,
+    *,
+    func: Callable[..., types.DataInput],
+    commit_path: str | DataLakeFilePathModel,
+) -> str:
     ...
 
 
 def checkout(
-    checkout_path: Optional[str] = None,
+    checkout_path: Optional[str | DataLakeFilePathModel] = None,
     *,
-    func: Callable[..., pl.DataFrame],
-    commit_path: Optional[str] = None,
-) -> str | pl.DataFrame:
+    func: Callable[..., types.DataInput],
+    commit_path: Optional[str | DataLakeFilePathModel] = None,
+) -> str | Any:
     """
     Hook that combines three actions in one function:
     - Downloading a dataset from the Data Lake
