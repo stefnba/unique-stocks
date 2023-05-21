@@ -135,4 +135,4 @@ logs/
 
 
 # Testing
-*.test-notebook.py
+test-notebook*.py
