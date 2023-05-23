@@ -12,7 +12,16 @@ class ExchangeRepository(PgRepositories):
         ).get_all()
 
     def add(self, data):
-        return self._query.add(data, table=self.table, column_model=Exchange, returning="ALL_COLUMNS").get_all(Exchange)
+        return self._query.add(
+            data,
+            table=self.table,
+            column_model=Exchange,
+            returning="ALL_COLUMNS",
+            conflict={
+                "target": ["id"],
+                "action": [{"column": "is_active", "value": True}, {"column": "updated_at", "value": "now()"}],
+            },
+        ).get_all(Exchange)
 
     def mic_operating_mic_mapping(self):
         return self._query.find(QueryFile("./sql/mic_operating_mic_mapping.sql")).get_polars_df()

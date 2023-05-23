@@ -1,11 +1,11 @@
-from typing import Optional, Sequence, Type, overload
+from typing import Optional, Sequence, Type, cast, overload
 
 import polars as pl
 from psycopg.sql import SQL, Composed, Identifier, Literal
 from pydantic import BaseModel
 from shared.hooks.postgres.query.base import QueryBase, UpdateAddBase
 from shared.hooks.postgres.query.record import PgRecord
-from shared.hooks.postgres.types import ConflictParams, QueryColumnModel, QueryData, ReturningParams
+from shared.hooks.postgres.types import ConflictActionDict, ConflictParams, QueryColumnModel, QueryData, ReturningParams
 
 
 class AddQuery(QueryBase, UpdateAddBase):
@@ -157,10 +157,29 @@ class AddQuery(QueryBase, UpdateAddBase):
         Returns:
             _type_: _description_
         """
-        action = SQL("")
 
         if isinstance(conflict, str):
+            action = SQL("")
             if conflict == "DO_NOTHING":
                 action = SQL("DO NOTHING")
 
-        return Composed([SQL(" ON CONFLICT "), action])
+            return Composed([SQL(" ON CONFLICT "), action])
+
+        if isinstance(conflict, dict):
+            target_list = conflict["target"]
+            action_list = cast(list[ConflictActionDict], conflict["action"])
+
+            return Composed(
+                [
+                    SQL(" ON CONFLICT ("),
+                    SQL(", ").join(Identifier(column) for column in target_list),
+                    SQL(")"),
+                    SQL(" DO UPDATE SET"),
+                    SQL(", ").join(
+                        [
+                            SQL("{column} = {value}").format(column=Identifier(i["column"]), value=Literal(i["value"]))
+                            for i in action_list
+                        ]
+                    ),
+                ]
+            )

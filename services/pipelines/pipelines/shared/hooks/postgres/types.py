@@ -1,4 +1,4 @@
-from typing import Any, Dict, Literal, Sequence, TypedDict, TypeVar
+from typing import Any, Dict, Literal, Sequence, Tuple, TypedDict, TypeVar
 
 from psycopg.abc import Query
 from pydantic import BaseModel
@@ -59,4 +59,19 @@ FilterParams = Query | list[FilterObject]
 ReturningParams = Literal["ALL_COLUMNS"] | list[str]
 
 ConflictLiteral = Literal["DO_NOTHING"]
-ConflictParams = Dict[str, ConflictLiteral] | ConflictLiteral
+
+
+class ConflictActionDict(TypedDict):
+    column: str
+    value: Any
+
+
+class ConflictUpdateDict(TypedDict):
+    target: list[str]
+    action: list[ConflictActionDict]
+
+
+ConflictParams = ConflictLiteral | ConflictUpdateDict
+
+
+# Dict[str, ConflictLiteral] | ConflictLiteral | Tuple[Literal["DO_UPDATE"],  str]
