@@ -133,168 +133,6 @@ EodHistoricalData,exchange,is_virtual,GBOND,,1,,True,2023-01-01 00:00:00,,True
 EodHistoricalData,exchange,is_virtual,EUBOND,,1,,True,2023-01-01 00:00:00,,True
 EodHistoricalData,exchange,is_virtual,MCX,,1,,True,2023-01-01 00:00:00,,True
 EodHistoricalData,exchange,exchange_code,XETRA,,XETR,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,RE,,XBSE,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,HB,,XBUD,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,AF,,XBUE,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,BU,,XBUL,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,VR,,XBVC,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,EC,,XCAI,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,VS,,BVCA,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,MC,,XCAS,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,KY,,XCAY,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,UM,,XCHI,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,GU,,XCIE,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,UC,,XCIS,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,CF,,XCNQ,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,SL,,XCOL,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,DC,,XCSE,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,CY,,XCYS,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,KH,,XCSX,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,DS,,XCX2,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,DK,,XCXD,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,TZ,,XDAR,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,IH,,XDES,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,DB,,XDFM,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,BD,,XDHA,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,SY,,XDSE,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,DE,,XDSX,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,ID,,XDUB,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,GD,,XDUS,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,YC,,XECM,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,EK,,XECS,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,BQ,,XEQT,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,GY,,XETR,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,JF,,XFKA,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,DF,,FNDK,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,GF,,XFRA,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,TH,,XGAT,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,GN,,XGHA,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,GG,,XGSE,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,GL,,XGTG,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,EG,,XGUA,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,GH,,XHAM,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,GI,,XHAN,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,FH,,XHEL,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,NR,,XHFT,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,HK,,XHKG,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,VU,,XHNX,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,IR,,XICE,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,TW,,XICX,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,IJ,,XIDX,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,IQ,,XIQS,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,UL,,XISE,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,TI,,XIST,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,JA,,XJAM,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,JQ,,XJAS,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,SJ,,XJSE,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,PK,,XKAR,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,KZ,,XKAZ,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,KF,,XKFB,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,MK,,XKLS,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,KE,,XKON,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,KP,,XKRX,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,KQ,,XKOS,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,KB,,XKSE,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,KK,,XKUW,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,LS,,XLAO,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,LD,,XLDN,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,PE,,XLIM,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,PL,,XLIS,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,LH,,XLIT,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,SV,,XLJU,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,LN,,XLON,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,LY,,XLSM,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,ZL,,XLUS,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,LX,,XLUX,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,SN,,XMAD,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,MS,,XMAE,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,MV,,XMAL,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,NC,,XMAN,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,MZ,,XBVM,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,MP,,XMAU,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,SQ,,XMCE,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,MM,,XMEX,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,UY,,XMNT,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,ME,,XMNX,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,MB,,XMOL,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,MW,,XMSW,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,GM,,XMUN,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,OM,,XMUS,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,KN,,XNAI,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,NW,,XNAM,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,UR,,XNCM,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,AO,,XNEC,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,NK,,XNEP,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,EX,,XNEW,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,NG,,XNGM,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,JN,,XNGO,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,UW,,XNGS,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,UT,,XNIM,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,UQ,,XNMS,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,NL,,XNSA,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,IS,,XNSE,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,UN,,XNYS,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,NZ,,XNZE,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,JO,,XOSE,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,NO,,XOSL,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,UU,,XOTC,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,XO,,XOPV,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,PS,,XPAE,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,FP,,XPAR,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,UX,,XPSX,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,PM,,XPHS,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,PZ,,ISDX,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,PB,,XPOM,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,PO,,XPOS,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,PP,,XPTY,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,SX,,XQMH,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,QT,,XQTX,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,EQ,,XQUI,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,RQ,,XRAS,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,LG,,XRIS,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,RC,,XRMZ,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,JS,,XSAP,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,KA,,XSAT,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,AB,,XSAU,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,JU,,XSBI,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,C2,,XSEC,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,SP,,XSES,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,CC,,XSGO,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,CS,,XSHE,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,CG,,XSHG,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,XE,,XSMP,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,FS,,XSPS,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,C1,,XSSC,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,BT,,XSSE,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,VM,,XSTC,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,ZU,,XSTE,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,SS,,XSTO,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,GS,,XSTU,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,EL,,XSVA,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,SD,,XSWA,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,SE,,XSWX,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,IT,,XTAE,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,TT,,XTAI,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,ET,,XTAL,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,JG,,XTAM,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,IE,,XTEH,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,AL,,XTIR,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,JT,,XTKS,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,TP,,XTRN,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,CT,,XTSE,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,CV,,XTSX,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,TU,,XTUN,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,UK,,UKEX,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,S2,,XUBS,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,UG,,XUGA,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,MO,,XULA,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,SA,,XVAL,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,PN,,XVPA,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,VX,,XVTX,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,PW,,XWAR,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,AV,,XWBO,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,ZA,,XZAG,mic,True,2023-01-01 00:00:00,,True
-OpenFigi,exchange,exchange_code,ZH,,XZIM,mic,True,2023-01-01 00:00:00,,True
 EodHistoricalData,security,security_type,ETC,,4,security_type_id,True,2023-01-01 00:00:00,,True
 EodHistoricalData,exchange,exchange_code,PINK,,PINX,mic,True,2023-01-01 00:00:00,,True
 EodHistoricalData,exchange,exchange_code,OTC,,OOTC,mic,True,2023-01-01 00:00:00,,True
@@ -307,4 +145,435 @@ EodHistoricalData,security,security_type,FUND,,3,security_type_id,True,2023-01-0
 EodHistoricalData,security,security_type,INDEX,,6,security_type_id,True,2023-01-01 00:00:00,,True
 EodHistoricalData,security,security_type,ETF,,7,security_type_id,True,2023-01-01 00:00:00,,True
 EodHistoricalData,security,security_type,Common Stock,,5,security_type_id,True,2023-01-01 00:00:00,,True
-OpenFigi,security,security_type,Common Stock,,5,security_type_id,True,,,True
+OpenFigi,security,security_type,Common Stock,,5,security_type_id,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,A0,Bloomberg/OpenFigi exchange code,SHAR,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,AA,Bloomberg/OpenFigi exchange code,ENAX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,AB,Bloomberg/OpenFigi exchange code,XSAU,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,ACE,Bloomberg/OpenFigi exchange code,ACEX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,AD,Bloomberg/OpenFigi exchange code,XADE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,ADE,Bloomberg/OpenFigi exchange code,XADE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,AF,Bloomberg/OpenFigi exchange code,XBUE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,AFE,Bloomberg/OpenFigi exchange code,AFET,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,AG,Bloomberg/OpenFigi exchange code,XALG,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,AH,Bloomberg/OpenFigi exchange code,CHIA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,AJ,Bloomberg/OpenFigi exchange code,A2XX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,AL,Bloomberg/OpenFigi exchange code,XTIR,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,AM,Bloomberg/OpenFigi exchange code,XBCX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,AMX,Bloomberg/OpenFigi exchange code,AMXO,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,AO,Bloomberg/OpenFigi exchange code,XNEC,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,AP,Bloomberg/OpenFigi exchange code,XADE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,AQ,Bloomberg/OpenFigi exchange code,ASXP,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,AR,Bloomberg/OpenFigi exchange code,XMEV,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,ASX,Bloomberg/OpenFigi exchange code,XASX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,AT,Bloomberg/OpenFigi exchange code,XASX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,AU,Bloomberg/OpenFigi exchange code,XASX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,AV,Bloomberg/OpenFigi exchange code,XWBO,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,AX,Bloomberg/OpenFigi exchange code,XBDV,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,AY,Bloomberg/OpenFigi exchange code,XARM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,AZ,Bloomberg/OpenFigi exchange code,BSEX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,B1,Bloomberg/OpenFigi exchange code,BMTF,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,B3,Bloomberg/OpenFigi exchange code,BLOX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,B4,Bloomberg/OpenFigi exchange code,BTFE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,BA,Bloomberg/OpenFigi exchange code,XBAB,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,BB,Bloomberg/OpenFigi exchange code,XBRD,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,BBX,Bloomberg/OpenFigi exchange code,XBOM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,BD,Bloomberg/OpenFigi exchange code,MFOX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,BDP,Bloomberg/OpenFigi exchange code,XLIS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,BFO,Bloomberg/OpenFigi exchange code,XBRU,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,BFX,Bloomberg/OpenFigi exchange code,BFEX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,BG,Bloomberg/OpenFigi exchange code,XBOT,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,BH,Bloomberg/OpenFigi exchange code,XBDA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,BI,Bloomberg/OpenFigi exchange code,XBAH,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,BK,Bloomberg/OpenFigi exchange code,XBLB,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,BM,Bloomberg/OpenFigi exchange code,XBAA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,BMF,Bloomberg/OpenFigi exchange code,BVMF,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,BNF,Bloomberg/OpenFigi exchange code,XBLN,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,BOV,Bloomberg/OpenFigi exchange code,BVMF,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,BQ,Bloomberg/OpenFigi exchange code,XEQT,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,BSE,Bloomberg/OpenFigi exchange code,XBUD,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,BT,Bloomberg/OpenFigi exchange code,XSSE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,BTS,Bloomberg/OpenFigi exchange code,XBSD,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,BU,Bloomberg/OpenFigi exchange code,XBUL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,BW,Bloomberg/OpenFigi exchange code,XBRN,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,BZ,Bloomberg/OpenFigi exchange code,BVMF,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,C1,Bloomberg/OpenFigi exchange code,XSSC,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,C2,Bloomberg/OpenFigi exchange code,XSEC,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CB,Bloomberg/OpenFigi exchange code,XBOG,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CB2,Bloomberg/OpenFigi exchange code,C2OX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CBF,Bloomberg/OpenFigi exchange code,XCBF,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CBO,Bloomberg/OpenFigi exchange code,XCBO,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CBT,Bloomberg/OpenFigi exchange code,XCBT,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CC,Bloomberg/OpenFigi exchange code,XSGO,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CD/SF,Bloomberg/OpenFigi exchange code,XSFE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CDE,Bloomberg/OpenFigi exchange code,XBOG,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CE,Bloomberg/OpenFigi exchange code,XBCL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CF,Bloomberg/OpenFigi exchange code,XCNQ,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CFF,Bloomberg/OpenFigi exchange code,CCFX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CG,Bloomberg/OpenFigi exchange code,XSHG,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CJ,Bloomberg/OpenFigi exchange code,PURE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CK,Bloomberg/OpenFigi exchange code,XPRA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CM,Bloomberg/OpenFigi exchange code,XCME,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CME,Bloomberg/OpenFigi exchange code,XCME,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CMX,Bloomberg/OpenFigi exchange code,XCEC,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,COP,Bloomberg/OpenFigi exchange code,XCSE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CP,Bloomberg/OpenFigi exchange code,XPRA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CR,Bloomberg/OpenFigi exchange code,XBNV,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CS,Bloomberg/OpenFigi exchange code,XSHE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CSE,Bloomberg/OpenFigi exchange code,XCHG,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CT,Bloomberg/OpenFigi exchange code,XTSE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CV,Bloomberg/OpenFigi exchange code,XTSX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CX,Bloomberg/OpenFigi exchange code,XBOG,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,CY,Bloomberg/OpenFigi exchange code,XCYS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,DB,Bloomberg/OpenFigi exchange code,XDFM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,DC,Bloomberg/OpenFigi exchange code,XCSE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,DCE,Bloomberg/OpenFigi exchange code,XDCE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,DD,Bloomberg/OpenFigi exchange code,DKTC,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,DE,Bloomberg/OpenFigi exchange code,XDSX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,DF,Bloomberg/OpenFigi exchange code,FNDK,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,DFX,Bloomberg/OpenFigi exchange code,DIFX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,DG,Bloomberg/OpenFigi exchange code,LYNX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,DGC,Bloomberg/OpenFigi exchange code,DGCX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,DH,Bloomberg/OpenFigi exchange code,XADS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,DK,Bloomberg/OpenFigi exchange code,XCXD,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,DME,Bloomberg/OpenFigi exchange code,DUMX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,DS,Bloomberg/OpenFigi exchange code,XCX2,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,DU,Bloomberg/OpenFigi exchange code,DIFX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,DVX,Bloomberg/OpenFigi exchange code,XBOG,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,DX,Bloomberg/OpenFigi exchange code,XLOD,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,E2,Bloomberg/OpenFigi exchange code,BEUE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,EB,Bloomberg/OpenFigi exchange code,BATE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,EC,Bloomberg/OpenFigi exchange code,XCAI,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,EDX,Bloomberg/OpenFigi exchange code,NDEX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,EEE,Bloomberg/OpenFigi exchange code,XEEE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,EG,Bloomberg/OpenFigi exchange code,XGUA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,EI,Bloomberg/OpenFigi exchange code,NILX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,EK,Bloomberg/OpenFigi exchange code,XECS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,EL,Bloomberg/OpenFigi exchange code,XSVA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,ELX,Bloomberg/OpenFigi exchange code,XELX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,EOE,Bloomberg/OpenFigi exchange code,XEUE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,EOP,Bloomberg/OpenFigi exchange code,XPAR,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,EPD,Bloomberg/OpenFigi exchange code,XEEE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,EQ,Bloomberg/OpenFigi exchange code,XQUI,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,ERI,Bloomberg/OpenFigi exchange code,ERIS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,ET,Bloomberg/OpenFigi exchange code,XTAL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,EUX,Bloomberg/OpenFigi exchange code,XEUR,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,EUZ,Bloomberg/OpenFigi exchange code,XEUR,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,FF,Bloomberg/OpenFigi exchange code,FNFI,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,FH,Bloomberg/OpenFigi exchange code,XHEL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,FNX,Bloomberg/OpenFigi exchange code,IMFX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,FP,Bloomberg/OpenFigi exchange code,XMON,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,FPL,Bloomberg/OpenFigi exchange code,FISH,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,FS,Bloomberg/OpenFigi exchange code,XSPS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,FTX,Bloomberg/OpenFigi exchange code,XTAF,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GA,Bloomberg/OpenFigi exchange code,XADE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GB,Bloomberg/OpenFigi exchange code,XBER,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GBT,Bloomberg/OpenFigi exchange code,GBOT,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GD,Bloomberg/OpenFigi exchange code,XDUS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GF,Bloomberg/OpenFigi exchange code,XFRA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GG,Bloomberg/OpenFigi exchange code,XGSE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GH,Bloomberg/OpenFigi exchange code,XHAM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GI,Bloomberg/OpenFigi exchange code,XHAN,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GL,Bloomberg/OpenFigi exchange code,XGTG,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GM,Bloomberg/OpenFigi exchange code,XMUN,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GME,Bloomberg/OpenFigi exchange code,XGME,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GN,Bloomberg/OpenFigi exchange code,XGHA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GR,Bloomberg/OpenFigi exchange code,XEUR,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GS,Bloomberg/OpenFigi exchange code,XSTU,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GU,Bloomberg/OpenFigi exchange code,XCIE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GW,Bloomberg/OpenFigi exchange code,EUWX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GY,Bloomberg/OpenFigi exchange code,XETR,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,GZ,Bloomberg/OpenFigi exchange code,MUND,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,H1,Bloomberg/OpenFigi exchange code,SHSC,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,H2,Bloomberg/OpenFigi exchange code,SZSC,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,HB,Bloomberg/OpenFigi exchange code,XBUD,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,HEX,Bloomberg/OpenFigi exchange code,XHEL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,HK,Bloomberg/OpenFigi exchange code,XHKF,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,HKG,Bloomberg/OpenFigi exchange code,XHKF,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,HKM,Bloomberg/OpenFigi exchange code,HKME,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,HM,Bloomberg/OpenFigi exchange code,HMTF,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,HO,Bloomberg/OpenFigi exchange code,XBCV,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,I2,Bloomberg/OpenFigi exchange code,CEUX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,IA,Bloomberg/OpenFigi exchange code,XBRV,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,IB,Bloomberg/OpenFigi exchange code,XBOM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,IC,Bloomberg/OpenFigi exchange code,CHIX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,ICD,Bloomberg/OpenFigi exchange code,ICDX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,ICE,Bloomberg/OpenFigi exchange code,IFEU,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,ICF,Bloomberg/OpenFigi exchange code,IFLL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,ID,Bloomberg/OpenFigi exchange code,XDUB,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,IDX,Bloomberg/OpenFigi exchange code,XIDX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,IE,Bloomberg/OpenFigi exchange code,XTEH,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,IF,Bloomberg/OpenFigi exchange code,MTAH,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,IG,Bloomberg/OpenFigi exchange code,MCXX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,IGE,Bloomberg/OpenFigi exchange code,XIST,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,IH,Bloomberg/OpenFigi exchange code,XDES,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,IJ,Bloomberg/OpenFigi exchange code,XIDX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,IM,Bloomberg/OpenFigi exchange code,XMIL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,INX,Bloomberg/OpenFigi exchange code,ICXL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,IQ,Bloomberg/OpenFigi exchange code,XIQS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,IR,Bloomberg/OpenFigi exchange code,XICE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,IS,Bloomberg/OpenFigi exchange code,XNSE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,ISE,Bloomberg/OpenFigi exchange code,XISX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,ISG,Bloomberg/OpenFigi exchange code,IFSG,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,IT,Bloomberg/OpenFigi exchange code,XTAE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,IX,Bloomberg/OpenFigi exchange code,CHIX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,JA,Bloomberg/OpenFigi exchange code,XJAM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,JE,Bloomberg/OpenFigi exchange code,SBIJ,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,JF,Bloomberg/OpenFigi exchange code,XFKA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,JG,Bloomberg/OpenFigi exchange code,XTAM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,JI,Bloomberg/OpenFigi exchange code,CHIJ,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,JN,Bloomberg/OpenFigi exchange code,XNGO,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,JO,Bloomberg/OpenFigi exchange code,XOSE ,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,JQ,Bloomberg/OpenFigi exchange code,XJAS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,JR,Bloomberg/OpenFigi exchange code,XAMM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,JS,Bloomberg/OpenFigi exchange code,XSAP,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,JT,Bloomberg/OpenFigi exchange code,XTKS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,JU,Bloomberg/OpenFigi exchange code,XSBI,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,JW,Bloomberg/OpenFigi exchange code,SBIU,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,KA,Bloomberg/OpenFigi exchange code,XSAT,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,KB,Bloomberg/OpenFigi exchange code,XKSE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,KCB,Bloomberg/OpenFigi exchange code,XKBT,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,KE,Bloomberg/OpenFigi exchange code,XKON,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,KF,Bloomberg/OpenFigi exchange code,XKFB,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,KFE,Bloomberg/OpenFigi exchange code,XKRX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,KH,Bloomberg/OpenFigi exchange code,XCSX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,KK,Bloomberg/OpenFigi exchange code,XKUW,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,KN,Bloomberg/OpenFigi exchange code,XNAI,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,KP,Bloomberg/OpenFigi exchange code,XKRX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,KQ,Bloomberg/OpenFigi exchange code,XKOS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,KS,Bloomberg/OpenFigi exchange code,XKFE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,KY,Bloomberg/OpenFigi exchange code,XCAY,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,KZ,Bloomberg/OpenFigi exchange code,XKAZ,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,L1,Bloomberg/OpenFigi exchange code,LEUE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,L3,Bloomberg/OpenFigi exchange code,LIQU,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,LB,Bloomberg/OpenFigi exchange code,XBEY,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,LD,Bloomberg/OpenFigi exchange code,XLDN,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,LG,Bloomberg/OpenFigi exchange code,XRIS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,LH,Bloomberg/OpenFigi exchange code,XLIT,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,LIF,Bloomberg/OpenFigi exchange code,XLIF,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,LME,Bloomberg/OpenFigi exchange code,XLME,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,LMF,Bloomberg/OpenFigi exchange code,XLME,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,LMS,Bloomberg/OpenFigi exchange code,XLME,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,LN,Bloomberg/OpenFigi exchange code,IFLL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,LS,Bloomberg/OpenFigi exchange code,XLAO,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,LX,Bloomberg/OpenFigi exchange code,XLUX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,LY,Bloomberg/OpenFigi exchange code,XLSM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,M0,Bloomberg/OpenFigi exchange code,MSAX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MAE,Bloomberg/OpenFigi exchange code,XMAB,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MB,Bloomberg/OpenFigi exchange code,XMOL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MBA,Bloomberg/OpenFigi exchange code,XMTB,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MC,Bloomberg/OpenFigi exchange code,XCAS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MCE,Bloomberg/OpenFigi exchange code,XMOC,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MCI,Bloomberg/OpenFigi exchange code,XIMC,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MCX,Bloomberg/OpenFigi exchange code,RTSX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MD,Bloomberg/OpenFigi exchange code,XEMD,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MDE,Bloomberg/OpenFigi exchange code,XKLS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MDX,Bloomberg/OpenFigi exchange code,XEMD,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,ME,Bloomberg/OpenFigi exchange code,XMNX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MF,Bloomberg/OpenFigi exchange code,XMEX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MFA,Bloomberg/OpenFigi exchange code,XSRM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MFM,Bloomberg/OpenFigi exchange code,XMRV,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MFP,Bloomberg/OpenFigi exchange code,XMPW,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MGE,Bloomberg/OpenFigi exchange code,XMGE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MIL,Bloomberg/OpenFigi exchange code,XDMI,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MK,Bloomberg/OpenFigi exchange code,XKLS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MM,Bloomberg/OpenFigi exchange code,XEMD,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MO,Bloomberg/OpenFigi exchange code,XULA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MP,Bloomberg/OpenFigi exchange code,XMAU,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MQ,Bloomberg/OpenFigi exchange code,MESQ,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MS,Bloomberg/OpenFigi exchange code,XMOD,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MSE,Bloomberg/OpenFigi exchange code,XMOD,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MSX,Bloomberg/OpenFigi exchange code,MCXX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MT,Bloomberg/OpenFigi exchange code,TOMX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MU,Bloomberg/OpenFigi exchange code,BIVA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MV,Bloomberg/OpenFigi exchange code,XMAL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MW,Bloomberg/OpenFigi exchange code,XMSW,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MX,Bloomberg/OpenFigi exchange code,MALX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,MZ,Bloomberg/OpenFigi exchange code,XBVM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,N2X,Bloomberg/OpenFigi exchange code,N2EX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NA,Bloomberg/OpenFigi exchange code,XAMS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NC,Bloomberg/OpenFigi exchange code,XMAN,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NCP,Bloomberg/OpenFigi exchange code,XNYE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NDM,Bloomberg/OpenFigi exchange code,DUMX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NDX,Bloomberg/OpenFigi exchange code,XNCD,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NFE,Bloomberg/OpenFigi exchange code,XPBT,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NG,Bloomberg/OpenFigi exchange code,XNGM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NJ,Bloomberg/OpenFigi exchange code,NASX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NK,Bloomberg/OpenFigi exchange code,XNEP,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NL,Bloomberg/OpenFigi exchange code,XNSA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NO,Bloomberg/OpenFigi exchange code,XOSL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NPE,Bloomberg/OpenFigi exchange code,NORX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NS,Bloomberg/OpenFigi exchange code,NOTC,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NSE,Bloomberg/OpenFigi exchange code,XNSE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NW,Bloomberg/OpenFigi exchange code,XNAM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NYB,Bloomberg/OpenFigi exchange code,IMAG,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NYE,Bloomberg/OpenFigi exchange code,GREE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NYF,Bloomberg/OpenFigi exchange code,IMEQ,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NYL,Bloomberg/OpenFigi exchange code,XNLI,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NYM,Bloomberg/OpenFigi exchange code,XNYM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NZ,Bloomberg/OpenFigi exchange code,XNZE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,NZX,Bloomberg/OpenFigi exchange code,NZFX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,OBX,Bloomberg/OpenFigi exchange code,XOSL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,OC,Bloomberg/OpenFigi exchange code,XOCH,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,OCG,Bloomberg/OpenFigi exchange code,XOCH,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,ODE,Bloomberg/OpenFigi exchange code,XKAC,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,OM,Bloomberg/OpenFigi exchange code,XMUS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,OMP,Bloomberg/OpenFigi exchange code,OMIP,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,OSE,Bloomberg/OpenFigi exchange code,XOSE ,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PB,Bloomberg/OpenFigi exchange code,XPOM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PD,Bloomberg/OpenFigi exchange code,WMTF,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PE,Bloomberg/OpenFigi exchange code,XLIM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PF,Bloomberg/OpenFigi exchange code,APXL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PG,Bloomberg/OpenFigi exchange code,PLUS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PHL,Bloomberg/OpenFigi exchange code,XPHL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PK,Bloomberg/OpenFigi exchange code,XKAR,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PL,Bloomberg/OpenFigi exchange code,XLIS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PM,Bloomberg/OpenFigi exchange code,XPHS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PMI,Bloomberg/OpenFigi exchange code,XSTO,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PMX,Bloomberg/OpenFigi exchange code,NCEL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PN,Bloomberg/OpenFigi exchange code,XVPA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PNX,Bloomberg/OpenFigi exchange code,XPOW,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PO,Bloomberg/OpenFigi exchange code,XPOS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PP,Bloomberg/OpenFigi exchange code,XPTY,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PQ,Bloomberg/OpenFigi exchange code,OTCM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PS,Bloomberg/OpenFigi exchange code,XPAE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PW,Bloomberg/OpenFigi exchange code,WDER,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PXE,Bloomberg/OpenFigi exchange code,XPXE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,PZ,Bloomberg/OpenFigi exchange code,NEXX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,QD,Bloomberg/OpenFigi exchange code,DSMD,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,QE,Bloomberg/OpenFigi exchange code,AQEU,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,QF,Bloomberg/OpenFigi exchange code,NEOE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,QT,Bloomberg/OpenFigi exchange code,XQTX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,QU,Bloomberg/OpenFigi exchange code,PFTQ,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,QX,Bloomberg/OpenFigi exchange code,AQXE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,RB,Bloomberg/OpenFigi exchange code,BCSE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,RC,Bloomberg/OpenFigi exchange code,XRMZ,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,RE,Bloomberg/OpenFigi exchange code,XBSE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,RF,Bloomberg/OpenFigi exchange code,FNIS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,RFX,Bloomberg/OpenFigi exchange code,ROFX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,RM,Bloomberg/OpenFigi exchange code,RTSX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,RO,Bloomberg/OpenFigi exchange code,XBSD,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,RQ,Bloomberg/OpenFigi exchange code,XRAS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,RR,Bloomberg/OpenFigi exchange code,RTSX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,RT,Bloomberg/OpenFigi exchange code,RUSX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,RTS,Bloomberg/OpenFigi exchange code,RTSX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,RU,Bloomberg/OpenFigi exchange code,RTSX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,RW,Bloomberg/OpenFigi exchange code,ROTC,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,RX,Bloomberg/OpenFigi exchange code,MISX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,S1,Bloomberg/OpenFigi exchange code,SGMX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,S2,Bloomberg/OpenFigi exchange code,XUBS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SA,Bloomberg/OpenFigi exchange code,XSAF,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SAF,Bloomberg/OpenFigi exchange code,XSAF,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SB,Bloomberg/OpenFigi exchange code,XBAR,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SBA,Bloomberg/OpenFigi exchange code,XMEV,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SD,Bloomberg/OpenFigi exchange code,XSWA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SE,Bloomberg/OpenFigi exchange code,XSWX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SF,Bloomberg/OpenFigi exchange code,XSFE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SFE,Bloomberg/OpenFigi exchange code,XSFE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SG,Bloomberg/OpenFigi exchange code,XBEL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SGX,Bloomberg/OpenFigi exchange code,XSIM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SHF,Bloomberg/OpenFigi exchange code,XSGE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SI,Bloomberg/OpenFigi exchange code,BMFM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SIB,Bloomberg/OpenFigi exchange code,BMFM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SJ,Bloomberg/OpenFigi exchange code,XSAF,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SK,Bloomberg/OpenFigi exchange code,XBRA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SL,Bloomberg/OpenFigi exchange code,XCOL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SM,Bloomberg/OpenFigi exchange code,XMRV,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SME,Bloomberg/OpenFigi exchange code,SMEX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SN,Bloomberg/OpenFigi exchange code,XMAD,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SO,Bloomberg/OpenFigi exchange code,XBIL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SP,Bloomberg/OpenFigi exchange code,XSES,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SPX,Bloomberg/OpenFigi exchange code,SPIM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SR,Bloomberg/OpenFigi exchange code,XBRN,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SS,Bloomberg/OpenFigi exchange code,XSTO,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SSE,Bloomberg/OpenFigi exchange code,XSTO,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SV,Bloomberg/OpenFigi exchange code,XLJU,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SW,Bloomberg/OpenFigi exchange code,XEUR,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SX,Bloomberg/OpenFigi exchange code,XQMH,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SY,Bloomberg/OpenFigi exchange code,XDSE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,SZ,Bloomberg/OpenFigi exchange code,TRPX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,T0,Bloomberg/OpenFigi exchange code,XIST,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,T1,Bloomberg/OpenFigi exchange code,TQEX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,T2,Bloomberg/OpenFigi exchange code,TREU,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TAV,Bloomberg/OpenFigi exchange code,XTAE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TB,Bloomberg/OpenFigi exchange code,TFEX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TCM,Bloomberg/OpenFigi exchange code,XTKT,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TE,Bloomberg/OpenFigi exchange code,ETLX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TEF,Bloomberg/OpenFigi exchange code,TFEX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TF,Bloomberg/OpenFigi exchange code,XIST,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TFX,Bloomberg/OpenFigi exchange code,XTFF,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TG,Bloomberg/OpenFigi exchange code,OMGA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TH,Bloomberg/OpenFigi exchange code,XGAT,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TI,Bloomberg/OpenFigi exchange code,XIST,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TK,Bloomberg/OpenFigi exchange code,LICA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TKD,Bloomberg/OpenFigi exchange code,XTUR,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TL,Bloomberg/OpenFigi exchange code,GSXL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TN,Bloomberg/OpenFigi exchange code,XATS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TP,Bloomberg/OpenFigi exchange code,XTRN,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TQ,Bloomberg/OpenFigi exchange code,TRQX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TQD,Bloomberg/OpenFigi exchange code,TRQD,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TR,Bloomberg/OpenFigi exchange code,MATN,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TS,Bloomberg/OpenFigi exchange code,XIST,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TSE,Bloomberg/OpenFigi exchange code,XTKS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TT,Bloomberg/OpenFigi exchange code,XTAF,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TU,Bloomberg/OpenFigi exchange code,XTUN,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TW,Bloomberg/OpenFigi exchange code,XICX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TX,Bloomberg/OpenFigi exchange code,CHIC,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,TZ,Bloomberg/OpenFigi exchange code,XDAR,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UA,Bloomberg/OpenFigi exchange code,AMXO,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UB,Bloomberg/OpenFigi exchange code,XBOS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UC,Bloomberg/OpenFigi exchange code,XCIS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UD,Bloomberg/OpenFigi exchange code,XADF,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UE,Bloomberg/OpenFigi exchange code,C2OX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UF,Bloomberg/OpenFigi exchange code,BATO,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UG,Bloomberg/OpenFigi exchange code,EDGO,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UI,Bloomberg/OpenFigi exchange code,GMNI,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UJ,Bloomberg/OpenFigi exchange code,MCRY,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UK,Bloomberg/OpenFigi exchange code,UKEX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UKR,Bloomberg/OpenFigi exchange code,UKEX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UL,Bloomberg/OpenFigi exchange code,XISA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UM,Bloomberg/OpenFigi exchange code,XMIO,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UN,Bloomberg/OpenFigi exchange code,MPRL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UO,Bloomberg/OpenFigi exchange code,XCBO,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UP,Bloomberg/OpenFigi exchange code,ARCO,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UQ,Bloomberg/OpenFigi exchange code,XNAS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UR,Bloomberg/OpenFigi exchange code,XNCM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,USE,Bloomberg/OpenFigi exchange code,XUSE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UT,Bloomberg/OpenFigi exchange code,XBXO,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UU,Bloomberg/OpenFigi exchange code,XOTC,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UV,Bloomberg/OpenFigi exchange code,OOTC,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UW,Bloomberg/OpenFigi exchange code,XNGS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UX,Bloomberg/OpenFigi exchange code,XPHL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UY,Bloomberg/OpenFigi exchange code,XMNT,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,UZ,Bloomberg/OpenFigi exchange code,PFTS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,VB,Bloomberg/OpenFigi exchange code,XBOL,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,VF,Bloomberg/OpenFigi exchange code,IEXG,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,VH,Bloomberg/OpenFigi exchange code,HSTC,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,VJ,Bloomberg/OpenFigi exchange code,EDGA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,VK,Bloomberg/OpenFigi exchange code,EDGX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,VM,Bloomberg/OpenFigi exchange code,XSTC,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,VR,Bloomberg/OpenFigi exchange code,XBVC,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,VS,Bloomberg/OpenFigi exchange code,BVCA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,VU,Bloomberg/OpenFigi exchange code,XHNX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,VX,Bloomberg/OpenFigi exchange code,XVTX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,VY,Bloomberg/OpenFigi exchange code,BATY,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,WBA,Bloomberg/OpenFigi exchange code,XWBO,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,WCE,Bloomberg/OpenFigi exchange code,IFCA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,WSE,Bloomberg/OpenFigi exchange code,WDER,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,WT,Bloomberg/OpenFigi exchange code,TWEM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,WX,Bloomberg/OpenFigi exchange code,WDER,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,X1,Bloomberg/OpenFigi exchange code,ECEU,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,X2,Bloomberg/OpenFigi exchange code,CAPA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,X9,Bloomberg/OpenFigi exchange code,TWEA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,XB,Bloomberg/OpenFigi exchange code,BOAT,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,XE,Bloomberg/OpenFigi exchange code,XSMP,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,XO,Bloomberg/OpenFigi exchange code,XOPV,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,XT,Bloomberg/OpenFigi exchange code,HOTC,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,XV,Bloomberg/OpenFigi exchange code,BOTC,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,XZ,Bloomberg/OpenFigi exchange code,TREA,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,YC,Bloomberg/OpenFigi exchange code,XECM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,YLX,Bloomberg/OpenFigi exchange code,YLDX,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,ZA,Bloomberg/OpenFigi exchange code,XZAG,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,ZCE,Bloomberg/OpenFigi exchange code,XZCE,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,ZH,Bloomberg/OpenFigi exchange code,XZIM,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,ZL,Bloomberg/OpenFigi exchange code,XLUS,mic,True,2023-01-01 00:00:00,,True
+OpenFigi,exchange,exchange_code,ZU,Bloomberg/OpenFigi exchange code,XSTE,mic,True,2023-01-01 00:00:00,,True

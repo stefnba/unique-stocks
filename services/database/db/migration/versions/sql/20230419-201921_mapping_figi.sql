@@ -3,9 +3,8 @@ CREATE TABLE IF NOT EXISTS mapping_figi(
     wkn int,
     ticker text,
     ticker_figi text,
+    name_figi text,
     exchange_mic text,
-    --exchange_code_figi text,
-    --exchange_operating_mic text,
     currency varchar(3),
     country varchar(2),
     figi text NOT NULL,
@@ -26,10 +25,6 @@ CREATE INDEX ON mapping_figi(wkn);
 CREATE INDEX ON mapping_figi(ticker);
 
 CREATE INDEX ON mapping_figi(ticker_figi);
-
---CREATE INDEX ON mapping_figi(exchange_code);
-
---CREATE INDEX ON mapping_figi(exchange_code_figi);
 
 CREATE INDEX ON mapping_figi(exchange_mic);
 

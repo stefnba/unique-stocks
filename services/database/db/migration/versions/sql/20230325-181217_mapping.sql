@@ -16,6 +16,9 @@ CREATE TABLE IF NOT EXISTS mappings(
     --,UNIQUE (product, field, uid)
 );
 
+ALTER TABLE mappings
+    ADD UNIQUE (source, product, source_value, uid, is_active);
+
 CREATE INDEX ON mappings(source);
 
 CREATE INDEX ON mappings(field);
