@@ -91,6 +91,6 @@ class PgRecord:
         results = self.get_all()
 
         if len(results) == 0:
-            return pl.DataFrame(schema=[col[0] for col in self.columns or []])
+            return pl.DataFrame(schema=schema or [col[0] for col in self.columns or []])
 
         return pl.DataFrame(results, schema=schema)
