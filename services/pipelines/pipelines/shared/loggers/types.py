@@ -13,7 +13,7 @@ class ApiExtra(TypedDict):
 class DataLakeExtra(TypedDict):
     format: NotRequired[str]
     path: NotRequired[str]
-    handler: NotRequired[str]
+    handler: NotRequired[str | None]
 
 
 class DatabaseExtra(TypedDict):

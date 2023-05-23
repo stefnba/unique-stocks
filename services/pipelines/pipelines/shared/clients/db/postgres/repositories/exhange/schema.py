@@ -15,7 +15,7 @@ class Exchange(BaseModel):
     comment: Optional[str]
     acronym: Optional[str]
     mic: Optional[str]
-    operating_mic: Optional[str]
+    # operating_mic: Optional[str]
     source: Optional[str]
-    created_at: Optional[datetime] = datetime.now()
+    # created_at: Optional[datetime] = datetime.now()
     updated_at: Optional[datetime]

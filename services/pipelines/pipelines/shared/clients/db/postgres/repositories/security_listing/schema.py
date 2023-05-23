@@ -9,3 +9,4 @@ class SecurityListing(BaseModel):
     figi: str
     security_ticker_id: int
     quote_source: Optional[str]
+    currency: Optional[str]

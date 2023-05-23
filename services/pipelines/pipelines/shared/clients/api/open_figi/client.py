@@ -33,26 +33,6 @@ class OpenFigiApiClient(ApiHook):
 
         return response
 
-        if len(mapping_input) is not len(response):
-            raise Exception("Mapping input and response have different length")
-
-        mapping_output = []
-        for index, _mapping in enumerate(mapping_input):
-            data = response[index].get("data", None)
-
-            mapping = {}
-
-            if data is None:
-                mapping = {**_mapping, "mapping": None}
-            else:
-                if len(data) > 1:
-                    print(_mapping, len(data))
-                mapping = {**_mapping, "mapping": data[0]}
-
-            mapping_output.append(mapping)
-
-        return mapping_output
-
     @classmethod
     def get_figi(cls):
         """
