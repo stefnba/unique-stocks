@@ -56,6 +56,8 @@ CREATE TABLE "exchange"(
     "status" text,
     "source" text,
     "is_active" boolean DEFAULT TRUE,
+    "active_from" timestamp DEFAULT (now()),
+    "active_until" timestamp,
     "created_at" timestamp DEFAULT (now()),
     "updated_at" timestamp
 );
