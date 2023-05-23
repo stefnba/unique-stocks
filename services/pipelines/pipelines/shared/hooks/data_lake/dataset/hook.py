@@ -49,7 +49,11 @@ def upload(data: types.DataInput, path: types.Path, format: Optional[types.DataF
     elif format == "csv":
         file = (_data.to_csv(index=False)).encode()
     elif format == "json":
-        file = str(_data.to_json(orient="records")).encode()
+        file = str(
+            _data.to_json(
+                orient="records",
+            )
+        ).encode()
 
     uploaded_file = dl_client.upload_file(file=file, destination_file_path=_path)
     return uploaded_file.file.full_path
@@ -124,16 +128,31 @@ def _download_json(path: str):
     """
     Download data in json format from Data Lake.
     """
+    import json
 
-    duck = duckdb
+    handler = None
+
+    duck = duckdb.connect()
     duck.register_filesystem(abfs_client)
 
-    data = duck.read_json(DataLakeFilePath.build_abfs_path(path))
+    try:
+        handler = "duckdb"
+        data = duck.read_json(DataLakeFilePath.build_abfs_path(path)).pl()
+
+    except Exception as error:
+        logger.datalake.info(
+            str(error),
+            event=logger.datalake.events.DOWNLOAD_ERROR,
+            extra={"path": path, "format": "json", "handler": handler},
+        )
+
+        handler = "dl_client"
+        data = pl.DataFrame(json.loads(dl_client.download_file_into_memory(path)))
 
     logger.datalake.info(
-        "", event=logger.datalake.events.DOWNLOAD_SUCCESS, extra={"path": path, "format": "json", "handler": "duckdb"}
+        "", event=logger.datalake.events.DOWNLOAD_SUCCESS, extra={"path": path, "format": "json", "handler": handler}
     )
-    return data.pl()
+    return data
 
 
 def _download_parquet(path: str, format: types.DataFormat) -> pl.DataFrame:
@@ -170,7 +189,7 @@ def _download_with_arrow(path: str, format: types.DataFormat):
     Returns:
         _type_: _description_
     """
-    table = ds.dataset(f"abfs://data-lake/{path}", filesystem=abfs_client, format=format).to_table()
+    table = ds.dataset(DataLakeFilePath.build_abfs_path(path), filesystem=abfs_client, format=format).to_table()
     return table
 
 
@@ -191,7 +210,7 @@ def download(path: types.Path, format: Optional[types.DataFormat] = None) -> Dat
     _path = FilePathBuilder.convert_to_file_path(path)
     _format = get_format(_path, format)
 
-    logger.datalake.info("", event=logger.datalake.events.DOWNLOAD_INIT, extra={"path": _path, "format": _format})
+    logger.datalake.info(event=logger.datalake.events.DOWNLOAD_INIT, extra={"path": _path, "format": _format})
 
     data = pl.DataFrame()
     if _format == "csv":
