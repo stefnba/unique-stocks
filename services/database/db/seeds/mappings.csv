@@ -577,3 +577,4 @@ OpenFigi,exchange,exchange_code,ZCE,Bloomberg/OpenFigi exchange code,XZCE,mic,Tr
 OpenFigi,exchange,exchange_code,ZH,Bloomberg/OpenFigi exchange code,XZIM,mic,True,2023-01-01 00:00:00,,True
 OpenFigi,exchange,exchange_code,ZL,Bloomberg/OpenFigi exchange code,XLUS,mic,True,2023-01-01 00:00:00,,True
 OpenFigi,exchange,exchange_code,ZU,Bloomberg/OpenFigi exchange code,XSTE,mic,True,2023-01-01 00:00:00,,True
+MarketStack,exchange,exchange_code,XETRA,wrong mic code,XETR,mic,True,2023-01-01 00:00:00,,True
