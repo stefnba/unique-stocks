@@ -1,6 +1,6 @@
-from typing import Dict, Optional, TypedDict
+from typing import Dict, TypedDict
 
-from pydantic import BaseModel, Field
+import polars as pl
 
 
 class FigiSecurityTypeDict(TypedDict):
@@ -12,9 +12,6 @@ class FigiSecurityTypeDict(TypedDict):
 FigiSecurityTypeMappingDict = Dict[int, FigiSecurityTypeDict]
 
 
-class SecurityData(BaseModel):
-    ticker: str
-    source: str
-    isin: Optional[str]
-    security_type_id: int
-    source_exchange_uid: str = Field(..., alias="exchange_uid")
+class MappingPrep(TypedDict):
+    missing: pl.DataFrame
+    existing: pl.DataFrame

@@ -1,4 +1,7 @@
 import polars as pl
+from shared.clients.api.eod.client import EodHistoricalDataApiClient
+
+ASSET_SOURCE = EodHistoricalDataApiClient.client_key
 
 
 def get_exchange_codes():
@@ -22,13 +25,9 @@ def transform(data: pl.DataFrame):
     """
 
     import polars as pl
-    from dags.security.open_figi.jobs import map_figi_to_securities
-    from shared.clients.api.eod.client import EodHistoricalDataApiClient
     from shared.clients.db.postgres.repositories import DbQueryRepositories
     from shared.clients.duck.client import duck
     from shared.loggers import logger
-
-    ASSET_SOURCE = EodHistoricalDataApiClient.client_key
 
     # some exchange like CC or MONEY don't have ISIN column, so needs to be added
     if "ISIN" not in data.columns:
@@ -58,7 +57,13 @@ def transform(data: pl.DataFrame):
 
     logger.transform.info(event=logger.transform.events.SUCCESS)
 
-    # map figi to securities
+    return map_figi(data)
+
+
+def map_figi(data: pl.DataFrame):
+    """map figi to securities"""
+    from dags.security.open_figi.jobs import map_figi_to_securities
+
     return map_figi_to_securities(data)
 
 
@@ -100,6 +105,9 @@ def extract_security(security: pl.DataFrame):
 
 
 def extract_security_ticker(security_ticker: pl.DataFrame):
+    """
+    Extract unique security tickers from mapping results and save records to database.
+    """
     from shared.clients.db.postgres.repositories import DbQueryRepositories
     from shared.jobs.surrogate_keys.jobs import map_surrogate_keys
 
@@ -130,6 +138,11 @@ def extract_security_ticker(security_ticker: pl.DataFrame):
 
 
 def extract_security_listing(security_listing: pl.DataFrame):
+    """
+    Extract unique security listings from mapping results and save records to database.
+
+    Security listings have relationship to an exchange.
+    """
     from shared.clients.db.postgres.repositories import DbQueryRepositories
     from shared.jobs.surrogate_keys.jobs import map_surrogate_keys
 
