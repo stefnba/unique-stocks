@@ -1,5 +1,6 @@
 from shared.clients.db.postgres.repositories.base import PgRepositories
 from shared.clients.db.postgres.repositories.exhange.schema import Exchange
+from shared.utils.conversion import converter
 from shared.utils.sql.file import QueryFile
 
 
@@ -19,9 +20,13 @@ class ExchangeRepository(PgRepositories):
             returning="ALL_COLUMNS",
             conflict={
                 "target": ["id"],
-                "action": [{"column": "is_active", "value": True}, {"column": "updated_at", "value": "now()"}],
+                "action": [
+                    {"column": "is_active", "value": True},
+                    {"column": "updated_at", "value": "now()"},
+                    {"column": "active_until", "value": None},
+                ],
             },
-        ).get_all(Exchange)
+        ).get_polars_df(converter.model_to_polars_schema(Exchange))
 
     def mic_operating_mic_mapping(self):
         return self._query.find(QueryFile("./sql/mic_operating_mic_mapping.sql")).get_polars_df()

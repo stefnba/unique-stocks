@@ -13,9 +13,11 @@ class Exchange(BaseModel):
     website: Optional[str]
     timezone: Optional[str]
     comment: Optional[str]
+    source: Optional[str]
+    is_virtual: Optional[bool]
     acronym: Optional[str]
     mic: Optional[str]
+    status: Optional[str]
     # operating_mic: Optional[str]
-    source: Optional[str]
     # created_at: Optional[datetime] = datetime.now()
     updated_at: Optional[datetime]
