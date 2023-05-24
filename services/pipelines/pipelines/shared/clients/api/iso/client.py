@@ -24,4 +24,4 @@ class IsoExchangesApiClient(ApiHook):
         """
         api = cls()
         endpoint = "/ISO10383_MIC.csv"
-        return api._download_file_to_bytes(endpoint)
+        return api._download_file_to_bytes(endpoint).content.decode("latin1")
