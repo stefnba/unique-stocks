@@ -32,17 +32,19 @@ def upload(data: types.DataInput, path: types.Path, format: Optional[types.DataF
     Returns:
         str: File path of uploaded file.
     """
+    _path = FilePathBuilder.convert_to_file_path(path)
+    format = get_format(_path, format)
+
     if isinstance(data, pl.DataFrame):
         _data = data.to_pandas()
     elif isinstance(data, pd.DataFrame):
         _data = data
-    elif isinstance(data, str) or isinstance(data, dict) or isinstance(data, list):
+    elif isinstance(data, str) and format == "csv":  # csv
+        _data = pl.read_csv(data.encode()).to_pandas()
+    elif isinstance(data, str) or isinstance(data, dict) or isinstance(data, list):  # json
         _data = pd.DataFrame(data)
     elif isinstance(data, duckdb.DuckDBPyRelation):
         _data = data.df()
-
-    _path = FilePathBuilder.convert_to_file_path(path)
-    format = get_format(_path, format)
 
     if format == "parquet":
         file = _data.to_parquet(index=False)
@@ -155,32 +157,46 @@ def _download_json(path: str):
     return data
 
 
-def _download_parquet(path: str, format: types.DataFormat) -> pl.DataFrame:
+def _download_parquet(path: str) -> pl.DataFrame:
     """
     Download json files from Data Lake.
     """
+    duck = duckdb.connect()
+    duck.register_filesystem(abfs_client)
+    handler = None
+
     try:
-        duck = duckdb
-        duck.register_filesystem(abfs_client)
+        handler = "duckdb"
         data = duck.read_parquet(DataLakeFilePath.build_abfs_path(path))
         return data.pl()
-    except Exception:
-        data = _download_with_arrow(path, format)
+    except Exception as error:
+        logger.datalake.info(
+            str(error),
+            event=logger.datalake.events.DOWNLOAD_ERROR,
+            extra={"path": path, "format": "json", "handler": handler},
+        )
+        handler = "pyarrow"
+        data = _download_with_arrow(path, "parquet")
     return pl.DataFrame(data)
 
 
-def _download_csv(path: str, format: types.DataFormat) -> pl.DataFrame:
+def _download_csv(path: str) -> pl.DataFrame:
     """
     Download data in csv format from Data Lake.
     """
-    try:
-        duck = duckdb
-        duck.register_filesystem(abfs_client)
-        data = duck.read_csv(DataLakeFilePath.build_abfs_path(path))
-        return data.pl()
-    except Exception:
-        data = _download_with_arrow(path, format)
+    # try:
+    # print(path)
+
+    # print(dl_client.download_file_into_memory(path).decode())
+    # return pl.DataFrame()
+    duck = duckdb.connect()
+    duck.register_filesystem(abfs_client)
+
+    data = duck.read_csv(DataLakeFilePath.build_abfs_path(path))
+    return data.pl()
     return pl.DataFrame(data)
+    # except Exception:
+    #     data = _download_with_arrow(path, format)
 
 
 def _download_with_arrow(path: str, format: types.DataFormat):
@@ -214,12 +230,12 @@ def download(path: types.Path, format: Optional[types.DataFormat] = None) -> Dat
 
     data = pl.DataFrame()
     if _format == "csv":
-        data = _download_csv(_path, _format)
+        data = _download_csv(_path)
 
     elif _format == "json":
         data = _download_json(_path)
 
     elif _format == "parquet":
-        data = _download_parquet(_path, _format)
+        data = _download_parquet(_path)
 
     return Dataset(data)
