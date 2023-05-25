@@ -1,4 +1,4 @@
-from typing import TypedDict
+from typing import Any, TypedDict
 
 from typing_extensions import NotRequired
 
@@ -17,4 +17,6 @@ class DataLakeExtra(TypedDict):
 
 
 class DatabaseExtra(TypedDict):
-    query: str
+    query: NotRequired[str]
+    table: NotRequired[str]
+    data: NotRequired[Any]

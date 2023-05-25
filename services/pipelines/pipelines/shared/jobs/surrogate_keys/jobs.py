@@ -71,10 +71,16 @@ def map_surrogate_keys(data: str | pl.DataFrame, product: str, uid_col_name: str
     # add data product as column, required for adding missing keys to db
     data_missing_keys = data_missing_keys.with_columns(pl.lit(product).alias("product"))
 
-    logger.mapping.info(f"{len(data_missing_keys)} missing surrogate keys")
+    logger.mapping.info(
+        f"{len(data_missing_keys)} missing surrogate keys", extra={"data": data_missing_keys.to_dicts()}
+    )
 
     # add previously missing keys to database
     if len(data_missing_keys) > 0:
+        logger.mapping.info(
+            f"{len(data_missing_keys)} missing surrogate keys will be added to database",
+            extra={"data": data_missing_keys.to_dicts()},
+        )
         added = DbQueryRepositories.mapping_surrogate_key.add(
             data=data_missing_keys.to_dicts(), uid_col_name=uid_col_name
         )

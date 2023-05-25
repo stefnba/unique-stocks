@@ -2,10 +2,11 @@ from typing import Optional, Sequence, Type, cast, overload
 
 import polars as pl
 from psycopg.sql import SQL, Composed, Identifier, Literal
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from shared.hooks.postgres.query.base import QueryBase, UpdateAddBase
 from shared.hooks.postgres.query.record import PgRecord
 from shared.hooks.postgres.types import ConflictActionDict, ConflictParams, QueryColumnModel, QueryData, ReturningParams
+from shared.loggers.logger import db as logger
 
 
 class AddQuery(QueryBase, UpdateAddBase):
@@ -129,7 +130,11 @@ class AddQuery(QueryBase, UpdateAddBase):
             record = {}
             # dict
             if isinstance(data_item, dict):
-                record = ColumnModel(**data_item).dict(exclude_unset=True)
+                try:
+                    record = ColumnModel(**data_item).dict(exclude_unset=True)
+                except ValidationError as error:
+                    logger.error(str(error), extra={"data": data_item})
+
             # pydantic Model
             elif isinstance(data_item, BaseModel):
                 record = {}
