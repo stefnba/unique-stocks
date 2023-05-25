@@ -7,7 +7,7 @@ Create Date: 2023-04-21 09:52:46.577236
 
 """
 from alembic import op
-from sqlalchemy import String
+from sqlalchemy import Integer, String
 from sqlalchemy.sql import column
 
 from db.utils import execute_ddl_file, export_to_csv, seed_table_from_csv
@@ -36,12 +36,32 @@ def upgrade() -> None:
         ],
     )
 
+    seed_table_from_csv(
+        table_name="security_quote_interval",
+        file_path="./db/seeds/security_quote_interval.csv",
+        columns=[
+            column("id", String),
+            column("name", String),
+            column("min", Integer),
+        ],
+    )
+
 
 def downgrade() -> None:
     export_to_csv(
         destination_path="./db/seeds/security_type.csv",
         table="security_type",
         columns=["id", "parent_id", "name", "is_leaf", "name_figi", "name_figi2", "market_sector_figi"],
+    )
+
+    export_to_csv(
+        destination_path="./db/seeds/security_quote_interval.csv",
+        table="security_quote_interval",
+        columns=[
+            "id",
+            "name",
+            "min",
+        ],
     )
 
     op.execute(
@@ -60,5 +80,13 @@ def downgrade() -> None:
         DROP TABLE IF EXISTS security_listing CASCADE;
 		--sql
         DROP TABLE IF EXISTS security_ticker CASCADE;
+		--sql
+        DROP TABLE IF EXISTS entity CASCADE;
+		--sql
+        DROP TABLE IF EXISTS entity_type CASCADE;
+		--sql
+        DROP TABLE IF EXISTS security_quote CASCADE;
+		--sql
+        DROP TABLE IF EXISTS security_quote_interval CASCADE;
 		"""
     )

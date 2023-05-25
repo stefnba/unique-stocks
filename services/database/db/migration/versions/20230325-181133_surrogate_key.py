@@ -50,6 +50,14 @@ def upgrade() -> None:
         ],
     )
 
+    op.execute(
+        """
+    --sql
+    SELECT setval('surrogate_keys_surrogate_key_seq', max("surrogate_key")) FROM "surrogate_keys";
+    ;
+    """
+    )
+
 
 def downgrade() -> None:
     export_to_csv(
