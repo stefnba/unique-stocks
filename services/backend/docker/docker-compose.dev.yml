@@ -1,0 +1,24 @@
+##
+# Run dev container locally
+##
+
+version: '3.8'
+
+services:
+    app:
+        build:
+            context: .
+            dockerfile: docker/Dockerfile.dev
+        volumes:
+            # Maps our current project directory `.` to
+            # our working directory in the container
+            - ./:/app/
+            # node_modules workaround for volumes
+            # https://stackoverflow.com/a/32785014
+            - /app/node_modules
+        ports:
+            - '${APP_PORT}:${APP_PORT}'
+        command: npm run dev
+    db:
+        ports:
+            - '${DB_PORT}:5432'

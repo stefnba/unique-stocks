@@ -1,0 +1,36 @@
+name: deploy-production
+run-name: Deploy to Production
+on:
+    workflow_run:
+        workflows: ['build-publish-image']
+        branches: [main]
+        types:
+            - completed
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v3
+            - name: Create SSH key
+              run: |
+                  mkdir -p ~/.ssh/
+                  echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+                  sudo chmod 600 ~/.ssh/id_rsa
+                  ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+              env:
+                  SSH_HOST: ${{secrets.SSH_HOST}}
+                  SSH_PRIVATE_KEY: ${{secrets.SSH_PRIVATE_KEY}}
+            - name: Copy Files to Server
+              run: |
+                  ${GITHUB_WORKSPACE}/scripts/deploy/copy.sh $SSH_USER $SSH_HOST $SSH_DIR
+              env:
+                  SSH_HOST: ${{secrets.SSH_HOST}}
+                  SSH_DIR: ${{secrets.SSH_DIR}}
+                  SSH_USER: ${{secrets.SSH_USER}}
+            - name: Publish
+              run: |
+                  ssh $SSH_USER@$SSH_HOST $SSH_DIR/scripts/deploy/publish.sh
+              env:
+                  SSH_HOST: ${{secrets.SSH_HOST}}
+                  SSH_DIR: ${{secrets.SSH_DIR}}
+                  SSH_USER: ${{secrets.SSH_USER}}

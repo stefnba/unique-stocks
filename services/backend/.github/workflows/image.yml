@@ -1,0 +1,23 @@
+name: build-publish-image
+run-name: Build and Publish Docker Image
+on:
+    release:
+        types: [published]
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        env:
+            DOCKER_USER: ${{ secrets.DOCKER_USER }}
+            DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+            # DOCKER_IMAGE_NAME: ${{ secrets.DOCKER_IMAGE_NAME }}
+            DOCKER_IMAGE_NAME: ${{ github.event.repository.name }}
+        steps:
+            - uses: actions/checkout@v3
+            - name: Build Docker image
+              run: docker build . --file docker/Dockerfile.prod --tag ${{ env.DOCKER_USER }}/${{ env.DOCKER_IMAGE_NAME }}
+            - name: Login to Docker
+              run: echo ${{ env.DOCKER_TOKEN }} | docker login -u ${{ env.DOCKER_USER }} --password-stdin
+            - name: Push Docker image
+              run: docker push ${{ env.DOCKER_USER }}/${{ env.DOCKER_IMAGE_NAME }}
+            - name: Logout
+              run: docker logout

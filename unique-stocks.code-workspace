@@ -11,6 +11,10 @@
 		{
 			"path": "./services/pipelines",
             "name": "Pipelines"
+		},
+		{
+			"path": "./services/backend",
+            "name": "Backend"
 		}
     ],
     "settings": {

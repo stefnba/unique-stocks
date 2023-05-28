@@ -1,0 +1,45 @@
+name: tests
+run-name: Run Tests
+on:
+    push:
+        branches: [main]
+    pull_request:
+        branches: [main]
+
+jobs:
+    tests:
+        name: 'Node.js v${{ matrix.node }}'
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                node:
+                    - 18
+        env:
+            DB_ROOT_PASSWORD: password
+            APP_PORT: 9999
+            DB_HOST: localhost
+            DB_PORT: 5432
+            DB_NAME: app_db
+            DB_SCHEMA: public
+            DB_ADMIN_USER: admin
+            DB_ADMIN_PASSWORD: password
+            DB_APP_USER: app
+            DB_APP_PASSWORD: password
+        steps:
+            - uses: actions/checkout@v3
+            - name: Use Node.js ${{ matrix.node-version }}
+              uses: actions/setup-node@v3
+              with:
+                  node-version: ${{ matrix.node-version }}
+            - name: Install Dependencies
+              run: npm install
+            - run: touch .env
+              name: Create dummy .env # required to prevent error in docker-compose.yml app service for .evn file
+            - name: Start DB container
+              run: npm run docker:dev db
+            - run: docker ps
+            - run: docker logs express-ts-pg-docker-starter-db-1
+            - name: Apply DB migrations
+              run: npm run migrate up
+#             - name: Run Tests
+#               run: npm test

@@ -1,0 +1,10 @@
+##
+# Run production container on webserver
+# Extends docker-compose.prod.yml and uses image from Docker Hub instead of building it locally
+##
+
+version: '3.8'
+
+services:
+    app:
+        image: ${DOCKER_USER}/${DOCKER_IMAGE_NAME}
