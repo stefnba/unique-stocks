@@ -7,7 +7,7 @@ class FigiResult(BaseModel):
     figi: str
     name_figi: str = Field(..., alias="name")
     ticker_figi: str = Field(..., alias="ticker")
-    exchange_code_figi: str = Field(..., alias="exchCode")
+    exchange_code_figi: Optional[str] = Field(..., alias="exchCode")
     composite_figi: Optional[str] = Field(..., alias="compositeFIGI")
     share_class_figi: Optional[str] = Field(..., alias="shareClassFIGI")
     security_type: str = Field(..., alias="securityType")
