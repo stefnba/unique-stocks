@@ -69,11 +69,6 @@ def model_to_polars_schema(model: Type[BaseModel]):
         PolarsSchema: Polars Schema.
     """
 
-    print(model.schema())
-
     properties = model.schema(by_alias=False).get("properties", {})
 
     return reduce(_reduce_schema, properties.items(), cast(PolarsSchema, {}))
-
-
-model_to_polars_schema(FigiResult)
