@@ -53,6 +53,14 @@ def upgrade() -> None:
         ],
     )
 
+    op.execute(
+        """
+    --sql
+     SELECT setval('mappings_id_seq', max("id")) FROM "mappings";
+    ;
+    """
+    )
+
 
 def downgrade() -> None:
     export_to_csv(
