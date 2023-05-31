@@ -4,7 +4,7 @@ Learn more on:
 https://learn.microsoft.com/en-us/python/api/azure-storage-file-data_lake/azure.storage.filedatalake.datalakeserviceclient?view=azure-python
 """
 
-from typing import TYPE_CHECKING, Optional, Type
+from typing import TYPE_CHECKING, Optional
 
 from azure.core.exceptions import ClientAuthenticationError, ResourceExistsError
 from azure.core.paging import ItemPaged
@@ -22,6 +22,13 @@ from shared.utils.path.types import PathParams
 
 if TYPE_CHECKING:
     from shared.utils.path.data_lake.file_path import DataLakeFilePathModel
+
+
+import requests
+from shared.loggers.logger import datalake as logger
+
+
+import time
 
 
 class AzureDatalakeHook(AzureBaseClient):
@@ -127,6 +134,68 @@ class AzureDatalakeHook(AzureBaseClient):
         file_client = self.service_client.get_file_client(self.file_client, path)
         self.file_client = file_client
         return file_client
+
+    def stream_from_url(self, url: str, file_name: Optional[str] = None, *, chunk_size: int = 10):
+        """
+        Transfer a file from a url to the Data Lake in chunks.
+
+        Args:
+            url (str): _description_
+            file_system_client (FileSystemClient): _description_
+            file_name (str): _description_
+            chunk_size (int, optional): _description_. Defaults to 20.
+        """
+
+        logger.info("Start streaming", url=url)
+
+        chunk_size = chunk_size * 1024 * 1024  # to MB
+        start_time = time.time()
+
+        if file_name is None:
+            file_name = url.split("/")[-1]
+
+        file_client = self.service_client.get_file_client(file_system=self.file_system, file_path=file_name)
+        file_client.create_file()
+
+        # make request
+        with requests.get(url, stream=True) as r:
+            if not r.ok:
+                # todo log
+                r.raise_for_status()
+
+            total_size = 0
+            uploaded_size = 0
+            buffer_size = 0
+            buffer = b""
+
+            for chunk in r.iter_content(chunk_size=chunk_size):
+                current_chunk_size = len(chunk)
+
+                # add current chunk to buffer
+                buffer += chunk
+                buffer_size += current_chunk_size
+
+                if buffer_size > chunk_size:
+                    logger.info(f"Uploaded: {round(uploaded_size / 1024 / 1024, 2)} MB")
+
+                    file_client.append_data(buffer, offset=uploaded_size, length=buffer_size)
+
+                    uploaded_size += buffer_size
+                    buffer = b""
+                    buffer_size = 0
+
+                total_size = total_size + current_chunk_size
+
+            # uploading remaining data
+            if buffer_size > 0:
+                file_client.append_data(buffer, offset=uploaded_size, length=buffer_size)
+
+            # commit
+            file_client.flush_data(offset=total_size)
+
+        logger.info(f"Time: {time.time() - start_time} | Total Size: {round(total_size / 1024 / 1024, 2)} MB")
+
+        return file_client.get_file_properties()
 
     def download_file_into_memory(self, file_path: str, file_system: Optional[str] = None) -> bytes:
         """
