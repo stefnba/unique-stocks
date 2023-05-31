@@ -6,7 +6,6 @@ from typing import TypedDict
 
 from airflow import DAG
 from airflow.decorators import task, task_group
-from airflow.models import TaskInstance
 
 
 class ExchangeDataset(TypedDict):
@@ -15,10 +14,10 @@ class ExchangeDataset(TypedDict):
 
 
 @task
-def extract_exchange_codes(**context: TaskInstance):
-    from dags.security.eod_historical_data.jobs import get_exchange_codes
+def extract_exchange_codes():
+    from dags.security.eod_historical_data.jobs import extract
 
-    return ["OTCQX", "NASDAQ", "XETRA"]
+    return extract()
 
 
 @task_group

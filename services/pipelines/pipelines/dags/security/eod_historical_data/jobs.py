@@ -4,8 +4,8 @@ from shared.clients.api.eod.client import EodHistoricalDataApiClient
 ASSET_SOURCE = EodHistoricalDataApiClient.client_key
 
 
-def get_exchange_codes():
-    return ["NASDAQ", "XETRA"]
+def extract():
+    return ["OTCQX", "NASDAQ", "XETRA", "SW", "NYSE"]
 
 
 def ingest(exchange_code: str):

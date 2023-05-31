@@ -7,6 +7,7 @@ from shared.clients.api.open_figi.types import MappingArgs
 from shared.clients.db.postgres.repositories import DbQueryRepositories
 from shared.config import CONFIG
 from shared.loggers import logger
+from shared.utils.conversion.converter import model_to_polars_schema
 
 
 def get_security_type_mapping():
@@ -187,10 +188,16 @@ def map_securities_to_figi(securities: list, figi_results: list):
 
                 figi_results_mapped_with_securities.append({**security_data, **figi_result})
 
-            df = pl.DataFrame(figi_results_mapped_with_securities)
+            df = pl.DataFrame(
+                figi_results_mapped_with_securities, schema={**model_to_polars_schema(FigiResult), **SECURITY_SCHEMA}
+            )
+
+            df_missing_exchange = df.filter(pl.col("exchange_code_figi").is_null())
+            df = df.filter(pl.col("exchange_code_figi").is_not_null())
 
             # exclude composite exchanges
-            df = df.filter(~pl.col("exchange_code_figi").is_in(CONFIG.data.exchanges.composite_exchanges))
+
+            # df = df.filter((~pl.col("exchange_code_figi").is_in(CONFIG.data.exchanges.composite_exchanges)))
 
             # map figi exchange code to mic (not operating mic)
             df = df.join(
