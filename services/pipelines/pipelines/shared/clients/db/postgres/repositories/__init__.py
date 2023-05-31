@@ -5,8 +5,10 @@ from shared.clients.db.postgres.repositories.mapping_figi.repository import Mapp
 from shared.clients.db.postgres.repositories.mapping_surrogate_key.repository import MappingSurrogateKeyRepository
 from shared.clients.db.postgres.repositories.security.repository import SecurityRepo
 from shared.clients.db.postgres.repositories.security_listing.repository import SecurityListingRepo
+from shared.clients.db.postgres.repositories.security_quote.repository import SecurityQuoteRepo
 from shared.clients.db.postgres.repositories.security_ticker.repository import SecurityTickerRepo
 from shared.clients.db.postgres.repositories.security_type.repository import SecurityTypeRepo
+from shared.clients.db.postgres.repositories.entity.repository import EntityRepo
 
 
 class RegisteredQueryRepositories(BaseModel):
@@ -18,6 +20,8 @@ class RegisteredQueryRepositories(BaseModel):
     security = SecurityRepo()
     security_ticker = SecurityTickerRepo()
     security_type = SecurityTypeRepo()
+    security_quote = SecurityQuoteRepo()
+    entity = EntityRepo()
 
     class Config:
         arbitrary_types_allowed = True
