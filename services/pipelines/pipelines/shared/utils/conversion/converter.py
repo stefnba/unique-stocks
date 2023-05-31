@@ -1,11 +1,16 @@
-import datetime
+from datetime import datetime
 import json
-from typing import Dict, Type
-
+from typing import Dict, Type, TypeAlias, Optional, cast
+from functools import reduce
 import polars as pl
-from pydantic import BaseModel
 
-PolarsSchema = Dict[str, Type[pl.Utf8] | Type[pl.Int64] | Type[pl.Boolean] | Type[pl.Datetime]]
+
+from pydantic import BaseModel, Field
+
+
+PolarsSchema: TypeAlias = Dict[
+    str, Type[pl.Utf8] | Type[pl.Int64] | Type[pl.Boolean] | Type[pl.Datetime] | Type[pl.Float64]
+]
 
 
 def json_to_bytes(json_input: dict | str, encoding="utf-8") -> bytes:
@@ -22,7 +27,38 @@ def json_to_bytes(json_input: dict | str, encoding="utf-8") -> bytes:
     return json.dumps(json_input).encode(encoding)
 
 
-def model_to_polars_schema(model: Type[BaseModel]) -> PolarsSchema:
+class FigiResult(BaseModel):
+    figi: str
+    name_figi: int = Field(..., alias="name")
+    asdf: float = Field(..., alias="name")
+    date: datetime
+    is_true: bool
+
+
+def _classify_schema(type: str, field: str, format: Optional[str] = None):
+    if type == "string" and format == "date-time":
+        return pl.Datetime
+    if type == "string":
+        return pl.Utf8
+    if type == "integer":
+        return pl.Int64
+    if type == "number":
+        return pl.Float64
+    if type == "boolean":
+        return pl.Boolean
+    raise Exception(f'Schema conversion not possible for field "{field}" with type "{type}".')
+
+
+def _reduce_schema(
+    current: dict,
+    item: tuple,
+) -> PolarsSchema:
+    field, value = item
+    current[field] = _classify_schema(type=value.get("type", None), field=field, format=value.get("format", None))
+    return current
+
+
+def model_to_polars_schema(model: Type[BaseModel]):
     """
     Convert a Pydantic Model to a Polars Schema.
 
@@ -32,22 +68,12 @@ def model_to_polars_schema(model: Type[BaseModel]) -> PolarsSchema:
     Returns:
         PolarsSchema: Polars Schema.
     """
-    schema: PolarsSchema = {}
-    for field, model_type in model.__fields__.items():
-        # type = model_type._type_display()
 
-        field_type = model_type.type_
-        print(field_type)
+    print(model.schema())
 
-        if issubclass(model_type.type_, str):
-            schema[field] = pl.Utf8
-        elif issubclass(model_type.type_, int):
-            schema[field] = pl.Int64
-        elif issubclass(model_type.type_, bool):
-            schema[field] = pl.Boolean
-        elif issubclass(model_type.type_, datetime.datetime):
-            schema[field] = pl.Datetime
-        else:
-            raise Exception(f"Schema conversion not possible for {field} {field_type}")
+    properties = model.schema(by_alias=False).get("properties", {})
 
-    return schema
+    return reduce(_reduce_schema, properties.items(), cast(PolarsSchema, {}))
+
+
+model_to_polars_schema(FigiResult)
