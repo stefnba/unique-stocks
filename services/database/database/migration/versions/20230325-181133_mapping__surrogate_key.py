@@ -20,7 +20,7 @@ depends_on = None
 
 TABLE_NAME = "surrogate_key"
 SCHEMA_NAME = "mapping"
-COLUMNS = ["surrogate_key", "product", "uid", "is_active", "valid_from", "valid_until"]
+COLUMNS = ["surrogate_key", "product", "uid", "is_active", "active_from", "active_until"]
 
 
 migration_file = MigrationFile(revision)

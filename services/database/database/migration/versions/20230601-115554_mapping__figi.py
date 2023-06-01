@@ -25,8 +25,8 @@ COLUMNS = [
     "share_class_figi",
     "composite_figi",
     "security_type_id",
-    "valid_from",
-    "valid_until",
+    "active_from",
+    "active_until",
     "is_active",
 ]
 

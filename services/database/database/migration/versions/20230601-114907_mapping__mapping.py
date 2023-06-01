@@ -21,8 +21,8 @@ COLUMNS = [
     "uid",
     "uid_description",
     "is_seed",
-    "valid_from",
-    "valid_until",
+    "active_from",
+    "active_until",
     "is_active",
 ]
 

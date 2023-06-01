@@ -5,8 +5,8 @@ CREATE TABLE IF NOT EXISTS "mapping"."surrogate_key"(
     uid varchar NOT NULL,
     created_at timestamp without time zone DEFAULT (now() at time zone 'utc'),
     updated_at timestamp without time zone,
-    valid_until timestamp without time zone,
-    valid_from timestamp without time zone,
+    active_until timestamp without time zone,
+    active_from timestamp without time zone,
     is_active boolean DEFAULT TRUE,
     UNIQUE (uid, product)
 );
