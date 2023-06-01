@@ -6,7 +6,7 @@ from shared.clients.db.postgres.repositories.mapping.schema import Mapping
 
 
 class MappingsRepository(PgRepositories):
-    table = "mappings"
+    table = "mapping.mapping"
     schema = Mapping
 
     def get_mappings(self, source: Optional[str] = None, product: Optional[str] = None, field: Optional[str] = None):

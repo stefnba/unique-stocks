@@ -3,10 +3,10 @@ from shared.clients.db.postgres.repositories.security_listing.schema import Secu
 
 
 class SecurityListingRepo(PgRepositories):
-    table = "security_listing"
+    table = "data.security_listing"
 
     def find_all(self):
-        return self._query.find("SELECT * FROM security_listing").get_polars_df()
+        return self._query.find("SELECT * FROM data.security_listing").get_polars_df()
 
     def add(self, data):
         return self._query.add(

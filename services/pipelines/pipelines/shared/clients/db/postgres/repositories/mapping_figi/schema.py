@@ -20,5 +20,5 @@ class MappingFigi(BaseModel):
     is_active: Optional[bool] = True
     # created_at: Optional[datetime] = datetime.utcnow()
     updated_at: Optional[datetime]
-    valid_from: Optional[datetime]
-    valid_until: Optional[datetime]
+    active_from: Optional[datetime]
+    active_until: Optional[datetime]

@@ -1,4 +1,4 @@
 SELECT
     *
 FROM
-    mappings
+    mapping.mapping

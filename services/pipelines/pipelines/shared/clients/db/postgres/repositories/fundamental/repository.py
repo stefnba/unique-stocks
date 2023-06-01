@@ -3,10 +3,10 @@ from shared.clients.db.postgres.repositories.fundamental.schema import Fundament
 
 
 class FundamentalRepo(PgRepositories):
-    table = "fundamental"
+    table = "data.fundamental"
 
     def find_all(self):
-        return self._query.find("SELECT * FROM fundamental").get_polars_df()
+        return self._query.find("SELECT * FROM data.fundamental").get_polars_df()
 
     def add(self, data):
         return self._query.add(

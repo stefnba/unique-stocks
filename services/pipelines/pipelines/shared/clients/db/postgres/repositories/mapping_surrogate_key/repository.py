@@ -6,7 +6,7 @@ from shared.utils.sql.file import QueryFile
 
 
 class MappingSurrogateKeyRepository(PgRepositories):
-    table = "mapping_surrogate_key"
+    table = "mapping.surrogate_key"
 
     def find_all(self, product: str):
         return self._query.find(QueryFile("./sql/get.sql"), params={"product": product}).get_polars_df()
@@ -19,7 +19,7 @@ class MappingSurrogateKeyRepository(PgRepositories):
         return self._query.add(
             data=data,
             column_model=MappingSurrogateKeyAdd,
-            table="surrogate_keys",
+            table=self.table,
             conflict="DO_NOTHING",
             returning="ALL_COLUMNS",
         ).get_polars_df()

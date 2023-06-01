@@ -12,4 +12,4 @@ SELECT
     composite_figi,
     security_type_id
 FROM
-    mapping_figi
+    mapping.figi

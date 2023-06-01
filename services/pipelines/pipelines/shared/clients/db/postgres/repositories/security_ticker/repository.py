@@ -3,10 +3,10 @@ from shared.clients.db.postgres.repositories.security_ticker.schema import Secur
 
 
 class SecurityTickerRepo(PgRepositories):
-    table = "security_ticker"
+    table = "data.security_ticker"
 
     def find_all(self):
-        return self._query.find("SELECT * FROM security_ticker").get_polars_df()
+        return self._query.find("SELECT * FROM data.security_ticker").get_polars_df()
 
     def add(self, data):
         return self._query.add(

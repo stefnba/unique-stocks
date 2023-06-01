@@ -3,8 +3,8 @@ from shared.clients.db.postgres.repositories.security_type.schema import Securit
 
 
 class SecurityTypeRepo(PgRepositories):
-    table = "security_type"
+    table = "data.security_type"
     schema = SecurityType
 
     def find_all(self):
-        return self._query.find("SELECT * FROM security_type").get_polars_df()
+        return self._query.find("SELECT * FROM data.security_type").get_polars_df()

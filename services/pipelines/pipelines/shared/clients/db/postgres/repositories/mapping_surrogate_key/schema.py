@@ -11,5 +11,5 @@ class MappingSurrogateKey(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
-    valid_from: datetime
-    valid_until: datetime
+    active_from: datetime
+    active_until: datetime
