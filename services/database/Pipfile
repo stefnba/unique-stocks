@@ -7,11 +7,13 @@ name = "pypi"
 alembic = "*"
 python-dotenv = "*"
 psycopg2-binary = "*"
+psycopg = {extras = ["binary"], version = "*"}
 
 [dev-packages]
 black = "*"
 ruff = "*"
 mypy = "*"
+ipykernel = "*"
 
 [requires]
 python_version = "3"

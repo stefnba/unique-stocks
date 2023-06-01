@@ -17,16 +17,16 @@ install-prod:
 
 # alembic database migrations
 migrate-up:
-	alembic -c ./db/alembic.ini upgrade head
+	alembic -c ./database/alembic.ini upgrade $(if $(step),+$(step),head)
 migrate-down:
-	alembic -c ./db/alembic.ini downgrade base
-migrate-create:
-	alembic -c ./db/alembic.ini revision -m $(name) $(if $(filter auto,$(MAKECMDGOALS)),--autogenerate) ${params}
+	alembic -c ./database/alembic.ini downgrade $(if $(step),-$(step),base)
 migrate-history:
-	alembic -c ./db/alembic.ini history
+	alembic -c ./database/alembic.ini history
+migrate-create:
+	python ./database/utils/create_revision.py ./database/alembic.ini $(name)
 
 
 # Docker
 docker-up:
-	docker compose up -d --build --force-recreate --remove-orphans
+	docker compose -f docker/docker-compose.yml --project-directory . up -d --build --force-recreate --remove-orphans
 
