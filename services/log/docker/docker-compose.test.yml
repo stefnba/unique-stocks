@@ -1,0 +1,11 @@
+##
+# Test production image by building it with Dockerfile.prod locally instead of pulling it from Docker Hub
+# Extends docker-compose.prod.yml
+##
+version: '3.8'
+
+services:
+    app:
+        build:
+            context: .
+            dockerfile: docker/Dockerfile.prod

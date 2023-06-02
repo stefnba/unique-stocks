@@ -1,0 +1,24 @@
+##
+# Base production configration
+# Set up networks to sit behind reverse proxy
+##
+
+version: '3.8'
+
+services:
+    app:
+        environment:
+            - NODE_ENV=production
+        command: node src/server.js
+        networks:
+            - reverse-proxy
+            - default
+        expose:
+            - ${APP_PORT}
+    db:
+        networks:
+            - default
+
+networks:
+    reverse-proxy:
+        external: true

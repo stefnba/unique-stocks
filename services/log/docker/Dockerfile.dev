@@ -1,0 +1,15 @@
+FROM node:18-alpine3.15
+
+WORKDIR /app
+
+COPY package*.json ./
+COPY tsconfig.json ./
+
+RUN npm install
+
+COPY . .
+
+# EXPOSE 8000
+
+# start application
+CMD [ "npm", "run", "dev" ]

@@ -1,0 +1,14 @@
+{
+    "compilerOptions": {
+        "target": "es2016",
+        "module": "commonjs",
+        "rootDir": "./src",
+        "outDir": "./dist",
+        "declaration": true,
+        "typeRoots": ["src/@types", "./node_module/@types", "src/*/@types"],
+        "esModuleInterop": true,
+        "strict": true
+    },
+    "exclude": ["testing", "dist"],
+    "include": ["./src"]
+}
