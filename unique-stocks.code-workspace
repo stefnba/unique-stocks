@@ -15,6 +15,10 @@
 		{
 			"path": "./services/backend",
             "name": "Backend"
+		},
+		{
+			"path": "./services/log",
+            "name": "Log"
 		}
     ],
     "settings": {
