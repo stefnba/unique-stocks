@@ -14,7 +14,7 @@ class AddQuery(QueryBase, UpdateAddBase):
     def add(
         self,
         data: list[QueryData],
-        table: str,
+        table: str | tuple[str, str],
         column_model: Type[QueryColumnModel],
         returning: Optional[ReturningParams] = None,
         conflict: Optional[ConflictParams] = None,
@@ -25,7 +25,7 @@ class AddQuery(QueryBase, UpdateAddBase):
     def add(
         self,
         data: QueryData,
-        table: str,
+        table: str | tuple[str, str],
         column_model: Optional[Type[QueryColumnModel]] = None,
         returning: Optional[ReturningParams] = None,
         conflict: Optional[ConflictParams] = None,
@@ -35,7 +35,7 @@ class AddQuery(QueryBase, UpdateAddBase):
     def add(
         self,
         data: list[QueryData] | QueryData,
-        table: str,
+        table: str | tuple[str, str],
         column_model: Optional[Type[QueryColumnModel]] = None,
         returning: Optional[ReturningParams] = None,
         conflict: Optional[ConflictParams] = None,
@@ -50,7 +50,7 @@ class AddQuery(QueryBase, UpdateAddBase):
 
         query = Composed(
             [
-                SQL("INSERT INTO {table} ").format(table=Identifier(table)),
+                SQL("INSERT INTO {table} ").format(table=Identifier(*table if isinstance(table, tuple) else table)),
                 self.__build_create_add_logic(data=data, column_model=column_model),
             ]
         )
@@ -163,6 +163,7 @@ class AddQuery(QueryBase, UpdateAddBase):
             _type_: _description_
         """
 
+        #
         if isinstance(conflict, str):
             action = SQL("")
             if conflict == "DO_NOTHING":

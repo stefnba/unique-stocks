@@ -11,7 +11,7 @@ class UpdateQuery(QueryBase, Filter, UpdateAddBase):
     def update(
         self,
         data: QueryData,
-        table: str,
+        table: str | tuple[str, str],
         filters: Optional[FilterParams] = None,
         returning: Optional[ReturningParams] = None,
     ):
@@ -43,7 +43,7 @@ class UpdateQuery(QueryBase, Filter, UpdateAddBase):
 
         query = Composed(
             [
-                SQL("UPDATE {table} SET ").format(table=Identifier(table)),
+                SQL("UPDATE {table} SET ").format(table=Identifier(*table if isinstance(table, tuple) else table)),
                 self.__build_update_items(data),
             ]
         )
