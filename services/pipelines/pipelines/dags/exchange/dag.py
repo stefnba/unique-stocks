@@ -128,7 +128,7 @@ deactivate_current_records = PostgresOperator(
     task_id="deactivate_current_records",
     sql="""
     --sql
-    UPDATE exchange SET
+    UPDATE "data"."exchange" SET
         is_active=FALSE,
         active_until = now(),
         updated_at = now()
