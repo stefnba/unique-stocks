@@ -1,4 +1,6 @@
-import { QueryFile } from 'pg-promise';
+import pgPromise from 'pg-promise';
+const { QueryFile } = pgPromise;
+
 import path from 'path';
 import { QueryBuildError } from './error';
 
@@ -13,7 +15,7 @@ const joinPath = path.join;
 export const sqlFile = (
     path: string | string[],
     directory?: string | string[]
-): QueryFile => {
+): pgPromise.QueryFile => {
     const filePath = buildPath(path);
     const baseDirPath = buildPath(directory || process.cwd());
 

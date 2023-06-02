@@ -64,7 +64,7 @@ export class QueryExecutionError extends QueryError {
     detail?: string;
     schema?: string;
     constraint?: string;
-    private cause: PostgresErrorObject;
+    cause: PostgresErrorObject;
 
     constructor(params: QueryExecutionErrorArgs) {
         const { message, cause, command, query, table } = params;
@@ -94,7 +94,7 @@ export class QueryExecutionError extends QueryError {
  */
 export class ConnectionError extends Error {
     connection: DatabaseConnectionParams;
-    private cause: PostgresErrorObject;
+    cause: PostgresErrorObject;
     code: string;
     type!:
         | 'AuthFailed'

@@ -1,11 +1,11 @@
-import PostgresClient from './client';
 import dotenv from 'dotenv';
+import PostgresClient from './client';
+import ExchangeRepository from '../exchange/db/query';
+import EntityRepository from '../entity/db/query';
 
 dotenv.config();
 
 const { DB_HOST, DB_NAME, DB_APP_USER, DB_APP_PASSWORD, DB_PORT } = process.env;
-
-console.log(DB_HOST, DB_NAME);
 
 const dbApp = new PostgresClient(
     {
@@ -28,7 +28,7 @@ const dbApp = new PostgresClient(
     }
 );
 
-const dbStocks = new PostgresClient(
+const _dbStocks = new PostgresClient(
     {
         host: DB_HOST,
         port: 5871,
@@ -48,5 +48,10 @@ const dbStocks = new PostgresClient(
         }
     }
 );
+
+const dbStocks = _dbStocks.addRepositories({
+    exchange: ExchangeRepository,
+    entity: EntityRepository
+});
 
 export { dbApp, dbStocks };

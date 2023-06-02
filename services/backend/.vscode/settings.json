@@ -1,26 +1,19 @@
-{"search.exclude": {
-    "**/node_modules": false
-},
-"editor.formatOnPaste": true,
-"editor.formatOnSave": true,
-"editor.defaultFormatter": "esbenp.prettier-vscode",
-"editor.tabSize": 4,
-"editor.insertSpaces": true,
-"editor.detectIndentation": false,
-"eslint.format.enable": true,
-"editor.codeActionsOnSave": {
-    "source.fixAll.eslint": true
-},
-
-// use postgres extension to run queries against connection
-"files.associations": {
-    "*.sql": "postgres"
-},
-"[postgres]": {
-    "editor.defaultFormatter": "bradymholt.pgformatter"
-},
-// specifiy standard connection for postgres extension
-"vscode-postgres.defaultConnection": "app_db",
-"vscode-postgres.defaultDatabase": "app_db",
-"vscode-postgres.prettyPrintJSONfields": true
+{
+    "search.exclude": {
+        "**/node_modules": false
+    },
+    "editor.formatOnPaste": true,
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.tabSize": 4,
+    "editor.indentSize": 4,
+    "editor.insertSpaces": true,
+    "editor.detectIndentation": false,
+    "eslint.format.enable": true,
+    "editor.codeActionsOnSave": {
+        "source.fixAll.eslint": true
+    },
+    "[postgres]": {
+        "editor.defaultFormatter": "bradymholt.pgformatter"
+    }
 }

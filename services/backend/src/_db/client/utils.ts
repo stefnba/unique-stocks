@@ -1,4 +1,6 @@
-import pgPromise, { QueryFile } from 'pg-promise';
+import pgPromise from 'pg-promise';
+
+const { QueryFile } = pgPromise;
 
 import type {
     QueryInput,

@@ -1,3 +1,4 @@
-import CONFIG from './config';
+import * as constants from './constants';
+import config from './config';
 
-export { CONFIG };
+export { constants, config };

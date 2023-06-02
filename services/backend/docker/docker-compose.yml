@@ -9,7 +9,7 @@ services:
         env_file:
             - .env
         environment:
-            - DB_HOST=db # necessary to change since communication through container networks
+            - DB_HOST=unique-stocks-db-pg # necessary to change since communication through container networks
             - DB_PORT=5432 # necessary to change since communication through container networks
         depends_on:
             - db
