@@ -127,15 +127,18 @@ class AzureDatalakeHook(AzureBaseClient):
             print(exception)
             raise exception
 
-    def get_file_client(self, path: str) -> DataLakeFileClient:
+    def get_file_client(self, path: "str | DataLakeFilePathModel") -> DataLakeFileClient:
         """
         Create a new File Client
         """
-        file_client = self.service_client.get_file_client(self.file_client, path)
+        _path = FilePathBuilder.convert_to_file_path(path)
+        file_client = self.service_client.get_file_client(self.file_client, _path)
         self.file_client = file_client
         return file_client
 
-    def stream_from_url(self, url: str, file_name: Optional[str] = None, *, chunk_size: int = 10):
+    def stream_from_url(
+        self, url: str, file_name: Optional["str | DataLakeFilePathModel"] = None, *, chunk_size: int = 10
+    ):
         """
         Transfer a file from a url to the Data Lake in chunks.
 
@@ -145,14 +148,15 @@ class AzureDatalakeHook(AzureBaseClient):
             file_name (str): _description_
             chunk_size (int, optional): _description_. Defaults to 20.
         """
+        if file_name is None:
+            file_name = url.split("/")[-1]
+        else:
+            file_name = FilePathBuilder.convert_to_file_path(file_name)
 
         logger.info("Start streaming", url=url)
 
         chunk_size = chunk_size * 1024 * 1024  # to MB
         start_time = time.time()
-
-        if file_name is None:
-            file_name = url.split("/")[-1]
 
         file_client = self.service_client.get_file_client(file_system=self.file_system, file_path=file_name)
         file_client.create_file()
@@ -195,7 +199,7 @@ class AzureDatalakeHook(AzureBaseClient):
 
         logger.info(f"Time: {time.time() - start_time} | Total Size: {round(total_size / 1024 / 1024, 2)} MB")
 
-        return file_client.get_file_properties()
+        return str(file_client.get_file_properties().name)
 
     def download_file_into_memory(self, file_path: str, file_system: Optional[str] = None) -> bytes:
         """
