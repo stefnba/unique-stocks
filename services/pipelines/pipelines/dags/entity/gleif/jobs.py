@@ -1,28 +1,40 @@
 import polars as pl
+from shared.clients.api.gleif.client import GleifApiClient
+from shared.loggers import logger
 
-
-ASSET_SOURCE = ""
+ASSET_SOURCE = GleifApiClient.client_key
 
 
 def ingest():
     from shared.clients.data_lake.azure.azure_data_lake import dl_client
+    from dags.entity.path import EntityPath
 
     url = "https://leidata-preview.gleif.org/storage/golden-copy-files/2023/05/29/789258/20230529-0800-gleif-goldencopy-lei2-golden-copy.csv.zip"
+    file_path = EntityPath.raw(source=ASSET_SOURCE, file_type="zip")
 
-    return dl_client.stream_from_url(url=url)
+    return dl_client.stream_from_url(url=url, file_name=file_path)
 
 
-def uncompress(zipped_file: bytes):
+def unzip(zipped_file: bytes):
     import zipfile
     import io
+    import polars as pl
+    import os
 
-    with zipfile.ZipFile(io.BytesIO(zipped_file)) as zip_archive:
+    with zipfile.ZipFile(io.BytesIO(zipped_file), allowZip64=True) as zip_archive:
         file_to_unzip = zip_archive.filelist[0]
         print(file_to_unzip.filename, file_to_unzip.file_size)
 
-        unzipped_file = zip_archive.read(file_to_unzip)
+        logger.logger.log()
 
-    return unzipped_file
+        unzipped_file_path = zip_archive.extract(file_to_unzip)
+
+    df = pl.read_csv(unzipped_file_path)
+
+    # delete file again
+    os.remove(unzipped_file_path)
+
+    return df
 
 
 def transform(df_raw: pl.DataFrame):
@@ -76,6 +88,14 @@ def transform(df_raw: pl.DataFrame):
 
 def load_into_db():
     pass
+
+
+def add_surrogate_key(data: pl.DataFrame):
+    from shared.jobs.surrogate_keys.jobs import map_surrogate_keys
+
+    data = map_surrogate_keys(data=data, product="entity", id_col_name="id", uid_col_name="lei")
+
+    return data
 
 
 def ingest_isin_to_lei_relationship():

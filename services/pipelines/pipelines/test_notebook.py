@@ -580,3 +580,24 @@ data = transform(df)
 from shared.clients.db.postgres.repositories import DbQueryRepositories
 
 DbQueryRepositories.mappings.add(data.to_dicts())
+
+
+# %%
+
+
+import pandas as pd
+import polars as pl
+from shared.clients.db.postgres.client import db_client
+
+data = [
+    {"id": 22, "name": "test"},
+    {"id": 244, "name": "test"},
+]
+
+df = pl.DataFrame(data)
+
+
+# print(str(data))
+# %%
+
+db_client.copy_to_table("COPY data.entity_type (id, name) FROM STDIN (FORMAT csv, HEADER true, DELIMITER ',')", data=df)
