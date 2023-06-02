@@ -7,7 +7,7 @@ from shared.hooks.postgres.query.base import QueryBase
 from shared.hooks.postgres.query.record import PgRecord
 from shared.hooks.postgres.types import ConflictParams, QueryColumnModel, QueryData, ReturningParams
 from shared.loggers.logger import db as logger
-from shared.hooks.postgres.query.utils import build_conflict_query, build_returning_query
+from shared.hooks.postgres.query.utils import build_conflict_query, build_returning_query, build_table_name
 
 
 class AddQuery(QueryBase):
@@ -41,6 +41,7 @@ class AddQuery(QueryBase):
         returning: Optional[ReturningParams] = None,
         conflict: Optional[ConflictParams] = None,
     ) -> PgRecord:
+        # convert polars df to list of dict
         if isinstance(data, pl.DataFrame):
             data = data.to_dicts()
 
@@ -51,7 +52,7 @@ class AddQuery(QueryBase):
 
         query = Composed(
             [
-                SQL("INSERT INTO {table} ").format(table=Identifier(*table if isinstance(table, tuple) else table)),
+                SQL("INSERT INTO {table} ").format(table=build_table_name(table)),
                 self.__build_create_add_logic(data=data, column_model=column_model),
             ]
         )

@@ -3,6 +3,15 @@ from shared.hooks.postgres.types import ConflictActionDict, ConflictParams, Retu
 from typing import cast
 
 
+def build_table_name(table: str | tuple[str, str]) -> Identifier:
+    """
+    Create a table SQL identifiert as "table" or "schema"."table" if schema is specified.
+    """
+    if isinstance(table, str):
+        return Identifier(table)
+    return Identifier(*table)
+
+
 def build_returning_query(returning: ReturningParams) -> Composed:
     return_clase = SQL(" RETURNING ")
     if isinstance(returning, str):

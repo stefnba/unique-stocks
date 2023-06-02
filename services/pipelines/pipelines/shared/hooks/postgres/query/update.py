@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from shared.hooks.postgres.query.base import QueryBase
 from shared.hooks.postgres.query.filter import Filter
 from shared.hooks.postgres.types import FilterParams, QueryData, ReturningParams
-from shared.hooks.postgres.query.utils import build_returning_query
+from shared.hooks.postgres.query.utils import build_returning_query, build_table_name
 
 
 class UpdateQuery(QueryBase, Filter):
@@ -44,7 +44,7 @@ class UpdateQuery(QueryBase, Filter):
 
         query = Composed(
             [
-                SQL("UPDATE {table} SET ").format(table=Identifier(*table if isinstance(table, tuple) else table)),
+                SQL("UPDATE {table} SET ").format(table=build_table_name(table)),
                 self.__build_update_items(data),
             ]
         )

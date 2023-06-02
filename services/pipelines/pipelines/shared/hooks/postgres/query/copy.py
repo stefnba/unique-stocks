@@ -7,7 +7,7 @@ import polars as pl
 import pandas as pd
 from typing import TypeAlias, Optional
 from shared.hooks.postgres.types import ConflictParams, ReturningParams
-from shared.hooks.postgres.query.utils import build_conflict_query, build_returning_query
+from shared.hooks.postgres.query.utils import build_conflict_query, build_returning_query, build_table_name
 
 DataInput: TypeAlias = str | pl.DataFrame | pd.DataFrame
 
@@ -28,7 +28,7 @@ def _temp_table_query(table: str | tuple[str, str]) -> sql.Composed:
             LIKE {table} INCLUDING DEFAULTS
         ) ON COMMIT DROP;
         """
-    ).format(table=sql.Identifier(*table if isinstance(table, tuple) else table))
+    ).format(table=build_table_name(table))
 
 
 def _insert_query(table: str | tuple[str, str]) -> sql.Composed:
@@ -39,7 +39,7 @@ def _insert_query(table: str | tuple[str, str]) -> sql.Composed:
         SELECT *
         FROM tmp_table
         """
-    ).format(table=sql.Identifier(*table if isinstance(table, tuple) else table))
+    ).format(table=build_table_name(table))
 
 
 def _copy_query(columns: list[str]) -> sql.Composed:
