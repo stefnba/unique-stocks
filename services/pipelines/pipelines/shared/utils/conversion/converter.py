@@ -3,7 +3,7 @@ import json
 from typing import Dict, Type, TypeAlias, Optional, cast
 from functools import reduce
 import polars as pl
-
+from polars.type_aliases import SchemaDefinition
 
 from pydantic import BaseModel, Field
 
@@ -58,7 +58,7 @@ def _reduce_schema(
     return current
 
 
-def model_to_polars_schema(model: Type[BaseModel]):
+def model_to_polars_schema(model: Type[BaseModel] | BaseModel) -> SchemaDefinition:
     """
     Convert a Pydantic Model to a Polars Schema.
 

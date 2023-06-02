@@ -5,6 +5,19 @@ from psycopg._column import Column
 from psycopg.cursor import Cursor
 from psycopg.rows import class_row, dict_row
 from shared.hooks.postgres.types import DbDictRecord, DbModelRecord
+from pydantic import BaseModel
+from shared.utils.conversion.converter import model_to_polars_schema
+
+
+def _classify_schema_type(schema: Optional[SchemaDefinition | BaseModel | Type[BaseModel]]):
+    """
+    Helper function to classifiy schema type.
+    """
+    if schema is None:
+        return []
+    if isinstance(schema, BaseModel):
+        return model_to_polars_schema(schema)
+    return []
 
 
 class PgRecord:
@@ -82,7 +95,7 @@ class PgRecord:
 
         return pd.DataFrame(results)
 
-    def get_polars_df(self, schema: Optional[SchemaDefinition] = None):
+    def get_polars_df(self, schema: Optional[SchemaDefinition | Type[BaseModel] | BaseModel] = None):
         try:
             import polars as pl
         except ImportError:
@@ -91,6 +104,6 @@ class PgRecord:
         results = self.get_all()
 
         if len(results) == 0:
-            return pl.DataFrame(schema=schema or [col[0] for col in self.columns or []])
+            return pl.DataFrame(schema=_classify_schema_type(schema) or [col[0] for col in self.columns or []])
 
-        return pl.DataFrame(results, schema=schema)
+        return pl.DataFrame(results, schema=_classify_schema_type(schema))
