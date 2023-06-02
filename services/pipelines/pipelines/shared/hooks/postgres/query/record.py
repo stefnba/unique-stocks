@@ -1,4 +1,4 @@
-from typing import List, Optional, Type, overload
+from typing import List, Optional, Type, overload, Sequence, Mapping
 
 from polars.type_aliases import SchemaDefinition
 from psycopg._column import Column
@@ -9,14 +9,23 @@ from pydantic import BaseModel
 from shared.utils.conversion.converter import model_to_polars_schema
 
 
-def _classify_schema_type(schema: Optional[SchemaDefinition | BaseModel | Type[BaseModel]]):
+def _classify_schema_type(schema: Optional[SchemaDefinition | Type[BaseModel] | BaseModel]):
     """
     Helper function to classifiy schema type.
     """
+
     if schema is None:
         return []
+
+    if isinstance(schema, Sequence) or isinstance(schema, Mapping):
+        return schema
+
     if isinstance(schema, BaseModel):
         return model_to_polars_schema(schema)
+
+    if issubclass(schema, BaseModel):
+        return model_to_polars_schema(schema)
+
     return []
 
 

@@ -103,4 +103,10 @@ tmp = merge({"eod_historical_data": eod_historical_data(), "iso_mic": iso_mic(),
 
 tmp = add_surr_keys(tmp)
 
-data_lake_hooks.download(tmp).to_polars_df()
+
+# %%
+from shared.clients.db.postgres.repositories import DbQueryRepositories
+
+df_to_add = data_lake_hooks.download(tmp).to_polars_df()
+
+DbQueryRepositories.exchange.add(df_to_add)

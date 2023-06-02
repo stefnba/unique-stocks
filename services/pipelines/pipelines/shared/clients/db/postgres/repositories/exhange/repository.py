@@ -1,11 +1,11 @@
 from shared.clients.db.postgres.repositories.base import PgRepositories
 from shared.clients.db.postgres.repositories.exhange.schema import Exchange
-from shared.utils.conversion import converter
 from shared.utils.sql.file import QueryFile
 
 
 class ExchangeRepository(PgRepositories):
     table = ("data", "exchange")
+    schema = Exchange
 
     def find_all(self):
         return self._query.find(
@@ -26,7 +26,7 @@ class ExchangeRepository(PgRepositories):
                     {"column": "active_until", "value": None},
                 ],
             },
-        ).get_polars_df(converter.model_to_polars_schema(Exchange))
+        ).get_polars_df(schema=self.schema)
 
     def mic_operating_mic_mapping(self):
         return self._query.find(QueryFile("./sql/mic_operating_mic_mapping.sql")).get_polars_df()

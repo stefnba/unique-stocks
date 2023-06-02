@@ -35,7 +35,7 @@ class EntityRepo(PgRepositories):
     def bulk_add(self, data):
         add = self._query.bulk_add(
             data=data,
-            table=("data", "entity"),
+            table=self.table,
             columns=[
                 "lei",
                 "name",
