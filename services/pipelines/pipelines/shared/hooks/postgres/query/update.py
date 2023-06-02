@@ -2,12 +2,13 @@ from typing import Optional
 
 from psycopg.sql import SQL, Composed, Identifier, Literal
 from pydantic import BaseModel
-from shared.hooks.postgres.query.base import QueryBase, UpdateAddBase
+from shared.hooks.postgres.query.base import QueryBase
 from shared.hooks.postgres.query.filter import Filter
 from shared.hooks.postgres.types import FilterParams, QueryData, ReturningParams
+from shared.hooks.postgres.query.utils import build_returning_query
 
 
-class UpdateQuery(QueryBase, Filter, UpdateAddBase):
+class UpdateQuery(QueryBase, Filter):
     def update(
         self,
         data: QueryData,
@@ -51,7 +52,7 @@ class UpdateQuery(QueryBase, Filter, UpdateAddBase):
         if filters:
             query += self._concatenate_where_query(filters)
         if returning:
-            query += self._concatenate_returning_query(returning)
+            query += build_returning_query(returning)
 
         return self._execute(query=query)
 
@@ -70,6 +71,8 @@ class UpdateQuery(QueryBase, Filter, UpdateAddBase):
             items = data.items()
         elif isinstance(data, BaseModel):
             items = data.dict(exclude_unset=True).items()
+        elif isinstance(data, object):
+            raise Exception("Data is object")
 
         items_as_query = [
             SQL("{column} = {value}").format(column=Identifier(column), value=Literal(value)) for column, value in items

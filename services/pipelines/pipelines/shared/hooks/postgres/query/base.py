@@ -74,18 +74,3 @@ class QueryBase:
             return query
         if isinstance(query, bytes):
             return query.decode()
-
-
-class UpdateAddBase:
-    def _concatenate_returning_query(self, returning: ReturningParams) -> Composed:
-        return_clase = SQL(" RETURNING ")
-        if isinstance(returning, str):
-            if returning == "ALL_COLUMNS":
-                return Composed([return_clase, SQL("*")])
-
-            return Composed([return_clase, SQL("{}").format(returning)])
-
-        if isinstance(returning, list):
-            return Composed([return_clase, SQL(", ").join(map(Identifier, returning))])
-
-        return Composed("")

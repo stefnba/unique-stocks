@@ -1,15 +1,16 @@
-from typing import Optional, Sequence, Type, cast, overload
+from typing import Optional, Sequence, Type, overload
 
 import polars as pl
 from psycopg.sql import SQL, Composed, Identifier, Literal
 from pydantic import BaseModel, ValidationError
-from shared.hooks.postgres.query.base import QueryBase, UpdateAddBase
+from shared.hooks.postgres.query.base import QueryBase
 from shared.hooks.postgres.query.record import PgRecord
-from shared.hooks.postgres.types import ConflictActionDict, ConflictParams, QueryColumnModel, QueryData, ReturningParams
+from shared.hooks.postgres.types import ConflictParams, QueryColumnModel, QueryData, ReturningParams
 from shared.loggers.logger import db as logger
+from shared.hooks.postgres.query.utils import build_conflict_query, build_returning_query
 
 
-class AddQuery(QueryBase, UpdateAddBase):
+class AddQuery(QueryBase):
     @overload
     def add(
         self,
@@ -56,10 +57,10 @@ class AddQuery(QueryBase, UpdateAddBase):
         )
 
         if conflict:
-            query += self.___concatenate_conflict_query(conflict)
+            query += build_conflict_query(conflict)
 
         if returning:
-            query += self._concatenate_returning_query(returning)
+            query += build_returning_query(returning)
 
         return self._execute(query=query)
 
@@ -155,37 +156,3 @@ class AddQuery(QueryBase, UpdateAddBase):
                 SQL(", ").join(values_list),
             ]
         )
-
-    def ___concatenate_conflict_query(self, conflict: ConflictParams) -> Composed:
-        """_summary_
-
-        Returns:
-            _type_: _description_
-        """
-
-        #
-        if isinstance(conflict, str):
-            action = SQL("")
-            if conflict == "DO_NOTHING":
-                action = SQL("DO NOTHING")
-
-            return Composed([SQL(" ON CONFLICT "), action])
-
-        if isinstance(conflict, dict):
-            target_list = conflict["target"]
-            action_list = cast(list[ConflictActionDict], conflict["action"])
-
-            return Composed(
-                [
-                    SQL(" ON CONFLICT ("),
-                    SQL(", ").join(Identifier(column) for column in target_list),
-                    SQL(")"),
-                    SQL(" DO UPDATE SET"),
-                    SQL(", ").join(
-                        [
-                            SQL("{column} = {value}").format(column=Identifier(i["column"]), value=Literal(i["value"]))
-                            for i in action_list
-                        ]
-                    ),
-                ]
-            )
