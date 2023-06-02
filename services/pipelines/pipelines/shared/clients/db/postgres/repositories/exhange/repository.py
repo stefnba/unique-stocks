@@ -5,7 +5,7 @@ from shared.utils.sql.file import QueryFile
 
 
 class ExchangeRepository(PgRepositories):
-    table = "exchange"
+    table = ("data", "exchange")
 
     def find_all(self):
         return self._query.find(
