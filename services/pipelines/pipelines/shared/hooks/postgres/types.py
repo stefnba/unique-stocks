@@ -1,11 +1,11 @@
-from typing import Any, Dict, Literal, Sequence, Tuple, TypedDict, TypeVar
+from typing import Any, Dict, Literal, Sequence, TypedDict, TypeVar, TypeAlias
 
 from psycopg.abc import Query
 from pydantic import BaseModel
 from shared.utils.sql.file import QueryFile
 from typing_extensions import NotRequired
 
-QueryColumnModel = BaseModel
+QueryColumnModel: TypeAlias = BaseModel
 
 
 class ConnectionObject(TypedDict):
@@ -44,12 +44,12 @@ class FilterObject(TypedDict):
 
 DbModelRecord = TypeVar("DbModelRecord", bound=BaseModel)
 
-QueryParams = Dict[str, Any] | object
-QueryInput = Query | QueryFile
+QueryParams: TypeAlias = Dict[str, Any] | object
+QueryInput: TypeAlias = Query | QueryFile
 
 DbModelSub = TypeVar("DbModelSub", bound=BaseModel)
 
-QueryData = QueryParams | BaseModel
+QueryData: TypeAlias = QueryParams | BaseModel
 QueryDataMultiple = Sequence[BaseModel]
 
 DbDictRecord = QueryParams
@@ -71,7 +71,4 @@ class ConflictUpdateDict(TypedDict):
     action: list[ConflictActionDict]
 
 
-ConflictParams = ConflictLiteral | ConflictUpdateDict
-
-
-# Dict[str, ConflictLiteral] | ConflictLiteral | Tuple[Literal["DO_UPDATE"],  str]
+ConflictParams: TypeAlias = ConflictLiteral | ConflictUpdateDict
