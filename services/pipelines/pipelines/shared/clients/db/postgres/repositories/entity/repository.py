@@ -1,10 +1,11 @@
 from shared.clients.db.postgres.repositories.base import PgRepositories
 from shared.clients.db.postgres.repositories.entity.schema import Entity
 from shared.utils.conversion.converter import model_to_polars_schema
+from shared.utils.sql.file import QueryFile
 
 
 class EntityRepo(PgRepositories):
-    table = "data.entity"
+    table = ("data", "entity")
     schema = Entity
 
     def find_all(self):
@@ -30,3 +31,38 @@ class EntityRepo(PgRepositories):
                 self._add(batch)
 
         return self._add(data)
+
+    def bulk_add(self, data):
+        add = self._query.bulk_add(
+            data=data,
+            table=("data", "entity"),
+            columns=[
+                "lei",
+                "name",
+                # "legal_form_id",
+                "jurisdiction",
+                "legal_address_street",
+                "legal_address_street_number",
+                "legal_address_zip_code",
+                "legal_address_city",
+                "legal_address_country",
+                "headquarter_address_street",
+                "headquarter_address_street_number",
+                "headquarter_address_city",
+                "headquarter_address_zip_code",
+                "headquarter_address_country",
+                # "status",
+                # "creation_date",
+                # "expiration_date",
+                # "expiration_reason",
+                # "registration_date",
+                # "registration_status",
+                "id",
+            ],
+            returning="ALL_COLUMNS",
+            conflict={
+                "target": ["id"],
+                "action": [{"column": "is_active", "value": False}],
+            },
+        )
+        print(add)
