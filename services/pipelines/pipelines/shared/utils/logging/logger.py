@@ -43,7 +43,10 @@ class Logger(Generic[EventsG, ExtraG]):
         self.__logger.log(
             level=level_int,
             msg=msg or "",
-            extra={"extra": extra, "event": event.name if isinstance(event, Enum) else event, **kwargs},
+            extra={
+                "extra": {**kwargs, **(extra or {})},
+                "event": event.name if isinstance(event, Enum) else event,
+            },
         )
 
     def error(
