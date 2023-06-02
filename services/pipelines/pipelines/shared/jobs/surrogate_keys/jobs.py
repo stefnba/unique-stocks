@@ -61,7 +61,9 @@ def map_surrogate_keys(data: str | pl.DataFrame, product: str, uid_col_name: str
 
     _data = get_data(data)
 
-    logger.mapping.info(f"{len(_data)} records to be mapped with surrogate keys")
+    logger.mapping.info(
+        f'{len(_data)} records to be mapped with surrogate keys for product "{product}" and uid column "{uid_col_name}"'
+    )
 
     # Idenfity and then add missing keys, based on data and existing keys
     data_missing_keys = (
