@@ -17,6 +17,10 @@
             "name": "Backend"
 		},
 		{
+			"path": "./services/frontend",
+            "name": "Frontend"
+		},
+		{
 			"path": "./services/log",
             "name": "Log"
 		}
