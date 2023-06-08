@@ -1,0 +1,24 @@
+{
+    "compilerOptions": {
+        "outDir": "./dist/",
+        "rootDir": "./src",
+        "noImplicitAny": true,
+        "module": "es6",
+        "target": "es5",
+        "jsx": "react-jsx",
+        "allowJs": true,
+        "allowSyntheticDefaultImports": true,
+        "moduleResolution": "Node",
+        "baseUrl": "src",
+        "paths": {
+            "@app/*": ["./app/*"],
+            "@components/*": ["./components/*"],
+            "@features/*": ["./features/*"],
+            "@shared/*": ["./shared/*"],
+            "@routes": ["./routes/routes.tsx"],
+            "@redux": ["./app/redux"],
+            "@config": ["./app/config/config.ts"]
+        }
+    },
+    "include": ["./src"]
+}
