@@ -1,5 +1,5 @@
 import pgPromise, { IColumnDescriptor } from 'pg-promise';
-import type { ColumnSetParams } from './types';
+import type { ColumnSetParams } from './types.js';
 
 const PgColumnSet = pgPromise().helpers.ColumnSet;
 

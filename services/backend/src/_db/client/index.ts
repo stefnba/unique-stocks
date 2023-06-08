@@ -1,5 +1,5 @@
-import PostgresClient from './client';
-import DatabaseRepository from './repository';
+import PostgresClient from './client.js';
+import DatabaseRepository from './repository.js';
 
 export default PostgresClient;
 

@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 
-import { Controller } from '../_lib';
-import EntityService from './service';
+import { Controller } from '../_lib/index.js';
+import EntityService from './service.js';
 
 type Body = {
     body: number;

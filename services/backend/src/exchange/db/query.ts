@@ -1,10 +1,12 @@
-import { DatabaseRepository } from '../../_db/client';
+import { DatabaseRepository } from '../../_db/client/index.js';
+
+import { fileDirName } from '@utils/module.js';
 
 export default class ExchangeRepository extends DatabaseRepository {
     // specify table name for this repository
-    table = 'exchange';
+    table = 'data.exchange';
     // specify dir for SQL files
-    sqlFilesDir = [__dirname, 'sql'];
+    sqlFilesDir = [fileDirName(import.meta).__dirname, 'sql'];
 
     queries = {
         find: this.sqlFile('find.sql')
@@ -14,7 +16,7 @@ export default class ExchangeRepository extends DatabaseRepository {
         return this.query
             .find(this.queries.find, {
                 pagination: {
-                    pageSize: 3
+                    pageSize: 10
                 }
             })
             .many();

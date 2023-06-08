@@ -1,5 +1,5 @@
-import type { PaginationInput } from './types';
-import { pgFormat } from './utils';
+import type { PaginationInput } from './types.js';
+import { pgFormat } from './utils.js';
 
 const defaultPageSize = 25;
 

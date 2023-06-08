@@ -1,4 +1,4 @@
-import { EntityQuery } from './data';
+import { EntityQuery } from './data.js';
 
 export default class EntityService {
     async findAll() {

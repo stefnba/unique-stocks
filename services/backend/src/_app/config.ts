@@ -1,21 +1,29 @@
 import dotenv from 'dotenv';
+import path from 'path';
+
+import { fileDirName } from '@utils/module.js';
+
 dotenv.config();
 
 export default {
     app: {
-        port: parseInt(process.env.APP_PORT)
+        port: parseInt(process.env.APP_PORT),
+        mediaDir: path.join(
+            fileDirName(import.meta).__dirname,
+            '../../../../media'
+        )
     },
     database: {
         host: process.env.DB_HOST,
-        port: parseInt(process.env.DB_PORT),
+        port: process.env.DB_PORT,
         database: process.env.DB_NAME,
         user: process.env.DB_ADMIN_USER,
         password: process.env.DB_APP_PASSWORD,
         max: 30,
-
         app: {
             host: process.env.DB_HOST,
-            port: parseInt(process.env.DB_PORT),
+            // port: parseInt(process.env.DB_PORT),
+            port: process.env.DB_PORT,
             database: process.env.DB_NAME,
             user: process.env.DB_ADMIN_USER,
             password: process.env.DB_APP_PASSWORD,

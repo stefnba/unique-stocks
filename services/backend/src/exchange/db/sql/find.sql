@@ -1,4 +1,4 @@
 SELECT
     *
 FROM
-    exchange
+    "data"."exchange"

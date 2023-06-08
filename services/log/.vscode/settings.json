@@ -2,10 +2,11 @@
     "search.exclude": {
         "**/node_modules": false
     },
-    "editor.formatOnPaste": true,
+    "editor.formatOnPaste": false,
     "editor.formatOnSave": true,
     "editor.defaultFormatter": "esbenp.prettier-vscode",
     "editor.tabSize": 4,
+    "editor.indentSize": 4,
     "editor.insertSpaces": true,
     "editor.detectIndentation": false,
     "eslint.format.enable": true,

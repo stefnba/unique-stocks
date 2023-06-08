@@ -8,9 +8,9 @@ import type {
     QueryBuildErrorParams,
     QueryResultErrorParams,
     QueryExecutionCommands
-} from './types';
+} from './types.js';
 
-import { pgErrorCodes } from './constants';
+import { pgErrorCodes } from './constants.js';
 
 /**
  * Query Error that extends Error with additional properties

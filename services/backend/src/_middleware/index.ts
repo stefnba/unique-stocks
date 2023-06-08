@@ -1,12 +1,12 @@
 // import errorHandlingMiddleware from './errorHandling';
-import morganMiddleware from './morgan';
-import ignoreFaviconMiddleware from './favicon';
-import correlationId from './correlationId';
-import userAgent from './userAgent';
+// import morganMiddleware from './morgan.js';
+import ignoreFaviconMiddleware from './favicon.js';
+import correlationId from './correlationId.js';
+import userAgent from './userAgent.js';
 
 export {
     // errorHandlingMiddleware,
-    morganMiddleware,
+    // morganMiddleware,
     ignoreFaviconMiddleware,
     correlationId,
     userAgent

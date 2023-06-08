@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
-import PostgresClient from './client';
-import ExchangeRepository from '../exchange/db/query';
-import EntityRepository from '../entity/db/query';
+import PostgresClient from './client/index.js';
+import ExchangeRepository from '../exchange/db/query.js';
+import EntityRepository from '../entity/db/query.js';
 
 dotenv.config();
 
@@ -32,7 +32,7 @@ const _dbStocks = new PostgresClient(
     {
         host: DB_HOST,
         port: 5871,
-        database: 'uniquestocks',
+        database: 'stocks',
         user: 'admin',
         password: 'password'
     },

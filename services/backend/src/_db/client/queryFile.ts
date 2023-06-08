@@ -2,7 +2,7 @@ import pgPromise from 'pg-promise';
 const { QueryFile } = pgPromise;
 
 import path from 'path';
-import { QueryBuildError } from './error';
+import { QueryBuildError } from './error.js';
 
 const joinPath = path.join;
 
@@ -26,10 +26,10 @@ export const sqlFile = (
 
     if (qf.error) {
         const path = (qf.error as Error & { file: string }).file;
-        throw new QueryBuildError({
-            message: `SQL file "${path}" does not exist`,
-            type: 'SQL_FILE_NOT_FOUND'
-        });
+        // throw new QueryBuildError({
+        //     message: `SQL file "${path}" does not exist`,
+        //     type: 'SQL_FILE_NOT_FOUND'
+        // });
     }
 
     return qf;

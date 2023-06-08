@@ -1,10 +1,10 @@
-import QueryBuilder from './builder';
+import QueryBuilder from './builder.js';
 import {
     DatabaseClient,
     DatabaseOptions,
     BatchQueryCallback,
     BatchClient
-} from './types';
+} from './types.js';
 
 export default class PostgresBatchQuery {
     private db: DatabaseClient | BatchClient;

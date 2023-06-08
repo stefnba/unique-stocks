@@ -1,4 +1,4 @@
-import { ExchangeQuery } from './data';
+import { ExchangeQuery } from './data.js';
 
 export default class ExchangeService {
     async findAll() {

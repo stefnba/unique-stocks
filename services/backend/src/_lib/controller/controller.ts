@@ -1,8 +1,8 @@
 import { NextFunction, Response, Request } from 'express';
 import queryString from 'query-string';
 
-import { ControllerOptions } from './types';
-import { constants } from '../../_app';
+import { ControllerOptions } from './types.js';
+import { constants } from '../../_app/index.js';
 
 export interface ControllerRequestParams {
     body?: object;
@@ -28,8 +28,8 @@ const Controller = async (
         controllerRequestParams: ControllerRequestParams
     ) => Promise<unknown>,
     options: ControllerOptions = {
-        statusCode: null,
-        responseMsg: null,
+        statusCode: undefined,
+        responseMsg: undefined,
         hideResponseMsg: false
     }
 ) => {

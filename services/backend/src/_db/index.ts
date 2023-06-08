@@ -1,4 +1,4 @@
-import { dbApp, dbStocks } from './db';
+import { dbApp, dbStocks } from './db.js';
 
 export default {
     app: dbApp,

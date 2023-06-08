@@ -1,7 +1,7 @@
 import pgPromise from 'pg-promise';
 import chalk from 'chalk';
 
-import QueryBuilder from './builder';
+import QueryBuilder from './builder.js';
 
 import type {
     DatabaseConnectionParams,
@@ -11,11 +11,11 @@ import type {
     DatabaseOptions,
     RepositoriesParams,
     DatabaseClientExtended
-} from './types';
-import { ConnectionError } from './error';
-import { sqlFile } from './queryFile';
-import { applyFilter } from './filter';
-import { ColumnSet } from './column';
+} from './types.js';
+import { ConnectionError } from './error.js';
+import { sqlFile } from './queryFile.js';
+import { applyFilter } from './filter.js';
+import { ColumnSet } from './column.js';
 
 export default class PostgresClient {
     db: DatabaseClient;

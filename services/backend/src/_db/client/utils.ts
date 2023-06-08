@@ -7,9 +7,9 @@ import type {
     QueryConcatenationParams,
     QueryInserUpdateCommands,
     ColumnsInput
-} from './types';
-import { QueryBuildError } from './error';
-import { ColumnSet } from './column';
+} from './types.js';
+import { QueryBuildError } from './error.js';
+import { ColumnSet } from './column.js';
 
 /**
  * Helpers for query building, e.g. insert, update

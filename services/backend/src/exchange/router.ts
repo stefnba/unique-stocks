@@ -1,5 +1,5 @@
 import Router from 'express-promise-router';
-import controller from './controller';
+import controller from './controller.js';
 
 const router = Router();
 

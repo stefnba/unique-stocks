@@ -1,4 +1,4 @@
 SELECT
     *
 FROM
-    entity
+    "data"."entity"

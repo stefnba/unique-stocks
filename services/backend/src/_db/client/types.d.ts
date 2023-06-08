@@ -11,12 +11,12 @@ import {
     QueryBuildError,
     QueryExecutionError,
     QueryResultError
-} from './error';
-import QueryBuilder from './builder';
-import { filterOperators } from './filter';
-import DatabaseRepository from './repository';
-import { ColumnSet } from './column';
-import PostgresClient from './client';
+} from './error.js';
+import QueryBuilder from './builder.js';
+import { filterOperators } from './filter.js';
+import DatabaseRepository from './repository.js';
+import { ColumnSet } from './column.js';
+import PostgresClient from './client.js';
 
 export type DatabaseClient = IDatabase<object>;
 export type DatabaseClientExtended<T extends RepositoriesParams> =

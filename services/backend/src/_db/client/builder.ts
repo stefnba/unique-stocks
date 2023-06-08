@@ -1,4 +1,4 @@
-import PostgresBatchQuery from './batch';
+import PostgresBatchQuery from './batch.js';
 import {
     DatabaseClient,
     DatabaseOptions,
@@ -10,12 +10,12 @@ import {
     BatchClient,
     QueryInput,
     FilterInput
-} from './types';
-import Query from './query';
+} from './types.js';
+import Query from './query.js';
 
-import { concatenateQuery, pgFormat, buildUpdateInsertQuery } from './utils';
-import pagination from './pagination';
-import { buildFilters } from './filter';
+import { concatenateQuery, pgFormat, buildUpdateInsertQuery } from './utils.js';
+import pagination from './pagination.js';
+import { buildFilters } from './filter.js';
 
 /**
  * Simplifies construction of pg queries.

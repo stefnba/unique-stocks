@@ -1,10 +1,11 @@
-import { DatabaseRepository } from '../../_db/client';
+import { DatabaseRepository } from '../../_db/client/index.js';
+import { fileDirName } from '@utils/module.js';
 
 export default class EntityRepository extends DatabaseRepository {
     // specify table name for this repository
-    table = 'entity';
+    table = 'data.entity';
     // specify dir for SQL files
-    sqlFilesDir = [__dirname, 'sql'];
+    sqlFilesDir = [fileDirName(import.meta).__dirname, 'sql'];
 
     queries = {
         find: this.sqlFile('find.sql')

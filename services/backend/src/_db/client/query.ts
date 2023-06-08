@@ -3,13 +3,13 @@ import {
     QueryExecutionCommands,
     QueryRunner,
     QueryExecutionParams
-} from './types';
+} from './types.js';
 
 import {
     QueryBuildError,
     QueryExecutionError,
     QueryResultError
-} from './error';
+} from './error.js';
 
 export default class Query {
     private result?: object | object[];

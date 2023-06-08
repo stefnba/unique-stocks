@@ -1,4 +1,4 @@
-import db from '../_db';
+import db from '../_db/index.js';
 
 const ExchangeQuery = db.stocks.repos.exchange;
 

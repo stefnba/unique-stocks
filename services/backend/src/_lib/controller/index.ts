@@ -1,3 +1,3 @@
-import Controller from './controller';
+import Controller from './controller.js';
 
 export default Controller;

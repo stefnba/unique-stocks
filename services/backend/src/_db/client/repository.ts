@@ -1,7 +1,7 @@
-import { applyFilter } from './filter';
-import type { ColumnSetParams, FilterSet } from './types';
-import QueryBuilder from './builder';
-import { sqlFile } from './queryFile';
+import { applyFilter } from './filter.js';
+import type { ColumnSetParams, FilterSet } from './types.js';
+import QueryBuilder from './builder.js';
+import { sqlFile } from './queryFile.js';
 
 /**
  * A DatabaseRepository organizes and simplifies interactions with one table in the database.

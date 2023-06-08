@@ -6,6 +6,6 @@ export default function userAgent(
     _: Response,
     next: NextFunction
 ) {
-    // (req.userAgent = userAgentParser(req.headers['user-agent'])), next();
+    (req.userAgent = userAgentParser(req.headers['user-agent'])), next();
     next();
 }

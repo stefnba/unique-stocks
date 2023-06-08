@@ -53,30 +53,3 @@ export enum Loggers {
     Mail = 'MAIL',
     Process = 'PROCESS'
 }
-/**
- * Possible Entity Changelog tables
- */
-export enum EntityChangelogs {
-    Transaction = 'Transaction_Transactions',
-    User = 'User_Users',
-    Account = 'Account_Accounts',
-    AccountConnections = 'Account_Connections'
-}
-
-/**
- * What kind of method for TFA is used
- */
-export enum TfaAuthTypes {
-    'NoTfa' = null,
-    'Mail' = 1,
-    'App' = 2
-}
-/**
- * Which kind of TFA code
- */
-export enum TfaCodeTypes {
-    'Setup' = 1,
-    'Login' = 2,
-    'Backup' = 3,
-    'Disable' = 4
-}

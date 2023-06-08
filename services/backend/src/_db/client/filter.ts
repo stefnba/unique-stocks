@@ -1,6 +1,6 @@
-import { pgFormat } from './utils';
+import { pgFormat } from './utils.js';
 
-import type { FilterInput, FilterOperatorParams, FilterSet } from './types';
+import type { FilterInput, FilterOperatorParams, FilterSet } from './types.js';
 
 const columnAlias = (column: string | number | symbol, alias?: string) => {
     if (alias) {
