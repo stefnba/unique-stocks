@@ -16,9 +16,6 @@ class Logger(Generic[EventsG, ExtraG]):
     def __init__(self, name: str = "root") -> None:
         self.__logger = logging.Logger(name.upper())
 
-    def what(self, event: EventsG):
-        return 1
-
     def log(
         self,
         level: Levels = "INFO",
@@ -29,7 +26,7 @@ class Logger(Generic[EventsG, ExtraG]):
         **kwargs,
     ):
         """
-        Base method to log using self.__logger.
+        Base method to emit a log using self.__logger.
 
         Args:
             msg (str): _description_
