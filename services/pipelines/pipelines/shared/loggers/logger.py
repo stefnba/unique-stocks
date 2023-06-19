@@ -1,11 +1,13 @@
-from shared.loggers import events as Events
 from shared.loggers import types as Types
-from shared.loggers.handlers import console_handler, file_handler
+from shared.loggers import events as Events
+from shared.loggers.handlers import console_handler, file_handler, http_handler
 from shared.utils.logging import Logger
+
 
 logger = Logger[str, dict]()
 logger.add_handler(handler=console_handler)
 logger.add_handler(handler=file_handler)
+logger.add_handler(handler=http_handler)
 
 
 transform = Logger[Events.Transform, dict]("transform")
@@ -17,6 +19,7 @@ transform.add_events(Events.Transform)
 mapping = Logger[Events.Mapping, dict]("mapping")
 mapping.add_handler(handler=console_handler)
 mapping.add_handler(handler=file_handler)
+# mapping.add_handler(handler=http_handler)
 mapping.add_events(Events.Mapping)
 
 

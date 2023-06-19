@@ -1,15 +1,14 @@
 import json
 import logging
 import time
+import pydantic
 from datetime import datetime
+from typing import Optional
+
 
 BASE_FORMAT = (
     "%(asctime)s-%(levelname)s-%(extra)s-%(name)s::[%(filename)s:%(lineno)d]::%(module)s|%(lineno)s:: %(message)s"
 )
-
-from typing import Optional
-
-import pydantic
 
 
 class Log(pydantic.BaseModel):
@@ -45,6 +44,8 @@ class BaseFormatter(logging.Formatter):
 
         if log.message:
             logged_message += f' -> "{log.message}"'
+
+        print(log.event, "event")
 
         if log.event:
             logged_message += f" | event={log.event}"

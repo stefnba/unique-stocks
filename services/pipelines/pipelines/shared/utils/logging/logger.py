@@ -1,11 +1,12 @@
 import logging
-from enum import Enum, EnumMeta
-from typing import Dict, Generic, Literal, Optional, Type, TypedDict, TypeVar, Union
+import inspect
+from typing import Dict, Generic, Optional, Type, TypedDict, TypeVar, Union
+from shared.utils.logging.types import LogEventCollection
 
 from shared.utils.logging.handlers import BaseHandler, Handlers
-from shared.utils.logging.types import Levels
+from shared.utils.logging.types import Levels, BaseLogEvent, LogEvent, CustomLogEvent
 
-EventsG = TypeVar("EventsG", bound=Union[Enum, str])
+EventsG = TypeVar("EventsG", bound=Union[LogEventCollection, str])
 ExtraG = TypeVar("ExtraG", bound=Union[TypedDict, Dict])  # type: ignore
 
 
@@ -21,7 +22,7 @@ class Logger(Generic[EventsG, ExtraG]):
         level: Levels = "INFO",
         *,
         msg: Optional[str] = None,
-        event: Optional[EventsG] = None,
+        event: Optional[BaseLogEvent | Type[BaseLogEvent]] = None,
         extra: Optional[ExtraG] = None,
         **kwargs,
     ):
@@ -37,37 +38,56 @@ class Logger(Generic[EventsG, ExtraG]):
         if not isinstance(level_int, int):
             level_int = 20
 
+        event_name, event_extra = self._extract_event_info(event=event)
+
         self.__logger.log(
             level=level_int,
             msg=msg or "",
-            extra={
-                "extra": {**kwargs, **(extra or {})},
-                "event": event.name if isinstance(event, Enum) else event,
-            },
+            extra={"extra": {**kwargs, **(extra or {}), **event_extra}, "event": event_name},
         )
 
     def error(
-        self, msg: Optional[str] = None, event: Optional[EventsG] = None, extra: Optional[ExtraG] = None, **kwargs
+        self,
+        msg: Optional[str] = None,
+        event: Optional[BaseLogEvent | Type[BaseLogEvent]] = None,
+        extra: Optional[ExtraG] = None,
+        **kwargs,
     ):
         self.log(level="ERROR", msg=msg, extra=extra, event=event, **kwargs)
 
     def info(
-        self, msg: Optional[str] = None, event: Optional[EventsG] = None, extra: Optional[ExtraG] = None, **kwargs
+        self,
+        msg: Optional[str] = None,
+        event: Optional[BaseLogEvent | Type[BaseLogEvent]] = None,
+        extra: Optional[ExtraG] = None,
+        **kwargs,
     ):
         self.log(level="INFO", msg=msg, extra=extra, event=event, **kwargs)
 
     def warning(
-        self, msg: Optional[str] = None, event: Optional[EventsG] = None, extra: Optional[ExtraG] = None, **kwargs
+        self,
+        msg: Optional[str] = None,
+        event: Optional[BaseLogEvent | Type[BaseLogEvent]] = None,
+        extra: Optional[ExtraG] = None,
+        **kwargs,
     ):
         self.log(level="WARNING", msg=msg, extra=extra, event=event, **kwargs)
 
     def debug(
-        self, msg: Optional[str] = None, event: Optional[EventsG] = None, extra: Optional[ExtraG] = None, **kwargs
+        self,
+        msg: Optional[str] = None,
+        event: Optional[BaseLogEvent | Type[BaseLogEvent]] = None,
+        extra: Optional[ExtraG] = None,
+        **kwargs,
     ):
         self.log(level="DEBUG", msg=msg, extra=extra, event=event, **kwargs)
 
     def critical(
-        self, msg: Optional[str] = None, event: Optional[EventsG] = None, extra: Optional[ExtraG] = None, **kwargs
+        self,
+        msg: Optional[str] = None,
+        event: Optional[BaseLogEvent | Type[BaseLogEvent]] = None,
+        extra: Optional[ExtraG] = None,
+        **kwargs,
     ):
         self.log(level="CRITICAL", msg=msg, extra=extra, event=event, **kwargs)
 
@@ -93,4 +113,34 @@ class Logger(Generic[EventsG, ExtraG]):
         """
         Add log event enum to Logger.
         """
+
+        print("ASDFjkalsdflkj")
+
+        for key, value in events.__dict__.items():
+            if inspect.isclass(value) and issubclass(value, LogEvent):
+                setattr(events, key, value(name=key))
+
+            if isinstance(value, CustomLogEvent):
+                print("1askldf", value, value.dict())
+                # setattr(events, key, value(name=value.name))
+
         self.events = events
+
+    def _extract_event_info(self, event: Optional[BaseLogEvent | Type[BaseLogEvent]] = None) -> tuple[str | None, dict]:
+        """
+        Extract event information into event_name and event_extra dict.
+        """
+        if event is None:
+            return None, {}
+
+        print(event)
+
+        if isinstance(event, BaseLogEvent):
+            parameters = event.dict()
+            name = parameters.pop("name")
+            return name, parameters
+
+        if isinstance(event, str):
+            return event, {}
+
+        return None, {}

@@ -1,37 +1,42 @@
-from enum import Enum, auto
+from shared.utils.logging import LogEventCollection, LogEvent, CustomLogEvent
 
 
-class Transform(Enum):
-    SUCCESS = auto()
-    MULTIPLE_RECORDS = auto()
+class Transform(LogEventCollection):
+    SUCCESS = LogEvent
+    MULTIPLE_RECORDS = LogEvent
 
 
-class Database(Enum):
-    QUERY_EXECUTION = auto()
-    QUERY = auto()
-    QUERY_RESULT = auto()
+class Database(LogEventCollection):
+    QUERY_EXECUTION = LogEvent
+    QUERY = LogEvent
+    QUERY_RESULT = LogEvent
 
 
-class Mapping(Enum):
-    NO_MATCH = auto()
-    DIFFERENT_SIZE = auto()
+class MappingTest(CustomLogEvent):
+    whatever: str
 
 
-class Airflow(Enum):
-    SUCCESS = auto()
+class Mapping(LogEventCollection):
+    NO_MATCH = LogEvent
+    DIFFERENT_SIZE = LogEvent
+    WHATEVER = MappingTest
 
 
-class Api(Enum):
-    REQUEST_INIT = auto()
-    SUCCESS = auto()
-    TIMEOUT = auto()
-    ERROR = auto()
+class Airflow(LogEventCollection):
+    SUCCESS = LogEvent
 
 
-class DataLake(Enum):
-    DOWNLOAD_INIT = auto()
-    DOWNLOAD_SUCCESS = auto()
-    DOWNLOAD_ERROR = auto()
-    UPLOAD_INIT = auto()
-    UPLOAD_SUCCESS = auto()
-    UPLOAD_ERROR = auto()
+class Api(LogEventCollection):
+    REQUEST_INIT = LogEvent
+    SUCCESS = LogEvent
+    TIMEOUT = LogEvent
+    ERROR = LogEvent
+
+
+class DataLake(LogEventCollection):
+    DOWNLOAD_INIT = LogEvent
+    DOWNLOAD_SUCCESS = LogEvent
+    DOWNLOAD_ERROR = LogEvent
+    UPLOAD_INIT = LogEvent
+    UPLOAD_SUCCESS = LogEvent
+    UPLOAD_ERROR = LogEvent
