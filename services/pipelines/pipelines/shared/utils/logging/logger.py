@@ -1,95 +1,16 @@
 import logging
-import inspect
-from typing import Dict, Generic, Optional, Type, TypedDict, TypeVar, Union
-from shared.utils.logging.types import LogEventCollection
 
-from shared.utils.logging.handlers import BaseHandler, Handlers
-from shared.utils.logging.types import Levels, BaseLogEvent, LogEvent, CustomLogEvent
+from typing import Optional
 
-EventsG = TypeVar("EventsG", bound=Union[LogEventCollection, str])
-ExtraG = TypeVar("ExtraG", bound=Union[TypedDict, Dict])  # type: ignore
+from shared.utils.logging.handlers import BaseHandler, FileHandler
+from shared.utils.logging.types import LogEvent
 
 
-class Logger(Generic[EventsG, ExtraG]):
+class Logger:
     __logger: logging.Logger
-    events: Type[EventsG]
 
     def __init__(self, name: str = "root") -> None:
-        self.__logger = logging.Logger(name.upper())
-
-    def log(
-        self,
-        level: Levels = "INFO",
-        *,
-        msg: Optional[str] = None,
-        event: Optional[BaseLogEvent | Type[BaseLogEvent]] = None,
-        extra: Optional[ExtraG] = None,
-        **kwargs,
-    ):
-        """
-        Base method to emit a log using self.__logger.
-
-        Args:
-            msg (str): _description_
-            level (Levels, optional): _description_. Defaults to "INFO".
-            extra (Extra, optional): _description_. Defaults to None.
-        """
-        level_int = logging.getLevelName(level)
-        if not isinstance(level_int, int):
-            level_int = 20
-
-        event_name, event_extra = self._extract_event_info(event=event)
-
-        self.__logger.log(
-            level=level_int,
-            msg=msg or "",
-            extra={"extra": {**kwargs, **(extra or {}), **event_extra}, "event": event_name},
-        )
-
-    def error(
-        self,
-        msg: Optional[str] = None,
-        event: Optional[BaseLogEvent | Type[BaseLogEvent]] = None,
-        extra: Optional[ExtraG] = None,
-        **kwargs,
-    ):
-        self.log(level="ERROR", msg=msg, extra=extra, event=event, **kwargs)
-
-    def info(
-        self,
-        msg: Optional[str] = None,
-        event: Optional[BaseLogEvent | Type[BaseLogEvent]] = None,
-        extra: Optional[ExtraG] = None,
-        **kwargs,
-    ):
-        self.log(level="INFO", msg=msg, extra=extra, event=event, **kwargs)
-
-    def warning(
-        self,
-        msg: Optional[str] = None,
-        event: Optional[BaseLogEvent | Type[BaseLogEvent]] = None,
-        extra: Optional[ExtraG] = None,
-        **kwargs,
-    ):
-        self.log(level="WARNING", msg=msg, extra=extra, event=event, **kwargs)
-
-    def debug(
-        self,
-        msg: Optional[str] = None,
-        event: Optional[BaseLogEvent | Type[BaseLogEvent]] = None,
-        extra: Optional[ExtraG] = None,
-        **kwargs,
-    ):
-        self.log(level="DEBUG", msg=msg, extra=extra, event=event, **kwargs)
-
-    def critical(
-        self,
-        msg: Optional[str] = None,
-        event: Optional[BaseLogEvent | Type[BaseLogEvent]] = None,
-        extra: Optional[ExtraG] = None,
-        **kwargs,
-    ):
-        self.log(level="CRITICAL", msg=msg, extra=extra, event=event, **kwargs)
+        self.__logger = logging.getLogger(name.upper())
 
     def add_handler(self, handler: BaseHandler):
         """
@@ -98,49 +19,72 @@ class Logger(Generic[EventsG, ExtraG]):
         Args:
             handler (LoggingHandler):
         """
+        # handle assignment of FileHandler with respective logger name as filename
+        if isinstance(handler, FileHandler) and handler.loggername_as_filename:
+            handler.filename = self.__logger.name
+            handler.assign_handler()
 
-        if isinstance(handler, Handlers.File):
-            handler.file_name = self.__logger.name.lower()
+        _handler = handler.handler
 
-        _handler = handler.get_handler()
+        if handler.formatter:
+            _handler.setFormatter(handler.formatter)
 
-        if handler.format:
-            _handler.setFormatter(handler.format)
+        self.__logger.addHandler(handler.handler)
 
-        self.__logger.addHandler(_handler)
-
-    def add_events(self, events: Type[EventsG]):
+    def _log(
+        self,
+        level: int,
+        msg=None,
+        extra: Optional[dict] = None,
+        event: Optional[str | LogEvent] = None,
+        **kwargs,
+    ):
         """
-        Add log event enum to Logger.
+        Base method to emit a log using self.__logger.
         """
 
-        print("ASDFjkalsdflkj")
+        extra = {**kwargs, **(extra or {})}
 
-        for key, value in events.__dict__.items():
-            if inspect.isclass(value) and issubclass(value, LogEvent):
-                setattr(events, key, value(name=key))
+        # unpack a LogEvent
+        if isinstance(event, LogEvent):
+            event_extra = event.dict()
+            event = event_extra.pop("name")
 
-            if isinstance(value, CustomLogEvent):
-                print("1askldf", value, value.dict())
-                # setattr(events, key, value(name=value.name))
+            extra = {**extra, **event_extra}
 
-        self.events = events
+        self.__logger.log(
+            level=level,
+            msg=msg,
+            extra={"extra": extra, "event": event},
+            stacklevel=3,
+        )
 
-    def _extract_event_info(self, event: Optional[BaseLogEvent | Type[BaseLogEvent]] = None) -> tuple[str | None, dict]:
+    def critical(self, msg=None, event: Optional[str | LogEvent] = None, extra: Optional[dict] = None, **kwargs):
         """
-        Extract event information into event_name and event_extra dict.
+        Wrapper for logging a critical event.
         """
-        if event is None:
-            return None, {}
+        self._log(level=50, msg=msg, extra=extra, event=event, **kwargs)
 
-        print(event)
+    def error(self, msg=None, event: Optional[str | LogEvent] = None, extra: Optional[dict] = None, **kwargs):
+        """
+        Wrapper for logging an error.
+        """
+        self._log(level=40, msg=msg, extra=extra, event=event, **kwargs)
 
-        if isinstance(event, BaseLogEvent):
-            parameters = event.dict()
-            name = parameters.pop("name")
-            return name, parameters
+    def warn(self, msg=None, event: Optional[str | LogEvent] = None, extra: Optional[dict] = None, **kwargs):
+        """
+        Wrapper for logging a warning.
+        """
+        self._log(level=30, msg=msg, extra=extra, event=event, **kwargs)
 
-        if isinstance(event, str):
-            return event, {}
+    def info(self, msg=None, event: Optional[str | LogEvent] = None, extra: Optional[dict] = None, **kwargs):
+        """
+        Wrapper for logging an info event.
+        """
+        self._log(level=20, msg=msg, extra=extra, event=event, **kwargs)
 
-        return None, {}
+    def debug(self, msg=None, event: Optional[str | LogEvent] = None, extra: Optional[dict] = None, **kwargs):
+        """
+        Wrapper for logging a debug event.
+        """
+        self._log(level=10, msg=msg, extra=extra, event=event, **kwargs)

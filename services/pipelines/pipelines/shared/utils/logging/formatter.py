@@ -1,63 +1,63 @@
-import json
 import logging
-import time
-import pydantic
-from datetime import datetime
-from typing import Optional
+from logging import LogRecord
+import json
+from string import Template
 
+FORMAT = '${time} ${name}:${levelname} :: "${msg}" :: {event}\n\t ${extra}'
 
-BASE_FORMAT = (
-    "%(asctime)s-%(levelname)s-%(extra)s-%(name)s::[%(filename)s:%(lineno)d]::%(module)s|%(lineno)s:: %(message)s"
-)
-
-
-class Log(pydantic.BaseModel):
-    message: str
-    logger: str
-    level: str
-    timestamp: float
-    extra: Optional[dict | list]
-    event: Optional[str]
-    created: datetime
+LOG_RECORD_KEYS = [
+    "name",
+    "msg",
+    "levelname",
+    "event",
+    "pathname",
+    "filename",
+    "module",
+    "lineno",
+    "funcName",
+    "created",
+    "extra",
+]
 
 
 class BaseFormatter(logging.Formatter):
-    converter = time.gmtime
+    def __init__(
+        self,
+    ) -> None:
+        super().__init__()
 
-    def get_record_model(self, record: logging.LogRecord) -> Log:
-        message = record.msg
-        logger = record.name
-        level = record.levelname
-        timestamp = record.created
-        extra = record.__dict__.get("extra", {})
-        event = record.__dict__.get("event", None)
-        created = record.__dict__.get("asctime", datetime.utcnow())
+    def template(self, text=FORMAT, *, record: dict) -> str:
+        """_summary_
 
-        return Log(
-            created=created, message=message, logger=logger, level=level, timestamp=timestamp, extra=extra, event=event
-        )
+        Args:
+            text (_type_, optional): _description_. Defaults to FORMAT.
+            record (dict, optional): _description_. Defaults to {}.
 
-    def format(self, record: logging.LogRecord):
-        log = self.get_record_model(record)
+        Returns:
+            str: _description_
+        """
+        template = Template(text)
+        return template.safe_substitute(record)
 
-        logged_message = f"{log.created} | {log.level} @ {log.logger} Logger"
+    def transform_record(self, record: LogRecord) -> dict:
+        """
+        Makes necessary transformation to log record.
+        """
+        # exclude fields not relevant
 
-        if log.message:
-            logged_message += f' -> "{log.message}"'
+        return {**{key: record.__dict__[key] for key in LOG_RECORD_KEYS}, "time": self.formatTime(record)}
 
-        print(log.event, "event")
-
-        if log.event:
-            logged_message += f" | event={log.event}"
-
-        if log.extra:
-            logged_message += f" | extra={log.extra}"
-
-        return logged_message
+    def format(self, record: LogRecord) -> str:
+        # print(super().format(record))
+        # print(self.formatTime(record))
+        _record = self.transform_record(record)
+        return self.template(record=_record)
 
 
-class JSONFormatter(BaseFormatter):
-    def format(self, record: logging.LogRecord):
-        log = self.get_record_model(record)
+class TextFormatter(BaseFormatter):
+    pass
 
-        return json.dumps({"timestamp": log.timestamp, "event": log.event, "extra": log.extra, "level": log.level})
+
+class JsonFormatter(BaseFormatter):
+    def format(self, record: LogRecord) -> str:
+        return json.dumps(self.transform_record(record), default=str)

@@ -1,5 +1,5 @@
-from shared.utils.logging import Handlers
+from shared.utils.logging.handlers import FileHandler, ConsoleHandler, HttpHandler
 
-console_handler = Handlers.Console()
-file_handler = Handlers.File(file_path="./logs/")
-http_handler = Handlers.Http()
+console_handler = ConsoleHandler()
+file_handler = FileHandler(path="./logs/")
+http_handler = HttpHandler()
