@@ -47,3 +47,9 @@ class AppConfig(EnvBaseConfig):
     """
 
     env: EnvironmentTypes = Field(env="ENV", default="Development")
+
+
+class LoggingConfig(EnvBaseConfig):
+    host: str = Field(env="LOGGING_REMOTE_HOST", default="http://localhost")
+    port: int = Field(env="LOGGING_REMOTE_PORT", default=8112)
+    endpoint: str = Field(env="LOGGING_REMOTE_ENDPOINT", default="/log/add")

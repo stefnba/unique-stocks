@@ -5,7 +5,7 @@ https://rednafi.github.io/digressions/python/2020/06/03/python-configs.html
 
 from pydantic import BaseModel
 from shared.config.api_keys import ApiKeys
-from shared.config.app import AppConfig, DataConfig
+from shared.config.app import AppConfig, DataConfig, LoggingConfig
 from shared.config.azure import AzureConfig
 from shared.config.data_lake import DataLakeConfig
 
@@ -20,6 +20,7 @@ class GlobalConfig(BaseModel):
     azure = AzureConfig()
     data_lake = DataLakeConfig()
     data = DataConfig()
+    logging = LoggingConfig()
 
 
 CONFIG = GlobalConfig()
