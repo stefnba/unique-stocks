@@ -8,4 +8,4 @@ from shared.utils.path.data_lake.file_path import DataLakeFilePathModel
 DataInput = pl.DataFrame | pd.DataFrame | str | duckdb.DuckDBPyRelation | dict[Any, Any] | list
 Path = str | DataLakeFilePathModel
 
-DataFormat = Literal["json", "parquet", "csv"]
+DataFormat = Literal["json", "parquet", "csv", "zip"]
