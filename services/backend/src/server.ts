@@ -8,13 +8,11 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 
 import config from '@config';
-import router from './router.js';
-
+import router from '@router';
 import {
     // morganMiddleware,
     ignoreFaviconMiddleware,
-    correlationId,
-    userAgent
+    correlationId
 } from '@middleware';
 
 // App setup =============================

@@ -16,10 +16,17 @@
         "baseUrl": "src",
         "paths": {
             "@root/*": ["./*"],
-            "@db/*": ["_db/*"],
-            "@config": ["_app/config.js"],
-            "@utils/*": ["_utils/*"],
-            "@middleware": ["_middleware/index.js"]
+            "@app/*": ["./app/*"],
+            "@db/query": ["db/query.js"],
+            "@db": ["db/index.js"],
+            "@config": ["app/config/config.js"],
+            "@sharedUtils/*": ["shared/utils/*"],
+            "@lib/*": ["shared/lib/*"],
+            "@middleware": ["middleware/index.js"],
+            "@controller/*": ["./controller/*"],
+            "@service/*": ["./service/*"],
+            "@router": ["./router/index.js"],
+            "@routes/*": ["./router/*"]
         }
     },
     "exclude": ["testing", "dist"],
