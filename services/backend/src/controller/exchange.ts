@@ -7,6 +7,6 @@ type FindOneRequestArgs = {
 
 export const findAll = controllerHandler(() => logService.findAll());
 
-export const findOne = controllerHandler<FindOneRequestArgs>((_, { params }) =>
+export const findOne = controllerHandler<FindOneRequestArgs>(({ params }) =>
     logService.findOne(params.id)
 );

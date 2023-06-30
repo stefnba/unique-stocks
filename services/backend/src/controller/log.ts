@@ -14,16 +14,15 @@ type GetDistinctFieldChoicesRequestArgs = {
     query: object;
 };
 
-export const findAll = controllerHandler<FindAllRequestArgs>((_, { query }) =>
+export const findAll = controllerHandler<FindAllRequestArgs>(({ query }) =>
     logService.findAll(query)
 );
 
-export const findOne = controllerHandler<FindOneRequestArgs>((_, { params }) =>
+export const findOne = controllerHandler<FindOneRequestArgs>(({ params }) =>
     logService.findOne(params.id)
 );
 
 export const getFieldChoices =
-    controllerHandler<GetDistinctFieldChoicesRequestArgs>(
-        (_, { params, query }) =>
-            logService.getFieldChoices(params.field, query)
+    controllerHandler<GetDistinctFieldChoicesRequestArgs>(({ params, query }) =>
+        logService.getFieldChoices(params.field, query)
     );

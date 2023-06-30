@@ -21,7 +21,8 @@ const controllerHandler =
     async (req: Request, res: Response, next: NextFunction) => {
         const user = req.user;
 
-        return controllerFunc(user, {
+        return controllerFunc({
+            user,
             body: req.body,
             params: req.params,
             query: queryString.parse(req.url.split('?')[1], {

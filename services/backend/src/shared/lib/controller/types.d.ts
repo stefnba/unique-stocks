@@ -13,6 +13,7 @@ export type RequestArgsBase = {
 type ControllerHandlerFunc<
     RequestArgs extends RequestArgsBase = RequestArgsBase
 > = (
-    user?: string,
-    requestArgs?: Pick<RequestArgs, 'body' | 'query' | 'params'>
+    requestArgs?: Pick<RequestArgs, 'body' | 'query' | 'params'> & {
+        user: string;
+    }
 ) => Promise<unknown>;
