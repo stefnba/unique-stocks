@@ -5,37 +5,50 @@ version: '3.8'
 
 services:
     app:
+        container_name: unique-stocks-log
         env_file:
             - .env
         environment:
-            - DB_HOST=mongodb # necessary to change since communication through container networks
+            MONGO_HOST: mongodb # necessary to change since communication through container networks
         depends_on:
             - mongodb
         restart: always
+        networks:
+            - unique-stocks-network
+            - default
+
     mongodb:
         image: mongo:latest
         restart: always
         environment:
-            MONGO_INITDB_ROOT_USERNAME: root
-            MONGO_INITDB_ROOT_PASSWORD: example
+            MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+            MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
         ports:
-            - 27017:27017
-        # volumes:
-        #     - mongodb_data_container:/data/db
+            - ${MONGO_PORT}:${MONGO_PORT}
+        volumes:
+            - mongodb_data:/data/db
+        
     mongo-express:
         image: mongo-express
         ports:
             - 8099:8081
         depends_on:
             - mongodb
+        restart: always
         environment:
             ME_CONFIG_BASICAUTH_USERNAME: express
             ME_CONFIG_BASICAUTH_PASSWORD: 123456
-            ME_CONFIG_MONGODB_ADMINUSERNAME: root
-            ME_CONFIG_MONGODB_ADMINPASSWORD: example
-            ME_CONFIG_MONGODB_URL: mongodb://root:example@mongodb:27017
-        links:
-            - mongodb
+            ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGO_USER}
+            ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGO_PASSWORD}
+            ME_CONFIG_MONGODB_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongodb:${MONGO_PORT}
+        # links:
+            # - mongodb
 
 volumes:
-    mongodb_data_container:
+    mongodb_data:
+
+
+networks:
+    unique-stocks-network:
+        name: unique-stocks-network
+        external: true

@@ -16,7 +16,8 @@
         "paths": {
             "@root/*": ["./*"],
             "@db/*": ["_db/*"],
-            "@config": ["_app/config.js"]
+            "@config": ["app/config/config.js"],
+            "@router": ["router/index.js"]
         }
     },
     "exclude": ["testing", "dist"],
