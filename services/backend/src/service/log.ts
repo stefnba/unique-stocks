@@ -1,6 +1,6 @@
 import { LogDbQuery } from '@db/query';
 
-const buildOrFilter = (filter: object, field?: string) => {
+const buildFilter = (filter: object, field?: string) => {
     // remove current field to show all options
     if (field && field in filter) {
         delete filter[field];
@@ -19,6 +19,26 @@ const buildOrFilter = (filter: object, field?: string) => {
                 };
             }
 
+            if (field === 'fromTs') {
+                return {
+                    ...accumulator,
+                    created: {
+                        ...accumulator['created'],
+                        $gte: new Date(filterValue)
+                    }
+                };
+            }
+
+            if (field === 'untilTs') {
+                return {
+                    ...accumulator,
+                    created: {
+                        ...accumulator['created'],
+                        $lte: new Date(filterValue)
+                    }
+                };
+            }
+
             return {
                 ...accumulator,
                 [field]: filterValue
@@ -33,11 +53,10 @@ export const findAll = async (filter: {
     pageSize?: string;
     [key: string]: unknown;
 }) => {
-    console.log(filter);
     const { page = '1', pageSize = '25', ...filters } = filter;
 
     return LogDbQuery.findAll(
-        buildOrFilter(filters),
+        buildFilter(filters),
         parseInt(page),
         parseInt(pageSize)
     );
@@ -48,7 +67,7 @@ export const findOne = async (id: string) => {
 };
 
 export const getCount = async (filter: object) => {
-    const count = await LogDbQuery.getCount(filter);
+    const count = await LogDbQuery.getCount(buildFilter(filter));
     return { count };
 };
 
@@ -57,7 +76,7 @@ export const getFieldChoices = async (field: string, filter: object) => {
         field,
         choices: await LogDbQuery.getFieldChoices(
             field,
-            buildOrFilter(filter, field)
+            buildFilter(filter, field)
         )
     };
 };
