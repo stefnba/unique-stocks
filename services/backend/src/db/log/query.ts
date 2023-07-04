@@ -6,7 +6,7 @@ export default {
     findAll: (filter: object, page: number, pageSize: number) =>
         dbLogs
             .find(filter)
-            .sort({ loggedAt: -1 })
+            .sort({ created: -1 })
             .skip((page - 1) * pageSize)
             .limit(pageSize)
             .toArray(),
