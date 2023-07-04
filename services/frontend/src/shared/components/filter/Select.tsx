@@ -16,9 +16,9 @@ const mapChoicesToItems = (
         label: (
             <Checkbox
                 checked={appliedChoices ? appliedChoices.includes(key) : false}
-                value="A"
+                value={key}
             >
-                {key}
+                {key || 'None'}
             </Checkbox>
         )
     }));
@@ -27,17 +27,14 @@ const mapChoicesToItems = (
 const buildFilter = (
     field: string,
     choice: string | number,
-    applied: { [key: string]: any }
+    applied: { [key: string]: string | unknown[] }
 ) => {
-    const appliedChoices = applied[field] || [];
+    let appliedChoices = applied[field] || [];
 
-    // if (appliedChoices === undefined)
-    //     return {
-    //         ...applied,
-    //         [field]: [choice]
-    //     };
-
-    if (!Array.isArray(appliedChoices)) return applied;
+    // filter value is string
+    if (!Array.isArray(appliedChoices)) {
+        appliedChoices = [appliedChoices];
+    }
 
     // remove choice from applied filters
     if (appliedChoices.includes(choice)) {
@@ -61,6 +58,7 @@ interface IProps {
 
 export default function SelectFilter({ field, label }: IProps) {
     const { applied } = useAppSelector((state) => state.log.filtering);
+
     const dispatch = useAppDispatch();
 
     const { data } = logApi.useGetFilterChoicesQuery({
@@ -68,9 +66,13 @@ export default function SelectFilter({ field, label }: IProps) {
         filter: applied
     });
 
-    const onClick: MenuProps['onClick'] = ({ key, domEvent }) => {
+    const onClick: MenuProps['onClick'] = ({ key, domEvent, keyPath }) => {
         domEvent.preventDefault();
-        dispatch(actions.applyFilter(buildFilter(field, key, applied)));
+        dispatch(
+            actions.applyFilter(
+                buildFilter(field, key === 'tmp-0' ? null : key, applied)
+            )
+        );
     };
 
     const fieldIsApplied =

@@ -12,8 +12,9 @@ export default function PrivateLayout() {
     } = theme.useToken();
 
     return (
-        <Layout style={{ height: '100vh' }}>
+        <Layout>
             <Sider
+                theme="light"
                 breakpoint="lg"
                 collapsedWidth="0"
                 onBreakpoint={(broken) => {
@@ -22,15 +23,34 @@ export default function PrivateLayout() {
                 onCollapse={(collapsed, type) => {
                     console.log(collapsed, type);
                 }}
+                style={{
+                    overflow: 'auto',
+                    height: '100vh',
+                    position: 'fixed',
+                    left: 0,
+                    top: 0,
+                    bottom: 0
+                }}
             >
                 <div
-                    style={{ margin: '24px 16px 0' }}
+                    style={{ margin: '48px 16px 0', backgroundImage: './' }}
                     className="demo-logo-vertical"
                 />
                 <SiderNavigation />
             </Sider>
-            <Layout>
-                <Header style={{ padding: 0, background: colorBgContainer }} />
+            <Layout style={{ marginLeft: 200 }}>
+                <Header
+                    style={{
+                        background: colorBgContainer,
+                        padding: 0,
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 1,
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center'
+                    }}
+                />
                 <Content style={{ margin: '24px 16px 0' }}>
                     <div
                         style={{
@@ -43,7 +63,8 @@ export default function PrivateLayout() {
                     </div>
                 </Content>
                 <Footer style={{ textAlign: 'center' }}>
-                    Ant Design ©2023 Created by Ant UED
+                    Unique Stocks ©2023 Created by Stefan Bauer and Iraklis
+                    Kordomatis
                 </Footer>
             </Layout>
         </Layout>

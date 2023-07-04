@@ -5,6 +5,7 @@ const router = Router();
 
 // public routes
 router.get('/', controller.findAll);
+router.get('/count', controller.getCount);
 router.get('/:field/choices', controller.getFieldChoices);
 router.get('/:id', controller.findOne);
 

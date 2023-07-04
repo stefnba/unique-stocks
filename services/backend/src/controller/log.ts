@@ -6,7 +6,7 @@ type FindOneRequestArgs = {
 };
 
 type FindAllRequestArgs = {
-    query: object;
+    query: { page?: string; pageSize?: string; [key: string]: unknown };
 };
 
 type GetDistinctFieldChoicesRequestArgs = {
@@ -16,6 +16,10 @@ type GetDistinctFieldChoicesRequestArgs = {
 
 export const findAll = controllerHandler<FindAllRequestArgs>(({ query }) =>
     logService.findAll(query)
+);
+
+export const getCount = controllerHandler<FindAllRequestArgs>(({ query }) =>
+    logService.getCount(query)
 );
 
 export const findOne = controllerHandler<FindOneRequestArgs>(({ params }) =>

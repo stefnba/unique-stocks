@@ -64,7 +64,7 @@ const items: MenuProps['items'] = [
 export default function SiderNavigation() {
     return (
         <Menu
-            theme="dark"
+            // theme="dark"
             items={items}
             mode="inline"
             defaultSelectedKeys={['4']}
