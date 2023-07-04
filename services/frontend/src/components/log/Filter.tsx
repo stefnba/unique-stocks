@@ -1,11 +1,12 @@
 import { useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Button, Col, Divider, Row } from 'antd';
+import { Button, Col, Divider, Row, Space } from 'antd';
 import queryString from 'query-string';
 
 import { useAppSelector, useAppDispatch } from '@redux';
 import { actions } from '@features/log/slice';
 import SelectFilter from '../../shared/components/filter/Select';
+import DateFilter from '../../shared/components/filter/Date';
 
 const style: React.CSSProperties = { background: '#0092ff', padding: '8px 0' };
 
@@ -44,7 +45,9 @@ export default function LogFilter() {
     // ;
 
     return (
-        <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
+        // <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
+        <Space style={{ marginBottom: 24 }}>
+            <DateFilter field="created" label="Timestamp" />
             <SelectFilter field="service" label="Service" />
             <SelectFilter field={'name'} label="Logger" />
             <SelectFilter field={'levelname'} label="Level" />
@@ -55,6 +58,7 @@ export default function LogFilter() {
             <Button type="text" onClick={reset}>
                 Reset
             </Button>
-        </div>
+        </Space>
+        // </div>
     );
 }

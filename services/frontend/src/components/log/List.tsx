@@ -19,7 +19,7 @@ export default function LogList() {
     const dispatch = useAppDispatch();
 
     // api
-    const { data, error, isLoading } = logApi.useGetAllQuery({
+    const { data, isLoading } = logApi.useGetAllQuery({
         ...filtering.applied,
         ...pagination
     });
@@ -43,7 +43,7 @@ export default function LogList() {
                     onChange: changePagination,
                     total: count?.count || 0,
                     showTotal: (total, range) =>
-                        `${range[0]}-${range[1]} of ${total} items`,
+                        `${range[0].toLocaleString()}-${range[1].toLocaleString()} of ${total.toLocaleString()} items`,
                     pageSize: pagination.pageSize,
                     current: pagination.page
                 }}
