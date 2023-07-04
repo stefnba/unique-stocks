@@ -10,7 +10,7 @@ class Logger:
     __logger: logging.Logger
 
     def __init__(self, name: str = "root") -> None:
-        self.__logger = logging.getLogger(name.upper())
+        self.__logger = logging.Logger(name.upper())
 
     def add_handler(self, handler: BaseHandler):
         """

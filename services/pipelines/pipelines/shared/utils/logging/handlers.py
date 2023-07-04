@@ -34,9 +34,17 @@ class CustomHttp(logging.Handler):
         super().__init__()
 
     def emit(self, record: LogRecord) -> None:
+        # add service
+        record.service = "PIPELINES"
+
         json_record = self.format(record)
 
-        self.session.post(self.url, data=json_record)
+        try:
+            self.session.post(self.url, data=json_record, timeout=0.000000001)
+        except requests.Timeout:
+            pass
+        except Exception as error:
+            print("Log HTTP handler not working", error)
 
 
 class BaseHandler:
@@ -45,7 +53,6 @@ class BaseHandler:
 
     def __init__(self, formatter: Optional[BaseFormatter] = None) -> None:
         if formatter:
-            print(12, formatter)
             self.formatter = formatter
 
 
