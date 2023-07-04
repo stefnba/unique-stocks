@@ -8,15 +8,20 @@ export const findAll = async () => {
     return collections.log.findMany();
 };
 
-export const addOne = async (data: any) => {
-    // body['loggedAt'] = new Date(created * 1000);
+/**
+ * Add a log record to db.
+ * @param data log record
+ * @returns
+ */
+export const addOne = async (data: Record<string, any>) => {
+    data['created'] = new Date(data['created'] * 1000);
 
     populateRequiredFields(['event', 'message'], data);
     capitalizeKeyFields(['service', 'level'], data);
 
     console.log(data);
-    const logRecord = await collections.log.addOne(data);
 
+    const logRecord = await collections.log.addOne(data);
     return logRecord;
 };
 
