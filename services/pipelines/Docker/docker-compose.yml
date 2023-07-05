@@ -17,6 +17,7 @@ x-airflow-common: &airflow-common
         AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
         AIRFLOW__CORE__EXECUTOR: LocalExecutor
         AIRFLOW__LOGGING__LOGGING_CONFIG_CLASS: log_config.LOGGING_CONFIG
+        LOGGING_REMOTE_HOST: http://unique-stocks-log
     user: '${AIRFLOW_UID:-50000}:0'
     volumes:
         - ${AIRFLOW_PROJ_DIR:-./pipelines}/dags:${AIRFLOW_HOME:-/app/airflow}/dags
