@@ -55,49 +55,109 @@ def manage_one_exchange(exchange_code: str):
         )
 
     @task
+    def map_figi(file_path: str):
+        from dags.security.eod_historical_data.jobs import map_figi
+        from dags.security.path import SecurityPath
+        from shared.hooks.data_lake import data_lake_hooks
+
+        return data_lake_hooks.checkout(
+            checkout_path=file_path, func=lambda data: map_figi(data), commit_path=SecurityPath.temp()
+        )
+
+    @task
     def extract_security(file_path: str):
         from dags.security.eod_historical_data.jobs import extract_security
         from shared.hooks.data_lake import data_lake_hooks
+        from dags.security.path import SecurityPath
+
+        return data_lake_hooks.checkout(
+            checkout_path=file_path, func=lambda data: extract_security(data), commit_path=SecurityPath.temp()
+        )
+
+    @task
+    def load_security():
+        from dags.security.eod_historical_data.jobs import load_security_into_database
+        from shared.hooks.data_lake import data_lake_hooks
+        from shared.utils.dag.xcom import get_xcom_value
+
+        file_path = get_xcom_value(task_id="manage_one_exchange.extract_security", return_type=str)
+
+        print(111, file_path)
 
         data_lake_hooks.checkout(
             checkout_path=file_path,
-            func=lambda data: extract_security(data),
+            func=lambda data: load_security_into_database(data),
         )
 
     @task
     def extract_security_ticker(file_path: str):
         from dags.security.eod_historical_data.jobs import extract_security_ticker
         from shared.hooks.data_lake import data_lake_hooks
+        from dags.security.path import SecurityPath
+
+        return data_lake_hooks.checkout(
+            checkout_path=file_path, func=lambda data: extract_security_ticker(data), commit_path=SecurityPath.temp()
+        )
+
+    @task
+    def load_security_ticker():
+        from dags.security.eod_historical_data.jobs import load_security_ticker_into_database
+        from shared.hooks.data_lake import data_lake_hooks
+        from shared.utils.dag.xcom import get_xcom_value
+
+        file_path = get_xcom_value(task_id="manage_one_exchange.extract_security_ticker", return_type=str)
 
         data_lake_hooks.checkout(
             checkout_path=file_path,
-            func=lambda data: extract_security_ticker(data),
+            func=lambda data: load_security_ticker_into_database(data),
         )
 
     @task
     def extract_security_listing(file_path: str):
         from dags.security.eod_historical_data.jobs import extract_security_listing
         from shared.hooks.data_lake import data_lake_hooks
+        from dags.security.path import SecurityPath
+
+        return data_lake_hooks.checkout(
+            checkout_path=file_path, func=lambda data: extract_security_listing(data), commit_path=SecurityPath.temp()
+        )
+
+    @task
+    def load_security_listing():
+        from dags.security.eod_historical_data.jobs import load_security_listing_into_database
+        from shared.hooks.data_lake import data_lake_hooks
+        from shared.utils.dag.xcom import get_xcom_value
+
+        file_path = get_xcom_value(task_id="manage_one_exchange.extract_security_listing", return_type=str)
 
         data_lake_hooks.checkout(
             checkout_path=file_path,
-            func=lambda data: extract_security_listing(data),
+            func=lambda data: load_security_listing_into_database(data),
         )
 
     ingest_task = ingest(exchange_code)
     transform_task = transform(ingest_task)
+    map_figi_task = map_figi(transform_task)
 
-    extract_security(transform_task)
-    extract_security_ticker(transform_task)
-    extract_security_listing(transform_task)
+    extract_security_task = extract_security(map_figi_task)
+    extract_security_ticker_task = extract_security_ticker(map_figi_task)
+    extract_security_listing_task = extract_security_listing(map_figi_task)
+
+    load_security_task = load_security()
+    load_security_ticker_task = load_security_ticker()
+    load_security_listing_task = load_security_listing()
+
+    (
+        map_figi_task
+        >> [extract_security_task, extract_security_ticker_task, extract_security_listing_task]
+        >> load_security_task
+        >> load_security_ticker_task
+        >> load_security_listing_task
+    )
 
 
 with DAG(
-    dag_id="security",
-    schedule=None,
-    start_date=datetime(2023, 1, 1),
-    catchup=False,
-    tags=["security"],
+    dag_id="security", schedule=None, start_date=datetime(2023, 1, 1), catchup=False, tags=["security"], concurrency=3
 ) as dag:
     extract_exchange_codes_task = extract_exchange_codes()
     manage_one_exchange.expand(exchange_code=extract_exchange_codes_task)

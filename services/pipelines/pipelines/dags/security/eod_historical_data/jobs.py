@@ -2,9 +2,20 @@ import polars as pl
 from shared.clients.api.eod.client import EodHistoricalDataApiClient
 
 ASSET_SOURCE = EodHistoricalDataApiClient.client_key
+from shared.loggers import logger, events as logger_events
 
 
 def extract():
+    """
+    Extracts and provides exchanges codes from database.
+    """
+    JOB_NAME = "ExtractEodExchangeCodes"
+
+    logger.job.info(event=logger_events.job.Init(job=JOB_NAME))
+
+    # todo extract
+
+    logger.job.info(event=logger_events.job.Success(job=JOB_NAME))
     return ["OTCQX", "NASDAQ", "XETRA", "SW", "NYSE"]
 
 
@@ -12,9 +23,18 @@ def ingest(exchange_code: str):
     """
     Retrieves listed securities for a given exchange code.
     """
-    from shared.clients.api.eod.client import EodHistoricalDataApiClient
+    JOB_NAME = "IngestEodSecurityForExchange"
 
-    return EodHistoricalDataApiClient.get_securities_listed_at_exchange(exhange_code=exchange_code)
+    logger.job.info(event=logger_events.job.Init(job=JOB_NAME), extra={"exchange_code": exchange_code})
+
+    securities = EodHistoricalDataApiClient.get_securities_listed_at_exchange(exhange_code=exchange_code)
+
+    logger.job.info(
+        event=logger_events.job.Init(job=JOB_NAME),
+        extra={"exchange_code": exchange_code, "securities_count": len(securities)},
+    )
+
+    return securities
 
 
 def transform(data: pl.DataFrame):
@@ -24,10 +44,12 @@ def transform(data: pl.DataFrame):
     - Map exchange_uid
     """
 
-    import polars as pl
+    JOB_NAME = "TransformEodSecurity"
+
+    logger.job.info(event=logger_events.job.Init(job=JOB_NAME))
+
     from shared.clients.db.postgres.repositories import DbQueryRepositories
     from shared.clients.duck.client import duck
-    from shared.loggers import logger
 
     # some exchange like CC or MONEY don't have ISIN column, so needs to be added
     if "ISIN" not in data.columns:
@@ -49,27 +71,48 @@ def transform(data: pl.DataFrame):
     exchange_uids = list(data["exchange_uid"].unique())
 
     if len(exchange_uids) > 1:
-        logger.transform.warning(
+        logger.transform.warn(
             "Multiple exchanges detected",
-            event=logger.transform.events.MULTIPLE_RECORDS,
+            event=logger_events.transform.MultipleRecords(),
             extra={"exchanges": exchange_uids},
         )
 
-    logger.transform.info(event=logger.transform.events.SUCCESS)
+    # check if security is missing mapped security_type_id
+    missing_security_type = data.filter(pl.col("security_type_id").is_null())
+    if len(missing_security_type) > 0:
+        logger.transform.error(
+            event=logger_events.transform.MissingValue(job=JOB_NAME, data=missing_security_type.to_dicts())
+        )
 
-    return map_figi(data)
+        # raise MissingSecurityTypeException(
+        #     f'Missing security type mapping "{missing_security_type["security_type"].to_list()}" for record: {missing_security_type.to_dicts()}'
+        # )
+
+    # success
+    logger.job.info(event=logger_events.job.Success(job=JOB_NAME))
+
+    return data.filter(pl.col("security_type_id").is_not_null())
 
 
 def map_figi(data: pl.DataFrame):
-    """map figi to securities"""
+    """
+    Map figi to securities.
+    """
+
+    JOB_NAME = "MapFigiToEodSecurity"
+    logger.job.info(event=logger_events.job.Init(job=JOB_NAME))
+
     from dags.security.open_figi.jobs import map_figi_to_securities
 
-    return map_figi_to_securities(data)
+    mapped = map_figi_to_securities(data)
+    logger.job.info(event=logger_events.job.Success(job=JOB_NAME))
+
+    return mapped
 
 
 def extract_security(security: pl.DataFrame):
     """
-    Extract unique securities from mapping results and save records to database.
+    Extract unique securities from mapping results.
 
 
     Unique securities have
@@ -82,8 +125,13 @@ def extract_security(security: pl.DataFrame):
 
 
     """
-    from shared.clients.db.postgres.repositories import DbQueryRepositories
+
+    JOB_NAME = "ExtractEodSecurity"
+    logger.job.info(event=logger_events.job.Init(job=JOB_NAME))
+
     from shared.jobs.surrogate_keys.jobs import map_surrogate_keys
+
+    # from shared.clients.db.postgres.repositories import DbQueryRepositories
 
     # since some securities don't have share class figi, we must replace those null with composite figi
     security = security.with_columns(
@@ -98,16 +146,65 @@ def extract_security(security: pl.DataFrame):
     # security id based on figi, either share class or composite
     security = map_surrogate_keys(data=security, product="security", uid_col_name="security_uid")
 
-    # save to db
-    DbQueryRepositories.security.add(security)
+    logger.job.info(event=logger_events.job.Success(job=JOB_NAME))
 
     return security
 
 
+def load_security_into_database(security: pl.DataFrame):
+    """
+    Add security records to database.
+    """
+    JOB_NAME = "LoadEodSecurityIntoDatabase"
+    logger.job.info(event=logger_events.job.Init(job=JOB_NAME))
+
+    from shared.clients.db.postgres.repositories import DbQueryRepositories
+
+    added = DbQueryRepositories.security.add(security)
+
+    logger.job.info(event=logger_events.job.Success(job=JOB_NAME))
+
+    return added
+
+
+def load_security_ticker_into_database(security: pl.DataFrame):
+    """
+    Add security ticker records to database.
+    """
+    JOB_NAME = "LoadEodSecurityTickerIntoDatabase"
+    logger.job.info(event=logger_events.job.Init(job=JOB_NAME))
+
+    from shared.clients.db.postgres.repositories import DbQueryRepositories
+
+    added = DbQueryRepositories.security_ticker.add(security)
+
+    logger.job.info(event=logger_events.job.Success(job=JOB_NAME))
+
+    return added
+
+
+def load_security_listing_into_database(security: pl.DataFrame):
+    """
+    Add security listing records to database.
+    """
+    JOB_NAME = "LoadEodSecurityListingIntoDatabase"
+    logger.job.info(event=logger_events.job.Init(job=JOB_NAME))
+
+    from shared.clients.db.postgres.repositories import DbQueryRepositories
+
+    added = DbQueryRepositories.security_listing.add(security)
+
+    logger.job.info(event=logger_events.job.Success(job=JOB_NAME))
+
+    return added
+
+
 def extract_security_ticker(security_ticker: pl.DataFrame):
     """
-    Extract unique security tickers from mapping results and save records to database.
+    Extract unique security tickers from mapping results.
     """
+    JOB_NAME = "ExtractEodSecurityTicker"
+
     from shared.clients.db.postgres.repositories import DbQueryRepositories
     from shared.jobs.surrogate_keys.jobs import map_surrogate_keys
 
@@ -131,8 +228,7 @@ def extract_security_ticker(security_ticker: pl.DataFrame):
         data=security_ticker, product="security_ticker", uid_col_name="ticker_figi", id_col_name="id"
     )
 
-    # save to db
-    DbQueryRepositories.security_ticker.add(security_ticker)
+    logger.job.info(event=logger_events.job.Success(job=JOB_NAME))
 
     return security_ticker
 
@@ -143,6 +239,9 @@ def extract_security_listing(security_listing: pl.DataFrame):
 
     Security listings have relationship to an exchange.
     """
+    JOB_NAME = "ExtractEodSecurityListing"
+    logger.job.info(event=logger_events.job.Init(job=JOB_NAME))
+
     from shared.clients.db.postgres.repositories import DbQueryRepositories
     from shared.jobs.surrogate_keys.jobs import map_surrogate_keys
 
@@ -166,7 +265,6 @@ def extract_security_listing(security_listing: pl.DataFrame):
         data=security_listing, product="security_listing", uid_col_name="figi", id_col_name="id"
     )
 
-    # save to db
-    DbQueryRepositories.security_listing.add(security_listing)
+    logger.job.info(event=logger_events.job.Success(job=JOB_NAME))
 
     return security_listing

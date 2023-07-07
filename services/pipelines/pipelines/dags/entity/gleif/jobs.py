@@ -86,8 +86,10 @@ def transform(df_raw: pl.DataFrame):
     return data
 
 
-def load_into_db():
-    pass
+def load_into_db(data: pl.DataFrame):
+    from shared.clients.db.postgres.repositories import DbQueryRepositories
+
+    return DbQueryRepositories.entity.bulk_add(data)
 
 
 def add_surrogate_key(data: pl.DataFrame):

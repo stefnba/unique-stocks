@@ -6,12 +6,16 @@ from shared.clients.api.open_figi.schema import FigiResult
 from shared.clients.api.open_figi.types import MappingArgs
 from shared.clients.db.postgres.repositories import DbQueryRepositories
 from shared.config import CONFIG
-from shared.loggers import logger
+from shared.loggers import logger, events as logger_events
 from shared.utils.conversion.converter import model_to_polars_schema
 
 
 def get_security_type_mapping():
     df = DbQueryRepositories.security_type.find_all()
+
+    if len(df) == 0:
+        raise Exception("No security types in Database.")
+
     df = df.filter(pl.col("market_sector_figi").is_not_null())
     df = df.with_columns(pl.col("id").cast(pl.Int64))
     return df[["id", "name", "market_sector_figi"]]
@@ -19,6 +23,10 @@ def get_security_type_mapping():
 
 def get_exchange_mic_mapping():
     df = DbQueryRepositories.exchange.mic_operating_mic_mapping()
+
+    if len(df) == 0:
+        raise Exception("No exchanges in Database.")
+
     df = df.with_columns(pl.col("operating_mic").alias("ex_mp_operating_mic"))
     df = df.with_columns(pl.col("mic").alias("ex_mp_mic"))
     return df[["ex_mp_operating_mic", "ex_mp_mic"]]
@@ -141,7 +149,7 @@ def map_securities_to_figi(securities: list, figi_results: list):
     if len(securities) is not len(figi_results):
         logger.mapping.error(
             "OpenFigi API results and submitted securities have different number of records.",
-            event=logger.mapping.events.DIFFERENT_SIZE,
+            event=logger_events.mapping.DifferentSize(),
             extra={
                 "length": {
                     "securities": len(securities),
@@ -165,9 +173,9 @@ def map_securities_to_figi(securities: list, figi_results: list):
                 security_data["isin"] = None
                 no_matches.append(security_data)
 
-            logger.mapping.warning(
+            logger.mapping.warn(
                 "No match for FIGI mapping",
-                event=logger.mapping.events.NO_MATCH,
+                event=logger_events.mapping.NoMatch(),
                 extra={"data": security_data},
                 mapper="OpenFigi",
             )
@@ -209,9 +217,9 @@ def map_securities_to_figi(securities: list, figi_results: list):
             # warn about missing exchange_code_figi to mic mappings
             missing_figi_exchange_mapping = df.filter(pl.col("exchange_mic_figi").is_null())
             if len(missing_figi_exchange_mapping) > 0:
-                logger.mapping.warning(
+                logger.mapping.warn(
                     "Missing exchange_code_figi to mic mappings",
-                    event=logger.mapping.events.NO_MATCH,
+                    event=logger_events.mapping.NoMatch(),
                     extra={"codes": list(missing_figi_exchange_mapping["exchange_code_figi"].unique())},
                 )
 
@@ -363,6 +371,7 @@ def map_figi_to_securities(securities_data: pl.DataFrame):
     securities_data = securities_data.join(
         get_security_type_mapping(), how="left", left_on="security_type_id", right_on="id"
     )
+
     logger.mapping.info(f"Unique tickers {len(securities_data['ticker'].unique())}")
 
     # main processing of missing mappings
