@@ -42,7 +42,7 @@ def transform(file_path: str):
     )
 
 
-def add_surr_keys(file_path: str):
+def add_surrogate_key(file_path: str):
     from dags.entity.path import EntityPath
     from dags.entity.gleif import jobs
     from shared.hooks.data_lake import data_lake_hooks
@@ -58,7 +58,7 @@ temp_url = unzip(url)
 # %%
 
 transformed = transform(temp_url)
-add_surr_keys(transformed)
+add_surrogate_key(transformed)
 
 
 # %%
@@ -69,6 +69,8 @@ from shared.clients.db.postgres.repositories import DbQueryRepositories
 url = "/zone=temp/20230601_170219__0c02621d82b0402dbee6bac5acfcc610.parquet"
 
 df = data_lake_hooks.download(url).to_polars_df()
+
+# %%
 df = df.head(1000)
 
 

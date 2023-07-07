@@ -11,4 +11,4 @@ os.chdir("..")
 
 from shared.loggers import logger, events as logEvents
 
-logger.logger.error("x", event=logEvents.mapping.CustomEvent(hallo="hallo"))
+logger.logger.error("x")

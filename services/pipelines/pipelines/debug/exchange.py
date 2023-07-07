@@ -6,6 +6,20 @@ sys.path.append("..")
 os.chdir("..")
 
 # %%
+
+from shared.loggers import logger
+
+logger.airflow.error("ASdf")
+
+
+# %%
+
+from shared.clients.api.eod.client import EodHistoricalDataApiClient
+
+EodHistoricalDataApiClient.get_exchange_details("XETRA")
+
+
+# %%
 from shared.hooks.data_lake import data_lake_hooks
 from typing import TypedDict
 
@@ -103,6 +117,8 @@ tmp = merge({"eod_historical_data": eod_historical_data(), "iso_mic": iso_mic(),
 
 tmp = add_surr_keys(tmp)
 
+
+# %%
 
 # %%
 from shared.clients.db.postgres.repositories import DbQueryRepositories
