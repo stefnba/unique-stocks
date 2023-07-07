@@ -3,7 +3,6 @@ from typing import Optional
 from shared.utils.logging.formatter import BaseFormatter, TextFormatter, JsonFormatter
 from pathlib import Path
 import requests
-import json
 from shared.config import CONFIG
 from logging import LogRecord
 

@@ -15,10 +15,16 @@ transform.add_handler(handler=file_handler)
 transform.add_handler(handler=http_handler)
 
 
-mappging = Logger("mapping")
-mappging.add_handler(handler=console_handler)
-mappging.add_handler(handler=file_handler)
-mappging.add_handler(handler=http_handler)
+job = Logger("job")
+job.add_handler(handler=console_handler)
+job.add_handler(handler=file_handler)
+job.add_handler(handler=http_handler)
+
+
+mapping = Logger("mapping")
+mapping.add_handler(handler=console_handler)
+mapping.add_handler(handler=file_handler)
+mapping.add_handler(handler=http_handler)
 
 
 airflow = Logger("airflow")

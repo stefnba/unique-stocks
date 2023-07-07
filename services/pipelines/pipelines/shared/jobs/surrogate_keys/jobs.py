@@ -1,7 +1,7 @@
 import polars as pl
 from shared.clients.db.postgres.repositories import DbQueryRepositories
 from shared.clients.duck.client import duck
-from shared.loggers import logger
+from shared.loggers import logger, events as logger_events
 
 
 def get_existing_surrogate_keys(product: str):
@@ -62,7 +62,8 @@ def map_surrogate_keys(data: str | pl.DataFrame, product: str, uid_col_name: str
     _data = get_data(data)
 
     logger.mapping.info(
-        f'{len(_data)} records to be mapped with surrogate keys for product "{product}" and uid column "{uid_col_name}"'
+        event=logger_events.mapping.InitMapping(job="SurrogateKey", product=product, size=len(_data)),
+        extra={"uid_col_name": uid_col_name, "id_col_name": id_col_name},
     )
 
     # Idenfity and then add missing keys, based on data and existing keys
@@ -74,7 +75,9 @@ def map_surrogate_keys(data: str | pl.DataFrame, product: str, uid_col_name: str
     data_missing_keys = data_missing_keys.with_columns(pl.lit(product).alias("product"))
 
     logger.mapping.info(
-        f"{len(data_missing_keys)} missing surrogate keys", extra={"data": data_missing_keys.to_dicts()}
+        "Missing surrogate keys",
+        event=logger_events.mapping.MissingRecords(job="SurrogateKey", product=product, size=len(data_missing_keys)),
+        extra={"uid_col_name": uid_col_name, "id_col_name": id_col_name, "data": data_missing_keys.to_dicts()},
     )
 
     # add previously missing keys to database

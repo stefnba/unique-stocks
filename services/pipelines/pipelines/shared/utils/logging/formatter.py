@@ -2,6 +2,8 @@ import logging
 from logging import LogRecord
 import json
 from string import Template
+from shared.config import CONFIG
+
 
 FORMAT = '${asctime} ${name}:${levelname} :: "${message}" :: {event}\n\t ${extra}'
 
@@ -78,6 +80,9 @@ class AirflowContext(TypedDict):
 
 
 def get_airflow_context() -> AirflowContext:
+    if CONFIG.app.env == "Development":
+        return {"dag_id": None, "task_id": None, "run_id": None, "map_index": None}
+
     from airflow.exceptions import AirflowException
 
     try:
@@ -92,7 +97,8 @@ def get_airflow_context() -> AirflowContext:
             "dag_id": dag.dag_id if dag else None,
             "task_id": task.task_id if task else None,
             "run_id": context.get("run_id"),
-            "map_index": context.get("map_index"),
+            "map_index": None,
+            # "map_index": context.get("map_index"),
         }
     except AirflowException:
         return {"dag_id": None, "task_id": None, "run_id": None, "map_index": None}
@@ -108,20 +114,18 @@ class JsonFormatterAirflow(logging.Formatter):
 
         record_dict = record.__dict__
 
-        args = record_dict["args"]
+        args = record_dict.get("args", [])
 
         task_id: str | None = None
         dag_id: str | None = None
         run_id: str | None = None
         map_index: str | None = None
 
-        if len(args) > 0 and isinstance(args[0], TaskInstance):
-            task_id = args[0].task_id
-            dag_id = args[0].dag_id
-            run_id = args[0].run_id
-            map_index = args[0].map_index
-
-            print("hello", dag_id, task_id, run_id, map_index)
+        for arg in args:
+            if isinstance(arg, TaskInstance):
+                task_id = str(arg.task_id)
+                dag_id = str(arg.dag_id)
+                run_id = str(arg.run_id)
 
         # specify message
         record_dict["message"] = record.getMessage()

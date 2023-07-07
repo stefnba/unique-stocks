@@ -5,7 +5,7 @@ from typing import Any, Mapping, Optional, Sequence, cast
 import requests
 from requests.exceptions import HTTPError, JSONDecodeError, Timeout, TooManyRedirects
 from shared.hooks.api.types import EndpointParam, JsonResponse, Methods, RequestFileBytesReturn, RequestFileDiskReturn
-from shared.loggers import logger
+from shared.loggers import logger, events as logger_events
 from shared.utils.path.builder import FilePathBuilder, UrlBuilder
 
 
@@ -160,7 +160,7 @@ class ApiHook:
         headers = {**self._base_headers, **headers} if isinstance(headers, dict) else self._base_headers
 
         try:
-            logger.api.info("", event=logger.api.events.REQUEST_INIT, extra={"url": url, "method": method})
+            logger.api.info(event=logger_events.api.RequestInit(url=url, method=method))
 
             response = requests.request(
                 method=method,
@@ -174,12 +174,12 @@ class ApiHook:
 
             response.raise_for_status()
 
-            logger.api.info("", event=logger.api.events.SUCCESS, extra={"url": url, "method": method})
+            logger.api.info(event=logger_events.api.RequestSuccess(url=url, method=method))
 
             return response
 
         except Timeout as error:
-            logger.api.error(str(error), event=logger.api.events.TIMEOUT, extra={"url": url, "method": method})
+            logger.api.info(error, event=logger_events.api.RequestTimeout(url=url, method=method))
             raise
 
         except TooManyRedirects:
@@ -187,15 +187,9 @@ class ApiHook:
             raise
 
         except HTTPError as error:
-            logger.api.error(
-                str(error),
-                event=logger.api.events.ERROR,
-                extra={"url": url, "method": method, "status": error.response.status_code, "message": str(error)},
-            )
+            logger.api.error(str(error), event=logger_events.api.RequestError(url=url, method=method, error=str(error)))
             raise
 
         except Exception as error:
-            logger.api.error(
-                str(error), event=logger.api.events.ERROR, extra={"url": url, "method": method, "message": str(error)}
-            )
+            logger.api.error(str(error), event=logger_events.api.RequestError(url=url, method=method, error=str(error)))
             raise
