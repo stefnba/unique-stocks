@@ -3,7 +3,7 @@ from shared.clients.db.postgres.repositories.security_listing.schema import Secu
 
 
 class SecurityListingRepo(PgRepositories):
-    table = "data.security_listing"
+    table = ("data", "security_listing")
 
     def find_all(self):
         return self._query.find("SELECT * FROM data.security_listing").get_polars_df()
