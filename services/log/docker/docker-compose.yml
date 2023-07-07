@@ -19,6 +19,7 @@ services:
 
     mongodb:
         image: mongo:latest
+        container_name: unique-stocks-log-mongodb
         restart: always
         environment:
             MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
@@ -27,7 +28,10 @@ services:
             - ${MONGO_PORT}:${MONGO_PORT}
         volumes:
             - mongodb_data:/data/db
-        
+        networks:
+            - unique-stocks-network
+            - default
+
     mongo-express:
         image: mongo-express
         ports:
@@ -36,17 +40,16 @@ services:
             - mongodb
         restart: always
         environment:
-            ME_CONFIG_BASICAUTH_USERNAME: express
-            ME_CONFIG_BASICAUTH_PASSWORD: 123456
+            ME_CONFIG_BASICAUTH_USERNAME: ${MONGO_USER}
+            ME_CONFIG_BASICAUTH_PASSWORD: ${MONGO_PASSWORD}
             ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGO_USER}
             ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGO_PASSWORD}
             ME_CONFIG_MONGODB_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongodb:${MONGO_PORT}
         # links:
-            # - mongodb
+        # - mongodb
 
 volumes:
     mongodb_data:
-
 
 networks:
     unique-stocks-network:

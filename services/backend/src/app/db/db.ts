@@ -3,16 +3,29 @@ import PostgresClient from './client/index.js';
 
 import { MongoClient } from 'mongodb';
 
-const connectionString = 'mongodb://root:password@localhost:27017';
+dotenv.config();
+
+const {
+    DB_HOST,
+    DB_NAME,
+    DB_APP_USER,
+    DB_APP_PASSWORD,
+    DB_PORT,
+    STOCKS_DB_PORT,
+    LOG_DB_HOST,
+    LOG_DB_PORT,
+    LOG_DB_PASSWORD,
+    LOG_DB_USER
+} = process.env;
+
+const connectionString = `mongodb://${LOG_DB_USER}:${LOG_DB_PASSWORD}@${LOG_DB_HOST}:${LOG_DB_PORT}`;
 
 export const client = new MongoClient(connectionString);
 const db = client.db('uniquestocks');
 
+console.log(await db.admin().ping());
+
 const dbLogs = db.collection('log');
-
-dotenv.config();
-
-const { DB_HOST, DB_NAME, DB_APP_USER, DB_APP_PASSWORD, DB_PORT } = process.env;
 
 const dbApp = new PostgresClient(
     {
@@ -30,7 +43,7 @@ const dbApp = new PostgresClient(
                 );
                 console.error(connection.connection);
             },
-            log: false
+            log: true
         }
     }
 );
@@ -38,7 +51,7 @@ const dbApp = new PostgresClient(
 const dbStocks = new PostgresClient(
     {
         host: DB_HOST,
-        port: 5871,
+        port: Number(STOCKS_DB_PORT),
         database: 'stocks',
         user: 'admin',
         password: 'password'

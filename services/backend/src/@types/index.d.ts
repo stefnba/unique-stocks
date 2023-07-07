@@ -30,6 +30,11 @@ declare global {
             STOCKS_DB_NAME: string;
             STOCKS_DB_APP_USER: string;
             STOCKS_DB_APP_PASSWORD: string;
+
+            LOG_DB_HOST: string;
+            LOG_DB_PORT: string;
+            LOG_DB_USER: string;
+            LOG_DB_PASSWORD: string;
         }
     }
 }
