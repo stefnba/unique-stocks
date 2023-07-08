@@ -55,9 +55,11 @@ export default function LogFilter() {
             <SelectFilter field="dag_id" label="Dag" />
             <SelectFilter field="task_id" label="Task" />
             <SelectFilter field="run_id" label="Run" />
-            <Button type="text" onClick={reset}>
-                Reset
-            </Button>
+            {Object.keys(applied).length > 0 && (
+                <Button type="text" onClick={reset}>
+                    Reset
+                </Button>
+            )}
         </Space>
         // </div>
     );
