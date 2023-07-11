@@ -1,4 +1,5 @@
 import polars as pl
+from shared.clients.duck.client import duck
 from shared.clients.api.eod.client import EodHistoricalDataApiClient
 
 ASSET_SOURCE = EodHistoricalDataApiClient.client_key
@@ -77,16 +78,13 @@ def transform(data: pl.DataFrame):
             extra={"exchanges": exchange_uids},
         )
 
-    # check if security is missing mapped security_type_id
+    # check if security type is missing mapped security_type_id
     missing_security_type = data.filter(pl.col("security_type_id").is_null())
     if len(missing_security_type) > 0:
         logger.transform.error(
-            event=logger_events.transform.MissingValue(job=JOB_NAME, data=missing_security_type.to_dicts())
+            msg="Misisng security_type_id mapping",
+            event=logger_events.transform.MissingValue(job=JOB_NAME, data=missing_security_type.to_dicts()),
         )
-
-        # raise MissingSecurityTypeException(
-        #     f'Missing security type mapping "{missing_security_type["security_type"].to_list()}" for record: {missing_security_type.to_dicts()}'
-        # )
 
     # success
     logger.job.info(event=logger_events.job.Success(job=JOB_NAME))
@@ -110,6 +108,47 @@ def map_figi(data: pl.DataFrame):
     return mapped
 
 
+def transform_post_figi(data: pl.DataFrame):
+    """
+    Additional transformation which adds
+    - security_uid depending on share class or composite figi
+    - flag if security_uid is share class or composite
+    - security_ticker_uid
+    """
+    security = duck.query(
+        "./sql/transform_post_figi.sql",
+        security=data,
+    ).pl()
+
+    return security
+
+
+def map_surrogate_key(data: pl.DataFrame):
+    """ """
+    JOB_NAME = "MapSurrogateKeyToEodSecurity"
+    logger.job.info(event=logger_events.job.Init(job=JOB_NAME))
+
+    from shared.jobs.surrogate_keys.jobs import map_surrogate_keys
+
+    # security key
+    data = map_surrogate_keys(data=data, product="security", uid_col_name="security_uid", id_col_name="security_id")
+
+    # security_ticker key
+    data = map_surrogate_keys(
+        data=data, product="security_ticker", uid_col_name="security_ticker_uid", id_col_name="security_ticker_id"
+    )
+
+    # security listing key
+    data = map_surrogate_keys(
+        data=data, product="security_listing", uid_col_name="figi", id_col_name="security_listing_id"
+    )
+
+    # exchange key
+    data = map_surrogate_keys(data=data, product="exchange", uid_col_name="exchange_mic", id_col_name="exchange_id")
+
+    return data
+
+
 def extract_security(security: pl.DataFrame):
     """
     Extract unique securities from mapping results.
@@ -119,6 +158,7 @@ def extract_security(security: pl.DataFrame):
     - unique ISIN (if available)
     - unique share class or composite FIGI
     - security type
+    - cases have shown that same share class or composite FIGI can have different name, for this we have integrated name
 
     A unique security then can have multiple tickers and exchange listings, these
     are extracted with the get_security_ticker() and get_security_listing() methods.
@@ -131,17 +171,12 @@ def extract_security(security: pl.DataFrame):
 
     from shared.jobs.surrogate_keys.jobs import map_surrogate_keys
 
-    # from shared.clients.db.postgres.repositories import DbQueryRepositories
+    security = duck.query(
+        "./sql/aggregate_security.sql",
+        security=security,
+    ).pl()
 
-    # since some securities don't have share class figi, we must replace those null with composite figi
-    security = security.with_columns(
-        pl.when(pl.col("share_class_figi").is_null())
-        .then(pl.col("composite_figi"))
-        .otherwise(pl.col("share_class_figi"))
-        .alias("security_uid")
-    )
-
-    security = security[["isin", "security_uid", "name_figi", "security_type_id"]].unique()
+    # security = security[["isin", "security_uid", "name_figi", "security_type_id"]].unique()
 
     # security id based on figi, either share class or composite
     security = map_surrogate_keys(data=security, product="security", uid_col_name="security_uid")
@@ -205,7 +240,6 @@ def extract_security_ticker(security_ticker: pl.DataFrame):
     """
     JOB_NAME = "ExtractEodSecurityTicker"
 
-    from shared.clients.db.postgres.repositories import DbQueryRepositories
     from shared.jobs.surrogate_keys.jobs import map_surrogate_keys
 
     # since some securities don't have share class figi, we must replace those null with composite figi
@@ -218,14 +252,24 @@ def extract_security_ticker(security_ticker: pl.DataFrame):
 
     security_ticker = security_ticker[["ticker_figi", "security_uid"]].unique()
 
+    security_ticker = security_ticker.with_columns(
+        pl.concat_str(
+            [
+                pl.col("ticker_figi"),
+                pl.col("security_uid"),
+            ],
+            separator="_",
+        ).alias("security_ticker_uid")
+    )
+
     # foreign key to security
     security_ticker = map_surrogate_keys(
         data=security_ticker, product="security", uid_col_name="security_uid", id_col_name="security_id"
     )
 
-    # ticker id based on ticker_figi
+    # ticker id based on security_ticker_uid (combination of ticker_figi and security_uid)
     security_ticker = map_surrogate_keys(
-        data=security_ticker, product="security_ticker", uid_col_name="ticker_figi", id_col_name="id"
+        data=security_ticker, product="security_ticker", uid_col_name="security_ticker_uid", id_col_name="id"
     )
 
     logger.job.info(event=logger_events.job.Success(job=JOB_NAME))
@@ -242,7 +286,6 @@ def extract_security_listing(security_listing: pl.DataFrame):
     JOB_NAME = "ExtractEodSecurityListing"
     logger.job.info(event=logger_events.job.Init(job=JOB_NAME))
 
-    from shared.clients.db.postgres.repositories import DbQueryRepositories
     from shared.jobs.surrogate_keys.jobs import map_surrogate_keys
 
     security_listing = security_listing[["ticker_figi", "exchange_mic", "figi", "quote_source", "currency"]]
