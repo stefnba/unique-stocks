@@ -6,7 +6,10 @@ type GetFilterChoicesResult = { field: string; choices: string[] };
 type GetCountResult = { count: number };
 type GetFilterChoicesArgs = { field: string; filter?: object };
 type GetLogResult = {
+    _id: string;
+    asctime: string;
     name?: string;
+    lineno: number;
     levelname?: string;
     created?: string;
     service?: string;
@@ -20,6 +23,9 @@ type GetLogResult = {
     task_id: string;
     event: string;
     extra: object;
+    exc_text: string;
+
+    query?: string;
 };
 
 const extendedApi = baseApi.injectEndpoints({

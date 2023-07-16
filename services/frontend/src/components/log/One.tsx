@@ -1,6 +1,8 @@
 import JSONPretty from 'react-json-pretty';
 import dayjs from 'dayjs';
 import prettyjson from 'prettyjson';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { docco } from 'react-syntax-highlighter/dist/cjs/styles/hljs';
 
 import { Button, Descriptions } from 'antd';
 
@@ -17,6 +19,28 @@ export default function LogOne() {
     const goBack = () => {
         navigate(-1);
     };
+
+    const {
+        _id,
+        asctime,
+        dag_id,
+        event,
+        exc_text,
+        filename,
+        module,
+        funcName,
+        message,
+        pathname,
+        created,
+        lineno,
+        run_id,
+        task_id,
+        levelname,
+        name,
+        service,
+        query,
+        ...extra
+    } = data || {};
 
     return (
         <div>
@@ -35,13 +59,11 @@ export default function LogOne() {
             {/* {<JSONPretty id="json-pretty" data={data}></JSONPretty>} */}
             <Descriptions title="Logging Info" layout="vertical" colon={false}>
                 <Descriptions.Item label="Logger">
-                    {`${data?.name} [${data?.service}]`}
+                    {`${name} [${service}]`}
                 </Descriptions.Item>
-                <Descriptions.Item label="Level">
-                    {data?.levelname}
-                </Descriptions.Item>
+                <Descriptions.Item label="Level">{levelname}</Descriptions.Item>
                 <Descriptions.Item label="Time">
-                    {dayjs(data?.created)
+                    {dayjs(created)
                         // .utcOffset(2 * 60)
                         .format('DD-MMM YY HH:mm:ss:SSS')}
                 </Descriptions.Item>
@@ -49,59 +71,99 @@ export default function LogOne() {
                     label="Message"
                     span={3}
                     style={{
-                        display: data?.message === null ? 'none' : null
+                        display: message === null ? 'none' : null
                     }}
                 >
-                    {data?.message}
+                    {message}
                 </Descriptions.Item>
                 <Descriptions.Item
                     label="Event"
                     style={{
-                        display: data?.event === null ? 'none' : null
+                        display: event === null ? 'none' : null
                     }}
                 >
-                    {data?.event}
+                    {event}
                 </Descriptions.Item>
-                <Descriptions.Item label="Filepath">
-                    {data?.pathname}
+                <Descriptions.Item label="Origination">
+                    {`${funcName}() @ "${pathname}" [line: ${lineno}]`}
                 </Descriptions.Item>
-                <Descriptions.Item label="Function">
-                    {data?.funcName}
-                </Descriptions.Item>
+                {/* <Descriptions.Item label="Function">
+                    {funcName}
+                </Descriptions.Item> */}
                 <Descriptions.Item
                     label="DAG"
                     style={{
-                        display: data?.dag_id === null ? 'none' : null
+                        display: dag_id === null ? 'none' : null
                     }}
                 >
-                    {data?.dag_id}
+                    {dag_id}
                 </Descriptions.Item>
                 <Descriptions.Item
                     label="Task"
                     style={{
-                        display: data?.task_id === null ? 'none' : null
+                        display: task_id === null ? 'none' : null
                     }}
                 >
-                    {data?.task_id}
+                    {task_id}
                 </Descriptions.Item>
                 <Descriptions.Item
                     label="Run"
                     style={{
-                        display: data?.run_id === null ? 'none' : null
+                        display: run_id === null ? 'none' : null
                     }}
                 >
-                    {data?.run_id}
+                    {run_id}
+                </Descriptions.Item>
+                <Descriptions.Item
+                    span={2}
+                    label="Stack"
+                    style={{
+                        display: exc_text === null ? 'none' : null,
+                        whiteSpace: 'pre-wrap'
+                    }}
+                >
+                    {exc_text}
+                </Descriptions.Item>
+                <Descriptions.Item
+                    span={3}
+                    label="Query"
+                    style={{
+                        display: query === null ? 'none' : null,
+                        whiteSpace: 'pre-wrap'
+                    }}
+                >
+                    {}
+
+                    <SyntaxHighlighter
+                        showLineNumbers={false}
+                        language="sql"
+                        style={docco}
+                        customStyle={{
+                            background: 'transparent',
+                            fontSize: 14
+                        }}
+                    >
+                        {query}
+                    </SyntaxHighlighter>
                 </Descriptions.Item>
                 <Descriptions.Item
                     label="Extra"
                     style={{
-                        display: data?.extra === null ? 'none' : null
+                        display: extra === null ? 'none' : null
                     }}
                 >
-                    <JSONPretty
-                        id="json-pretty"
-                        data={data?.extra}
-                    ></JSONPretty>
+                    {/* <JSONPretty id="json-pretty" data={extra}></JSONPretty>
+                     */}
+                    <SyntaxHighlighter
+                        language="json"
+                        style={docco}
+                        customStyle={{
+                            background: 'transparent',
+                            fontSize: 14
+                        }}
+                    >
+                        {JSON.stringify(extra, null, 4)}
+                    </SyntaxHighlighter>
                 </Descriptions.Item>
             </Descriptions>
         </div>

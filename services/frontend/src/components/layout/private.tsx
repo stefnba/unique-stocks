@@ -41,7 +41,7 @@ export default function PrivateLayout() {
             <Layout style={{ marginLeft: 200 }}>
                 <Header
                     style={{
-                        background: colorBgContainer,
+                        background: 'transparent',
                         padding: 0,
                         position: 'sticky',
                         top: 0,
@@ -62,7 +62,17 @@ export default function PrivateLayout() {
                         <Outlet />
                     </div>
                 </Content>
-                <Footer style={{ textAlign: 'center' }}>
+                <Footer
+                    style={{
+                        textAlign: 'center',
+                        position: 'fixed',
+                        bottom: 0,
+                        // width: '100%',
+                        left: 0,
+                        right: 0,
+                        paddingLeft: 0
+                    }}
+                >
                     Unique Stocks ©2023 Created by Stefan Bauer and Iraklis
                     Kordomatis
                 </Footer>

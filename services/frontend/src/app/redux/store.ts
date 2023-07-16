@@ -2,6 +2,7 @@ import { configureStore } from '@reduxjs/toolkit';
 import counterReducer from '../../features/counter/slice';
 import authReducer from '../../features/auth/slice';
 import logReducer from '../../features/log/slice';
+import exchangeReducer from '../../features/exchange/slice';
 import { baseApi } from '../api/client';
 
 export const store = configureStore({
@@ -9,6 +10,7 @@ export const store = configureStore({
         counter: counterReducer,
         auth: authReducer,
         log: logReducer,
+        exchange: exchangeReducer,
         [baseApi.reducerPath]: baseApi.reducer
     },
     middleware: (getDefaultMiddleware) =>
