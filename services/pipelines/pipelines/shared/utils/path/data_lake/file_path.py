@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from string import Template
-from typing import Any, Dict, Optional, Type
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel
 from shared.config import CONFIG
