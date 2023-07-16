@@ -55,7 +55,7 @@ class Logger:
         self.__logger.log(
             level=level,
             msg=msg,
-            extra={"extra": extra, "event": event},
+            extra={**extra, "event": event},
             stacklevel=3,
         )
 

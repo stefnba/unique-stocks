@@ -1,13 +1,17 @@
 from shared.utils.logging.types import LogEvent
 
 
-class Query(LogEvent):
+class BaseEvent(LogEvent):
+    query: str
+
+
+class Query(BaseEvent):
     name: str = "Query"
 
 
-class QueryExecution(LogEvent):
+class QueryExecution(BaseEvent):
     name: str = "QueryExecution"
 
 
-class QueryResult(LogEvent):
+class QueryResult(BaseEvent):
     name: str = "QueryResult"

@@ -36,7 +36,8 @@ class BaseFormatter(logging.Formatter):
         airflow_context = get_airflow_context()
 
         return {
-            **{key: record.__dict__.get(key) for key in LOG_RECORD_KEYS},
+            # **{key: record.__dict__.get(key) for key in LOG_RECORD_KEYS},
+            **record.__dict__,
             "asctime": self.formatTime(record),
             "message": record.__dict__["msg"],
             "dag_id": airflow_context["dag_id"],

@@ -15,6 +15,12 @@ transform.add_handler(handler=file_handler)
 transform.add_handler(handler=http_handler)
 
 
+file = Logger("file")
+file.add_handler(handler=console_handler)
+file.add_handler(handler=file_handler)
+file.add_handler(handler=http_handler)
+
+
 job = Logger("job")
 job.add_handler(handler=console_handler)
 job.add_handler(handler=file_handler)
