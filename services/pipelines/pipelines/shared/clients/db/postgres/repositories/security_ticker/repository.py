@@ -4,11 +4,12 @@ from shared.clients.db.postgres.repositories.security_ticker.schema import Secur
 
 class SecurityTickerRepo(PgRepositories):
     table = ("data", "security_ticker")
+    schema = SecurityTicker
 
     def find_all(self):
         return self._query.find("SELECT * FROM data.security_ticker").get_polars_df()
 
     def add(self, data):
         return self._query.add(
-            data=data, column_model=SecurityTicker, table=self.table, conflict="DO_NOTHING", returning="ALL_COLUMNS"
-        ).get_polars_df()
+            data=data, column_model=SecurityTicker, conflict="DO_NOTHING", table=self.table, returning="ALL_COLUMNS"
+        ).get_polars_df(schema=self.schema)

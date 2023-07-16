@@ -10,5 +10,5 @@ class SecurityRepo(PgRepositories):
 
     def add(self, data):
         return self._query.add(
-            data=data, column_model=Security, table=self.table, conflict="DO_NOTHING", returning="ALL_COLUMNS"
+            data=data, column_model=Security, conflict="DO_NOTHING", table=self.table, returning="ALL_COLUMNS"
         ).get_polars_df()

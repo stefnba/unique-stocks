@@ -10,3 +10,6 @@ class Security(BaseModel):
     name: Optional[str] = Field(..., alias="name_figi")
     security_type_id: int
     isin: Optional[str]
+    name_figi_alias: Optional[list[str]]
+    name_figi_count: Optional[int]
+    level_figi: int

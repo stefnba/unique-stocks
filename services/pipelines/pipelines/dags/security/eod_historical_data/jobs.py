@@ -14,10 +14,26 @@ def extract():
 
     logger.job.info(event=logger_events.job.Init(job=JOB_NAME))
 
+    from shared.clients.db.postgres.repositories import DbQueryRepositories
+
+    exchanges = DbQueryRepositories.exchange.find_all(source=ASSET_SOURCE)
+
+    exchange_mapping = DbQueryRepositories.mappings.get_mappings(
+        source=ASSET_SOURCE, product="exchange", field="exchange_code"
+    )
+
+    joined = exchanges.join(exchange_mapping[["source_value", "uid"]], left_on="mic", right_on="uid", how="left")
+
     # todo extract
 
+    exchange_list = joined.filter(pl.col("source_value").is_not_null())["source_value"].to_list()
+    logger.mapping.warn(
+        event=logger_events.mapping.MissingRecords(job="GeneralMapping", product="exchange"),
+        extra={"missing": joined.filter(pl.col("source_value").is_null())[["mic", "name"]].to_dicts()},
+    )
     logger.job.info(event=logger_events.job.Success(job=JOB_NAME))
-    return ["OTCQX", "NASDAQ", "XETRA", "SW", "NYSE"]
+    # return ["OTCQX", "NASDAQ", "XETRA", "SW", "NYSE"]
+    return exchange_list[:5]
 
 
 def ingest(exchange_code: str):
@@ -169,21 +185,49 @@ def extract_security(security: pl.DataFrame):
     JOB_NAME = "ExtractEodSecurity"
     logger.job.info(event=logger_events.job.Init(job=JOB_NAME))
 
-    from shared.jobs.surrogate_keys.jobs import map_surrogate_keys
-
     security = duck.query(
         "./sql/aggregate_security.sql",
         security=security,
     ).pl()
 
-    # security = security[["isin", "security_uid", "name_figi", "security_type_id"]].unique()
-
-    # security id based on figi, either share class or composite
-    security = map_surrogate_keys(data=security, product="security", uid_col_name="security_uid")
-
     logger.job.info(event=logger_events.job.Success(job=JOB_NAME))
 
     return security
+
+
+def extract_security_ticker(security_ticker: pl.DataFrame):
+    """
+    Extract unique security tickers from mapping results.
+    """
+    JOB_NAME = "ExtractEodSecurityTicker"
+
+    security_ticker = duck.query(
+        "./sql/aggregate_security_ticker.sql",
+        security_ticker=security_ticker,
+    ).pl()
+
+    logger.job.info(event=logger_events.job.Success(job=JOB_NAME))
+
+    return security_ticker
+
+
+def extract_security_listing(security_listing: pl.DataFrame):
+    """
+    Extract unique security listings from mapping results and save records to database.
+
+    Security listings have relationship to an exchange.
+    """
+    JOB_NAME = "ExtractEodSecurityListing"
+    logger.job.info(event=logger_events.job.Init(job=JOB_NAME))
+
+    security_listing = duck.query(
+        "./sql/aggregate_security_listing.sql",
+        security_listing=security_listing,
+    ).pl()
+
+    logger.job.info(event=logger_events.job.Success(job=JOB_NAME))
+
+    return security_listing
 
 
 def load_security_into_database(security: pl.DataFrame):
@@ -232,82 +276,3 @@ def load_security_listing_into_database(security: pl.DataFrame):
     logger.job.info(event=logger_events.job.Success(job=JOB_NAME))
 
     return added
-
-
-def extract_security_ticker(security_ticker: pl.DataFrame):
-    """
-    Extract unique security tickers from mapping results.
-    """
-    JOB_NAME = "ExtractEodSecurityTicker"
-
-    from shared.jobs.surrogate_keys.jobs import map_surrogate_keys
-
-    # since some securities don't have share class figi, we must replace those null with composite figi
-    security_ticker = security_ticker.with_columns(
-        pl.when(pl.col("share_class_figi").is_null())
-        .then(pl.col("composite_figi"))
-        .otherwise(pl.col("share_class_figi"))
-        .alias("security_uid")
-    )
-
-    security_ticker = security_ticker[["ticker_figi", "security_uid"]].unique()
-
-    security_ticker = security_ticker.with_columns(
-        pl.concat_str(
-            [
-                pl.col("ticker_figi"),
-                pl.col("security_uid"),
-            ],
-            separator="_",
-        ).alias("security_ticker_uid")
-    )
-
-    # foreign key to security
-    security_ticker = map_surrogate_keys(
-        data=security_ticker, product="security", uid_col_name="security_uid", id_col_name="security_id"
-    )
-
-    # ticker id based on security_ticker_uid (combination of ticker_figi and security_uid)
-    security_ticker = map_surrogate_keys(
-        data=security_ticker, product="security_ticker", uid_col_name="security_ticker_uid", id_col_name="id"
-    )
-
-    logger.job.info(event=logger_events.job.Success(job=JOB_NAME))
-
-    return security_ticker
-
-
-def extract_security_listing(security_listing: pl.DataFrame):
-    """
-    Extract unique security listings from mapping results and save records to database.
-
-    Security listings have relationship to an exchange.
-    """
-    JOB_NAME = "ExtractEodSecurityListing"
-    logger.job.info(event=logger_events.job.Init(job=JOB_NAME))
-
-    from shared.jobs.surrogate_keys.jobs import map_surrogate_keys
-
-    security_listing = security_listing[["ticker_figi", "exchange_mic", "figi", "quote_source", "currency"]]
-
-    # foreign key to security_ticker
-    security_listing = map_surrogate_keys(
-        data=security_listing,
-        product="security_ticker",
-        uid_col_name="ticker_figi",
-        id_col_name="security_ticker_id",
-    )
-
-    # foreign key to exchange
-    security_listing = map_surrogate_keys(
-        data=security_listing, product="exchange", uid_col_name="exchange_mic", id_col_name="exchange_id"
-    )
-
-    # id based on figi
-    security_listing = map_surrogate_keys(
-        data=security_listing, product="security_listing", uid_col_name="figi", id_col_name="id"
-    )
-
-    logger.job.info(event=logger_events.job.Success(job=JOB_NAME))
-
-    return security_listing

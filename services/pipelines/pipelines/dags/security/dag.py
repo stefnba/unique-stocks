@@ -82,8 +82,6 @@ def manage_one_exchange(exchange_code: str):
 
         file_path = get_xcom_value(task_id="manage_one_exchange.extract_security", return_type=str)
 
-        print(111, file_path)
-
         data_lake_hooks.checkout(
             checkout_path=file_path,
             func=lambda data: load_security_into_database(data),
