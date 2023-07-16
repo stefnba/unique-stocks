@@ -19,6 +19,7 @@ from shared.hooks.azure.base import AzureBaseClient
 from shared.hooks.azure.types import DatalakeFile, DatalakeProperties, UploadMode
 from shared.utils.path.builder import FilePathBuilder
 from shared.utils.path.types import PathParams
+from shared.utils.file.stream import StreamDiskFile
 
 if TYPE_CHECKING:
     from shared.utils.path.data_lake.file_path import DataLakeFilePathModel
@@ -280,7 +281,7 @@ class AzureDatalakeHook(AzureBaseClient):
         file: str | bytes,
         destination_file_path: PathParams | "DataLakeFilePathModel",
         file_system: Optional[str] = None,
-        mode: UploadMode = "upload",
+        stream=False,
     ) -> DatalakeFile:
         """
         Uploads a file - either from bytes or local file system - into DataLake.
@@ -295,6 +296,40 @@ class AzureDatalakeHook(AzureBaseClient):
         Returns:
             DatalakeFile: Uploaded file with DatalakeFile properties.
         """
+
+        def upload_file_in_chunks(local_path: str, file_client: DataLakeFileClient):
+            """
+            Uploads a file in chunks.
+
+            Args:
+                local_path (str): Path to file on disk.
+                file_client (DataLakeFileClient): Azure file client.
+            """
+            bytes_uploaded = 0
+
+            # logger.info(event)
+
+            for chunk in StreamDiskFile(local_path).iter_content(chunk_size=5 * 1024 * 1024):
+                file_client.append_data(chunk, offset=bytes_uploaded, length=len(chunk))
+                bytes_uploaded += len(chunk)
+
+            print(bytes_uploaded)
+            file_client.flush_data(offset=bytes_uploaded)
+
+            # todo log
+
+        def upload_file(file: str | bytes, file_client: DataLakeFileClient):
+            def get_file_content(file: str | bytes) -> bytes:
+                if isinstance(file, str):
+                    with open(file, "rb") as _local_file:
+                        return _local_file.read()
+                if isinstance(file, bytes):
+                    return file
+
+                raise ValueError("File must be of type 'bytes' or 'str'")
+
+            file_client.upload_data(get_file_content(file), overwrite=True)
+
         _file_system = file_system or self.file_system
         _destination_file_path = FilePathBuilder.convert_to_file_path(destination_file_path)
 
@@ -307,23 +342,14 @@ class AzureDatalakeHook(AzureBaseClient):
             )
             file_client.create_file()
 
-            # populate content
-            file_contents = None
-            if isinstance(file, str):
-                with open(file, "rb") as _local_file:
-                    file_contents = _local_file.read()
-            if isinstance(file, bytes):
-                file_contents = file
+            if stream:
+                if not isinstance(file, str):
+                    raise ValueError("File argument must a path to a file.")
 
-            if file_contents is None:
-                raise ValueError("No file content provided.")
-
-            if mode == "append":
-                file_client.append_data(data=file_contents, offset=0, length=len(file_contents))
-                file_client.flush_data(len(file_contents))
+                upload_file_in_chunks(file_client=file_client, local_path=file)
 
             else:
-                file_client.upload_data(file_contents, overwrite=True)
+                upload_file(file=file, file_client=file_client)
 
             uploaded_file_path = file_client.path_name
 
