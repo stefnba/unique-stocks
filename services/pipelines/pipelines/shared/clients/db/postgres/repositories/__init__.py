@@ -9,6 +9,7 @@ from shared.clients.db.postgres.repositories.security_quote.repository import Se
 from shared.clients.db.postgres.repositories.security_ticker.repository import SecurityTickerRepo
 from shared.clients.db.postgres.repositories.security_type.repository import SecurityTypeRepo
 from shared.clients.db.postgres.repositories.entity.repository import EntityRepo
+from shared.clients.db.postgres.repositories.entity_isin.repository import EntityIsinRepo
 
 
 class RegisteredQueryRepositories(BaseModel):
@@ -22,6 +23,7 @@ class RegisteredQueryRepositories(BaseModel):
     security_type = SecurityTypeRepo()
     security_quote = SecurityQuoteRepo()
     entity = EntityRepo()
+    entity_isin = EntityIsinRepo()
 
     class Config:
         arbitrary_types_allowed = True
