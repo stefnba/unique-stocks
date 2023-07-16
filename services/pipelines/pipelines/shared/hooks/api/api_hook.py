@@ -80,17 +80,18 @@ class ApiHook:
         """
         Make a request to download a file and save it to disk.
         """
-        response = self._make_request(
+        with self._make_request(
             endpoint=endpoint,
             method=method,
             params=params,
             headers=headers,
             json=json,
             stream=True,
-        )
-        with open(file_destination, "wb") as file:
-            for chunk in response.iter_content(chunk_size=8192):
-                file.write(chunk)
+        ) as r:
+            with open(file_destination, "wb") as file:
+                for chunk in r.iter_content(chunk_size=8192):
+                    file.write(chunk)
+
         filename, file_extension = os.path.splitext(file_destination)
 
         return RequestFileDiskReturn(extension=file_extension, path=file_destination, name=filename)
