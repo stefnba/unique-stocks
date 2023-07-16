@@ -15,6 +15,7 @@ import Query from './query.js';
 
 import { concatenateQuery, pgFormat, buildUpdateInsertQuery } from './utils.js';
 import pagination from './pagination.js';
+import ordering from './ordering.js';
 import { buildFilters } from './filter.js';
 
 /**
@@ -52,6 +53,7 @@ export default class QueryBuilder<Model = undefined> {
         const _query = concatenateQuery([
             pgFormat(query, params?.params),
             { type: 'WHERE', query: buildFilters(params?.filter) },
+            { type: 'ORDER', query: ordering(params.ordering) },
             { query: pagination.pageSize(params?.pagination), type: 'LIMIT' },
             { query: pagination.page(params?.pagination), type: 'OFFSET' }
         ]);

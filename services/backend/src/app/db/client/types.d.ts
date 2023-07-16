@@ -176,12 +176,18 @@ export type FindQueryParams<M> = {
     params?: object;
     filter?: FilterInput<M>;
     pagination?: PaginationInput;
+    ordering?: OrderingInput;
 };
 
 export type PaginationInput = {
     page?: number;
     pageSize?: number;
 };
+
+export type OrderingInput = {
+    column: string;
+    logic: 'DESC' | 'ASC';
+}[];
 
 export type AddQueryParams<M> = {
     columns?: ColumnsInput<M>;
