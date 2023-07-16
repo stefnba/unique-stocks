@@ -1,28 +1,18 @@
 import logging
 from logging import LogRecord
 import json
-from string import Template
-from shared.config import CONFIG
+from string import Template, Formatter
+from typing import Optional
+
+from shared.utils.logging.utils import get_airflow_context
 
 
-FORMAT = '${asctime} ${name}:${levelname} :: "${message}" :: {event}\n\t ${extra}'
-
-LOG_RECORD_KEYS = [
-    "name",
-    "levelname",
-    "event",
-    "pathname",
-    "filename",
-    "module",
-    "lineno",
-    "funcName",
-    "created",
-    "extra",
-    "service",
-]
+FORMAT = "[${asctime}] ${name}:${levelname} (${filename}:${lineno}) :: ${event} - ${message}"
 
 
 class BaseFormatter(logging.Formatter):
+    exclude_keys: Optional[list[str]] = None
+
     def __init__(
         self,
     ) -> None:
@@ -31,12 +21,12 @@ class BaseFormatter(logging.Formatter):
     def transform_record(self, record: LogRecord, drop_keys: list[str] = []) -> dict:
         """
         Makes necessary transformation to log record.
+        If self.exclude_keys is specified, ignore these keys.
         """
 
         airflow_context = get_airflow_context()
 
-        return {
-            # **{key: record.__dict__.get(key) for key in LOG_RECORD_KEYS},
+        record_body = {
             **record.__dict__,
             "asctime": self.formatTime(record),
             "message": record.__dict__["msg"],
@@ -45,20 +35,33 @@ class BaseFormatter(logging.Formatter):
             "run_id": airflow_context["run_id"],
         }
 
+        if not self.exclude_keys:
+            return record_body
+
+        return {k: record_body[k] for k in record_body if k not in self.exclude_keys}
+
 
 class TextFormatter(BaseFormatter):
+    exclude_keys = [
+        "args",
+        "levelno",
+        "module",
+        "created",
+        "msg",
+        "relativeCreated",
+        "thread",
+        "msecs",
+        "threadName",
+        "processName",
+        "process",
+    ]
+
     def template(self, text=FORMAT, *, record: dict) -> str:
-        """_summary_
-
-        Args:
-            text (_type_, optional): _description_. Defaults to FORMAT.
-            record (dict, optional): _description_. Defaults to {}.
-
-        Returns:
-            str: _description_
-        """
         template = Template(text)
-        return template.safe_substitute(record)
+        used_keys = [i[1] for i in Formatter().parse(text) if i[1] is not None]
+        unused_items = {k: record[k] for k in record if k not in used_keys}
+
+        return f"{template.safe_substitute(record)}\n{json.dumps(unused_items, default=str, indent=4)}"
 
     def format(self, record: LogRecord) -> str:
         _record = self.transform_record(record)
@@ -68,41 +71,6 @@ class TextFormatter(BaseFormatter):
 class JsonFormatter(BaseFormatter):
     def format(self, record: LogRecord) -> str:
         return json.dumps(self.transform_record(record), default=str)
-
-
-from typing import TypedDict
-
-
-class AirflowContext(TypedDict):
-    dag_id: str | None
-    task_id: str | None
-    run_id: str | None
-    map_index: str | None
-
-
-def get_airflow_context() -> AirflowContext:
-    if CONFIG.app.env == "Development":
-        return {"dag_id": None, "task_id": None, "run_id": None, "map_index": None}
-
-    from airflow.exceptions import AirflowException
-
-    try:
-        from airflow.operators.python import get_current_context
-
-        context = get_current_context()
-
-        dag = context.get("dag")
-        task = context.get("task")
-
-        return {
-            "dag_id": dag.dag_id if dag else None,
-            "task_id": task.task_id if task else None,
-            "run_id": context.get("run_id"),
-            "map_index": None,
-            # "map_index": context.get("map_index"),
-        }
-    except AirflowException:
-        return {"dag_id": None, "task_id": None, "run_id": None, "map_index": None}
 
 
 class JsonFormatterAirflow(logging.Formatter):
@@ -139,6 +107,3 @@ class JsonFormatterAirflow(logging.Formatter):
         record_dict["map_index"] = airflow_context["map_index"] or map_index
 
         return json.dumps(record_dict, default=str)
-
-
-# log_filename_template = dag_id={{ ti.dag_id }}/run_id={{ ti.run_id }}/task_id={{ ti.task_id }}/{%% if ti.map_index >= 0 %%}map_index={{ ti.map_index }}/{%% endif %%}attempt={{ try_number }}.log
