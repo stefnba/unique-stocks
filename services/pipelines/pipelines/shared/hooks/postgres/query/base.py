@@ -7,6 +7,7 @@ from psycopg.sql import SQL, Composable, Composed, Identifier
 from shared.hooks.postgres.query.record import PgRecord
 from shared.hooks.postgres.types import QueryInput, ReturningParams
 from shared.utils.sql.file import QueryFile
+from shared.loggers import logger, events as logger_events
 
 
 class QueryBase:
@@ -30,6 +31,8 @@ class QueryBase:
 
         query_as_string = self._query_as_string(query)
 
+        logger.db.info(event=logger_events.database.QueryExecution(query=query_as_string))
+
         try:
             with psycopg.connect(self._conn_uri, row_factory=dict_row) as conn:
                 cur = conn.cursor()
@@ -38,6 +41,14 @@ class QueryBase:
 
         except psycopg.errors.UniqueViolation as error:
             print("vioalation", error.sqlstate, error.pgresult, query_as_string)
+            raise
+
+        except psycopg.errors.ForeignKeyViolation as error:
+            print("vioalation", error.sqlstate, error.pgresult, query_as_string)
+            raise
+
+        except Exception as error:
+            logger.db.error(str(error), event=logger_events.database.Query(query=query_as_string))
             raise
 
         finally:

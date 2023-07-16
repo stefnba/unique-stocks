@@ -7,6 +7,9 @@ from psycopg.rows import class_row, dict_row
 from shared.hooks.postgres.types import DbDictRecord, DbModelRecord
 from pydantic import BaseModel
 from shared.utils.conversion.converter import model_to_polars_schema
+from typing import overload
+
+import polars as pl
 
 
 def _classify_schema_type(schema: Optional[SchemaDefinition | Type[BaseModel] | BaseModel]):
@@ -104,7 +107,7 @@ class PgRecord:
 
         return pd.DataFrame(results)
 
-    def get_polars_df(self, schema: Optional[SchemaDefinition | Type[BaseModel] | BaseModel] = None):
+    def get_polars_df(self, schema: Optional[SchemaDefinition | Type[BaseModel] | BaseModel] = None) -> pl.DataFrame:
         try:
             import polars as pl
         except ImportError:
@@ -116,3 +119,16 @@ class PgRecord:
             return pl.DataFrame(schema=_classify_schema_type(schema) or [col[0] for col in self.columns or []])
 
         return pl.DataFrame(results, schema=_classify_schema_type(schema))
+
+    def get_polars_lf(self, schema: Optional[SchemaDefinition | Type[BaseModel] | BaseModel] = None) -> pl.LazyFrame:
+        try:
+            import polars as pl
+        except ImportError:
+            raise ImportError("polars library not installed.")
+
+        results = self.get_all()
+
+        if len(results) == 0:
+            return pl.LazyFrame(schema=_classify_schema_type(schema) or [col[0] for col in self.columns or []])
+
+        return pl.LazyFrame(results, schema=_classify_schema_type(schema))
