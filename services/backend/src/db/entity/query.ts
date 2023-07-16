@@ -15,7 +15,14 @@ export default class EntityRepository extends DatabaseRepository {
         return this.query
             .find(this.queries.find, {
                 pagination: {
-                    pageSize: 3
+                    pageSize: 25
+                },
+                ordering: [{ column: 'name', logic: 'ASC' }],
+                filter: {
+                    filter: {
+                        // legal_address_country: 'DE'
+                    },
+                    filterSet: { legal_address_country: 'EQUAL' }
                 }
             })
             .many();

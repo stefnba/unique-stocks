@@ -14,9 +14,9 @@ export default class ExchangeRepository extends DatabaseRepository {
     async findAll() {
         return this.query
             .find(this.queries.find, {
-                pagination: {
-                    pageSize: 10
-                }
+                // pagination: {
+                //     pageSize:
+                // }
             })
             .many();
     }
