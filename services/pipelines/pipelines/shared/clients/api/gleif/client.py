@@ -26,3 +26,35 @@ class GleifApiClient(ApiHook):
         api = cls()
         endpoint = "lei-records?page[size]=2&page[number]=100"
         return api.request_json(endpoint)
+
+    @classmethod
+    def get_entity_isin_mapping(cls, file_path: str):
+        """
+        Get list of all registered exchanges under ISO.
+
+        Returns:
+            RequestFileBytes: _description_
+        """
+        api = cls()
+        api._base_url = ""
+        endpoint = "https://mapping.gleif.org/api/v2/isin-lei/d6996d23-cdaf-413e-b594-5219d40f3da5/download"
+
+        downloaded = api._download_file_to_disk(endpoint, file_destination=file_path)
+
+        return downloaded.path
+
+    @classmethod
+    def get_entity_list(cls, file_path: str):
+        """
+        Get list of all registered exchanges under ISO.
+
+        Returns:
+            RequestFileBytes: _description_
+        """
+        api = cls()
+        api._base_url = ""
+        endpoint = "https://leidata-preview.gleif.org/storage/golden-copy-files/2023/05/29/789258/20230529-0800-gleif-goldencopy-lei2-golden-copy.csv.zip"
+
+        downloaded = api._download_file_to_disk(endpoint, file_destination=file_path)
+
+        return downloaded.path
