@@ -18,15 +18,15 @@ class MappingSuccess(LogEvent):
     product: Optional[str] = None
 
 
-class MapData(LogEvent):
-    name: str = "MapData"
-    product: Optional[str] = None
-    job: Jobs
-    size: Optional[int] = None
-
-
 class MissingRecords(LogEvent):
     name: str = "RecordsMissing"
+    job: Jobs
+    size: Optional[int] = None
+    product: Optional[str] = None
+
+
+class NoMissingRecords(LogEvent):
+    name: str = "NoMissingRecords"
     job: Jobs
     size: Optional[int] = None
     product: Optional[str] = None
