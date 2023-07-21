@@ -88,6 +88,7 @@ class ApiHook:
             json=json,
             stream=True,
         ) as r:
+            logger.api.info("Start streaming", headers=r.headers)
             with open(file_destination, "wb") as file:
                 for chunk in r.iter_content(chunk_size=8192):
                     file.write(chunk)
@@ -175,7 +176,8 @@ class ApiHook:
 
             response.raise_for_status()
 
-            logger.api.info(event=logger_events.api.RequestSuccess(url=url, method=method))
+            if not stream:
+                logger.api.info(event=logger_events.api.RequestSuccess(url=url, method=method))
 
             return response
 

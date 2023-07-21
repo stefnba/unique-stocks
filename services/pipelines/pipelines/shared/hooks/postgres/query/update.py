@@ -54,7 +54,7 @@ class UpdateQuery(QueryBase, Filter):
         if returning:
             query += build_returning_query(returning)
 
-        return self._execute(query=query)
+        return self._execute(query=query, table=table)
 
     def __build_update_items(self, data: QueryData) -> Composed:
         """

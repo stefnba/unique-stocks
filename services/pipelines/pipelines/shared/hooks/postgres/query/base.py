@@ -13,7 +13,9 @@ from shared.loggers import logger, events as logger_events
 class QueryBase:
     _conn_uri: str
 
-    def _execute(self, query: QueryInput, params: Optional[Params] = None) -> PgRecord:
+    def _execute(
+        self, query: QueryInput, params: Optional[Params] = None, table: Optional[str | tuple[str, str]] = None
+    ) -> PgRecord:
         """
         Executes a query to the database.
         Attention: Connection must be closed manually with .close()
@@ -31,13 +33,17 @@ class QueryBase:
 
         query_as_string = self._query_as_string(query)
 
-        logger.db.info(event=logger_events.database.QueryExecution(query=query_as_string))
+        # cut long query to 500 characters
+        if len(query_as_string) > 500:
+            query_as_string = query_as_string[0:500]
+
+        logger.db.info(event=logger_events.database.QueryExecution(query=query_as_string, table=table))
 
         try:
             with psycopg.connect(self._conn_uri, row_factory=dict_row) as conn:
                 cur = conn.cursor()
                 cur.execute(query=query if not isinstance(query, QueryFile) else query.sql, params=params)
-                return PgRecord(cur, query=query_as_string)
+                return PgRecord(cur, query=query_as_string, table=table)
 
         except psycopg.errors.UniqueViolation as error:
             print("vioalation", error.sqlstate, error.pgresult, query_as_string)

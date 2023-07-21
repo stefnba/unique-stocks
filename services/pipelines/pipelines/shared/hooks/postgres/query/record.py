@@ -1,5 +1,6 @@
 from typing import List, Optional, Type, overload, Sequence, Mapping
 
+import polars as pl
 from polars.type_aliases import SchemaDefinition
 from psycopg._column import Column
 from psycopg.cursor import Cursor
@@ -7,9 +8,7 @@ from psycopg.rows import class_row, dict_row
 from shared.hooks.postgres.types import DbDictRecord, DbModelRecord
 from pydantic import BaseModel
 from shared.utils.conversion.converter import model_to_polars_schema
-from typing import overload
-
-import polars as pl
+from shared.loggers import logger, events as log_events
 
 
 def _classify_schema_type(schema: Optional[SchemaDefinition | Type[BaseModel] | BaseModel]):
@@ -40,13 +39,17 @@ class PgRecord:
     cursor: Cursor
     query: str
     columns: Optional[list[Column]]
+    table: Optional[str | tuple[str, str]] = None
 
-    def __init__(self, cursor: Cursor, query: str) -> None:
+    def __init__(self, cursor: Cursor, query: str, table: Optional[str | tuple[str, str]] = None) -> None:
         cursor.row_factory = dict_row
         self.cursor = cursor
         self.columns = cursor.description
 
         self.query = query
+        self.table = table
+
+        logger.db.info(event=log_events.database.QueryResult(length=cursor.rowcount, query=query, table=table))
 
     def get_none(self) -> None:
         """

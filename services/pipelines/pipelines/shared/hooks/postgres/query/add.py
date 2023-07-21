@@ -6,7 +6,7 @@ from pydantic import BaseModel, ValidationError
 from shared.hooks.postgres.query.base import QueryBase
 from shared.hooks.postgres.query.record import PgRecord
 from shared.hooks.postgres.types import ConflictParams, QueryColumnModel, QueryData, ReturningParams
-from shared.loggers.logger import db as logger
+from shared.loggers import logger, events as log_events
 from shared.hooks.postgres.query.utils import build_conflict_query, build_returning_query, build_table_name
 
 
@@ -41,6 +41,13 @@ class AddQuery(QueryBase):
         returning: Optional[ReturningParams] = None,
         conflict: Optional[ConflictParams] = None,
     ) -> PgRecord:
+        data_length = len(data) if isinstance(data, (pl.DataFrame, Sequence)) else 1
+
+        logger.db.info(
+            msg=f"Adding {data_length} records to table '{table}'",
+            event=log_events.database.AddInit(table=table, length=data_length),
+        )
+
         # convert polars df to list of dict
         if isinstance(data, pl.DataFrame):
             data = data.to_dicts()
@@ -63,7 +70,7 @@ class AddQuery(QueryBase):
         if returning:
             query += build_returning_query(returning)
 
-        return self._execute(query=query)
+        return self._execute(query=query, table=table)
 
     def __build_create_add_logic(
         self, data: QueryData | Sequence[QueryData], column_model: Optional[Type[QueryColumnModel]] = None
@@ -135,7 +142,7 @@ class AddQuery(QueryBase):
                 try:
                     record = ColumnModel(**data_item).dict(exclude_unset=True)
                 except ValidationError as error:
-                    logger.error(str(error), extra={"data": data_item})
+                    logger.db.error(str(error), extra={"data": data_item})
 
             # pydantic Model
             elif isinstance(data_item, BaseModel):

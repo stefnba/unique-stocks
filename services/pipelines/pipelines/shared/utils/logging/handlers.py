@@ -43,7 +43,7 @@ class CustomHttp(logging.Handler):
         except requests.Timeout:
             pass
         except Exception as error:
-            print("Log HTTP handler not working", error)
+            print("Log HTTP handler not working", json_record, self.url, error)
 
 
 class BaseHandler:
