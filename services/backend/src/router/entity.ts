@@ -5,6 +5,7 @@ const router = Router();
 
 // public routes
 router.get('/', controller.findAll);
+router.get('/:id/security', controller.findSecurity);
 router.get('/:id', controller.findOne);
 
 export default router;

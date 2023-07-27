@@ -8,12 +8,13 @@ export default class ExchangeRepository extends DatabaseRepository {
     sqlFilesDir = [fileDirName(import.meta).__dirname, 'sql'];
 
     queries = {
-        find: this.sqlFile('find.sql')
+        findAll: this.sqlFile('findAll.sql'),
+        findOne: this.sqlFile('findOne.sql')
     };
 
     async findAll() {
         return this.query
-            .find(this.queries.find, {
+            .find(this.queries.findAll, {
                 // pagination: {
                 //     pageSize:
                 // }
@@ -23,12 +24,18 @@ export default class ExchangeRepository extends DatabaseRepository {
 
     async findOne(exchangeId: number) {
         return this.query
-            .find(this.queries.find, {
+            .find(this.queries.findOne, {
                 filter: {
                     filter: {
                         id: exchangeId
                     },
-                    filterSet: { id: 'EQUAL' }
+                    filterSet: {
+                        id: {
+                            column: 'id',
+                            operator: 'EQUAL',
+                            alias: 'exchange'
+                        }
+                    }
                 }
             })
             .oneOrNone();

@@ -8,7 +8,8 @@ export default class EntityRepository extends DatabaseRepository {
     sqlFilesDir = [fileDirName(import.meta).__dirname, 'sql'];
 
     queries = {
-        find: this.sqlFile('find.sql')
+        find: this.sqlFile('find.sql'),
+        findSecurity: this.sqlFile('findSecurity.sql')
     };
 
     async findAll() {
@@ -23,6 +24,16 @@ export default class EntityRepository extends DatabaseRepository {
                         // legal_address_country: 'DE'
                     },
                     filterSet: { legal_address_country: 'EQUAL' }
+                }
+            })
+            .many();
+    }
+
+    async findSecurity(entityId: number) {
+        return this.query
+            .find(this.queries.findSecurity, {
+                params: {
+                    entityId
                 }
             })
             .many();

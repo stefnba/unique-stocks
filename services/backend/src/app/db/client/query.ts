@@ -158,7 +158,7 @@ export default class Query {
             });
         }
 
-        // console.log('executed');
+        console.log('executed', this.query);
         return this.queryRunner(this.query)
             .then((r) => {
                 if (this.customLog?.onReturn) {

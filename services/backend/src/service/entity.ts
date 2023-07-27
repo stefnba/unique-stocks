@@ -9,3 +9,7 @@ export const findAll = () => {
 export const findOne = (id: number) => {
     return EntityQuery.findOne(id);
 };
+
+export const findSecurity = (id: number) => {
+    return EntityQuery.findSecurity(id);
+};

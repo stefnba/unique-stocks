@@ -10,3 +10,7 @@ export const findAll = controllerHandler(() => entityService.findAll());
 export const findOne = controllerHandler<FindOneRequestArgs>(({ params }) =>
     entityService.findOne(params.id)
 );
+
+export const findSecurity = controllerHandler<FindOneRequestArgs>(
+    ({ params }) => entityService.findSecurity(params.id)
+);

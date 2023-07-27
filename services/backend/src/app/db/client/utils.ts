@@ -96,13 +96,13 @@ export function concatenateQuery(parts: QueryConcatenationParams): string {
         }
         if (type === 'WHERE') {
             const clause = 'WHERE';
-            if (
-                queryIncludesClause(fullQuery, clause) ||
-                queryIncludesClause(query, clause)
-            ) {
-                fullQuery += ` AND ${query}`;
-                return;
-            }
+            // if (
+            //     queryIncludesClause(fullQuery, clause) ||
+            //     queryIncludesClause(query, clause)
+            // ) {
+            //     fullQuery += ` AND ${query}`;
+            //     return;
+            // }
             fullQuery += ` ${clause} ${query}`;
             return;
         }
