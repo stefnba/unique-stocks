@@ -16,7 +16,7 @@ from azure.storage.filedatalake import (
     PathProperties,
 )
 from shared.hooks.azure.base import AzureBaseClient
-from shared.hooks.azure.types import DatalakeFile, DatalakeProperties, UploadMode
+from shared.hooks.azure.types import DatalakeFile, DatalakeProperties
 from shared.utils.path.builder import FilePathBuilder
 from shared.utils.path.types import PathParams
 from shared.utils.file.stream import StreamDiskFile
