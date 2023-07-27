@@ -3,6 +3,7 @@ import PrivateLayout from '../layout/private';
 import PublicLayout from '../layout/public';
 
 import 'antd/dist/reset.css';
+import '../../style/app.css';
 
 import { useAppSelector, useAppDispatch } from '@redux';
 import { actions } from '@features/auth/slice';
