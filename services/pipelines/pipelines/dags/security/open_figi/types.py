@@ -15,3 +15,8 @@ FigiSecurityTypeMappingDict = Dict[int, FigiSecurityTypeDict]
 class MappingPrep(TypedDict):
     missing: pl.DataFrame
     existing: pl.DataFrame
+
+
+class MapResultDict(TypedDict):
+    matched: pl.DataFrame
+    missing: pl.DataFrame

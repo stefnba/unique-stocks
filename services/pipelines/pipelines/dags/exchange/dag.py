@@ -118,9 +118,7 @@ def load_into_db(file_path: str):
     from dags.exchange.shared.jobs import load_into_db
     from shared.hooks.data_lake import data_lake_hooks
 
-    return data_lake_hooks.checkout(
-        checkout_path=file_path, func=lambda data: load_into_db(data), commit_path="test.parquet"
-    )
+    data_lake_hooks.checkout(checkout_path=file_path, func=lambda data: load_into_db(data))
 
 
 deactivate_current_records = PostgresOperator(
