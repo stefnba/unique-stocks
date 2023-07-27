@@ -1,8 +1,8 @@
 import JSONPretty from 'react-json-pretty';
 import dayjs from 'dayjs';
 import prettyjson from 'prettyjson';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { docco } from 'react-syntax-highlighter/dist/cjs/styles/hljs';
+// import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+// import { docco } from 'react-syntax-highlighter/dist/cjs/styles/hljs';
 
 import { Button, Descriptions } from 'antd';
 
@@ -134,7 +134,7 @@ export default function LogOne() {
                 >
                     {}
 
-                    <SyntaxHighlighter
+                    {/* <SyntaxHighlighter
                         showLineNumbers={false}
                         language="sql"
                         style={docco}
@@ -142,9 +142,9 @@ export default function LogOne() {
                             background: 'transparent',
                             fontSize: 14
                         }}
-                    >
-                        {query}
-                    </SyntaxHighlighter>
+                    > */}
+                    {query}
+                    {/* </SyntaxHighlighter> */}
                 </Descriptions.Item>
                 <Descriptions.Item
                     label="Extra"
@@ -154,16 +154,16 @@ export default function LogOne() {
                 >
                     {/* <JSONPretty id="json-pretty" data={extra}></JSONPretty>
                      */}
-                    <SyntaxHighlighter
+                    {/* <SyntaxHighlighter
                         language="json"
                         style={docco}
                         customStyle={{
                             background: 'transparent',
                             fontSize: 14
                         }}
-                    >
-                        {JSON.stringify(extra, null, 4)}
-                    </SyntaxHighlighter>
+                    > */}
+                    <pre>{JSON.stringify(extra, null, 4)}</pre>
+                    {/* </SyntaxHighlighter> */}
                 </Descriptions.Item>
             </Descriptions>
         </div>

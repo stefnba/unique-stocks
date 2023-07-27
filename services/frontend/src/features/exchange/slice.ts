@@ -1,15 +1,6 @@
 import { createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
-
-export interface LogState {
-    filtering: {
-        applied: { [key: string]: any };
-    };
-    pagination: {
-        page: number;
-        pageSize: number;
-    };
-}
+import type { LogState } from './slice.types';
 
 const initialState: LogState = {
     filtering: {

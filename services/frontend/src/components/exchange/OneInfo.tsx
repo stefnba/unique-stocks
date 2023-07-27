@@ -1,8 +1,6 @@
 import JSONPretty from 'react-json-pretty';
 import dayjs from 'dayjs';
 import prettyjson from 'prettyjson';
-import SyntaxHighlighter from 'react-syntax-highlighter';
-import { docco } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 
 import { Button, Descriptions, Tabs, Typography } from 'antd';
 
@@ -25,7 +23,7 @@ export default function ExchangeOneInfo() {
         comment,
         currency,
         website,
-        operating_exchange_id,
+        operating_exchange,
         acronym,
         country_id,
         is_active,
@@ -39,6 +37,14 @@ export default function ExchangeOneInfo() {
         <>
             <Descriptions title="Exchange Info" layout="vertical" colon={false}>
                 <Descriptions.Item label="MIC">{mic}</Descriptions.Item>
+                {operating_exchange && (
+                    <Descriptions.Item label="Operating Exchange">
+                        <Link to={`/exchange/${String(operating_exchange.id)}`}>
+                            {operating_exchange.name}
+                        </Link>
+                    </Descriptions.Item>
+                )}
+
                 <Descriptions.Item label="Currency">
                     {currency}
                 </Descriptions.Item>
@@ -59,9 +65,6 @@ export default function ExchangeOneInfo() {
                     <Link to={`http://${website}`} target="_blank">
                         {website}
                     </Link>
-                </Descriptions.Item>
-                <Descriptions.Item label="Operating MIC">
-                    {operating_exchange_id}
                 </Descriptions.Item>
             </Descriptions>
         </>

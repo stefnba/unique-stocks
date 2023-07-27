@@ -2,6 +2,8 @@ import queryString from 'query-string';
 
 import { baseApi } from '@app/api/client';
 
+import type { GetOneExchangeResult } from './api.types';
+
 type GetFilterChoicesResult = { field: string; choices: string[] };
 type GetCountResult = { count: number };
 type GetFilterChoicesArgs = { field: string; filter?: object };
@@ -37,7 +39,7 @@ const extendedApi = baseApi.injectEndpoints({
                 return 'exchange';
             }
         }),
-        getOneExchange: build.query<GetExchangeResult, string>({
+        getOneExchange: build.query<GetOneExchangeResult, string>({
             query: (id) => `exchange/${id}`
         })
     }),

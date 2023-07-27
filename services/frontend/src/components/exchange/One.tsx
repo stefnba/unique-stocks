@@ -1,8 +1,6 @@
 import JSONPretty from 'react-json-pretty';
 import dayjs from 'dayjs';
 import prettyjson from 'prettyjson';
-import SyntaxHighlighter from 'react-syntax-highlighter';
-import { docco } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 
 import { Button, Descriptions, Tabs, Typography } from 'antd';
 
@@ -49,10 +47,8 @@ export default function ExchangeOne() {
 
     const { name, mic } = data || {};
 
-    console.log(location);
-
     return (
-        <div>
+        <>
             <Title>
                 {name} ({mic})
             </Title>
@@ -65,6 +61,6 @@ export default function ExchangeOne() {
                 items={items}
                 onChange={onChange}
             />
-        </div>
+        </>
     );
 }

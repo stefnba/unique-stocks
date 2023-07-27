@@ -1,8 +1,6 @@
 import JSONPretty from 'react-json-pretty';
 import dayjs from 'dayjs';
 import prettyjson from 'prettyjson';
-import SyntaxHighlighter from 'react-syntax-highlighter';
-import { docco } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 
 import { Button, Descriptions, Tabs, Typography } from 'antd';
 
