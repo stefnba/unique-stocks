@@ -121,7 +121,11 @@ class PgRecord:
         if len(results) == 0:
             return pl.DataFrame(schema=_classify_schema_type(schema) or [col[0] for col in self.columns or []])
 
-        return pl.DataFrame(results, schema=_classify_schema_type(schema))
+        try:
+            return pl.DataFrame(results, schema=_classify_schema_type(schema))
+        except:
+            print("ddd", _classify_schema_type(schema), results)
+            raise
 
     def get_polars_lf(self, schema: Optional[SchemaDefinition | Type[BaseModel] | BaseModel] = None) -> pl.LazyFrame:
         try:

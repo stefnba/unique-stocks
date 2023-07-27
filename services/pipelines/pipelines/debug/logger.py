@@ -9,6 +9,7 @@ os.chdir("..")
 # %%
 
 
-from shared.loggers import logger, events as logEvents
+from shared.loggers import logger, events as log_events
 
-logger.logger.error("x")
+
+logger.db.error(event=log_events.database.QueryExecution(query="SELECT sadf"))

@@ -19,6 +19,13 @@ class EntityIsinRepo(PgRepositories):
                 "isin",
             ],
             returning="ALL_COLUMNS",
-            conflict="DO_NOTHING",
+            # conflict={
+            #     "target": ["id"],
+            #     "action": [
+            #         {"column": "is_active", "value": True},
+            #         {"column": "updated_at", "value": "now()"},
+            #         {"column": "active_until", "value": None},
+            #     ],
+            # },
         )
-        return add
+        return str(add)

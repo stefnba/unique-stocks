@@ -1,9 +1,12 @@
+from typing import Optional, Mapping, Sequence
 from shared.utils.logging.types import LogEvent
 
 
 class BaseRequest(LogEvent):
     url: str
     method: str
+    headers: dict
+    body: Optional[Optional[Mapping | Sequence[Mapping]]] = None
 
 
 class RequestInit(BaseRequest):

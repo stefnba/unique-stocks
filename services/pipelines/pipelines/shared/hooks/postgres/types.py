@@ -3,7 +3,7 @@ from typing import Any, Dict, Literal, Sequence, TypedDict, TypeVar, TypeAlias
 from psycopg.abc import Query
 from pydantic import BaseModel
 from shared.utils.sql.file import QueryFile
-from typing_extensions import NotRequired
+from typing_extensions import NotRequired, LiteralString
 
 QueryColumnModel: TypeAlias = BaseModel
 
@@ -61,14 +61,19 @@ ReturningParams = Literal["ALL_COLUMNS"] | list[str]
 ConflictLiteral = Literal["DO_NOTHING"]
 
 
-class ConflictActionDict(TypedDict):
+class ConflictActionValueDict(TypedDict):
     column: str
     value: Any
 
 
+class ConflictActionExcludedDict(TypedDict):
+    column: str
+    excluded: LiteralString
+
+
 class ConflictUpdateDict(TypedDict):
     target: list[str]
-    action: list[ConflictActionDict]
+    action: list[ConflictActionValueDict | ConflictActionExcludedDict]
 
 
-ConflictParams: TypeAlias = ConflictLiteral | ConflictUpdateDict
+ConflictParams: TypeAlias = ConflictLiteral | ConflictUpdateDict | str

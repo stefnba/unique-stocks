@@ -31,3 +31,15 @@ def get_xcom_value(task_id: str, key: str = "return_value", return_type: Optiona
     raise AirflowException(
         "Current context was requested but no context was found! Are you running within an airflow task?"
     )
+
+
+def set_xcom_value(key: str, value: Any):
+    context = get_current_context()
+
+    task_instance = context.get("ti")
+    if isinstance(task_instance, TaskInstance):
+        return task_instance.xcom_push(key=key, value=value)
+
+    raise AirflowException(
+        "Current context was requested but no context was found! Are you running within an airflow task?"
+    )

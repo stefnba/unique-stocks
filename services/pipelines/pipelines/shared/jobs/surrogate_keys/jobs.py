@@ -1,6 +1,34 @@
 import polars as pl
+from typing import overload, Literal
 from shared.clients.db.postgres.repositories import DbQueryRepositories
 from shared.loggers import logger, events as logger_events
+from shared.utils.dataset.validate import ValidateDataset
+
+
+@overload
+def map_surrogate_keys(
+    data: pl.LazyFrame | pl.DataFrame,
+    product: str,
+    uid_col_name: str = "uid",
+    id_col_name: str = "id",
+    add_missing_keys=True,
+    optional=False,
+    collect: Literal[True] = True,
+) -> pl.DataFrame:
+    ...
+
+
+@overload
+def map_surrogate_keys(
+    data: pl.LazyFrame | pl.DataFrame,
+    product: str,
+    uid_col_name: str = "uid",
+    id_col_name: str = "id",
+    add_missing_keys=True,
+    optional=False,
+    collect: Literal[False] = False,
+) -> pl.LazyFrame:
+    ...
 
 
 def map_surrogate_keys(
@@ -10,7 +38,8 @@ def map_surrogate_keys(
     id_col_name: str = "id",
     add_missing_keys=True,
     optional=False,
-):
+    collect=True,
+) -> pl.DataFrame | pl.LazyFrame:
     """Map surrogate existing keys to dataset. If no keys exists, they'll be added to database. To reduce memory,
     LayFrame will be used.
 
@@ -24,6 +53,7 @@ def map_surrogate_keys(
         Defaults to True.
         optional (bool, optional): If True, return entire provided database, even if no keys are mapped.
         Defaults to False.
+        collect (bool, optional): If True, turn LazyFrame into DataFrame by calling .collect().
     """
 
     # for logging
@@ -33,12 +63,6 @@ def map_surrogate_keys(
         "add_missing_keys": add_missing_keys,
         "optional": optional,
     }
-
-    def convert_data(data: pl.LazyFrame | pl.DataFrame):
-        if isinstance(data, pl.DataFrame):
-            return data.lazy()
-        else:
-            return data
 
     def handle_missing_keys(data: pl.LazyFrame, add_missing_keys: bool) -> int:
         """
@@ -108,7 +132,7 @@ def map_surrogate_keys(
         arguments=args,
     )
 
-    _data = convert_data(data)
+    _data = _convert_data(data)
     existing_keys = DbQueryRepositories.mapping_surrogate_key.find_all(product=product)
     missing_length = handle_missing_keys(_data, add_missing_keys)
 
@@ -128,9 +152,19 @@ def map_surrogate_keys(
         arguments=args,
     )
 
-    # return all records, event w/o mapped keys if optional=True
-    if optional:
+    # return only records w/ mapped keys if optional=False
+    if not optional:
+        all_keys = all_keys.filter(pl.col(id_col_name).is_not_null())
+
+    # collect or not
+    if collect:
         return all_keys.collect()
 
-    # return only records w/ mapped keys
-    return all_keys.filter(pl.col("surrogate_key").is_not_null()).collect()
+    return all_keys
+
+
+def _convert_data(data: pl.LazyFrame | pl.DataFrame):
+    if isinstance(data, pl.DataFrame):
+        return data.lazy()
+    else:
+        return data

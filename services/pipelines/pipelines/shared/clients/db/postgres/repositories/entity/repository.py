@@ -62,7 +62,11 @@ class EntityRepo(PgRepositories):
             returning="ALL_COLUMNS",
             conflict={
                 "target": ["id"],
-                "action": [{"column": "is_active", "value": False}],
+                "action": [
+                    {"column": "is_active", "value": True},
+                    {"column": "updated_at", "value": "now()"},
+                    {"column": "active_until", "value": None},
+                ],
             },
         )
-        print(add)
+        return str(add)

@@ -53,7 +53,7 @@ class GleifApiClient(ApiHook):
         """
         api = cls()
         api._base_url = ""
-        endpoint = "https://leidata-preview.gleif.org/storage/golden-copy-files/2023/05/29/789258/20230529-0800-gleif-goldencopy-lei2-golden-copy.csv.zip"
+        endpoint = "https://leidata-preview.gleif.org/storage/golden-copy-files/2023/07/17/808968/20230717-0000-gleif-goldencopy-lei2-golden-copy.csv.zip"
 
         downloaded = api._download_file_to_disk(endpoint, file_destination=file_path)
 

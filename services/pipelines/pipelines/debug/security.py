@@ -1,143 +1,166 @@
 # %%
+# ruff: noqa: E402
+
 import sys
 import os
 
 sys.path.append("..")
 os.chdir("..")
 
+
 # %%
-from dags.exchange.eod_historical_data import jobs
-from typing import TypedDict
+
+import polars as pl
+from dags.security.eod_historical_data.jobs import (
+    ingest,
+    transform_pre_figi,
+    map_figi,
+    transform_post_figi,
+    extract_security,
+    load_security_into_database,
+    extract,
+    extract_security_ticker,
+    load_security_ticker_into_database,
+    extract_security_listing,
+    load_security_listing_into_database,
+)
+
+codes = extract()
+# codes = ["XETRA"]
+
+print(codes)
+# codes = ["NASDAQ"]
 
 
-class ExchangeDataset(TypedDict):
-    exchange_code: str
-    file_path: str
-
-
-def extract_exchange_codes():
-    from dags.security.eod_historical_data.jobs import extract
-
-    return extract()
-
-
-def ingest(exchange: str) -> ExchangeDataset:
-    from dags.security.eod_historical_data.jobs import ASSET_SOURCE, ingest
-    from dags.security.path import SecurityPath
-    from shared.hooks.data_lake import data_lake_hooks
-
-    file_path = data_lake_hooks.checkout(
-        func=lambda: ingest(exchange),
-        commit_path=SecurityPath.raw(source=ASSET_SOURCE, bin=exchange, file_type="json"),
-    )
-
-    return {
-        "exchange_code": exchange,
-        "file_path": file_path,
-    }
-
-
-def transform(dataset: ExchangeDataset):
-    from dags.security.eod_historical_data.jobs import ASSET_SOURCE, transform
-    from dags.security.path import SecurityPath
-    from shared.hooks.data_lake import data_lake_hooks
-
-    return data_lake_hooks.checkout(
-        checkout_path=dataset["file_path"],
-        func=lambda data: transform(data),
-        commit_path=SecurityPath.processed(source=ASSET_SOURCE, bin=dataset["exchange_code"]),
-    )
-
-
-def map_figi(file_path: str):
-    from dags.security.path import SecurityPath
-    from shared.hooks.data_lake import data_lake_hooks
-
-    from dags.security.eod_historical_data.jobs import map_figi
-
-    return data_lake_hooks.checkout(
-        checkout_path=file_path,
-        func=lambda data: map_figi(data),
-        commit_path=SecurityPath.temp(),
-    )
-
-
-def extract_security(file_path: str):
-    from dags.security.eod_historical_data.jobs import extract_security
-    from shared.hooks.data_lake import data_lake_hooks
-    from dags.security.path import SecurityPath
-
-    return data_lake_hooks.checkout(
-        checkout_path=file_path, func=lambda data: extract_security(data), commit_path=SecurityPath.temp()
-    )
-
-
-def load_security_into_database(file_path: str):
-    from dags.security.eod_historical_data.jobs import load_ecurity_into_database
-    from shared.hooks.data_lake import data_lake_hooks
-
-    data_lake_hooks.checkout(checkout_path=file_path, func=lambda data: load_ecurity_into_database(data))
-
-
-def extract_security_ticker(file_path: str):
-    from dags.security.eod_historical_data.jobs import extract_security_ticker
-    from shared.hooks.data_lake import data_lake_hooks
-
-    data_lake_hooks.checkout(
-        checkout_path=file_path,
-        func=lambda data: extract_security_ticker(data),
-    )
-
-
-def extract_security_listing(file_path: str):
-    from dags.security.eod_historical_data.jobs import extract_security_listing
-    from shared.hooks.data_lake import data_lake_hooks
-
-    data_lake_hooks.checkout(
-        checkout_path=file_path,
-        func=lambda data: extract_security_listing(data),
-    )
-
-
-# codes = ["XETRA", "NYSE"]
-# codes = ["XETRA", "NASDAQ", "LSE", "TO", "MU", "HA", "MC"]
-codes = ["BE", "NEO", "F", "DU", "PA", "BR", "AS"]
 for code in codes:
-    print(code)
-    exchange = ingest(code)
+    raw_data = pl.DataFrame(ingest(code))
+    transformed = transform_pre_figi(raw_data)
+    mapped = map_figi(transformed)
+    post_figi = transform_post_figi(mapped)
+    security = extract_security(post_figi)
+    load_security_into_database(security)
 
-    print(exchange)
+    security_ticker = extract_security_ticker(post_figi)
+    load_security_ticker_into_database(security_ticker)
 
-    path = transform(exchange)
-    path_data = map_figi(path)
+    security_listing = extract_security_listing(post_figi)
 
-    path_security = extract_security(path_data)
-    path_security_ticker = extract_security_ticker(path_data)
-
-    load_security_into_database(path_security)
+    load_security_listing_into_database(security_listing)
 
 print("Done")
-# %%
-
-
-# %%
-
-ingest("NYSE")
-
+print(codes)
 
 # %%
 
-from shared.hooks.data_lake import data_lake_hooks
+load_security_into_database(security)
 
-url = "/zone=raw/product=security/exchange=BE/source=EodHistoricalData/year=2023/month=07/day=04/20230704_104404__EodHistoricalData__security__BE__raw.json"
+security_ticker = extract_security_ticker(post_figi)
+load_security_ticker_into_database(security_ticker)
 
+security_listing = extract_security_listing(post_figi)
 
-df = data_lake_hooks.download(url).to_polars_df()
+load_security_listing_into_database(security_listing)
 
-df
 
 # %%
-df.filter(pl.col("Code") == "PRH")
+
+mapped = map_figi(transformed.head(500))
+post_figi = transform_post_figi(mapped)
+security = extract_security(post_figi)
+
+# %%
+mapped.filter(pl.col("isin") == "DE000A1NZLR7")
+
+
+# %%
+from dags.security.eod_historical_data.jobs import extract_security_listing, load_security_listing_into_database
+
+post_figi = transform_post_figi(mapped)
+
+
 # %%
 
-df["Type"].unique()
+# mapped.filter(pl.col("figi") == "BBG00VTHN4L5")
+post_figi.filter(pl.col("isin") == "CH0454664001")
+
+
+# %%
+
+load_security_into_database(security)
+
+# %%
+
+# load_security_into_database(security)
+
+# from dags.security.eod_historical_data.jobs import extract_security_ticker, load_security_ticker_into_database
+# post_figi = transform_post_figi(mapped)
+
+#
+# mapped.filter(pl.col("share_class_figi") == "BBG00VY1KBC1")
+security.filter(pl.col("figi") == "BBG001S5ZJM1")
+# %%
+post_figi = transform_post_figi(mapped)
+security = extract_security(post_figi)
+load_security_into_database(security)
+
+security_ticker = extract_security_ticker(post_figi)
+load_security_ticker_into_database(security_ticker)
+
+# %%
+from shared.clients.api.open_figi.client import OpenFigiApiClient
+
+OpenFigiApiClient.get_mapping([{"idType": "ID_ISIN", "idValue": "US0028241000"}]).explode(columns="data").unnest("data")
+
+
+# .to_dicts()
+
+# %%
+
+
+import duckdb
+
+duckdb.sql(
+    """
+    --sql
+    SELECT
+        DISTINCT name_figi
+        --security_id, isin, security_type_id, name_figi, security_uid AS id
+    FROM mapped
+    WHERE isin = 'US0028241000'
+    --GROUP BY security_id, isin, security_type_id, name_figi, security_uid
+    ;
+    """
+).pl().to_series().to_list()
+
+# %%
+
+duckdb.sql(
+    """
+    --sql
+    WITH security_level AS (SELECT
+        security_id AS id,
+        security_uid AS figi,
+        FIRST (security_type_id) security_type_id,
+        MAX(level_figi) level_figi,
+        FIRST (name_figi) name_figi,
+        LIST_DISTINCT(LIST (isin)) isin,
+        LIST_DISTINCT(LIST (name_figi)) name_figi_alias
+     FROM post_figi
+     GROUP BY
+        security_id,
+        security_uid)
+
+    SELECT
+        *
+    EXCLUDE (isin, name_figi_alias),
+    LIST_FILTER(name_figi_alias, x -> x <> name_figi) name_figi_alias,
+    LIST_FILTER(isin, x -> x IS NOT NULL)[1] isin
+FROM
+    security_level
+        
+    ;
+    """
+).pl()
+
+
+# %%

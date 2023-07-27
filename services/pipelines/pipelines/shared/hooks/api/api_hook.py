@@ -162,14 +162,14 @@ class ApiHook:
         headers = {**self._base_headers, **headers} if isinstance(headers, dict) else self._base_headers
 
         try:
-            logger.api.info(event=logger_events.api.RequestInit(url=url, method=method))
+            logger.api.info(event=logger_events.api.RequestInit(url=url, method=method, headers=headers))
 
             response = requests.request(
                 method=method,
                 params=params,
                 url=url,
                 headers=headers,
-                timeout=(2, 5),
+                timeout=(10, 20),
                 json=json,
                 stream=stream,
             )
@@ -177,12 +177,14 @@ class ApiHook:
             response.raise_for_status()
 
             if not stream:
-                logger.api.info(event=logger_events.api.RequestSuccess(url=url, method=method))
+                logger.api.info(event=logger_events.api.RequestSuccess(url=url, method=method, headers=headers))
 
             return response
 
         except Timeout as error:
-            logger.api.info(error, event=logger_events.api.RequestTimeout(url=url, method=method))
+            logger.api.info(
+                error, event=logger_events.api.RequestTimeout(url=url, method=method, headers=headers, body=json)
+            )
             raise
 
         except TooManyRedirects:
@@ -190,9 +192,19 @@ class ApiHook:
             raise
 
         except HTTPError as error:
-            logger.api.error(str(error), event=logger_events.api.RequestError(url=url, method=method, error=str(error)))
+            logger.api.error(
+                str(error),
+                event=logger_events.api.RequestError(
+                    url=url, method=method, headers=headers, error=str(error), body=json
+                ),
+            )
             raise
 
         except Exception as error:
-            logger.api.error(str(error), event=logger_events.api.RequestError(url=url, method=method, error=str(error)))
+            logger.api.error(
+                str(error),
+                event=logger_events.api.RequestError(
+                    url=url, method=method, headers=headers, error=str(error), body=json
+                ),
+            )
             raise

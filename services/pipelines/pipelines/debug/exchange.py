@@ -7,6 +7,18 @@ os.chdir("..")
 
 # %%
 
+
+path = "/zone=temp/20230718_114705__c7daece3666844588e4f6e20d5d5bbd6.parquet"
+
+from shared.hooks.data_lake import data_lake_hooks
+from dags.exchange.shared import jobs
+
+
+jobs.load_into_db(data_lake_hooks.download(path).to_polars_df())
+
+
+# %%
+
 from shared.loggers import logger
 
 logger.airflow.error("ASdf")

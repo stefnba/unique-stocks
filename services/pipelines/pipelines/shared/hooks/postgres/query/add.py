@@ -57,6 +57,8 @@ class AddQuery(QueryBase):
             if len(data) == 0:
                 return self._execute(query=SQL(""))
 
+        print(111, data)
+
         query = Composed(
             [
                 SQL("INSERT INTO {table} ").format(table=build_table_name(table)),
@@ -143,6 +145,7 @@ class AddQuery(QueryBase):
                     record = ColumnModel(**data_item).dict(exclude_unset=True)
                 except ValidationError as error:
                     logger.db.error(str(error), extra={"data": data_item})
+                    raise
 
             # pydantic Model
             elif isinstance(data_item, BaseModel):

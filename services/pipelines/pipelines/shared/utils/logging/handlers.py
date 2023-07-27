@@ -6,6 +6,9 @@ import requests
 from shared.config import CONFIG
 from logging import LogRecord
 
+log_exception = logging.getLogger("asdf")
+log_exception.addHandler(logging.FileHandler("lloooooooog.log"))
+
 
 class CustomHttp(logging.Handler):
     url: str
@@ -21,6 +24,7 @@ class CustomHttp(logging.Handler):
         self.url = f"{CONFIG.logging.host}:{CONFIG.logging.port}/{CONFIG.logging.endpoint.lstrip('/')}"
         # sets up a session with the server
         # MAX_POOLSIZE = 100
+        print(self.url)
 
         self.session = requests.Session()
         self.session.headers.update(
@@ -43,7 +47,7 @@ class CustomHttp(logging.Handler):
         except requests.Timeout:
             pass
         except Exception as error:
-            print("Log HTTP handler not working", json_record, self.url, error)
+            log_exception.error(msg=f"Log HTTP handler not working:\n{error}")
 
 
 class BaseHandler:

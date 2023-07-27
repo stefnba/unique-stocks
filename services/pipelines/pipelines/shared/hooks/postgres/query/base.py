@@ -53,6 +53,10 @@ class QueryBase:
             print("vioalation", error.sqlstate, error.pgresult, query_as_string)
             raise
 
+        except psycopg.errors.NotNullViolation as error:
+            print("vioalation", error.sqlstate, error.pgresult, query_as_string)
+            raise
+
         except Exception as error:
             logger.db.error(str(error), event=logger_events.database.Query(query=query_as_string))
             raise

@@ -11,6 +11,13 @@ class InitMapping(LogEvent):
     product: Optional[str] = None
 
 
+class MappingIteration(LogEvent):
+    name: str = "MappingIteration"
+    job: Jobs
+    size: Optional[int] = None
+    iteration: Optional[int] = None
+
+
 class MappingSuccess(LogEvent):
     name: str = "MappingSuccess"
     job: Jobs
@@ -48,7 +55,16 @@ class RecordsNotCreated(LogEvent):
 
 class NoMatch(LogEvent):
     name: str = "NoMatch"
+    job: Jobs
+
+
+class MappingResult(LogEvent):
+    name: str = "MappingResult"
+    matched: int
+    missing: int
+    job: Jobs
 
 
 class DifferentSize(LogEvent):
     name: str = "DifferentSize"
+    job: Jobs
