@@ -1,82 +1,90 @@
-import React from 'react';
+import { useState } from 'react';
+
 import { Outlet } from 'react-router-dom';
 
-import { Layout, Menu, theme } from 'antd';
+import { Layout, theme } from 'antd';
+import { MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
 import SiderNavigation from './nav/Navigation';
+import TopBar from './HeaderNav';
+import styled from 'styled-components';
 
-const { Header, Content, Footer, Sider } = Layout;
+const { Content, Footer, Sider } = Layout;
+
+const StyledLayout = styled(Layout)`
+    .ant-layout-sider {
+        /* background: white; */
+    }
+
+    .ant-layout {
+        background: white;
+    }
+    .ant-menu-light.ant-menu-root.ant-menu-inline,
+    .ant-menu-light.ant-menu-root.ant-menu-vertical {
+        border: none;
+    }
+
+    .ant-layout-sider-trigger {
+        font-size: 18px;
+    }
+`;
+
+import logo from '../../assets/logo.png';
 
 export default function PrivateLayout() {
     const {
         token: { colorBgContainer }
     } = theme.useToken();
 
+    const [collapsed, setCollapsed] = useState(true);
+
     return (
-        <Layout>
+        <StyledLayout className="h-screen">
             <Sider
                 theme="light"
+                className="sticky bg-white"
+                collapsible
                 breakpoint="lg"
-                collapsedWidth="0"
-                onBreakpoint={(broken) => {
-                    console.log(broken);
-                }}
-                onCollapse={(collapsed, type) => {
-                    console.log(collapsed, type);
-                }}
-                style={{
-                    overflow: 'auto',
-                    height: '100vh',
-                    position: 'fixed',
-                    left: 0,
-                    top: 0,
-                    bottom: 0
-                }}
+                onBreakpoint={(broken) => setCollapsed(broken)}
+                defaultCollapsed={true}
+                collapsedWidth="80"
+                onCollapse={(collapsed) => setCollapsed(collapsed)}
+                trigger={
+                    collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />
+                }
+                collapsed={collapsed}
             >
                 <div
-                    style={{ margin: '48px 16px 0', backgroundImage: './' }}
-                    className="demo-logo-vertical"
+                    style={{
+                        height: 40,
+                        backgroundImage: `url(${logo})`
+                    }}
+                    className="bg-contain bg-no-repeat cursor-pointer bg-center m-4"
                 />
                 <SiderNavigation />
             </Sider>
-            <Layout style={{ marginLeft: 200 }}>
-                <Header
+            <Layout>
+                <TopBar collapsed={collapsed} setCollapsed={setCollapsed} />
+                <Content
+                    className="px-4"
                     style={{
-                        background: 'transparent',
-                        padding: 0,
-                        position: 'sticky',
-                        top: 0,
-                        zIndex: 1,
-                        width: '100%',
-                        display: 'flex',
-                        alignItems: 'center'
+                        overflow: 'auto'
                     }}
-                />
-                <Content style={{ margin: '24px 16px 0' }}>
+                >
                     <div
                         style={{
                             padding: 24,
-                            minHeight: 360,
+                            minHeight: 'calc(100vh - 69px - 64px)',
                             background: colorBgContainer
                         }}
                     >
                         <Outlet />
                     </div>
+                    <Footer className="text-center bg-white">
+                        Unique Stocks ©2023 Created by Stefan Bauer and Iraklis
+                        Kordomatis
+                    </Footer>
                 </Content>
-                <Footer
-                    style={{
-                        textAlign: 'center',
-                        position: 'fixed',
-                        bottom: 0,
-                        // width: '100%',
-                        left: 0,
-                        right: 0,
-                        paddingLeft: 0
-                    }}
-                >
-                    Unique Stocks ©2023 Created by Stefan Bauer and Iraklis
-                    Kordomatis
-                </Footer>
             </Layout>
-        </Layout>
+        </StyledLayout>
     );
 }

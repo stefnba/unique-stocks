@@ -2,7 +2,11 @@ import { Menu } from 'antd';
 import {
     UploadOutlined,
     UserOutlined,
-    VideoCameraOutlined
+    VideoCameraOutlined,
+    BankOutlined,
+    ApartmentOutlined,
+    FileOutlined,
+    LineChartOutlined
 } from '@ant-design/icons';
 
 import {
@@ -21,24 +25,28 @@ const items: MenuProps['items'] = [
         icon: <HomeOutlined />
     },
     {
+        label: <NavLink to="/exchange">Watchlist</NavLink>,
+        key: '/watchlist#0',
+        icon: <LineChartOutlined />
+    },
+    {
         label: <NavLink to="/exchange">Exchange</NavLink>,
         key: '/exchange#0',
-        icon: <AppstoreOutlined />
+        icon: <BankOutlined />
     },
     {
         label: <NavLink to="/entity">Entity</NavLink>,
         key: '/entity#0',
-        icon: <SettingOutlined />
-    },
-
-    {
-        label: <NavLink to="/index">Index</NavLink>,
-        key: '/index#0',
-        icon: <SettingOutlined />
+        icon: <ApartmentOutlined />
     },
     {
         label: <NavLink to="/security">Security</NavLink>,
         key: '/security#0',
+        icon: <FileOutlined />
+    },
+    {
+        label: <NavLink to="/index">Index</NavLink>,
+        key: '/index#0',
         icon: <SettingOutlined />
     },
     {
