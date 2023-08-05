@@ -1,12 +1,11 @@
 import React from 'react';
-import PrivateLayout from '../layout/private';
-import PublicLayout from '../layout/public';
+import PrivateLayout from '../layout/Private';
+import PublicLayout from '../layout/Public';
 
-import 'antd/dist/reset.css';
 import '../../style/app.css';
+import 'antd/dist/reset.css';
 
-import { useAppSelector, useAppDispatch } from '@redux';
-import { actions } from '@features/auth/slice';
+import { useAppSelector } from '@redux';
 
 const App: React.FC = () => {
     const auth = useAppSelector((state) => state.auth);

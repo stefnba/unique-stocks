@@ -23,6 +23,11 @@ const items: TabsProps['items'] = [
         children: <ExchangeOneInfo />
     },
     {
+        key: 'overview',
+        label: `Overview`,
+        children: `To come...`
+    },
+    {
         key: 'security',
         label: `Security`,
         children: `To come...`
@@ -30,6 +35,11 @@ const items: TabsProps['items'] = [
     {
         key: 'entity',
         label: `Related Entity`,
+        children: `To come...`
+    },
+    {
+        key: 'fundamental',
+        label: `Fundamental`,
         children: `To come...`
     }
 ];
@@ -47,14 +57,13 @@ export default function EntityOne() {
 
     const { name } = entityData || {};
 
-    console.log(location);
-
     return (
         <div>
             <Title>{name}</Title>
             <Button onClick={goBack}>Back</Button>
 
             <Tabs
+                className="mt-8"
                 onTabClick={(key) => navigate(`/entity/${id}/${key}`)}
                 activeKey={key}
                 defaultActiveKey="info"

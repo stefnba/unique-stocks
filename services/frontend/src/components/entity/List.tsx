@@ -1,8 +1,9 @@
-import * as entityApi from '@features/entity/api';
-import { useAppSelector, useAppDispatch } from '@redux';
-import { List, Typography, Card } from 'antd';
-
+import { List, Typography } from 'antd';
 import { Link } from 'react-router-dom';
+
+import { useAppSelector, useAppDispatch } from '@redux';
+import * as entityApi from '@features/entity/api';
+import Card from '@sharedComponents/card/Card';
 
 const { Title } = Typography;
 
@@ -22,19 +23,21 @@ export default function EntityList() {
                 dataSource={entityData}
                 renderItem={(entity) => (
                     <List.Item key={entity.id}>
-                        <Link to={`${entity.id}`}>
-                            <Card title={entity.name} />
-                        </Link>
+                        <Card
+                            subTitle="sector"
+                            title={entity.name}
+                            link={String(entity.id)}
+                            tags={[entity.legal_address_country]}
+                        />
                     </List.Item>
                 )}
-                size="small"
                 grid={{
-                    gutter: 16,
+                    gutter: 18,
                     xs: 1,
                     sm: 2,
-                    md: 4,
-                    lg: 4,
-                    xl: 6,
+                    md: 2,
+                    lg: 3,
+                    xl: 4,
                     xxl: 4
                 }}
             />

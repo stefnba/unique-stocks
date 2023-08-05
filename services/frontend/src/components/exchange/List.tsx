@@ -1,4 +1,4 @@
-import { Table, Card, List, Typography } from 'antd';
+import { Table, List, Typography } from 'antd';
 // import dayjs from 'dayjs';
 // import utc from 'dayjs/plugin/utc';
 // import timezone from 'dayjs/plugin/timezone';
@@ -10,6 +10,7 @@ import * as exchangeApi from '../../features/exchange/api';
 
 import { Link } from 'react-router-dom';
 import ExchangeFilter from './Filter';
+import Card from '@sharedComponents/card/Card';
 
 const { Title } = Typography;
 // import LogFilter from './Filter';
@@ -30,8 +31,8 @@ export default function ExchangeList() {
 
     return (
         <div>
-            <Title>Exchange Overview</Title>
-            <ExchangeFilter />
+            <Title>Exchange</Title>
+            {/* <ExchangeFilter /> */}
             <List
                 // itemLayout="vertical"
                 pagination={{
@@ -40,22 +41,26 @@ export default function ExchangeList() {
                     },
                     pageSize: 20
                 }}
-                size="small"
                 grid={{
-                    gutter: 16,
+                    gutter: 18,
                     xs: 1,
                     sm: 2,
-                    md: 4,
-                    lg: 4,
-                    xl: 6,
+                    md: 2,
+                    lg: 3,
+                    xl: 4,
                     xxl: 4
                 }}
                 dataSource={data}
                 renderItem={(exchange) => (
                     <List.Item key={exchange.id}>
-                        <Link to={`${exchange.id}`}>
-                            <Card title={exchange.name} />
-                        </Link>
+                        {/* <Link to={`${exchange.id}`}> */}
+                        <Card
+                            title={exchange.name}
+                            link={`${exchange.id}`}
+                            subTitle={exchange.mic}
+                            // tags={[exchange.source]}
+                        />
+                        {/* </Link> */}
                         {/* <List.Item.Meta
                             // avatar={<Avatar src={item.avatar} />}
                             title={

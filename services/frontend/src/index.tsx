@@ -7,6 +7,7 @@ import {
 } from 'react-router-dom';
 import { store } from './app/redux/store';
 import { Provider } from 'react-redux';
+import { ConfigProvider } from 'antd';
 
 import Routes from '@routes';
 
@@ -15,9 +16,21 @@ const root = createRoot(container);
 root.render(
     <React.StrictMode>
         <Provider store={store}>
-            <RouterProvider
-                router={createBrowserRouter(createRoutesFromElements(Routes))}
-            />
+            <ConfigProvider
+                theme={{
+                    hashed: false
+                    // token: {
+                    //     // colorPrimary: '#113a5d'
+                    //     // colorPrimary: '#00b96b'
+                    // }
+                }}
+            >
+                <RouterProvider
+                    router={createBrowserRouter(
+                        createRoutesFromElements(Routes)
+                    )}
+                />
+            </ConfigProvider>
         </Provider>
     </React.StrictMode>
 );

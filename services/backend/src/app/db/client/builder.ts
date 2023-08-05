@@ -53,7 +53,7 @@ export default class QueryBuilder<Model = undefined> {
         const _query = concatenateQuery([
             pgFormat(query, params?.params),
             { type: 'WHERE', query: buildFilters(params?.filter) },
-            { type: 'ORDER', query: ordering(params.ordering) },
+            { type: 'ORDER', query: ordering(params?.ordering) },
             { query: pagination.pageSize(params?.pagination), type: 'LIMIT' },
             { query: pagination.page(params?.pagination), type: 'OFFSET' }
         ]);
