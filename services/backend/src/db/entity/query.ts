@@ -12,18 +12,24 @@ export default class EntityRepository extends DatabaseRepository {
         findSecurity: this.sqlFile('findSecurity.sql')
     };
 
-    async findAll() {
+    filterSet = this.filterSet({
+        headquarter_address_country: {
+            column: 'headquarter_address_country',
+            operator: 'INCLUDES'
+        }
+    });
+
+    async findAll(filter?: object, page?: number, pageSize?: number) {
         return this.query
             .find(this.queries.find, {
-                pagination: {
-                    pageSize: 25
-                },
                 ordering: [{ column: 'name', logic: 'ASC' }],
+                pagination: {
+                    page,
+                    pageSize
+                },
                 filter: {
-                    filter: {
-                        // legal_address_country: 'DE'
-                    },
-                    filterSet: { legal_address_country: 'EQUAL' }
+                    filter,
+                    filterSet: this.filterSet
                 }
             })
             .many();
@@ -39,16 +45,54 @@ export default class EntityRepository extends DatabaseRepository {
             .many();
     }
 
-    async findOne(exchangeId: number) {
+    async findOne(entityId: number) {
         return this.query
             .find(this.queries.find, {
                 filter: {
                     filter: {
-                        id: exchangeId
+                        id: entityId
                     },
                     filterSet: { id: 'EQUAL' }
                 }
             })
             .oneOrNone();
+    }
+
+    async countSecurity(filter?: object) {
+        return this.query.count(['data', 'entity_isin'], {
+            filter,
+            filterSet: {
+                ...this.filterSet,
+                entityId: {
+                    column: 'entity_id',
+                    operator: 'EQUAL'
+                }
+            }
+        });
+    }
+
+    async count(filter?: object) {
+        return this.query.count(['data', 'entity'], {
+            filter,
+            filterSet: this.filterSet
+        });
+    }
+
+    async filterChoices(field: string, filter?: object) {
+        const available_fields = {
+            headquarter_address_country: 'default'
+        };
+
+        if (!Object.keys(available_fields).includes(field)) return [];
+
+        return this.query.valueCounts({
+            table: ['data', 'entity'],
+            column: field,
+            type: available_fields[field],
+            filter: {
+                filter,
+                filterSet: this.filterSet
+            }
+        });
     }
 }

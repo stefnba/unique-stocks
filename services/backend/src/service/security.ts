@@ -1,11 +1,23 @@
 import { StocksDbQuery } from '@db/query';
+import type { FindAllRequestArgs } from '@controller/security.js';
 
-const ExchangeQuery = StocksDbQuery.repos.security;
+const query = StocksDbQuery.repos.security;
 
-export const findAll = () => {
-    return ExchangeQuery.findAll();
+export const findAll = (queryObject: FindAllRequestArgs['query']) => {
+    const { page, pageSize, ...filter } = queryObject;
+
+    return query.findAll(filter, page, pageSize);
 };
 
-export const findOne = (exchangeId: number) => {
-    return ExchangeQuery.findOne(exchangeId);
+export const count = (queryObject: FindAllRequestArgs['query']) => {
+    const { page, pageSize, ...filter } = queryObject;
+    return query.count(filter);
+};
+
+export const filterChoices = (field: string) => {
+    return query.filterChoices(field);
+};
+
+export const findOne = (id: number) => {
+    return query.findOne(id);
 };

@@ -12,22 +12,70 @@ export default class ExchangeRepository extends DatabaseRepository {
         findOne: this.sqlFile('findOne.sql')
     };
 
-    async findAll() {
-        return this.query.find(this.queries.findAll).many();
+    filterSet = this.filterSet({
+        security_type_id: {
+            column: 'security_type_id',
+            operator: 'INCLUDES'
+        },
+        isin: {
+            column: 'isin',
+            operator: 'INCLUDES_NULL'
+        }
+    });
+
+    async findAll(filter?: object, page?: number, pageSize?: number) {
+        return this.query
+            .find(this.queries.findAll, {
+                filter: {
+                    filter,
+                    filterSet: this.filterSet
+                },
+                pagination: {
+                    page,
+                    pageSize
+                }
+            })
+            .many();
     }
 
-    async findOne(exchangeId: number) {
+    async filterChoices(field: string, filter?: object) {
+        const available_fields = {
+            security_type_id: 'default',
+            isin: 'null'
+        };
+
+        if (!Object.keys(available_fields).includes(field)) return [];
+
+        return this.query.valueCounts({
+            table: ['data', 'security'],
+            column: field,
+            type: available_fields[field],
+            filter: {
+                filter,
+                filterSet: this.filterSet
+            }
+        });
+    }
+
+    async count(filter?: object) {
+        return this.query.count(['data', 'security'], {
+            filter,
+            filterSet: this.filterSet
+        });
+    }
+
+    async findOne(id: number) {
         return this.query
             .find(this.queries.findOne, {
                 filter: {
                     filter: {
-                        id: exchangeId
+                        id
                     },
                     filterSet: {
                         id: {
                             column: 'id',
                             operator: 'EQUAL',
-                            alias: 'exchange'
+                            alias: 'security'
                         }
                     }
                 }
