@@ -1,20 +1,31 @@
-import { Input, Space } from 'antd';
-import SelectFilter from '../../shared/components/filter/Select';
+import FilterPane from '@sharedComponents/filter/Pane';
+import { SelectFilter, SearchFilter } from '@sharedComponents/filter';
+import { useAppSelector } from '@redux';
+import { actions } from '@features/exchange';
 
-const { Search } = Input;
+export default function SecurityFilter() {
+    const { applied } = useAppSelector((state) => state.exchange.filtering);
 
-export default function ExchangeFilter() {
     return (
-        <>
-            <Space>
-                <Search
-                    placeholder="Search Exchanges"
-                    allowClear
-                    // onSearch={onSearch}
-                    style={{ width: 304 }}
-                />
-                {/* <SelectFilter field="created" label="Timestamp" /> */}
-            </Space>
-        </>
+        <FilterPane
+            appliedFilters={applied}
+            applyFilterAction={actions.applyFilter}
+        >
+            <SearchFilter />
+            <SelectFilter
+                choicesApiEndpoint="exchange/filter/choices/operating_exchange_id"
+                label="Type"
+                field="exchange_type"
+                keyLabelMapping={{
+                    NULL: 'Operating Exchange',
+                    NOT_NULL: 'Exchange'
+                }}
+            />
+            <SelectFilter
+                choicesApiEndpoint="exchange/filter/choices/source"
+                label="Source"
+                field="source"
+            />
+        </FilterPane>
     );
 }

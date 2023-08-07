@@ -2,7 +2,10 @@ import queryString from 'query-string';
 
 import { baseApi } from '@app/api/client';
 
-import type { GetOneExchangeResult } from './api.types';
+import type {
+    GetOneExchangeResult,
+    ExchangeGetSecurityResult
+} from './api.types';
 
 type GetFilterChoicesResult = { field: string; choices: string[] };
 type GetCountResult = { count: number };
@@ -26,7 +29,7 @@ type GetExchangeResult = {
 
 const extendedApi = baseApi.injectEndpoints({
     endpoints: (build) => ({
-        getAllExchange: build.query<
+        exchangeGetAll: build.query<
             GetExchangeResult[],
             { [key: string]: unknown } | void
         >({
@@ -39,11 +42,36 @@ const extendedApi = baseApi.injectEndpoints({
                 return 'exchange';
             }
         }),
-        getOneExchange: build.query<GetOneExchangeResult, string>({
+        exchangeGetCount: build.query<
+            GetCountResult,
+            { [key: string]: unknown } | void
+        >({
+            query: (filter) => {
+                if (filter)
+                    return `exchange/count?${queryString.stringify(filter, {
+                        arrayFormat: 'comma',
+                        skipNull: false
+                    })}`;
+                return 'exchange/count';
+            }
+        }),
+        exchangeGetOne: build.query<GetOneExchangeResult, string>({
             query: (id) => `exchange/${id}`
+        }),
+        exchangeGetSecurity: build.query<ExchangeGetSecurityResult, string>({
+            query: (id) => `exchange/${id}/security`
+        }),
+        exchangeGetSecurityCount: build.query<GetCountResult, string>({
+            query: (id) => `exchange/${id}/security/count`
         })
     }),
     overrideExisting: false
 });
 
-export const { useGetAllExchangeQuery, useGetOneExchangeQuery } = extendedApi;
+export const {
+    useExchangeGetSecurityCountQuery,
+    useExchangeGetAllQuery,
+    useExchangeGetOneQuery,
+    useExchangeGetCountQuery,
+    useExchangeGetSecurityQuery
+} = extendedApi;

@@ -1,4 +1,5 @@
 import { Route } from 'react-router-dom';
+
 import App from '@components/app/App';
 import HomeRoutes from './home/routes';
 import UserRoutes from './user/routes';
@@ -7,6 +8,7 @@ import ExchangeRoutes from './exchange';
 import EntityRoutes from './entity';
 import IndexRoutes from './index';
 import SecurityRoutes from './security';
+import WatchlistRoutes from './watchlist';
 
 export default (
     <Route Component={App}>
@@ -17,5 +19,6 @@ export default (
         {EntityRoutes}
         {IndexRoutes}
         {SecurityRoutes}
+        {WatchlistRoutes}
     </Route>
 );

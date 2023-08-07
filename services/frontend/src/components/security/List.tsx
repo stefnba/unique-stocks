@@ -1,58 +1,60 @@
-import { Table, List, Typography } from 'antd';
-// import dayjs from 'dayjs';
-// import utc from 'dayjs/plugin/utc';
-// import timezone from 'dayjs/plugin/timezone';
+import { Typography } from 'antd';
 
 import { useAppSelector, useAppDispatch } from '@redux';
 
-import * as exchangeApi from '../../features/security/api';
-
-import { Link } from 'react-router-dom';
+import {
+    actions as securityActions,
+    api as securityApi
+} from '@features/security';
 
 import Card from '@sharedComponents/card/Card';
+import CardList from '@sharedComponents/cardList/CardList';
+import SecurityFilter from './Filter';
 
 const { Title } = Typography;
-// import LogFilter from './Filter';
-
-// dayjs.extend(utc);
-// dayjs.extend(timezone);
 
 export default function SecurityList() {
-    // const { filtering, pagination } = useAppSelector((state) => state.exchange);
+    const dispatch = useAppDispatch();
+
+    const { filtering, pagination } = useAppSelector((state) => state.security);
 
     // api
-    const { data, isLoading } = exchangeApi.useGetAllSecurityQuery();
+    const { data, isLoading } = securityApi.useSecurityGetAllQuery({
+        page: pagination.page,
+        pageSize: pagination.pageSize,
+        ...filtering.applied
+    });
+    const { data: count } = securityApi.useSecurityGetCountQuery({
+        page: pagination.page,
+        pageSize: pagination.pageSize,
+        ...filtering.applied
+    });
 
     return (
         <div>
             <Title>Security</Title>
 
-            <List
+            <SecurityFilter />
+
+            <CardList
                 loading={isLoading}
                 pagination={{
-                    onChange: (page) => {
-                        console.log(page);
+                    current: pagination.page,
+                    pageSize: pagination.pageSize,
+                    onChange: (page: number, pageSize: number) => {
+                        dispatch(
+                            securityActions.changePagination({ page, pageSize })
+                        );
                     },
-                    pageSize: 20
+                    total: count?.count
                 }}
-                grid={{
-                    gutter: 18,
-                    xs: 1,
-                    sm: 2,
-                    md: 2,
-                    lg: 3,
-                    xl: 4,
-                    xxl: 4
-                }}
-                dataSource={data}
-                renderItem={(security) => (
-                    <List.Item key={security.id}>
-                        <Card
-                            title={security.name}
-                            link={`${security.id}`}
-                            subTitle={security.ticker}
-                        />
-                    </List.Item>
+                data={data}
+                card={(item) => (
+                    <Card
+                        title={item.name}
+                        subTitle={item.isin}
+                        link={String(item.id)}
+                    />
                 )}
             />
         </div>

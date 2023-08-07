@@ -38,7 +38,7 @@ type GetExchangeResult = {
 
 const extendedApi = baseApi.injectEndpoints({
     endpoints: (build) => ({
-        getAllEntity: build.query<
+        entityGetAll: build.query<
             GetExchangeResult[],
             { [key: string]: unknown } | void
         >({
@@ -51,11 +51,28 @@ const extendedApi = baseApi.injectEndpoints({
                 return 'entity';
             }
         }),
-        getOneEntity: build.query<GetExchangeResult, string>({
+        entityGetCount: build.query<
+            GetCountResult,
+            { [key: string]: unknown } | void
+        >({
+            query: (filter) => {
+                if (filter)
+                    return `entity/count?${queryString.stringify(filter, {
+                        arrayFormat: 'comma',
+                        skipNull: false
+                    })}`;
+                return 'entity/count';
+            }
+        }),
+        entityGetOne: build.query<GetExchangeResult, string>({
             query: (id) => `entity/${id}`
         })
     }),
     overrideExisting: false
 });
 
-export const { useGetOneEntityQuery, useGetAllEntityQuery } = extendedApi;
+export const {
+    useEntityGetAllQuery,
+    useEntityGetOneQuery,
+    useEntityGetCountQuery
+} = extendedApi;

@@ -1,17 +1,17 @@
 import { Button, Descriptions, Tabs, Typography } from 'antd';
 
-import { useGetOneEntityQuery } from '@features/entity/api';
+import { api as entityApi } from '@features/entity';
 
 import { useNavigate, useParams, Link } from 'react-router-dom';
 
 export default function EntityOneInfo() {
     const { id, key } = useParams<{ id: string; key: string }>();
 
-    const { data: entityData } = useGetOneEntityQuery(id);
+    const { data: entityData } = entityApi.useEntityGetOneQuery(id);
 
     const navigate = useNavigate();
     const goBack = () => {
-        navigate('/exchange');
+        navigate('/entity');
     };
 
     const {

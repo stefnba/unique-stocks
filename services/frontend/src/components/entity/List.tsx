@@ -2,44 +2,55 @@ import { List, Typography } from 'antd';
 import { Link } from 'react-router-dom';
 
 import { useAppSelector, useAppDispatch } from '@redux';
-import * as entityApi from '@features/entity/api';
+import { api as entityApi, actions as entityActions } from '@features/entity';
 import Card from '@sharedComponents/card/Card';
+import CardList from '@sharedComponents/cardList/CardList';
+import EntityFilter from './Filter';
 
 const { Title } = Typography;
 
 export default function EntityList() {
-    const { data: entityData } = entityApi.useGetAllEntityQuery();
+    const dispatch = useAppDispatch();
+    const { filtering, pagination } = useAppSelector((state) => state.entity);
+
+    const { data: entityData, isLoading } = entityApi.useEntityGetAllQuery({
+        page: pagination.page,
+        pageSize: pagination.pageSize,
+        ...filtering.applied
+    });
+
+    const { data: count } = entityApi.useEntityGetCountQuery({
+        page: pagination.page,
+        pageSize: pagination.pageSize,
+        ...filtering.applied
+    });
 
     return (
         <>
             <Title>Entity Overview</Title>
-            <List
+            <EntityFilter />
+
+            <CardList
+                loading={isLoading}
                 pagination={{
-                    onChange: (page) => {
-                        console.log(page);
+                    current: pagination.page,
+                    pageSize: pagination.pageSize,
+                    onChange: (page: number, pageSize: number) => {
+                        dispatch(
+                            entityActions.changePagination({ page, pageSize })
+                        );
                     },
-                    pageSize: 20
+                    total: count?.count
                 }}
-                dataSource={entityData}
-                renderItem={(entity) => (
-                    <List.Item key={entity.id}>
-                        <Card
-                            subTitle="sector"
-                            title={entity.name}
-                            link={String(entity.id)}
-                            tags={[entity.legal_address_country]}
-                        />
-                    </List.Item>
+                data={entityData}
+                card={(item) => (
+                    <Card
+                        subTitle="sector"
+                        title={item.name}
+                        link={String(item.id)}
+                        tags={[item.legal_address_country]}
+                    />
                 )}
-                grid={{
-                    gutter: 18,
-                    xs: 1,
-                    sm: 2,
-                    md: 2,
-                    lg: 3,
-                    xl: 4,
-                    xxl: 4
-                }}
             />
         </>
     );

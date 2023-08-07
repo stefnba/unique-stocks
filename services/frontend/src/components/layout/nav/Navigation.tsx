@@ -25,7 +25,7 @@ const items: MenuProps['items'] = [
         icon: <HomeOutlined />
     },
     {
-        label: <NavLink to="/exchange">Watchlist</NavLink>,
+        label: <NavLink to="/watchlist">Watchlist</NavLink>,
         key: '/watchlist#0',
         icon: <LineChartOutlined />
     },

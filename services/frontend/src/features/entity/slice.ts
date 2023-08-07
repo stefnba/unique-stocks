@@ -13,7 +13,7 @@ const initialState: LogState = {
 };
 
 export const slice = createSlice({
-    name: 'security',
+    name: 'entity',
     initialState,
     reducers: {
         applyFilter: (state, action: PayloadAction<{ [key: string]: any }>) => {

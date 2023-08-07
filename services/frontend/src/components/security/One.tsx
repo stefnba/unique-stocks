@@ -5,62 +5,51 @@ import prettyjson from 'prettyjson';
 import { Button, Descriptions, Tabs, Typography } from 'antd';
 
 import type { TabsProps } from 'antd';
-import { api } from '@features/exchange';
+
+import { api } from '@features/security';
 
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import ExchangeOneInfo from './OneInfo';
-import OneExchangeSecurity from './Security';
+import SecurityOneInfo from './OneInfo';
 
 const { Title } = Typography;
-
-const onChange = (key: string) => {
-    console.log(key);
-};
 
 const items: TabsProps['items'] = [
     {
         key: 'info',
         label: 'Info',
-        children: <ExchangeOneInfo />
+        children: <SecurityOneInfo />
     },
     {
-        key: 'security',
-        label: 'Security',
-        children: <OneExchangeSecurity />
-    },
-    {
-        key: 'index',
-        label: `Index`,
+        key: 'listing',
+        label: `Listing`,
         children: `To come...`
     }
 ];
 
-export default function SecurityOne() {
+export default function ExchangeOne() {
     const { id, key } = useParams<{ id: string; key: string }>();
     const location = useLocation();
 
-    const { data, error, isLoading } = api.useExchangeGetOneQuery(id);
+    const { data, error, isLoading } = api.useSecurityGetOneQuery(id);
 
     const navigate = useNavigate();
     const goBack = () => {
-        navigate('/exchange');
+        navigate('/security');
     };
 
-    const { name, mic } = data || {};
+    const { name } = data || {};
 
     return (
         <>
-            <Title>
-                {name} ({mic})
-            </Title>
+            <Title>{name}</Title>
             <Button onClick={goBack}>Back</Button>
 
             <Tabs
-                onTabClick={(key) => navigate(`/exchange/${id}/${key}`)}
+                onTabClick={(key) => navigate(`/security/${id}/${key}`)}
                 activeKey={key}
                 defaultActiveKey="info"
                 items={items}
-                onChange={onChange}
+                // onChange={onChange}
             />
         </>
     );

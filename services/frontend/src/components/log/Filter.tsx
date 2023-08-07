@@ -48,13 +48,13 @@ export default function LogFilter() {
         // <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
         <Space style={{ marginBottom: 24 }}>
             <DateFilter field="created" label="Timestamp" />
-            <SelectFilter field="service" label="Service" />
+            {/* <SelectFilter field="service" label="Service" />
             <SelectFilter field="name" label="Logger" />
             <SelectFilter field="levelname" label="Level" />
             <SelectFilter field="event" label="Event" />
             <SelectFilter field="dag_id" label="Dag" />
             <SelectFilter field="task_id" label="Task" />
-            <SelectFilter field="run_id" label="Run" />
+            <SelectFilter field="run_id" label="Run" /> */}
             {Object.keys(applied).length > 0 && (
                 <Button type="text" onClick={reset}>
                     Reset

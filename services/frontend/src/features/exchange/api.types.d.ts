@@ -18,3 +18,11 @@ export type GetOneExchangeResult = {
     is_active: boolean;
     is_virtual: boolean;
 };
+
+export type ExchangeGetSecurityResult = {
+    name: string;
+    ticker: string;
+    security_listing_id: number;
+    security_id: number;
+    security_ticker_id: number;
+}[];

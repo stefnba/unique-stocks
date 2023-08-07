@@ -4,14 +4,14 @@ import prettyjson from 'prettyjson';
 
 import { Button, Descriptions, Tabs, Typography } from 'antd';
 
-import { useGetOneExchangeQuery } from '@features/exchange/api';
+import { api } from '@features/exchange';
 
 import { useNavigate, useParams, Link } from 'react-router-dom';
 
 export default function ExchangeOneInfo() {
     const { id, key } = useParams<{ id: string; key: string }>();
 
-    const { data, error, isLoading } = useGetOneExchangeQuery(id);
+    const { data, error, isLoading } = api.useExchangeGetOneQuery(id);
 
     const navigate = useNavigate();
     const goBack = () => {

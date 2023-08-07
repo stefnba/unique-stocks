@@ -7,9 +7,10 @@ const { Text } = Typography;
 const CardStyle = styled.div`
     border: 1px solid #f0f0f0;
     border-radius: 8px;
+    background-color: #f5f5f5;
 `;
 
-type CardProps = {
+export type CardProps = {
     subTitle?: string;
     link?: string;
     title: string;
@@ -21,7 +22,9 @@ const Card: React.FC<CardProps> = ({ title, subTitle, link, tags }) => {
         return (
             <CardStyle className="borderrounded-lg p-3 h-24 hover:shadow-md">
                 {subTitle && (
-                    <div className="text-xs text-slate-500">{subTitle}</div>
+                    <div style={{ color: '#ff7a8a' }} className="text-xs">
+                        {subTitle}
+                    </div>
                 )}
                 <div>
                     <Text className="text-lg" ellipsis={{ tooltip: true }}>

@@ -3,12 +3,21 @@ import type { PayloadAction } from '@reduxjs/toolkit';
 import type { LogState } from './slice.types';
 
 const initialState: LogState = {
+    security: {
+        filtering: {
+            applied: {}
+        },
+        pagination: {
+            page: 1,
+            pageSize: 20
+        }
+    },
     filtering: {
         applied: {}
     },
     pagination: {
         page: 1,
-        pageSize: 50
+        pageSize: 20
     }
 };
 

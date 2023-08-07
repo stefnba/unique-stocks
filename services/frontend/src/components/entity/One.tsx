@@ -5,7 +5,7 @@ import prettyjson from 'prettyjson';
 import { Button, Descriptions, Tabs, Typography } from 'antd';
 
 import type { TabsProps } from 'antd';
-import { useGetOneEntityQuery } from '@features/entity/api';
+import { api as entityApi } from '@features/entity';
 
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import ExchangeOneInfo from './OneInfo';
@@ -48,7 +48,7 @@ export default function EntityOne() {
     const { id, key } = useParams<{ id: string; key: string }>();
     const location = useLocation();
 
-    const { data: entityData } = useGetOneEntityQuery(id);
+    const { data: entityData } = entityApi.useEntityGetOneQuery(id);
 
     const navigate = useNavigate();
     const goBack = () => {

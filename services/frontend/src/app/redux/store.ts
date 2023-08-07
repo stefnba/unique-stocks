@@ -3,6 +3,8 @@ import counterReducer from '../../features/counter/slice';
 import authReducer from '../../features/auth/slice';
 import logReducer from '../../features/log/slice';
 import exchangeReducer from '../../features/exchange/slice';
+import securityReducer from '../../features/security/slice';
+import entityReducer from '../../features/entity/slice';
 import { baseApi } from '../api/client';
 
 export const store = configureStore({
@@ -11,6 +13,8 @@ export const store = configureStore({
         auth: authReducer,
         log: logReducer,
         exchange: exchangeReducer,
+        security: securityReducer,
+        entity: entityReducer,
         [baseApi.reducerPath]: baseApi.reducer
     },
     middleware: (getDefaultMiddleware) =>

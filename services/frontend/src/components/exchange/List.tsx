@@ -1,77 +1,69 @@
-import { Table, List, Typography } from 'antd';
-// import dayjs from 'dayjs';
-// import utc from 'dayjs/plugin/utc';
-// import timezone from 'dayjs/plugin/timezone';
+import { Typography } from 'antd';
 
 import { useAppSelector, useAppDispatch } from '@redux';
 
-import * as exchangeApi from '../../features/exchange/api';
-// import { actions } from '@features/exchange/slice';
+import {
+    api as exchangeApi,
+    actions as exchangeActions
+} from '@features/exchange';
 
-import { Link } from 'react-router-dom';
 import ExchangeFilter from './Filter';
 import Card from '@sharedComponents/card/Card';
+import CardList from '@sharedComponents/cardList/CardList';
+import { useEffect } from 'react';
 
 const { Title } = Typography;
-// import LogFilter from './Filter';
-
-// dayjs.extend(utc);
-// dayjs.extend(timezone);
 
 export default function ExchangeList() {
-    // const { filtering, pagination } = useAppSelector((state) => state.exchange);
+    const dispatch = useAppDispatch();
+    const { filtering, pagination } = useAppSelector((state) => state.exchange);
 
     // api
-    const { data, isLoading } = exchangeApi.useGetAllExchangeQuery();
-    // const { data: count } = logApi.useGetCountQuery(filtering.applied);
+    const { data, isLoading } = exchangeApi.useExchangeGetAllQuery({
+        page: pagination.page,
+        pageSize: pagination.pageSize,
+        ...filtering.applied
+    });
+    const { data: count } = exchangeApi.useExchangeGetCountQuery({
+        page: pagination.page,
+        pageSize: pagination.pageSize,
+        ...filtering.applied
+    });
 
-    // const changePagination = (page: number, pageSize: number) => {
-    //     dispatch(actions.changePagination({ page, pageSize }));
-    // };
+    // junmp to page 1 upon new filtering applied
+    useEffect(() => {
+        dispatch(
+            exchangeActions.changePagination({
+                page: 1,
+                pageSize: pagination.pageSize
+            })
+        );
+    }, [filtering.applied]);
 
     return (
         <div>
             <Title>Exchange</Title>
-            {/* <ExchangeFilter /> */}
-            <List
-                // itemLayout="vertical"
-                pagination={{
-                    onChange: (page) => {
-                        console.log(page);
-                    },
-                    pageSize: 20
-                }}
-                grid={{
-                    gutter: 18,
-                    xs: 1,
-                    sm: 2,
-                    md: 2,
-                    lg: 3,
-                    xl: 4,
-                    xxl: 4
-                }}
-                dataSource={data}
-                renderItem={(exchange) => (
-                    <List.Item key={exchange.id}>
-                        {/* <Link to={`${exchange.id}`}> */}
-                        <Card
-                            title={exchange.name}
-                            link={`${exchange.id}`}
-                            subTitle={exchange.mic}
-                            // tags={[exchange.source]}
-                        />
-                        {/* </Link> */}
-                        {/* <List.Item.Meta
-                            // avatar={<Avatar src={item.avatar} />}
-                            title={
-                                <Link to={`${exchange.id}`}>
-                                    {exchange.name}
-                                </Link>
-                            }
+            <ExchangeFilter />
 
-                            // description={item.description}
-                        /> */}
-                    </List.Item>
+            <CardList
+                loading={isLoading}
+                pagination={{
+                    current: pagination.page,
+                    pageSize: pagination.pageSize,
+                    onChange: (page: number, pageSize: number) => {
+                        dispatch(
+                            exchangeActions.changePagination({ page, pageSize })
+                        );
+                    },
+                    total: count?.count
+                }}
+                data={data}
+                card={(item) => (
+                    <Card
+                        title={item.name}
+                        subTitle={item.mic}
+                        link={String(item.id)}
+                    />
                 )}
             />
         </div>
