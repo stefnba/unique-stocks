@@ -179,6 +179,8 @@ export type FindQueryParams<M> = {
     ordering?: OrderingInput;
 };
 
+export type CountQueryFilter<M> = FilterInput<M>;
+
 export type PaginationInput = {
     page?: number;
     pageSize?: number;

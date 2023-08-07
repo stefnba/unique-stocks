@@ -9,11 +9,17 @@ import {
     BatchQueryCallback,
     BatchClient,
     QueryInput,
-    FilterInput
+    FilterInput,
+    CountQueryFilter
 } from './types.js';
 import Query from './query.js';
 
-import { concatenateQuery, pgFormat, buildUpdateInsertQuery } from './utils.js';
+import {
+    concatenateQuery,
+    pgFormat,
+    buildUpdateInsertQuery,
+    tableName
+} from './utils.js';
 import pagination from './pagination.js';
 import ordering from './ordering.js';
 import { buildFilters } from './filter.js';
@@ -49,7 +55,7 @@ export default class QueryBuilder<Model = undefined> {
     find<M = Model extends undefined ? unknown : Model>(
         query: QueryInput,
         params?: FindQueryParams<Model extends undefined ? M : Model>
-    ): Query {
+    ) {
         const _query = concatenateQuery([
             pgFormat(query, params?.params),
             { type: 'WHERE', query: buildFilters(params?.filter) },
@@ -82,6 +88,85 @@ export default class QueryBuilder<Model = undefined> {
                 table: this.table
             }
         );
+    }
+
+    /**
+     * Count the unique values in a table.
+     * @param table name of table.
+     * @param filter applied filters and filterSet to filter count.
+     * @returns
+     */
+    valueCounts<M = Model extends undefined ? unknown : Model>(config: {
+        table: string | [string, string];
+        column: string;
+        type?: 'default' | 'null';
+        filter?: CountQueryFilter<Model extends undefined ? M : Model>;
+        execute?: true;
+    }): Promise<{ key: string; label?: string; count: number }[]>;
+    valueCounts<M = Model extends undefined ? unknown : Model>(config: {
+        table: string | [string, string];
+        column: string;
+        type?: 'default' | 'null';
+        filter?: CountQueryFilter<Model extends undefined ? M : Model>;
+        execute?: false;
+    }): string;
+    valueCounts<M = Model extends undefined ? unknown : Model>(config: {
+        table: string | [string, string];
+        column: string;
+        type?: 'default' | 'null';
+        filter?: CountQueryFilter<Model extends undefined ? M : Model>;
+        execute?: boolean;
+    }) {
+        const type = config?.type || 'default';
+        const execute = config?.execute !== undefined ? config?.execute : true;
+
+        const _query = concatenateQuery([
+            pgFormat(
+                type === 'default'
+                    ? 'SELECT $<column:name> AS key, COUNT(*)::INTEGER AS count FROM $<table>'
+                    : "SELECT CASE WHEN $<column:name> IS NULL then 'NULL' ELSE 'NOT_NULL' END key, COUNT(*)::INTEGER AS count FROM $<table>",
+                {
+                    table: tableName(config.table),
+                    column: config.column
+                }
+            ),
+            { type: 'WHERE', query: buildFilters(config.filter) },
+            pgFormat('GROUP BY 1 ORDER BY count DESC')
+        ]);
+
+        if (execute) {
+            return new Query(this.client.any, this.isBatch, pgFormat(_query), {
+                command: 'RUN',
+                log: this.options.query,
+                table: this.table
+            }).many<{ key: string; label?: string; count: number }>();
+        }
+
+        return _query;
+    }
+
+    /**
+     * Count number of records in table.
+     * @param table name of table.
+     * @param filter applied filters and filterSet to filter count.
+     * @returns
+     */
+    count<M = Model extends undefined ? unknown : Model>(
+        table: string | [string, string],
+        filter?: CountQueryFilter<Model extends undefined ? M : Model>
+    ) {
+        const _query = concatenateQuery([
+            pgFormat('SELECT COUNT(*)::INTEGER AS count FROM $<table>', {
+                table: tableName(table)
+            }),
+            { type: 'WHERE', query: buildFilters(filter) }
+        ]);
+
+        return new Query(this.client.any, this.isBatch, pgFormat(_query), {
+            command: 'RUN',
+            log: this.options.query,
+            table: this.table
+        }).one<{ count: number }>();
     }
 
     /**
@@ -172,8 +257,6 @@ export default class QueryBuilder<Model = undefined> {
             _filter = buildFilters(params?.filter, _table);
         }
 
-        console.log(_filter);
-
         const query = concatenateQuery([
             update,
             {
@@ -185,7 +268,7 @@ export default class QueryBuilder<Model = undefined> {
                 query: typeof params === 'string' ? '*' : params?.returning
             }
         ]);
-        console.log(query);
+
         return new Query(this.client.any, this.isBatch, query, {
             command: 'UPDATE',
             table: this.table,

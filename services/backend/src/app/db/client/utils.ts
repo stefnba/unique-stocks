@@ -244,3 +244,18 @@ export const buildUpdateInsertQuery = <M>(
         console.log('dddd', err);
     }
 };
+
+/**
+ * Builds table name with schema.
+ * @param table name of table and schema if provided.
+ * @returns pgPromise.TableName.
+ */
+export const tableName = (table: string | [string, string]) => {
+    if (typeof table === 'string') {
+        return new pgHelpers.TableName({ table });
+    }
+    return new pgHelpers.TableName({
+        schema: table[0],
+        table: table[1]
+    });
+};

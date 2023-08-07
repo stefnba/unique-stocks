@@ -14,6 +14,31 @@ export const filterOperators = {
     NOT_NULL: () => 'IS NOT NULL',
     INCLUDES: ({ column, alias, value }: FilterOperatorParams) =>
         columnAlias(column, alias) + pgFormat('IN ($<value:list>)', { value }),
+    /**
+     * Helper to filter for IS NULL OR IS NOT NULL conditions, similar to IN LIST filter
+     */
+    INCLUDES_NULL: ({ column, alias, value }: FilterOperatorParams) => {
+        if (Array.isArray(value) && value.length === 2) {
+            const conditions = value.map((v) => {
+                if (v === 'NULL') return columnAlias(column, alias) + 'IS NULL';
+                if (v === 'NOT_NULL')
+                    return columnAlias(column, alias) + 'IS NOT NULL';
+                return;
+            });
+
+            return (
+                '(' +
+                conditions.filter((i) => i !== undefined).join(' OR ') +
+                ')'
+            );
+        }
+        if (!Array.isArray(value) && typeof value === 'string') {
+            if (value === 'NULL') return columnAlias(column, alias) + 'IS NULL';
+            if (value === 'NOT_NULL')
+                return columnAlias(column, alias) + 'IS NOT NULL';
+            return '';
+        }
+    },
     EXCLUDES: ({ column, alias, value }: FilterOperatorParams) =>
         columnAlias(column, alias) +
         pgFormat('NOT IN ($<value:list>)', {
@@ -100,45 +125,45 @@ export const applyFilter = (
     if (!filters) return '';
     const appliedFilters = Object.entries(filters).map(
         ([filterKey, filterValue]) => {
-            if (filterKey in filterSet) {
-                // filters with value undefined are ignored
-                if (filterValue === undefined) {
-                    return;
-                }
+            if (!(filterKey in filterSet)) return;
 
-                const filterConfig = filterSet[filterKey];
-                if (filterConfig) {
-                    let sql: string;
-
-                    // shorthand version, i.e. filterKey is key ob object, operator is value
-                    if (typeof filterConfig === 'string') {
-                        sql = filterOperators[filterConfig]({
-                            alias: table,
-                            column: filterKey,
-                            value: filterValue
-                        });
-                    } else {
-                        sql = filterOperators[filterConfig.operator]({
-                            alias: filterConfig.alias || table,
-                            column: filterConfig.column,
-                            value: filterValue
-                        });
-                    }
-
-                    return {
-                        filter: filterKey,
-                        value: filterValue,
-                        operator:
-                            typeof filterConfig === 'string'
-                                ? filterConfig
-                                : filterConfig.operator,
-                        sql
-                    };
-                }
+            // filters with value undefined are ignored
+            if (filterValue === undefined) {
+                return;
             }
-            return;
+
+            const filterConfig = filterSet[filterKey];
+            if (filterConfig) {
+                let sql: string;
+
+                // shorthand version, i.e. filterKey is key ob object, operator is value
+                if (typeof filterConfig === 'string') {
+                    sql = filterOperators[filterConfig]({
+                        alias: table,
+                        column: filterKey,
+                        value: filterValue
+                    });
+                } else {
+                    sql = filterOperators[filterConfig.operator]({
+                        alias: filterConfig.alias || table,
+                        column: filterConfig.column,
+                        value: filterValue
+                    });
+                }
+
+                return {
+                    filter: filterKey,
+                    value: filterValue,
+                    operator:
+                        typeof filterConfig === 'string'
+                            ? filterConfig
+                            : filterConfig.operator,
+                    sql
+                };
+            }
         }
     );
+
     if (appliedFilters.length === 0) return '';
     return appliedFilters
         .filter((f) => f !== undefined)
