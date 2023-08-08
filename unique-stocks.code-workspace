@@ -33,11 +33,9 @@
         "[postgres]": {
             "editor.defaultFormatter": "bradymholt.pgformatter"
         },
-        // "pgFormatter.placeholder": "\\$[a-zA-Z]+",
-        "pgFormatter.placeholder": "\\%\\([a-zA-Z]+\\)[a-zA-Z]|\\$[a-zA-Z]+",
+        "pgFormatter.placeholder": "\\%\\([a-zA-Z]+\\)[a-zA-Z]|\\$[a-zA-Z]+|\\$\\<[a-zA-Z]+>|\\$\\<[a-zA-Z]+\\:[a-zA-Z]+>",
         "[python]": {
             "editor.defaultFormatter": "ms-python.black-formatter"
         },
-        "python.formatting.provider": "none"
     }
 }
