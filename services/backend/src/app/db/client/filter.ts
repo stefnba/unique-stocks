@@ -11,6 +11,7 @@ const columnAlias = (column: string | number | symbol, alias?: string) => {
 
 export const filterOperators = {
     NULL: () => 'IS NULL',
+    FULL_TEXT_SEARCH: () => '',
     NOT_NULL: () => 'IS NOT NULL',
     INCLUDES: ({ column, alias, value }: FilterOperatorParams) =>
         columnAlias(column, alias) + pgFormat('IN ($<value:list>)', { value }),
@@ -167,6 +168,7 @@ export const applyFilter = (
     if (appliedFilters.length === 0) return '';
     return appliedFilters
         .filter((f) => f !== undefined)
+        .filter((f) => f.operator !== 'FULL_TEXT_SEARCH')
         .map((f) => f?.sql)
         .join(' AND ');
 };

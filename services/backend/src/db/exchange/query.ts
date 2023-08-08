@@ -21,6 +21,10 @@ export default class ExchangeRepository extends DatabaseRepository {
         exchange_type: {
             column: 'operating_exchange_id',
             operator: 'INCLUDES_NULL'
+        },
+        search: {
+            column: 'search_token',
+            operator: 'FULL_TEXT_SEARCH'
         }
     });
 
@@ -35,7 +39,11 @@ export default class ExchangeRepository extends DatabaseRepository {
                     page,
                     pageSize
                 },
-                ordering: [{ column: 'name', logic: 'ASC' }]
+                ordering: [{ column: 'name', logic: 'ASC' }],
+                search: {
+                    table: ['data', 'exchange'],
+                    joinColumns: 'id'
+                }
             })
             .many();
     }

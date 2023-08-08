@@ -20,6 +20,10 @@ export default class ExchangeRepository extends DatabaseRepository {
         isin: {
             column: 'isin',
             operator: 'INCLUDES_NULL'
+        },
+        search: {
+            column: 'search_token',
+            operator: 'FULL_TEXT_SEARCH'
         }
     });
 
@@ -33,6 +37,10 @@ export default class ExchangeRepository extends DatabaseRepository {
                 pagination: {
                     page,
                     pageSize
+                },
+                search: {
+                    table: ['data', 'security'],
+                    joinColumns: 'id'
                 }
             })
             .many();

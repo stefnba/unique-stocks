@@ -16,6 +16,10 @@ export default class EntityRepository extends DatabaseRepository {
         headquarter_address_country: {
             column: 'headquarter_address_country',
             operator: 'INCLUDES'
+        },
+        search: {
+            column: 'search_token',
+            operator: 'FULL_TEXT_SEARCH'
         }
     });
 
@@ -30,6 +34,10 @@ export default class EntityRepository extends DatabaseRepository {
                 filter: {
                     filter,
                     filterSet: this.filterSet
+                },
+                search: {
+                    table: ['data', 'entity'],
+                    joinColumns: 'id'
                 }
             })
             .many();

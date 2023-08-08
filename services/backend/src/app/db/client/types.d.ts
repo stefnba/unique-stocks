@@ -18,6 +18,8 @@ import DatabaseRepository from './repository.js';
 import { ColumnSet } from './column.js';
 import PostgresClient from './client.js';
 
+export type TableName = string | [string, string];
+
 export type DatabaseClient = IDatabase<object>;
 export type DatabaseClientExtended<T extends RepositoriesParams> =
     PostgresClient & {
@@ -177,6 +179,16 @@ export type FindQueryParams<M> = {
     filter?: FilterInput<M>;
     pagination?: PaginationInput;
     ordering?: OrderingInput;
+    search?: {
+        table: TableName;
+        similarityThreshold?: number;
+        joinColumns:
+            | string
+            | {
+                  query: string;
+                  search: string;
+              };
+    };
 };
 
 export type CountQueryFilter<M> = FilterInput<M>;

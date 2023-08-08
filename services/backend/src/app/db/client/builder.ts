@@ -24,6 +24,8 @@ import pagination from './pagination.js';
 import ordering from './ordering.js';
 import { buildFilters } from './filter.js';
 
+import FullTextSearch from './fullTextSearch.js';
+
 /**
  * Simplifies construction of pg queries.
  */
@@ -56,13 +58,37 @@ export default class QueryBuilder<Model = undefined> {
         query: QueryInput,
         params?: FindQueryParams<Model extends undefined ? M : Model>
     ) {
-        const _query = concatenateQuery([
+        let _query = concatenateQuery([
             pgFormat(query, params?.params),
-            { type: 'WHERE', query: buildFilters(params?.filter) },
-            { type: 'ORDER', query: ordering(params?.ordering) },
-            { query: pagination.pageSize(params?.pagination), type: 'LIMIT' },
-            { query: pagination.page(params?.pagination), type: 'OFFSET' }
+            { type: 'WHERE', query: buildFilters(params?.filter) }
         ]);
+
+        // check and apply FullTextSearch
+        const fts = new FullTextSearch(params?.search, params?.filter);
+
+        if (fts.hasFullTextSearchQuery()) {
+            // build query and append the initial LIMIT and OFFSET
+            _query = concatenateQuery([
+                fts.buildQuery(_query),
+                {
+                    query: pagination.pageSize(params?.pagination),
+                    type: 'LIMIT'
+                },
+                { query: pagination.page(params?.pagination), type: 'OFFSET' }
+            ]);
+        } else {
+            _query = concatenateQuery([
+                _query,
+                { type: 'ORDER', query: ordering(params?.ordering) },
+                {
+                    query: pagination.pageSize(params?.pagination),
+                    type: 'LIMIT'
+                },
+                { query: pagination.page(params?.pagination), type: 'OFFSET' }
+            ]);
+        }
+
+        console.log(_query);
 
         return new Query(this.client.any, this.isBatch, _query, {
             command: 'SELECT',
