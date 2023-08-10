@@ -37,7 +37,7 @@ const extendedApi = baseApi.injectEndpoints({
                 if (filter)
                     return `exchange?${queryString.stringify(filter, {
                         arrayFormat: 'comma',
-                        skipNull: false
+                        skipNull: true
                     })}`;
                 return 'exchange';
             }
@@ -50,7 +50,7 @@ const extendedApi = baseApi.injectEndpoints({
                 if (filter)
                     return `exchange/count?${queryString.stringify(filter, {
                         arrayFormat: 'comma',
-                        skipNull: false
+                        skipNull: true
                     })}`;
                 return 'exchange/count';
             }

@@ -3,6 +3,22 @@ export type GetAllArgs = {
     page: number;
     [key: string]: unknown;
 } | void;
+export type GetListingArgs = {
+    id: number;
+    filters: GetAllArgs;
+};
+export type GetListingResult = {
+    id: number;
+    figi: string;
+    ticker: string;
+    currency: string;
+    quote_source: string;
+    exchange: {
+        id: number;
+        name: string;
+        mic: string;
+    };
+}[];
 export type GetAllResult = {
     id: number;
     ticker: string;

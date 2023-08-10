@@ -1,20 +1,17 @@
 import { configureStore } from '@reduxjs/toolkit';
-import counterReducer from '../../features/counter/slice';
+
 import authReducer from '../../features/auth/slice';
 import logReducer from '../../features/log/slice';
-import exchangeReducer from '../../features/exchange/slice';
-import securityReducer from '../../features/security/slice';
-import entityReducer from '../../features/entity/slice';
+import paginationReducer from '../../features/pagination/slice';
+import filteringReducer from '../../features/filtering/slice';
 import { baseApi } from '../api/client';
 
 export const store = configureStore({
     reducer: {
-        counter: counterReducer,
         auth: authReducer,
+        pagination: paginationReducer,
+        filtering: filteringReducer,
         log: logReducer,
-        exchange: exchangeReducer,
-        security: securityReducer,
-        entity: entityReducer,
         [baseApi.reducerPath]: baseApi.reducer
     },
     middleware: (getDefaultMiddleware) =>

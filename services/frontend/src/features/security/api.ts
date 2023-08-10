@@ -7,7 +7,9 @@ import type {
     GetOneResult,
     GetOneArgs,
     GetAllArgs,
-    GetCountResult
+    GetCountResult,
+    GetListingArgs,
+    GetListingResult
 } from './api.types';
 
 const extendedApi = baseApi.injectEndpoints({
@@ -17,9 +19,22 @@ const extendedApi = baseApi.injectEndpoints({
                 if (filter)
                     return `security?${queryString.stringify(filter, {
                         arrayFormat: 'comma',
-                        skipNull: false
+                        skipNull: true
                     })}`;
                 return 'security';
+            }
+        }),
+        securityGetListing: build.query<GetListingResult, GetListingArgs>({
+            query: ({ id, filters }) => {
+                if (filters)
+                    return `security/${id}/listing?${queryString.stringify(
+                        filters,
+                        {
+                            arrayFormat: 'comma',
+                            skipNull: true
+                        }
+                    )}`;
+                return `security/${id}/listing`;
             }
         }),
         securityGetCount: build.query<GetCountResult, GetAllArgs>({
@@ -27,7 +42,7 @@ const extendedApi = baseApi.injectEndpoints({
                 if (filter)
                     return `security/count?${queryString.stringify(filter, {
                         arrayFormat: 'comma',
-                        skipNull: false
+                        skipNull: true
                     })}`;
                 return 'security/count';
             }
@@ -42,5 +57,6 @@ const extendedApi = baseApi.injectEndpoints({
 export const {
     useSecurityGetAllQuery,
     useSecurityGetOneQuery,
-    useSecurityGetCountQuery
+    useSecurityGetCountQuery,
+    useSecurityGetListingQuery
 } = extendedApi;

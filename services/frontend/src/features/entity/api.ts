@@ -46,7 +46,7 @@ const extendedApi = baseApi.injectEndpoints({
                 if (filter)
                     return `entity?${queryString.stringify(filter, {
                         arrayFormat: 'comma',
-                        skipNull: false
+                        skipNull: true
                     })}`;
                 return 'entity';
             }
@@ -59,7 +59,7 @@ const extendedApi = baseApi.injectEndpoints({
                 if (filter)
                     return `entity/count?${queryString.stringify(filter, {
                         arrayFormat: 'comma',
-                        skipNull: false
+                        skipNull: true
                     })}`;
                 return 'entity/count';
             }
