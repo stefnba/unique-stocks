@@ -48,7 +48,7 @@ export default function EntityOne() {
     return (
         <div>
             <PageTitle title={name} />
-            <Tabs tabs={items} />
+            <Tabs basePath={['entity', id]} tabs={items} />
         </div>
     );
 }

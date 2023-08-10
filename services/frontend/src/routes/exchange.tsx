@@ -6,7 +6,22 @@ import { Route } from 'react-router-dom';
 export default (
     <Route path="/exchange">
         <Route index Component={ExchangeList} />
-        <Route path=":id/:key" Component={ExchangeOne} />
-        <Route path=":id" Component={ExchangeOne} />
+        <Route path=":id">
+            <Route index Component={ExchangeOne} />
+            <Route
+                path="info"
+                Component={ExchangeOne}
+                handle={{
+                    tabKey: 'info'
+                }}
+            />
+            <Route
+                path="security"
+                Component={ExchangeOne}
+                handle={{
+                    tabKey: 'security'
+                }}
+            />
+        </Route>
     </Route>
 );

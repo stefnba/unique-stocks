@@ -20,7 +20,7 @@ const items: TabsProps['items'] = [
     }
 ];
 
-export default function SecurityOne() {
+export default function ExchangeOne() {
     const { id } = useParams<{ id: string }>();
     const location = useLocation();
 
@@ -36,7 +36,7 @@ export default function SecurityOne() {
     return (
         <>
             <PageTitle title={`${name} (${mic})`} />
-            <Tabs tabs={items} />
+            <Tabs basePath={['exchange', id]} tabs={items} />
         </>
     );
 }

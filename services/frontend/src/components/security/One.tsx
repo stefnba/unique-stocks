@@ -32,7 +32,7 @@ export default function ExchangeOne() {
     return (
         <>
             <PageTitle title={name} />
-            <Tabs tabs={items} />
+            <Tabs basePath={['security', id]} tabs={items} />
         </>
     );
 }

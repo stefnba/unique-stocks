@@ -60,7 +60,7 @@ export default function SiderNavigation() {
     const location = useLocation();
     const paths = location.pathname.match(/\/\w+/g) || ['/home'];
 
-    console.log(paths);
+    // console.log(paths);
     return (
         <Menu
             selectedKeys={paths.map((value, index) => `${value}#${index}`)}
