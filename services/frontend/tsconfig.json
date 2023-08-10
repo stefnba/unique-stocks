@@ -14,6 +14,7 @@
             "@app/*": ["./app/*"],
             "@components/*": ["./components/*"],
             "@sharedComponents/*": ["./shared/components/*"],
+            "@sharedComponents": ["./shared/components"],
             "@features/*": ["./features/*"],
             "@shared/*": ["./shared/*"],
             "@routes": ["./routes/routes.tsx"],
