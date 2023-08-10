@@ -36,7 +36,7 @@ export default function SecurityList() {
 
     return (
         <div>
-            <PageTitle title="Security" />
+            <PageTitle goBack={false} title="Security" />
 
             <SecurityFilter />
 
