@@ -1,4 +1,5 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+
 import { Typography, Tag } from 'antd';
 import styled from 'styled-components';
 
@@ -18,6 +19,8 @@ export type CardProps = {
 };
 
 const Card: React.FC<CardProps> = ({ title, subTitle, link, tags }) => {
+    const location = useLocation();
+
     const CardContainer = () => {
         return (
             <CardStyle className="borderrounded-lg p-3 h-24 hover:shadow-md">
@@ -38,7 +41,10 @@ const Card: React.FC<CardProps> = ({ title, subTitle, link, tags }) => {
 
     if (link) {
         return (
-            <Link to={link}>
+            <Link
+                to={{ pathname: link }}
+                state={{ from: `${location.pathname}${location.search}` }}
+            >
                 <CardContainer />
             </Link>
         );

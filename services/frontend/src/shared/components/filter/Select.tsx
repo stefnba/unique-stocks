@@ -12,6 +12,12 @@ import {
 } from 'antd';
 import type { MenuProps } from 'antd';
 import type { ActionCreatorWithNonInferrablePayload } from '@reduxjs/toolkit';
+import type {
+    FilteringActionPayload,
+    FilterComponents
+} from '@features/filtering/slice.types';
+
+import { actions as filterActions } from '@features/filtering';
 
 import { useAppSelector, useAppDispatch } from '@redux';
 
@@ -91,23 +97,27 @@ type SelectFilterProps = {
     choicesApiEndpoint?: string;
     choices?: Choices;
     showFilter?: boolean;
-    appliedFilters?: { [key: string]: (string | any)[] };
-    applyFilterAction?: ActionCreatorWithNonInferrablePayload;
     keyLabelMapping?: Record<string, string | number>;
+    component?: FilterComponents;
 };
 
 export default function SelectFilter({
     field,
     label,
-    appliedFilters,
     showFilter = false,
-    applyFilterAction,
+
     choicesApiEndpoint,
     choices,
-    keyLabelMapping
+    keyLabelMapping,
+    component
 }: SelectFilterProps) {
     const dispatch = useAppDispatch();
     const { token } = useToken();
+
+    // store
+    const appliedFilters = useAppSelector(
+        (state) => state.filtering[component]
+    );
 
     // state
     const [isOpen, setOpen] = useState(false);
@@ -130,9 +140,14 @@ export default function SelectFilter({
     const onClick: MenuProps['onClick'] = ({ key, domEvent, keyPath }) => {
         domEvent.preventDefault();
         dispatch(
-            applyFilterAction(
-                buildFilter(field, key === 'tmp-0' ? null : key, appliedFilters)
-            )
+            filterActions.apply({
+                component,
+                filters: buildFilter(
+                    field,
+                    key === 'tmp-0' ? null : key,
+                    appliedFilters
+                )
+            })
         );
     };
 

@@ -1,48 +1,100 @@
 import React, { useEffect } from 'react';
 import { Space, Button } from 'antd';
 import { useSearchParams } from 'react-router-dom';
-import type { ActionCreatorWithNonInferrablePayload } from '@reduxjs/toolkit';
-import queryString from 'query-string';
+import { useAppSelector } from '@redux';
+import { usePaginationFromSearchParams } from '@shared/hooks/pagination';
+
+import queryString, { ParsedQuery } from 'query-string';
+import type {
+    FilteringActionPayload,
+    FilterComponents
+} from '@features/filtering/slice.types';
+import { actions as filterActions } from '@features/filtering';
+import { actions as paginationActions } from '@features/pagination';
+import { paginationDefault } from '@features/pagination/slice';
 
 type FilterPaneProps = {
-    appliedFilters: object;
-    applyFilterAction: ActionCreatorWithNonInferrablePayload;
+    component: FilterComponents;
 };
 
 import { useAppDispatch } from '@redux';
 
 export default function FilterPane({
     children,
-    appliedFilters,
-    applyFilterAction
+    component
 }: React.PropsWithChildren & FilterPaneProps) {
     const dispatch = useAppDispatch();
+    const pag = usePaginationFromSearchParams();
     let [searchParams, setSearchParams] = useSearchParams();
+
+    const appliedFilters = useAppSelector(
+        (state) => state.filtering[component]
+    );
+    const pagination = useAppSelector((state) => state.pagination[component]);
+
+    const paginationSet = {
+        page:
+            pagination.page === paginationDefault.page ? null : pagination.page,
+        pageSize:
+            pagination.pageSize === paginationDefault.pageSize
+                ? null
+                : pagination.pageSize
+    };
 
     // update url when filter is set
     useEffect(() => {
         if (Object.keys(appliedFilters).length > 0) {
             setSearchParams(
-                `?${queryString.stringify(appliedFilters, {
-                    // arrayFormat: 'comma'
-                })}`
+                `?${queryString.stringify(
+                    {
+                        ...appliedFilters,
+                        ...paginationSet
+                    },
+                    {
+                        skipNull: true
+                    }
+                )}`
             );
         }
     }, [appliedFilters]);
+    useEffect(() => {
+        if (pagination != paginationDefault) {
+            setSearchParams(
+                `?${queryString.stringify(
+                    {
+                        ...appliedFilters,
+                        ...paginationSet
+                    },
+                    {
+                        skipNull: true
+                    }
+                )}`
+            );
+        }
+    }, [pagination]);
 
     // set filter based on url on mount
     useEffect(() => {
+        const search = queryString.parse(searchParams.toString(), {});
         dispatch(
-            applyFilterAction(
-                queryString.parse(searchParams.toString(), {
-                    // arrayFormat: 'comma'
-                })
-            )
+            filterActions.apply({
+                component,
+                filters: search
+            })
         );
+        if (pag.page || pag.pageSize) {
+            dispatch(
+                paginationActions.change({
+                    component: 'security',
+                    page: pag.page,
+                    pageSize: pag.pageSize
+                })
+            );
+        }
     }, []);
 
     const reset = () => {
-        dispatch(applyFilterAction({}));
+        dispatch(filterActions.apply({ component, filters: {} }));
         setSearchParams();
     };
 
@@ -52,8 +104,7 @@ export default function FilterPane({
             {React.Children.map(children, (child) => {
                 if (React.isValidElement<FilterPaneProps>(child)) {
                     return React.cloneElement<FilterPaneProps>(child, {
-                        appliedFilters,
-                        applyFilterAction
+                        component
                     });
                 }
             })}

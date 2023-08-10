@@ -1,22 +1,34 @@
+import { useEffect } from 'react';
+
 import { useAppSelector, useAppDispatch } from '@redux';
 
 import { api as securityApi } from '@features/security';
 import { actions as paginationActions } from '@features/pagination';
+import { useParams } from 'react-router-dom';
+import { Card, CardList } from '@sharedComponents';
 
-import { Card, CardList, PageTitle } from '@sharedComponents';
-import SecurityFilter from './Filter';
+import SecurityFilter from '../Filter';
 
-export default function SecurityList() {
+export default function SecurityListing() {
     const dispatch = useAppDispatch();
 
-    const pagination = useAppSelector((state) => state.pagination.security);
-    const filtering = useAppSelector((state) => state.filtering.security);
+    const { id: securityId } = useParams<{ id: string }>();
+
+    const pagination = useAppSelector(
+        (state) => state.pagination.securityListing
+    );
+    const filtering = useAppSelector(
+        (state) => state.filtering.securityListing
+    );
 
     // api
-    const { data, isFetching } = securityApi.useSecurityGetAllQuery({
-        page: pagination.page,
-        pageSize: pagination.pageSize,
-        ...filtering
+    const { data, isFetching } = securityApi.useSecurityGetListingQuery({
+        id: Number.parseInt(securityId),
+        filters: {
+            page: pagination.page,
+            pageSize: pagination.pageSize,
+            ...filtering
+        }
     });
     const { data: count } = securityApi.useSecurityGetCountQuery({
         page: pagination.page,
@@ -36,10 +48,6 @@ export default function SecurityList() {
 
     return (
         <div>
-            <PageTitle title="Security" />
-
-            <SecurityFilter />
-
             <CardList
                 loading={isFetching}
                 pagination={{
@@ -51,9 +59,10 @@ export default function SecurityList() {
                 data={data}
                 card={(item) => (
                     <Card
-                        title={item.name}
-                        subTitle={item.isin}
-                        link={String(item.id)}
+                        title={item?.exchange?.name}
+                        subTitle={item?.ticker}
+                        tags={[item.currency]}
+                        link={`/security/listing/${String(item.id)}`}
                     />
                 )}
             />

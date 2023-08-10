@@ -1,43 +1,44 @@
-import { List, Typography } from 'antd';
-import { Link } from 'react-router-dom';
-
 import { useAppSelector, useAppDispatch } from '@redux';
-import { api as entityApi, actions as entityActions } from '@features/entity';
-import Card from '@sharedComponents/card/Card';
-import CardList from '@sharedComponents/cardList/CardList';
-import EntityFilter from './Filter';
+import { api as entityApi } from '@features/entity';
+import { actions as paginationActions } from '@features/pagination';
 
-const { Title } = Typography;
+import { Card, PageTitle, CardList } from '@sharedComponents';
+import EntityFilter from './Filter';
 
 export default function EntityList() {
     const dispatch = useAppDispatch();
-    const { filtering, pagination } = useAppSelector((state) => state.entity);
+    const pagination = useAppSelector((state) => state.pagination.entity);
+    const filtering = useAppSelector((state) => state.filtering.entity);
 
-    const { data: entityData, isLoading } = entityApi.useEntityGetAllQuery({
+    const { data: entityData, isFetching } = entityApi.useEntityGetAllQuery({
         page: pagination.page,
         pageSize: pagination.pageSize,
-        ...filtering.applied
+        ...filtering
     });
 
     const { data: count } = entityApi.useEntityGetCountQuery({
         page: pagination.page,
         pageSize: pagination.pageSize,
-        ...filtering.applied
+        ...filtering
     });
 
     return (
         <>
-            <Title>Entity Overview</Title>
+            <PageTitle title="Exchange" goBack={false} />
             <EntityFilter />
 
             <CardList
-                loading={isLoading}
+                loading={isFetching}
                 pagination={{
                     current: pagination.page,
                     pageSize: pagination.pageSize,
                     onChange: (page: number, pageSize: number) => {
                         dispatch(
-                            entityActions.changePagination({ page, pageSize })
+                            paginationActions.change({
+                                component: 'entity',
+                                page,
+                                pageSize
+                            })
                         );
                     },
                     total: count?.count

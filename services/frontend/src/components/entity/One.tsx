@@ -1,16 +1,10 @@
-import JSONPretty from 'react-json-pretty';
-import dayjs from 'dayjs';
-import prettyjson from 'prettyjson';
-
-import { Button, Descriptions, Tabs, Typography } from 'antd';
-
 import type { TabsProps } from 'antd';
 import { api as entityApi } from '@features/entity';
 
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import ExchangeOneInfo from './OneInfo';
-
-const { Title } = Typography;
+import PageTitle from '@sharedComponents/title/PageTitle';
+import Tabs from '@sharedComponents/tabs/Tabs';
 
 const onChange = (key: string) => {
     console.log(key);
@@ -45,31 +39,16 @@ const items: TabsProps['items'] = [
 ];
 
 export default function EntityOne() {
-    const { id, key } = useParams<{ id: string; key: string }>();
-    const location = useLocation();
+    const { id } = useParams<{ id: string }>();
 
     const { data: entityData } = entityApi.useEntityGetOneQuery(id);
-
-    const navigate = useNavigate();
-    const goBack = () => {
-        navigate('/entity');
-    };
 
     const { name } = entityData || {};
 
     return (
         <div>
-            <Title>{name}</Title>
-            <Button onClick={goBack}>Back</Button>
-
-            <Tabs
-                className="mt-8"
-                onTabClick={(key) => navigate(`/entity/${id}/${key}`)}
-                activeKey={key}
-                defaultActiveKey="info"
-                items={items}
-                onChange={onChange}
-            />
+            <PageTitle title={name} />
+            <Tabs tabs={items} />
         </div>
     );
 }

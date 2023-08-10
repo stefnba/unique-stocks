@@ -1,58 +1,55 @@
-import { Typography } from 'antd';
-
-import { useAppSelector, useAppDispatch } from '@redux';
-
-import {
-    api as exchangeApi,
-    actions as exchangeActions
-} from '@features/exchange';
-
-import ExchangeFilter from './Filter';
-import Card from '@sharedComponents/card/Card';
-import CardList from '@sharedComponents/cardList/CardList';
 import { useEffect } from 'react';
-
-const { Title } = Typography;
+import { useAppSelector, useAppDispatch } from '@redux';
+import { api as exchangeApi } from '@features/exchange';
+import { actions as paginationActions } from '@features/pagination';
+import { Card, CardList, PageTitle } from '@sharedComponents';
+import ExchangeFilter from './Filter';
 
 export default function ExchangeList() {
     const dispatch = useAppDispatch();
-    const { filtering, pagination } = useAppSelector((state) => state.exchange);
+    const pagination = useAppSelector((state) => state.pagination.exchange);
+    const filtering = useAppSelector((state) => state.filtering.exchange);
 
     // api
-    const { data, isLoading } = exchangeApi.useExchangeGetAllQuery({
+    const { data, isFetching } = exchangeApi.useExchangeGetAllQuery({
         page: pagination.page,
         pageSize: pagination.pageSize,
-        ...filtering.applied
+        ...filtering
     });
     const { data: count } = exchangeApi.useExchangeGetCountQuery({
         page: pagination.page,
         pageSize: pagination.pageSize,
-        ...filtering.applied
+        ...filtering
     });
 
     // junmp to page 1 upon new filtering applied
     useEffect(() => {
         dispatch(
-            exchangeActions.changePagination({
+            paginationActions.change({
                 page: 1,
-                pageSize: pagination.pageSize
+                pageSize: pagination.pageSize,
+                component: 'exchange'
             })
         );
-    }, [filtering.applied]);
+    }, [filtering]);
 
     return (
         <div>
-            <Title>Exchange</Title>
+            <PageTitle title="Exchange" goBack={false} />
             <ExchangeFilter />
 
             <CardList
-                loading={isLoading}
+                loading={isFetching}
                 pagination={{
                     current: pagination.page,
                     pageSize: pagination.pageSize,
                     onChange: (page: number, pageSize: number) => {
                         dispatch(
-                            exchangeActions.changePagination({ page, pageSize })
+                            paginationActions.change({
+                                component: 'exchange',
+                                page,
+                                pageSize
+                            })
                         );
                     },
                     total: count?.count

@@ -1,13 +1,12 @@
 import { useParams } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@redux';
 
-import {
-    api as exchangeApi,
-    actions as exchangeActions
-} from '@features/exchange';
-import ExchangeFilter from './Filter';
+import { api as exchangeApi } from '@features/exchange';
+import { actions as paginationActions } from '@features/pagination';
+
 import Card from '@sharedComponents/card/Card';
 import CardList from '@sharedComponents/cardList/CardList';
+import ExchangeSecurityFilter from './SecurityFilter';
 
 type ParamProps = {
     id: string;
@@ -18,15 +17,20 @@ export default function OneExchangeSecurity() {
 
     const { id } = useParams<ParamProps>();
 
-    const { filtering, pagination } = useAppSelector((state) => state.exchange);
+    const filtering = useAppSelector(
+        (state) => state.filtering.exchangeSecurity
+    );
+    const pagination = useAppSelector(
+        (state) => state.pagination.exchangeSecurity
+    );
 
     // api
     const { data, isLoading } = exchangeApi.useExchangeGetSecurityQuery(id);
     const { data: count } = exchangeApi.useExchangeGetSecurityCountQuery(id);
     return (
         <>
-            {/* <ExchangeFilter /> */}
             <p>Overview of all listed Securities:</p>
+            <ExchangeSecurityFilter />
 
             <CardList
                 loading={isLoading}
@@ -35,7 +39,11 @@ export default function OneExchangeSecurity() {
                     pageSize: pagination.pageSize,
                     onChange: (page: number, pageSize: number) => {
                         dispatch(
-                            exchangeActions.changePagination({ page, pageSize })
+                            paginationActions.change({
+                                component: 'exchangeSecurity',
+                                page,
+                                pageSize
+                            })
                         );
                     },
                     total: count?.count
@@ -45,7 +53,7 @@ export default function OneExchangeSecurity() {
                     <Card
                         title={item.name}
                         subTitle={item.ticker}
-                        link={String(item.security_listing_id)}
+                        link={`/listing/${String(item.security_listing_id)}`}
                     />
                 )}
             />

@@ -1,18 +1,12 @@
-import { Button, Descriptions, Tabs, Typography } from 'antd';
+import { Descriptions } from 'antd';
+import { useParams, Link } from 'react-router-dom';
 
 import { api as entityApi } from '@features/entity';
 
-import { useNavigate, useParams, Link } from 'react-router-dom';
-
 export default function EntityOneInfo() {
-    const { id, key } = useParams<{ id: string; key: string }>();
+    const { id } = useParams<{ id: string }>();
 
     const { data: entityData } = entityApi.useEntityGetOneQuery(id);
-
-    const navigate = useNavigate();
-    const goBack = () => {
-        navigate('/entity');
-    };
 
     const {
         name,
@@ -32,34 +26,32 @@ export default function EntityOneInfo() {
     } = entityData || {};
 
     return (
-        <>
-            <Descriptions
-                title="Entity Info"
-                layout="vertical"
-                colon={false}
-                column={4}
-            >
-                <Descriptions.Item label="LEI">{lei}</Descriptions.Item>
-                <Descriptions.Item label="Legal Address">
-                    {legal_address_street}
-                    <br />
-                    {legal_address_zip_code} {legal_address_city}, &nbsp;
-                    {legal_address_country}
-                </Descriptions.Item>
-                <Descriptions.Item label="Headquarter Address">
-                    {headquarter_address_street}
-                    <br />
-                    {headquarter_address_zip_code} {headquarter_address_city},
-                    &nbsp;
-                    {headquarter_address_country}
-                </Descriptions.Item>
+        <Descriptions
+            className="mt-6"
+            layout="vertical"
+            colon={false}
+            column={4}
+        >
+            <Descriptions.Item label="LEI">{lei}</Descriptions.Item>
+            <Descriptions.Item label="Legal Address">
+                {legal_address_street}
+                <br />
+                {legal_address_zip_code} {legal_address_city}, &nbsp;
+                {legal_address_country}
+            </Descriptions.Item>
+            <Descriptions.Item label="Headquarter Address">
+                {headquarter_address_street}
+                <br />
+                {headquarter_address_zip_code} {headquarter_address_city},
+                &nbsp;
+                {headquarter_address_country}
+            </Descriptions.Item>
 
-                <Descriptions.Item label="Website">
-                    <Link to={`http://${website}`} target="_blank">
-                        {website}
-                    </Link>
-                </Descriptions.Item>
-            </Descriptions>
-        </>
+            <Descriptions.Item label="Website">
+                <Link to={`http://${website}`} target="_blank">
+                    {website}
+                </Link>
+            </Descriptions.Item>
+        </Descriptions>
     );
 }
