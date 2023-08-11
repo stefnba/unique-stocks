@@ -91,6 +91,9 @@ export default function FilterPane({
                 })
             );
         }
+
+        // reset on unmount
+        return () => reset();
     }, []);
 
     const reset = () => {
