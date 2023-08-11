@@ -18,11 +18,12 @@ root.render(
         <Provider store={store}>
             <ConfigProvider
                 theme={{
-                    hashed: false
-                    // token: {
-                    //     // colorPrimary: '#113a5d'
-                    //     // colorPrimary: '#00b96b'
-                    // }
+                    hashed: false,
+                    token: {
+                        //     // colorPrimary: '#113a5d'
+                        // colorPrimary: '#00b96b'
+                        colorPrimary: '#ff7a8a'
+                    }
                 }}
             >
                 <RouterProvider
