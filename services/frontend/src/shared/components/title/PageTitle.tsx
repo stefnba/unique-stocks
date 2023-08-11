@@ -9,10 +9,15 @@ import { Button, Typography } from 'antd';
 
 type PageTitleProps = {
     title: string;
+    subTitle?: string | React.ReactElement;
     goBack?: boolean;
 };
 
-export default function PageTitle({ title, goBack = true }: PageTitleProps) {
+export default function PageTitle({
+    title,
+    goBack = true,
+    subTitle
+}: PageTitleProps) {
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -22,8 +27,13 @@ export default function PageTitle({ title, goBack = true }: PageTitleProps) {
 
     return (
         <div className="mb-8">
+            {goBack && (
+                <Button className="mb-6" onClick={handleGoBack}>
+                    Back
+                </Button>
+            )}
             <Typography.Title>{title}</Typography.Title>
-            {goBack && <Button onClick={handleGoBack}>Back</Button>}
+            {subTitle && <>{subTitle}</>}
         </div>
     );
 }
