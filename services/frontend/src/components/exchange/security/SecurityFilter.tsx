@@ -18,7 +18,7 @@ export default function ExchangeSecurityFilter() {
                 }}
             />
             <SelectFilter
-                choicesApiEndpoint="secyrut /filter/choices/source"
+                choicesApiEndpoint="exchange/filter/choices/source"
                 label="Source"
                 field="source"
             />
