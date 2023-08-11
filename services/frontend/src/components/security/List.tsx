@@ -51,6 +51,7 @@ export default function SecurityList() {
                 data={data}
                 card={(item) => (
                     <Card
+                        key={item.id}
                         title={item.name}
                         subTitle={item.isin}
                         link={String(item.id)}

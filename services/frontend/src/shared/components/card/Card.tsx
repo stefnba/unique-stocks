@@ -16,41 +16,45 @@ export type CardProps = {
     link?: string;
     title: string;
     tags?: string[];
+    key: string | number;
 };
 
-const Card: React.FC<CardProps> = ({ title, subTitle, link, tags }) => {
+const CardContainer: React.FC<CardProps> = ({ title, subTitle, tags, key }) => {
+    return (
+        <CardStyle
+            key={key}
+            className="borderrounded-lg p-3 h-24 hover:shadow-md"
+        >
+            {subTitle && (
+                <div style={{ color: '#ff7a8a' }} className="text-xs">
+                    {subTitle}
+                </div>
+            )}
+            <div>
+                <Text className="text-lg" ellipsis={{ tooltip: true }}>
+                    {title}
+                </Text>
+            </div>
+            {tags && tags.map((tag) => <Tag className="mt-2">{tag}</Tag>)}
+        </CardStyle>
+    );
+};
+
+const Card: React.FC<CardProps> = (props) => {
     const location = useLocation();
 
-    const CardContainer = () => {
-        return (
-            <CardStyle className="borderrounded-lg p-3 h-24 hover:shadow-md">
-                {subTitle && (
-                    <div style={{ color: '#ff7a8a' }} className="text-xs">
-                        {subTitle}
-                    </div>
-                )}
-                <div>
-                    <Text className="text-lg" ellipsis={{ tooltip: true }}>
-                        {title}
-                    </Text>
-                </div>
-                {tags && tags.map((tag) => <Tag className="mt-2">{tag}</Tag>)}
-            </CardStyle>
-        );
-    };
-
-    if (link) {
+    if (props?.link) {
         return (
             <Link
-                to={{ pathname: link }}
-                state={{ from: `${location.pathname}${location.search}` }}
+                to={{ pathname: props?.link }}
+                // state={{ from: `${location.pathname}${location.search}` }}
             >
-                <CardContainer />
+                <CardContainer {...props} />
             </Link>
         );
     }
 
-    return <CardContainer />;
+    return <CardContainer {...props} />;
 };
 
 export default Card;

@@ -57,6 +57,7 @@ export default function ExchangeList() {
                 data={data}
                 card={(item) => (
                     <Card
+                        key={item.id}
                         title={item.name}
                         subTitle={item.mic}
                         link={String(item.id)}

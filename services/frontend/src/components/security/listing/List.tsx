@@ -9,7 +9,7 @@ import { Card, CardList } from '@sharedComponents';
 
 import SecurityFilter from '../Filter';
 
-export default function SecurityListing() {
+export default function SecurityListingList() {
     const dispatch = useAppDispatch();
 
     const { id: securityId } = useParams<{ id: string }>();
@@ -60,6 +60,7 @@ export default function SecurityListing() {
                 card={(item) => (
                     <Card
                         title={item?.exchange?.name}
+                        key={item.id}
                         subTitle={item?.ticker}
                         tags={[item.currency]}
                         link={`/security/listing/${String(item.id)}`}

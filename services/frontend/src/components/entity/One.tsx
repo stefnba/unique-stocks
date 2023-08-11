@@ -12,14 +12,14 @@ const onChange = (key: string) => {
 
 const items: TabsProps['items'] = [
     {
-        key: 'info',
-        label: 'Info',
-        children: <ExchangeOneInfo />
-    },
-    {
         key: 'overview',
         label: `Overview`,
         children: `To come...`
+    },
+    {
+        key: 'info',
+        label: 'Info',
+        children: <ExchangeOneInfo />
     },
     {
         key: 'security',

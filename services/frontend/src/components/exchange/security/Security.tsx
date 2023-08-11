@@ -51,6 +51,7 @@ export default function OneExchangeSecurity() {
                 data={data}
                 card={(item) => (
                     <Card
+                        key={item.security_listing_id}
                         title={item.name}
                         subTitle={item.ticker}
                         link={`/listing/${String(item.security_listing_id)}`}

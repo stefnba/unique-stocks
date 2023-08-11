@@ -46,6 +46,7 @@ export default function EntityList() {
                 data={entityData}
                 card={(item) => (
                     <Card
+                        key={item.id}
                         subTitle="sector"
                         title={item.name}
                         link={String(item.id)}

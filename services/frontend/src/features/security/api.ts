@@ -9,7 +9,8 @@ import type {
     GetAllArgs,
     GetCountResult,
     GetListingArgs,
-    GetListingResult
+    GetListingResult,
+    GetOneListingResult
 } from './api.types';
 
 const extendedApi = baseApi.injectEndpoints({
@@ -49,6 +50,9 @@ const extendedApi = baseApi.injectEndpoints({
         }),
         securityGetOne: build.query<GetOneResult, GetOneArgs>({
             query: (id) => `security/${id}`
+        }),
+        securityGetOneListing: build.query<GetOneListingResult, GetOneArgs>({
+            query: (id) => `security/listing/${id}`
         })
     }),
     overrideExisting: false
@@ -58,5 +62,6 @@ export const {
     useSecurityGetAllQuery,
     useSecurityGetOneQuery,
     useSecurityGetCountQuery,
-    useSecurityGetListingQuery
+    useSecurityGetListingQuery,
+    useSecurityGetOneListingQuery
 } = extendedApi;
