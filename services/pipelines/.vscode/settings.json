@@ -4,10 +4,13 @@
         "source.organizeImports": true,
         "source.fixAll": false
     },
+    "python.autoComplete.extraPaths": ["${workspaceFolder}/include"],
     "editor.defaultFormatter": "esbenp.prettier-vscode",
     "[python]": {
         "editor.defaultFormatter": "ms-python.black-formatter"
     },
+
+    "python.envFile": "${workspaceFolder}/.env",
     "python.defaultInterpreterPath": "./.venv/bin/python",
     "python.formatting.provider": "black",
     "python.terminal.activateEnvironment": true,
