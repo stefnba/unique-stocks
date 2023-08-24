@@ -132,6 +132,8 @@ dmypy.json
 # Airflow
 plugins/
 logs/
+*/connections.yaml
+*/connection.yaml
 
 
 # Testing
