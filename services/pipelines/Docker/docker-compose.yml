@@ -12,6 +12,7 @@ x-airflow-common: &airflow-common
     environment: &airflow-common-env
         ENV: DockerDevelopment
         AIRFLOW_HOME: ${AIRFLOW_HOME}
+        TEMP_DIR_PATH: ${AIRFLOW_HOME}/temp
         AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@airflow-postgres/${AIRFLOW_DB_NAME}
         PYTHONPATH: ${AIRFLOW_HOME}/include # add include custom code
         AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
