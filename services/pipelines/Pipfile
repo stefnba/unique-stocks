@@ -16,6 +16,7 @@ duckdb = "*"
 adlfs = "*"
 psycopg = {extras = ["binary"], version = "*"}
 connectorx = "*"
+pydantic-settings = "*"
 
 [dev-packages]
 black = "*"
