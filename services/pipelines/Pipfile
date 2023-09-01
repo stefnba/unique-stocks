@@ -8,15 +8,14 @@ azure-identity = "*"
 azure-storage-file-datalake = "*"
 python-dotenv = "*"
 requests = "*"
-pandas = "*"
 polars = "*"
 pydantic = "*"
 pyarrow = "*"
 duckdb = "*"
 adlfs = "*"
 psycopg = {extras = ["binary"], version = "*"}
-connectorx = "*"
 pydantic-settings = "*"
+pandas = "<2.1"
 
 [dev-packages]
 black = "*"
