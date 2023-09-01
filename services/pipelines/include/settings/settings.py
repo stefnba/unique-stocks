@@ -37,6 +37,7 @@ class DataProductSettings(BaseSettings):
 
 class AppSettings(BaseSettings):
     EnvironmentTypes: Literal["Production", "Development", "DockerDevelopment"] = "Development"
+    temp_dir_path: str = Field(alias="TEMP_DIR_PATH", default="temp")
 
 
 class LoggingSettings(BaseSettings):
