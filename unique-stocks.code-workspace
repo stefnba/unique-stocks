@@ -24,10 +24,7 @@
             "path": "./services/log",
             "name": "Log"
         },
-        {
-            "name": "data-lake",
-            "uri": "azurestorageblob:/data-lake?storageAccountId=/subscriptions/a47044eb-bf4a-4af5-be89-36de219235ae/resourceGroups/unique-stocks/providers/Microsoft.Storage/storageAccounts/uniquestocks"
-        }
+        
     ],
     "settings": {
         "files.associations": {
