@@ -9,7 +9,9 @@ export default class ExchangeRepository extends DatabaseRepository {
 
     queries = {
         findAll: this.sqlFile('findAll.sql'),
-        findOne: this.sqlFile('findOne.sql')
+        findListing: this.sqlFile('findListing.sql'),
+        findOne: this.sqlFile('findOne.sql'),
+        findOneListing: this.sqlFile('findOneListing.sql')
     };
 
     filterSet = this.filterSet({
@@ -42,6 +44,41 @@ export default class ExchangeRepository extends DatabaseRepository {
                     table: ['data', 'security'],
                     joinColumns: 'id'
                 }
+            })
+            .many();
+    }
+
+    async findAllListingForSecurity(
+        id: number,
+        filter?: object,
+        page?: number,
+        pageSize?: number
+    ) {
+        return this.query
+            .find(this.queries.findListing, {
+                filter: {
+                    filter: {
+                        ...filter,
+                        id
+                    },
+                    filterSet: {
+                        ...this.filterSet,
+                        id: {
+                            operator: 'EQUAL',
+                            column: 'security_id',
+                            alias: 'security_ticker'
+                        }
+                    }
+                },
+                pagination: {
+                    page,
+                    pageSize
+                },
+                search: {
+                    table: ['data', 'security'],
+                    joinColumns: 'id'
+                },
+                ordering: [{ column: 'quote_source', logic: 'ASC' }]
             })
             .many();
     }
@@ -84,6 +121,25 @@ export default class ExchangeRepository extends DatabaseRepository {
                             column: 'id',
                             operator: 'EQUAL',
                             alias: 'security'
+                        }
+                    }
+                }
+            })
+            .oneOrNone();
+    }
+
+    async findOneListing(id: number) {
+        return this.query
+            .find(this.queries.findOneListing, {
+                filter: {
+                    filter: {
+                        id
+                    },
+                    filterSet: {
+                        id: {
+                            column: 'id',
+                            operator: 'EQUAL',
+                            alias: 'security_listing'
                         }
                     }
                 }

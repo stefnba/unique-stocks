@@ -4,6 +4,7 @@ import { api } from '@features/security';
 
 import { useNavigate, useParams } from 'react-router-dom';
 import SecurityOneInfo from './OneInfo';
+import SecurityOneOverview from './OneOverview';
 import SecurityListingList from './listing/List';
 import PageTitle from '@sharedComponents/title/PageTitle';
 import Tabs from '@sharedComponents/tabs/Tabs';
@@ -12,7 +13,7 @@ const items: TabsProps['items'] = [
     {
         key: 'overview',
         label: 'Overview',
-        children: <SecurityOneInfo />
+        children: <SecurityOneOverview />
     },
     {
         key: 'info',

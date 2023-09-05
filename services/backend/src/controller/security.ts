@@ -17,6 +17,12 @@ export const findAll = controllerHandler<FindAllRequestArgs>(({ query }) =>
     securityService.findAll(query)
 );
 
+export const findAllListingForSecurity = controllerHandler<
+    FindAllRequestArgs & FindOneRequestArgs
+>(({ query, params }) =>
+    securityService.findAllListingForSecurity(params.id, query)
+);
+
 export const filterChoices = controllerHandler<FilterChoicesRequestArgs>(
     ({ params }) => securityService.filterChoices(params.field)
 );
@@ -27,4 +33,8 @@ export const count = controllerHandler<
 
 export const findOne = controllerHandler<FindOneRequestArgs>(({ params }) =>
     securityService.findOne(params.id)
+);
+
+export const findOneListing = controllerHandler<FindOneRequestArgs>(
+    ({ params }) => securityService.findOneListing(params.id)
 );
