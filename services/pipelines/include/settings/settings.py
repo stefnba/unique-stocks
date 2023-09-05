@@ -49,7 +49,6 @@ class LoggingSettings(BaseSettings):
 class AzureDataLakeSettings(BaseSettings):
     storage_account_url: Optional[str] = Field(alias="AZURE_STORAGE_ACCOUNT_URL", default=None)
     account_name: Optional[str] = Field(alias="AZURE_STORAGE_ACCOUNT_NAME", default=None)
-    default_file_system: str = "data-lake"
 
 
 class ConfigSettings(BaseSettings):
