@@ -16,6 +16,7 @@ adlfs = "*"
 psycopg = {extras = ["binary"], version = "*"}
 pydantic-settings = "*"
 pandas = "<2.1"
+deltalake = "*"
 
 [dev-packages]
 black = "*"
