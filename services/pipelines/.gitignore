@@ -139,3 +139,4 @@ logs/
 
 # Testing
 test-notebook*.py
+testing/airflow/
