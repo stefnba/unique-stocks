@@ -11,6 +11,9 @@ from typing import TypedDict
 from utils.dag.xcom import XComGetter, set_xcom_value, get_xcom_template
 from custom.providers.eod_historical_data.operators.fundamental.transform import EodFundamentalTransformOperator
 from shared.data_lake_path import FundamentalPath, TempDirectory
+from airflow.utils.trigger_rule import TriggerRule
+import pyarrow as pa
+from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
 
 
 class FundamentalSecurity(TypedDict):
@@ -19,15 +22,37 @@ class FundamentalSecurity(TypedDict):
 
 
 @task
-def extract_security() -> list[FundamentalSecurity]:
-    return [
-        {"exchange_code": "US", "security_code": "AAPL"},
-        {"exchange_code": "US", "security_code": "MFST"},
-    ]
+def extract_security():
+    import polars as pl
+    from custom.providers.delta_table.hooks.delta_table import DeltaTableHook
 
+    set_xcom_value(key="temp_dir", value=TempDirectory().directory)
 
-def transform_fundamental(data):
-    return data
+    # return [{"security_code": "8TI", "exchange_code": "XETRA"}]
+
+    dt = DeltaTableHook(conn_id="azure_data_lake").read(source_path="security", source_container="curated")
+
+    securities = pl.from_arrow(
+        dt.to_pyarrow_dataset(
+            partitions=[
+                (
+                    "exchange_code",
+                    "in",
+                    [
+                        "XETRA",
+                        # "NASDAQ",
+                        # "NYSE",
+                    ],
+                ),
+                ("type", "=", "common_stock"),
+            ]
+        ).to_batches()
+    )
+
+    if isinstance(securities, pl.DataFrame):
+        s = securities.select([pl.col("code").alias("security_code"), pl.col("exchange_code")]).to_dicts()
+
+        return s[:1000]
 
 
 @task_group
@@ -36,7 +61,6 @@ def one_fundamental(one_fundamental: FundamentalSecurity):
     def ingest(security: FundamentalSecurity):
         from custom.providers.eod_historical_data.hooks.api import EodHistoricalDataApiHook
         from airflow.providers.microsoft.azure.hooks.wasb import WasbHook
-        from shared.data_lake_path import FundamentalPath
         import json
 
         fundamental_data = EodHistoricalDataApiHook().fundamental(**security)
@@ -59,11 +83,40 @@ def one_fundamental(one_fundamental: FundamentalSecurity):
         task_id="transform",
         adls_conn_id="azure_data_lake",
         source_path=XComGetter(task_id="one_fundamental.ingest"),
-        destination_path=TempDirectory(),
+        destination_path=TempDirectory(
+            base_dir=get_xcom_template(task_id="extract_security", key="temp_dir", use_map_index=False)
+        ),
         entity_id=get_xcom_template(task_id="one_fundamental.ingest", key="entity_id"),
     )
 
     ingest(one_fundamental) >> transform
+
+
+sink = WriteDeltaTableFromDatasetOperator(
+    task_id="sink",
+    trigger_rule=TriggerRule.ALL_DONE,
+    adls_conn_id="azure_data_lake",
+    dataset_path={"container": "temp", "path": get_xcom_template(task_id="extract_security", key="temp_dir")},
+    destination_path=FundamentalPath.curated(),
+    pyarrow_options={
+        "schema": pa.schema(
+            [
+                pa.field("entity_id", pa.string()),
+                pa.field("currency", pa.string()),
+                pa.field("metric", pa.string()),
+                pa.field("value", pa.string()),
+                pa.field("period_name", pa.string()),
+                pa.field("period", pa.date32()),
+                pa.field("published_at", pa.date32()),
+                pa.field("year", pa.int32()),
+            ]
+        )
+    },
+    delta_table_options={
+        "mode": "overwrite",
+        # "partition_by": ["security_code", "exchange_code"],
+    },
+)
 
 
 @dag(
@@ -74,7 +127,7 @@ def one_fundamental(one_fundamental: FundamentalSecurity):
     tags=["fundamental"],
 )
 def fundamental():
-    one_fundamental.expand(one_fundamental=extract_security())
+    one_fundamental.expand(one_fundamental=extract_security()) >> sink
 
 
 dag_object = fundamental()

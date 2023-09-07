@@ -4,13 +4,15 @@
 from datetime import datetime
 
 from airflow.decorators import task, dag, task_group
-
+from airflow.utils.trigger_rule import TriggerRule
+import pyarrow as pa
 
 from typing import TypedDict
 from custom.operators.data.transformation import DuckDbTransformationOperator
 
 from shared.data_lake_path import SecurityQuotePath, TempDirectory
-from utils.dag.xcom import XComGetter, set_xcom_value, get_xcom_template, get_xcom_value
+from utils.dag.xcom import XComGetter, set_xcom_value, get_xcom_template
+from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
 
 
 class QuoteSecurity(TypedDict):
@@ -20,75 +22,33 @@ class QuoteSecurity(TypedDict):
 
 @task
 def extract_security():
-    from custom.providers.eod_historical_data.hooks.api import EodHistoricalDataApiHook
     import polars as pl
-
-    securities_raw = EodHistoricalDataApiHook().exchange_security(exchange_code="XETRA")
-
-    securities = pl.DataFrame(securities_raw)
+    from custom.providers.delta_table.hooks.delta_table import DeltaTableHook
 
     set_xcom_value(key="temp_dir", value=TempDirectory().directory)
 
-    return (
-        securities.filter(pl.col("Type") == "Common Stock")
-        .with_columns(
-            [
-                pl.col("Code").alias("security_code"),
-                pl.col("Exchange").alias("exchange_code"),
+    dt = DeltaTableHook(conn_id="azure_data_lake").read(source_path="security", source_container="curated")
+
+    securities = pl.from_arrow(
+        dt.to_pyarrow_dataset(
+            partitions=[
+                ("exchange_code", "in", ["XETRA", "NASDAQ", "NYSE"]),
+                ("type", "=", "common_stock"),
             ]
-        )[["security_code", "exchange_code"]]
-        .to_dicts()[:2]
+        ).to_batches()
     )
+
+    if isinstance(securities, pl.DataFrame):
+        s = securities.select([pl.col("code").alias("security_code"), pl.col("exchange_code")]).to_dicts()
+
+        return s[:1000]
 
     return [
         {"exchange_code": "US", "security_code": "AAPL"},
         {"exchange_code": "F", "security_code": "APC"},
-        # {"exchange_code": "XETRA", "security_code": "APC"},
-        # {"exchange_code": "US", "security_code": "MFST"},
+        {"exchange_code": "XETRA", "security_code": "APC"},
+        {"exchange_code": "US", "security_code": "MFST"},
     ]
-
-
-@task
-def combine():
-    from pyarrow import dataset as ds
-    import pyarrow as pa
-
-    from deltalake.writer import write_deltalake
-    from adlfs import AzureBlobFileSystem
-
-    filesystem = AzureBlobFileSystem(account_name="uniquestocksdatalake", anon=False)
-
-    storage_options = {}
-
-    base_dir = get_xcom_value(task_id="extract_security", key="temp_dir")
-
-    schema = pa.schema(
-        [
-            pa.field("date", pa.string()),
-            pa.field("open", pa.float64()),
-            pa.field("high", pa.float64()),
-            pa.field("low", pa.float64()),
-            pa.field("close", pa.float64()),
-            pa.field("adjusted_close", pa.float64()),
-            pa.field("volume", pa.int64()),
-            pa.field("exchange_code", pa.string()),
-            pa.field("security_code", pa.string()),
-        ]
-    )
-
-    ds = ds.dataset(f"temp/{base_dir}", filesystem=filesystem, format="parquet", schema=schema)
-
-    write_deltalake(
-        "abfs://curated/security_quote",
-        data=ds.to_batches(),
-        schema=ds.schema,
-        storage_options=storage_options,
-        mode="overwrite",
-        partition_by=["security_code", "exchange_code"],
-        overwrite_schema=True,
-    )
-
-    return base_dir
 
 
 @task_group
@@ -133,6 +93,34 @@ def one_security(one_security: QuoteSecurity):
     ingest_task >> transform
 
 
+sink = WriteDeltaTableFromDatasetOperator(
+    task_id="sink",
+    trigger_rule=TriggerRule.ALL_DONE,
+    adls_conn_id="azure_data_lake",
+    dataset_path={"container": "temp", "path": get_xcom_template(task_id="extract_security", key="temp_dir")},
+    destination_path=SecurityQuotePath.curated(),
+    pyarrow_options={
+        "schema": pa.schema(
+            [
+                pa.field("date", pa.string()),
+                pa.field("open", pa.float64()),
+                pa.field("high", pa.float64()),
+                pa.field("low", pa.float64()),
+                pa.field("close", pa.float64()),
+                pa.field("adjusted_close", pa.float64()),
+                pa.field("volume", pa.int64()),
+                pa.field("exchange_code", pa.string()),
+                pa.field("security_code", pa.string()),
+            ]
+        )
+    },
+    delta_table_options={
+        "mode": "overwrite",
+        "partition_by": ["security_code", "exchange_code"],
+    },
+)
+
+
 @dag(
     schedule=None,
     start_date=datetime(2023, 1, 1),
@@ -141,7 +129,7 @@ def one_security(one_security: QuoteSecurity):
     tags=["quote", "security"],
 )
 def historical_quote():
-    one_security.expand(one_security=extract_security()) >> combine()
+    one_security.expand(one_security=extract_security()) >> sink
 
 
 dag_object = historical_quote()

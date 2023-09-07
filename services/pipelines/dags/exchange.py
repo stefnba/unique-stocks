@@ -4,12 +4,13 @@
 from datetime import datetime
 
 from airflow.decorators import task, dag, task_group
+import pyarrow as pa
 
 
 from typing import TypedDict
 from custom.operators.data.transformation import DuckDbTransformationOperator
-
-from shared.data_lake_path import SecurityQuotePath, TempDirectory
+from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
+from shared.data_lake_path import ExchangePath, TempFile
 from utils.dag.xcom import XComGetter, set_xcom_value, get_xcom_template, get_xcom_value
 
 
@@ -37,54 +38,32 @@ def ingest():
 transform = DuckDbTransformationOperator(
     task_id="transform",
     adls_conn_id="azure_data_lake",
-    destination_path="test.parquet",
-    destination_container="temp",
+    destination_path=TempFile(),
     query="sql/exchange/transform.sql",
     data={"exchange": get_xcom_template(task_id="ingest")},
 )
 
 
-@task
-def sink():
-    from pyarrow import dataset as ds
-    import pyarrow as pa
-
-    from deltalake.writer import write_deltalake
-    from adlfs import AzureBlobFileSystem
-
-    filesystem = AzureBlobFileSystem(account_name="uniquestocksdatalake", anon=False)
-
-    storage_options = {}
-
-    base_dir = get_xcom_value(task_id="extract_security", key="temp_dir")
-
-    schema = pa.schema(
-        [
-            pa.field("date", pa.string()),
-            pa.field("open", pa.float64()),
-            pa.field("high", pa.float64()),
-            pa.field("low", pa.float64()),
-            pa.field("close", pa.float64()),
-            pa.field("adjusted_close", pa.float64()),
-            pa.field("volume", pa.int64()),
-            pa.field("exchange_code", pa.string()),
-            pa.field("security_code", pa.string()),
-        ]
-    )
-
-    ds = ds.dataset(f"temp/{base_dir}", filesystem=filesystem, format="parquet", schema=schema)
-
-    write_deltalake(
-        "abfs://curated/security_quote",
-        data=ds.to_batches(),
-        schema=ds.schema,
-        storage_options=storage_options,
-        mode="overwrite",
-        # partition_by=["security_code", "exchange_code"],
-        # overwrite_schema=True,
-    )
-
-    return base_dir
+sink = WriteDeltaTableFromDatasetOperator(
+    task_id="sink",
+    adls_conn_id="azure_data_lake",
+    dataset_path=get_xcom_template(task_id="transform"),
+    destination_path=ExchangePath.curated(),
+    pyarrow_options={
+        "schema": pa.schema(
+            [
+                pa.field("name", pa.string()),
+                pa.field("code", pa.string()),
+                pa.field("operating_mic", pa.string()),
+                pa.field("currency", pa.string()),
+                pa.field("country", pa.string()),
+            ]
+        )
+    },
+    delta_table_options={
+        "mode": "overwrite",
+    },
+)
 
 
 @dag(
@@ -95,7 +74,7 @@ def sink():
     tags=["exchange"],
 )
 def exchange():
-    ingest() >> transform
+    ingest() >> transform >> sink
 
 
 dag_object = exchange()
