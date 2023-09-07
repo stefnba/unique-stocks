@@ -2,15 +2,48 @@
 import duckdb
 from adlfs import AzureBlobFileSystem
 import polars as pl
+import os
 
-filesystem = AzureBlobFileSystem(account_name="uniquestocksdatalake", anon=False)
+account_name = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
+client = os.getenv("AZURE_CLIENT_ID")
+tenant = os.getenv("AZURE_TENANT_ID")
+secret = os.getenv("AZURE_CLIENT_SECRET")
 
 storage_options = {
-    "account_name": "uniquestocksdatalake",
-    "client_id": "9f4b477f-d48d-44f5-865d-f9290c7266c5",
-    "client_secret": "W_K8Q~nYMEAgb4-h-3-Mje-YFGxlS04otyo8obOX",
-    "tenant_id": "b7db8837-d6cf-499f-a354-05bdb6e15170",
+    "account_name": account_name,
+    "client_id": client,
+    "client_secret": secret,
+    "tenant_id": tenant,
 }
+filesystem = AzureBlobFileSystem(account_name="uniquestocksdatalake", anon=False)
+
+# %%
+# filesystem.glob("curated/exchange/**")
+
+duckdb.register_filesystem(filesystem=filesystem)
+
+duckdb.read_parquet("abfs://temp/20230906-152609_a6871cfdcf254662a5a2db8add8fff6f/").count("*")
+# duckdb.read_parquet("abfs://curated/security_quote/**.parquet", hive_partitioning=True).filter("security_code = 'AAPL'")
+# duckdb.read_parquet("abfs://curated/security/**.parquet").pl()
+# duckdb.read_parquet("abfs://curated/exchange/**.parquet")
+
+# %%
+
+from deltalake import DeltaTable
+
+dt = DeltaTable("abfs://curated/fundamental", storage_options=storage_options, version=2)
+
+
+# dt.file_uris([("exchange_code", "=", "US")])
+pl.from_arrow(
+    dt.to_pyarrow_dataset(
+        # partitions=[
+        #     # ("exchange_code", "=", "XETRA"),
+        #     ("exchange_code", "in", ["XETRA", "NASDAQ", "NYSE"]),
+        #     ("type", "=", "common_stock"),
+        # ]
+    ).to_batches()
+)
 
 # %%
 filesystem.ls("curated/security_quote")
@@ -65,15 +98,16 @@ from pyarrow import dataset as ds
 # from pyarrow.dataset import FileSystemDataset
 
 d = ds.dataset(
-    "temp/20230903-183004_5bc94e35bbb14769bf51f3ed95da82bc/",
+    "temp/20230906-152609_a6871cfdcf254662a5a2db8add8fff6f/",
     filesystem=filesystem,
     format="parquet",
     # schema=schema,
 )
-da = 2393
-if isinstance(d, (ds.FileSystemDataset, ds.UnionDataset)):
-    print("yes")
-    print(d.to_table())
+
+# da = 2393
+# if isinstance(d, (ds.FileSystemDataset, ds.UnionDataset)):
+#     print("yes")
+#     print(d.to_table())
 
 
 # %%
@@ -124,38 +158,3 @@ write_deltalake(
 
 
 # duckdb.sql("SELECT DISTINCT security_code, exchange_code FROM ds")
-
-# %%
-from deltalake import DeltaTable
-
-dt = DeltaTable("testlake")
-
-dt.optimize()
-# %%
-# duckdb.from_arrow(dt.to_pyarrow_dataset()).pl()
-
-
-from deltalake import DeltaTable
-
-dt = DeltaTable("abfs://curated/security_quote", storage_options=storage_options)
-
-
-# %%
-# dt = DeltaTable("abfs://curated/security_quote", storage_options=storage_options)
-
-dt.load_version(version=0)
-
-
-dt.load_with_datetime()
-
-# DeltaTable("abfs://curated/security_quote", storage_options=storage_options).version()
-# %%
-ds = DeltaTable("abfs://curated/security_quote", storage_options=storage_options).to_pyarrow_dataset()
-
-ds.count_rows()
-# print("done")
-# pl.scan_pyarrow_dataset(source=ds).collect()
-# pl.scan_pyarrow_dataset(source=ds).filter(pl.col("security_code") == "MHL").collect()
-
-
-# .to_pandas()["security_code"].unique()
