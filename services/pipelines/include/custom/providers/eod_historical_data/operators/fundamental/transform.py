@@ -7,6 +7,8 @@ from utils.dag.xcom import XComGetter
 import json
 import polars as pl
 from functools import reduce
+from custom.operators.data.types import DatasetPath
+from custom.operators.data.utils import extract_dataset_path
 
 SourcePath: TypeAlias = str | XComGetter
 Period = Literal["yearly", "quarterly"]
@@ -34,12 +36,19 @@ class EodFundamentalTransformOperator(BaseOperator):
     template_fields = ("source_path", "entity_id", "destination_path")
 
     context: Context
-    source_path: SourcePath
+    source_path: DatasetPath
+    destination_path: DatasetPath
     adls_conn_id: str
     entity_id: str
 
     def __init__(
-        self, task_id: str, adls_conn_id: str, entity_id: str, source_path: SourcePath, destination_path: str, **kwargs
+        self,
+        task_id: str,
+        adls_conn_id: str,
+        entity_id: str,
+        source_path: DatasetPath,
+        destination_path: DatasetPath,
+        **kwargs,
     ):
         super().__init__(
             task_id=task_id,
@@ -54,16 +63,10 @@ class EodFundamentalTransformOperator(BaseOperator):
     def execute(self, context: Context):
         self.context = context
 
-        source_path = self.source_path
-
-        if isinstance(source_path, XComGetter):
-            source_path = source_path.parse(context=context)
-
-            if not isinstance(source_path, str):
-                raise ValueError("dataset_path must be a string")
+        source_path = extract_dataset_path(path=self.source_path, context=context)
 
         hook = AzureDataLakeStorageHook(conn_id=self.conn_id)
-        data = hook.read_blob(blob_path=source_path, container=hook.container)
+        data = hook.read_blob(blob_path=source_path["path"], container=source_path["container"])
 
         fundamental = EodFundamentalParser(fundamental_data=data, entity_id=self.entity_id)
 
@@ -78,11 +81,25 @@ class EodFundamentalTransformOperator(BaseOperator):
             fundamental.parse_earnings(type="History"),
         ]
 
+        fundamental_bucket = [f for f in fundamental_bucket if f is not None]
+
+        if len(fundamental_bucket) == 0:
+            return
+
         df = pl.concat(items=fundamental_bucket)
 
-        AzureDatasetHook(conn_id=self.conn_id).write(dataset=df.lazy(), destination_path=self.destination_path)
+        destination_path = source_path = extract_dataset_path(path=self.destination_path, context=context)
 
-        return self.destination_path
+        AzureDatasetHook(conn_id=self.conn_id).write(
+            dataset=df.lazy(),
+            destination_path=destination_path["path"],
+            destination_container=destination_path["container"],
+        )
+
+        return {
+            "path": destination_path["path"],
+            "container": destination_path["container"],
+        }
 
 
 class EodFundamentalParser:
@@ -127,6 +144,9 @@ class EodFundamentalParser:
         return self._unpivot_value_list(earnings, period=period_mapping.get(type, None))
 
     def _unpivot_value_list(self, data, period: Optional[Period]):
+        if not data:
+            return
+
         df = pl.DataFrame(data)
 
         id_vars = [
@@ -178,9 +198,11 @@ class EodFundamentalParser:
                     if "filing_date" in df.columns
                     else pl.lit(None, dtype=pl.Utf8).cast(pl.Date)
                 ).alias("published_at"),
-                (pl.col("currency_symbol") if "currency_symbol" in df.columns else pl.lit(None).cast(pl.Utf8)).alias(
-                    "currency"
-                ),
+                (
+                    pl.col("currency_symbol").cast(pl.Utf8)
+                    if "currency_symbol" in df.columns
+                    else pl.lit(None).cast(pl.Utf8)
+                ).alias("currency"),
             ]
         )
 

@@ -12,6 +12,13 @@ class EntityPath(DataLakePath):
 class SecurityPath(DataLakePath):
     product = "security"
 
+    placeholder_pattern = [
+        PathElement(key="exchange"),
+    ]
+
+    def add_element(self, exchange: str):
+        return super().add_element(exchange=exchange)
+
 
 class SecurityQuotePath(DataLakePath):
     product = "security_quote"

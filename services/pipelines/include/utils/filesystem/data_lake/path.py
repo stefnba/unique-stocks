@@ -180,4 +180,4 @@ class DataLakePath(DataLakePathBase):
 
     @property
     def directory(self):
-        return self.build_from_pattern(pattern=self.dir_pattern, sep="/")
+        return (self.build_from_pattern(pattern=self.dir_pattern, sep="/") or "") + "/"
