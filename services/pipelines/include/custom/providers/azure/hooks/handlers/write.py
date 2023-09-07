@@ -28,7 +28,7 @@ class AzureDatasetWriteBaseHandler:
         self.filesystem = filesystem
         self.conn_id = conn_id
 
-    def sink(self) -> str:
+    def sink(self, **kwargs) -> str:
         raise NotImplementedError()
 
 
@@ -39,7 +39,7 @@ class AzureDatasetWriteDeltaTableHandler(AzureDatasetWriteBaseHandler):
     `pyarrow.Dataset.to_batches()` method is used, a schema must be provided.
     """
 
-    def sink(self):
+    def sink(self, schema=None, **kwargs):
         dataset = self.dataset
 
         hook = DeltaTableHook(self.conn_id)
@@ -56,7 +56,8 @@ class AzureDatasetWriteDeltaTableHandler(AzureDatasetWriteBaseHandler):
                 data=dataset.to_batches(),
                 destination_container=self.container,
                 destination_path=self.path,
-                schema=dataset.schema,
+                schema=schema or dataset.schema,
+                **kwargs,
             )
 
 

@@ -71,6 +71,7 @@ class AzureDatasetHook(BaseHook):
         destination_path: DatasetWritePath,
         destination_container: Optional[str] = None,
         handler: type[AzureDatasetWriteBaseHandler] = AzureDatasetWriteUploadHandler,
+        **kwargs,
     ) -> str:
         """
         Save a dataset in Azure Data Lake Storage.
@@ -103,7 +104,7 @@ class AzureDatasetHook(BaseHook):
             container=container,
             filesystem=self.filesystem,
         )
-        return _handler.sink()
+        return _handler.sink(**kwargs)
 
         return destination_path
 
@@ -126,6 +127,7 @@ class AzureDatasetHook(BaseHook):
         handler: type[AzureDatasetReadBaseHandler] = ...,
         *,
         dataset_type: Literal["DuckDBRel", "DuckDBLocalScan"],
+        **kwargs,
     ) -> duckdb.DuckDBPyRelation:
         ...
 
@@ -138,6 +140,7 @@ class AzureDatasetHook(BaseHook):
         handler: type[AzureDatasetReadBaseHandler] = ...,
         *,
         dataset_type: Literal["PolarsDataFrame"],
+        **kwargs,
     ) -> pl.DataFrame:
         ...
 
@@ -150,6 +153,7 @@ class AzureDatasetHook(BaseHook):
         handler: type[AzureDatasetReadBaseHandler] = ...,
         *,
         dataset_type: Literal["PolarsLocalScan"],
+        **kwargs,
     ) -> pl.LazyFrame:
         ...
 
@@ -162,6 +166,7 @@ class AzureDatasetHook(BaseHook):
         handler: type[AzureDatasetReadBaseHandler] = ...,
         *,
         dataset_type: Literal["PolarsLazyFrame"] = ...,
+        **kwargs,
     ) -> pl.LazyFrame:
         ...
 
@@ -174,6 +179,7 @@ class AzureDatasetHook(BaseHook):
         handler: type[AzureDatasetReadBaseHandler] = ...,
         *,
         dataset_type: Literal["ArrowDataset"] = ...,
+        **kwargs,
     ) -> ds.FileSystemDataset:
         ...
 
@@ -184,6 +190,7 @@ class AzureDatasetHook(BaseHook):
         source_container: Optional[str] = None,
         handler: type[AzureDatasetReadBaseHandler] = AzureDatasetReadHandler,
         dataset_type: DatasetType = "DuckDBRel",
+        **kwargs,
     ) -> duckdb.DuckDBPyRelation | pl.LazyFrame | pl.DataFrame | str | ds.FileSystemDataset:
         """
         Loads a dataset and return it.
@@ -219,7 +226,7 @@ class AzureDatasetHook(BaseHook):
             container=container,
             filesystem=self.filesystem,
             conn_id=self.conn_id,
-        ).read()
+        ).read(**kwargs)
 
         # return dataset depending on dataset_type
         if isinstance(dataset, duckdb.DuckDBPyRelation):

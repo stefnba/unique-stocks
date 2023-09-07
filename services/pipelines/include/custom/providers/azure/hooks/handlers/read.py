@@ -41,7 +41,7 @@ class AzureDatasetReadBaseHandler:
         self.filesystem = filesystem
         self.conn_id = conn_id
 
-    def read(self) -> pl.LazyFrame | duckdb.DuckDBPyRelation | ds.FileSystemDataset:
+    def read(self, **kwargs) -> pl.LazyFrame | duckdb.DuckDBPyRelation | ds.FileSystemDataset:
         """"""
         raise NotImplementedError
 
@@ -107,15 +107,25 @@ class AzureDatasetDuckDbHandler(AzureDatasetReadBaseHandler):
         raise ValueError("File format not supported.")
 
 
+# class AzureDatasetArrowHandler(AzureDatasetReadBaseHandler):
+#     """Loads a dataset with `pyarrow.dataset` and `adlfs.AzureBlobFileSystem` as filesystem."""
+
+#     def read(self) -> pl.LazyFrame | duckdb.DuckDBPyRelation:
+#         # pyarrow.dataset doesn't allow for glob pattern *, so use walk_adls_glob to achieve it
+#         path = self._find_paths(path=self.path, container=self.container)
+
+#         filesystem = self.filesystem
+#         return duckdb.from_arrow(ds.dataset(path, filesystem=filesystem, format=format))
+
+
 class AzureDatasetArrowHandler(AzureDatasetReadBaseHandler):
     """Loads a dataset with `pyarrow.dataset` and `adlfs.AzureBlobFileSystem` as filesystem."""
 
-    def read(self) -> pl.LazyFrame | duckdb.DuckDBPyRelation:
+    def read(self, schema=None, **kwargs) -> ds.FileSystemDataset:
         # pyarrow.dataset doesn't allow for glob pattern *, so use walk_adls_glob to achieve it
         path = self._find_paths(path=self.path, container=self.container)
-
         filesystem = self.filesystem
-        return duckdb.from_arrow(ds.dataset(path, filesystem=filesystem, format=format))
+        return ds.dataset(source=path, filesystem=filesystem, format=self.format, schema=schema)
 
 
 class AzureDatasetStreamHandler(AzureDatasetReadBaseHandler):
@@ -124,7 +134,7 @@ class AzureDatasetStreamHandler(AzureDatasetReadBaseHandler):
     with `polars`.
     """
 
-    def read(self) -> pl.LazyFrame:
+    def read(self, **kwargs) -> pl.LazyFrame:
         path = self._find_paths(path=self.path, container=self.container)
 
         if isinstance(path, list):
@@ -149,7 +159,7 @@ class AzureDatasetReadHandler(AzureDatasetReadBaseHandler):
     with `polars`.
     """
 
-    def read(self) -> pl.LazyFrame:
+    def read(self, **kwargs) -> pl.LazyFrame:
         path = self.path
 
         if isinstance(path, list):

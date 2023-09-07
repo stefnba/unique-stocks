@@ -8,21 +8,16 @@ from shared.types import DataLakeDataFileTypes
 from utils.dag.xcom import XComGetter
 from custom.providers.azure.hooks.dataset import AzureDatasetHook
 from utils.filesystem.data_lake.base import DataLakePathBase
+from custom.operators.data.utils import extract_dataset_path
+from custom.operators.data.types import DatasetPath
 
 
-class DataBindingDict(TypedDict):
-    container: str
-    path: str
-
-
-DatasetPath: TypeAlias = str | XComGetter | DataLakePathBase | DataBindingDict
-DataBindingItem: TypeAlias = str | DataBindingDict
-DataBindingArgs: TypeAlias = Dict[str, DataBindingItem]
+DataBindingArgs: TypeAlias = Dict[str, DatasetPath]
 QueryArgs: TypeAlias = Dict[str, str | None | int | bool | list | XComGetter]
 
 
 class DuckDbTransformationOperator(BaseOperator):
-    destination_path: str | DataLakePathBase
+    destination_path: DatasetPath
     destination_container: Optional[str]
     adls_conn_id: str
     query: str
@@ -40,7 +35,7 @@ class DuckDbTransformationOperator(BaseOperator):
         *,
         query: str,
         adls_conn_id: str,
-        destination_path: str | DataLakePathBase,
+        destination_path: DatasetPath,
         destination_container: Optional[str] = None,
         data: Optional[DataBindingArgs] = None,
         query_args: Optional[QueryArgs] = None,
@@ -81,48 +76,16 @@ class DuckDbTransformationOperator(BaseOperator):
         # save and return file path
         return self.write_data(data=transformed_data)
 
-    def _collect_dataset(self, data_item: DataBindingItem) -> pl.LazyFrame:
-        """Convert various DataFrames and remote files into polars.LazyFrame."""
+    def _register_data_bindings(self):
+        """Register all data bindings as duckdb view and return dict with references to provided binding keys."""
 
-        def file_ext(file_name: str) -> DataLakeDataFileTypes:
-            if file_name.endswith(".parquet"):
-                return "parquet"
-            if file_name.endswith(".csv"):
-                return "csv"
-            if file_name.endswith(".json"):
-                return "json"
+        if self.data_bindings:
+            bindings = {
+                key: self._register_one_data_binding(data_item) for key, data_item in self.data_bindings.items()
+            }
+            return bindings
 
-            raise Exception("File Type not supported.")
-
-        if isinstance(data_item, dict):
-            container = data_item["container"]
-            path = data_item["path"]
-            file_format = file_ext(path)
-
-            return self.hook.read(
-                source_path=path,
-                source_format=file_format,
-                source_container=container,
-                dataset_type="PolarsLazyFrame",
-            )
-
-        if isinstance(data_item, str):
-            file_format = file_ext(data_item)
-
-            return self.hook.read(source_path=data_item, source_format=file_format, dataset_type="PolarsLazyFrame")
-        # if isinstance(data_item, LazyXComAccess):
-        #     data_item = data_item[0]
-        #     # data_item[self.context]
-        #     # count = data_item._len
-        #     # if count and count > 1:
-        #     #     raise Exception("only one item supported")
-        #     # data_item = data_item[0]
-
-        # return self.hook.read(
-        #     source_path=data_item, source_format=file_format, dataset_type="PolarsLazyFrame", container="temp"
-        # )
-
-    def _register_one_data_binding(self, data_binding: DataBindingItem):
+    def _register_one_data_binding(self, data_binding: DatasetPath):
         """Register one data binding as duckdb view and return binding key with reference."""
 
         # turn dataset into polars.LazyFrame
@@ -136,14 +99,28 @@ class DuckDbTransformationOperator(BaseOperator):
 
         return reference
 
-    def _register_data_bindings(self):
-        """Register all data bindings as duckdb view and return dict with references to provided binding keys."""
+    def _collect_dataset(self, data_item: DatasetPath) -> pl.LazyFrame:
+        """Convert various DataFrames and remote files into polars.LazyFrame."""
 
-        if self.data_bindings:
-            bindings = {
-                key: self._register_one_data_binding(data_item) for key, data_item in self.data_bindings.items()
-            }
-            return bindings
+        def file_ext(file_name: str) -> DataLakeDataFileTypes:
+            if file_name.endswith(".parquet"):
+                return "parquet"
+            if file_name.endswith(".csv"):
+                return "csv"
+            if file_name.endswith(".json"):
+                return "json"
+
+            raise Exception("File Type not supported.")
+
+        path = extract_dataset_path(path=data_item, context=self.context)
+        file_format = file_ext(path["path"])
+
+        return self.hook.read(
+            source_path=path["path"],
+            source_format=file_format,
+            source_container=path["container"],
+            dataset_type="PolarsLazyFrame",
+        )
 
     def _build_query(self, query: str, bindings: Dict[str, Any]) -> str:
         """"""
@@ -164,13 +141,19 @@ class DuckDbTransformationOperator(BaseOperator):
         self.duck = duckdb.connect(":memory:")
 
     def write_data(self, data: duckdb.DuckDBPyRelation):
+        path = extract_dataset_path(path=self.destination_path, context=self.context)
+        container = self.destination_container or path["container"]
+
         self.hook.write(
             dataset=data,
-            destination_path=self.destination_path,
-            destination_container=self.destination_container,
+            destination_path=path["path"],
+            destination_container=container,
         )
 
-        return self.destination_container
+        return {
+            "path": path["path"],
+            "container": container,
+        }
 
 
 class LazyFrameTransformationOperator(BaseOperator):

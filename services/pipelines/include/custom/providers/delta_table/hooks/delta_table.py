@@ -2,7 +2,7 @@ from deltalake import DeltaTable
 from deltalake.writer import write_deltalake
 from airflow.hooks.base import BaseHook
 from custom.providers.azure.hooks.types import DatasetReadPath, DatasetWritePath
-from typing import Optional, TypedDict, Dict
+from typing import Optional, TypedDict, Dict, Literal, List, cast
 from utils.filesystem.data_lake.base import DataLakePathBase
 
 
@@ -21,7 +21,7 @@ class DeltaTableHook(BaseHook):
 
     def __init__(self, conn_id: str):
         self.conn_id = conn_id
-        self.s = self.get_conn()
+        self.storage_options = cast(Dict[str, str], self.get_conn())
 
     def get_conn(self) -> DeltaTableStorageOptions:
         conn = self.get_connection(self.conn_id)
@@ -53,7 +53,7 @@ class DeltaTableHook(BaseHook):
             source_container = source_path.container
             source_path = source_path.path
 
-        table_uri = f"{self.prefix}{source_container}{source_path}"
+        table_uri = f"{self.prefix}{source_container}/{source_path}"
 
         return DeltaTable(table_uri=table_uri, storage_options=self.storage_options, version=version)
 
@@ -63,12 +63,22 @@ class DeltaTableHook(BaseHook):
         destination_path: DatasetWritePath,
         destination_container: Optional[str] = None,
         schema=None,
+        partition_by: List[str] | str | None = None,
+        mode: Literal["error", "append", "overwrite", "ignore"] = "error",
+        overwrite_schema: bool = False,
     ):
         if isinstance(destination_path, DataLakePathBase):
             destination_container = destination_path.container
             destination_path = destination_path.path
 
-        table_uri = f"{self.prefix}{destination_container}{destination_path}"
-        write_deltalake(table_or_uri=table_uri, data=data, schema=schema)
+        table_uri = f"{self.prefix}{destination_container}/{destination_path}"
+        write_deltalake(
+            table_or_uri=table_uri,
+            data=data,
+            schema=schema,
+            partition_by=partition_by,
+            mode=mode,
+            overwrite_schema=overwrite_schema,
+        )
 
         return table_uri
