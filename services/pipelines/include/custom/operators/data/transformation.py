@@ -62,6 +62,9 @@ class DuckDbTransformationOperator(BaseOperator):
 
         data_bindings = self._register_data_bindings()
 
+        if data_bindings is not None and len(data_bindings) == 0:
+            return
+
         query = self._build_query(
             self.query,
             bindings={
@@ -81,7 +84,9 @@ class DuckDbTransformationOperator(BaseOperator):
 
         if self.data_bindings:
             bindings = {
-                key: self._register_one_data_binding(data_item) for key, data_item in self.data_bindings.items()
+                key: self._register_one_data_binding(data_item)
+                for key, data_item in self.data_bindings.items()
+                if data_item is not None
             }
             return bindings
 
