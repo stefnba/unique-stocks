@@ -2,7 +2,15 @@ from typing import Literal, TypeAlias
 
 """Data products"""
 DataProducts: TypeAlias = Literal[
-    "exchange", "security", "security_ticker", "security_listing", "security_quote", "fundamental", "security", "entity"
+    "exchange",
+    "security",
+    "security_ticker",
+    "security_listing",
+    "security_quote",
+    "fundamental",
+    "security",
+    "entity",
+    "index_member",
 ]
 DataSources: TypeAlias = Literal["EodHistoricalData", "OpenFigi"]
 

@@ -32,6 +32,18 @@ class SecurityQuotePath(DataLakePath):
         return super().add_element(security=security, exchange=exchange)
 
 
+class IndexMemberPath(DataLakePath):
+    product = "index_member"
+
+    placeholder_pattern = [
+        PathElement(key="security"),
+        PathElement(key="index"),
+    ]
+
+    def add_element(self, index: str, exchange: str):
+        return super().add_element(security=index, exchange=exchange)
+
+
 class FundamentalPath(DataLakePath):
     product = "fundamental"
 

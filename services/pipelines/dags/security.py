@@ -30,7 +30,10 @@ def extract_exchange():
     exchanges = pl.from_arrow(dt.to_pyarrow_dataset().to_batches())
 
     if isinstance(exchanges, pl.DataFrame):
-        return exchanges.select("code").to_dicts()
+        return [
+            *exchanges.select("code").to_dicts(),
+            {"code": "INDX"},  # add virtual exchange INDEX to get all index
+        ]
 
     return [
         # {"code": "US"},
