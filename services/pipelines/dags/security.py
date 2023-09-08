@@ -2,7 +2,7 @@
 # pylint: disable=W0106:expression-not-assigned, C0415:import-outside-toplevel
 # pyright: reportUnusedExpression=false
 from datetime import datetime
-
+from airflow.utils.trigger_rule import TriggerRule
 from airflow.decorators import task, dag, task_group
 import pyarrow as pa
 
@@ -20,15 +20,25 @@ class Exchange(TypedDict):
 
 @task
 def extract_exchange():
-    from custom.providers.eod_historical_data.hooks.api import EodHistoricalDataApiHook
+    from custom.providers.delta_table.hooks.delta_table import DeltaTableHook
     import polars as pl
 
     set_xcom_value(key="temp_dir", value=TempDirectory().directory)
 
+    dt = DeltaTableHook(conn_id="azure_data_lake").read(source_path="exchange", source_container="curated")
+
+    exchanges = pl.from_arrow(dt.to_pyarrow_dataset().to_batches())
+
+    if isinstance(exchanges, pl.DataFrame):
+        return exchanges.select("code").to_dicts()
+
     return [
-        {"code": "US"},
-        {"code": "XETRA"},
-        {"code": "F"},
+        # {"code": "US"},
+        # {"code": "XETRA"},
+        {"code": "GSE"},
+        {"code": "VFEX"},
+        # {"code": "F"},
+        # {"code": "FOREX"},
     ]
 
 
@@ -41,6 +51,10 @@ def one_exchange(one_exchange: str):
         import json
 
         data = EodHistoricalDataApiHook().exchange_security(exchange_code=exchange["code"])
+
+        # some exchanges return empty response
+        if len(data) == 0:
+            return
 
         destination = SecurityPath.raw(source="EodHistoricalData", format="json").add_element(exchange=exchange["code"])
         WasbHook(wasb_conn_id="azure_blob").upload(
@@ -72,6 +86,7 @@ def one_exchange(one_exchange: str):
 
 sink = WriteDeltaTableFromDatasetOperator(
     task_id="sink",
+    trigger_rule=TriggerRule.ALL_DONE,
     adls_conn_id="azure_data_lake",
     dataset_path={"container": "temp", "path": get_xcom_template(task_id="extract_exchange", key="temp_dir")},
     destination_path=SecurityPath.curated(),

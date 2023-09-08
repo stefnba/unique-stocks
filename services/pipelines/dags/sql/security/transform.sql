@@ -1,3 +1,12 @@
+CREATE OR REPLACE TEMP TABLE "tbl" AS
+SELECT
+    *
+FROM
+    $security_raw;
+
+ALTER TABLE "tbl"
+    ADD COLUMN IF NOT EXISTS "isin" TEXT;
+
 SELECT
     "Code" AS "code",
     "Name" AS "name",
@@ -7,4 +16,5 @@ SELECT
     replace("Exchange", ' ', '_') AS "exchange_code",
     replace(lower("Type"), ' ', '_') AS "type",
 FROM
-    $security_raw
+    "tbl";
+

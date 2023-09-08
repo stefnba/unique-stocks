@@ -32,7 +32,15 @@ def extract_security():
     securities = pl.from_arrow(
         dt.to_pyarrow_dataset(
             partitions=[
-                ("exchange_code", "in", ["XETRA", "NASDAQ", "NYSE"]),
+                (
+                    "exchange_code",
+                    "in",
+                    [
+                        "XETRA",
+                        # "NASDAQ",
+                        # "NYSE",
+                    ],
+                ),
                 ("type", "=", "common_stock"),
             ]
         ).to_batches()
@@ -41,14 +49,14 @@ def extract_security():
     if isinstance(securities, pl.DataFrame):
         s = securities.select([pl.col("code").alias("security_code"), pl.col("exchange_code")]).to_dicts()
 
-        return s[:1000]
+        return s
 
-    return [
-        {"exchange_code": "US", "security_code": "AAPL"},
-        {"exchange_code": "F", "security_code": "APC"},
-        {"exchange_code": "XETRA", "security_code": "APC"},
-        {"exchange_code": "US", "security_code": "MFST"},
-    ]
+    # return [
+    #     {"exchange_code": "US", "security_code": "AAPL"},
+    #     {"exchange_code": "F", "security_code": "APC"},
+    #     {"exchange_code": "XETRA", "security_code": "APC"},
+    #     {"exchange_code": "US", "security_code": "MFST"},
+    # ]
 
 
 @task_group
