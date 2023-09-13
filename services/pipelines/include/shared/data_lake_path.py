@@ -9,6 +9,10 @@ class EntityPath(DataLakePath):
     product = "entity"
 
 
+class EntityIsinPath(DataLakePath):
+    product = "entity_isin"
+
+
 class SecurityPath(DataLakePath):
     product = "security"
 

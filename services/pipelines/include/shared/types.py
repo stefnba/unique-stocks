@@ -10,10 +10,11 @@ DataProducts: TypeAlias = Literal[
     "fundamental",
     "security",
     "entity",
+    "entity_isin",
     "index_member",
 ]
-DataSources: TypeAlias = Literal["EodHistoricalData", "OpenFigi"]
+DataSources: TypeAlias = Literal["EodHistoricalData", "OpenFigi", "Gleif"]
 
 """Data lake"""
 DataLakeZone: TypeAlias = Literal["raw", "transformed", "temp", "curated"]
-DataLakeDataFileTypes: TypeAlias = Literal["csv", "parquet", "json"]
+DataLakeDataFileTypes: TypeAlias = Literal["csv", "parquet", "json", "zip"]

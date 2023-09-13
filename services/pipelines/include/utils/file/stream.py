@@ -1,5 +1,4 @@
 from pathlib import Path
-from shared.loggers import logger, events as logger_events
 
 
 class StreamDiskFile:
@@ -21,10 +20,10 @@ class StreamDiskFile:
         size = self.get_file_size()
         sizeMB = self.get_file_size() / 1024 / 1024
 
-        logger.file.info(
-            "Initiating file read with stream.",
-            event=logger_events.file.StreamInit(sizeBytes=size, sizeMegaBytes=sizeMB),
-        )
+        # logger.file.info(
+        #     "Initiating file read with stream.",
+        #     event=logger_events.file.StreamInit(sizeBytes=size, sizeMegaBytes=sizeMB),
+        # )
 
         def generator():
             with open(self.path, "rb") as f:
@@ -33,17 +32,17 @@ class StreamDiskFile:
                 while content := f.read(chunk_size):
                     # log first read iteration
                     if first_iteration:
-                        logger.file.info(
-                            "Start reading file with stream.",
-                            event=logger_events.file.StreamStart(sizeBytes=size, sizeMegaBytes=sizeMB),
-                        )
+                        # logger.file.info(
+                        #     "Start reading file with stream.",
+                        #     event=logger_events.file.StreamStart(sizeBytes=size, sizeMegaBytes=sizeMB),
+                        # )
                         first_iteration = False
                     # log last read iteration
-                    if f.tell() == self.get_file_size():
-                        logger.file.info(
-                            "Finished file read with stream.",
-                            event=logger_events.file.StreamSuccess(sizeBytes=size, sizeMegaBytes=sizeMB),
-                        )
+                    # if f.tell() == self.get_file_size():
+                    # logger.file.info(
+                    #     "Finished file read with stream.",
+                    #     event=logger_events.file.StreamSuccess(sizeBytes=size, sizeMegaBytes=sizeMB),
+                    # )
 
                     yield content
 
