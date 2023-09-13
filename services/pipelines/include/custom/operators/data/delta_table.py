@@ -6,7 +6,10 @@ from utils.filesystem.data_lake.base import DataLakePathBase
 from custom.operators.data.utils import extract_dataset_path
 from custom.operators.data.types import DatasetPath, DeltaTableOptionsDict, PyarrowOptionsDict
 from custom.providers.azure.hooks.handlers.write import AzureDatasetWriteDeltaTableHandler
-from custom.providers.azure.hooks.handlers.read import AzureDatasetArrowHandler
+from custom.providers.azure.hooks.handlers.read import (
+    AzureDatasetArrowHandler,
+    AzureDatasetReadBaseHandler,
+)
 
 from typing import Optional
 
@@ -20,6 +23,7 @@ class WriteDeltaTableFromDatasetOperator(BaseOperator):
     template_fields = ("destination_path", "dataset_path", "delta_table_options", "pyarrow_options")
 
     dataset_path: DatasetPath
+    dataset_handler: Optional[type[AzureDatasetReadBaseHandler]] = None
     destination_path: DatasetPath
     conn_id: str
     delta_table_options: Optional[DeltaTableOptionsDict]
@@ -31,6 +35,7 @@ class WriteDeltaTableFromDatasetOperator(BaseOperator):
         adls_conn_id: str,
         dataset_path: DatasetPath,
         destination_path: str | DataLakePathBase,
+        dataset_handler: Optional[type[AzureDatasetReadBaseHandler]] = None,
         delta_table_options: Optional[DeltaTableOptionsDict] = None,
         pyarrow_options: Optional[PyarrowOptionsDict] = None,
         **kwargs,
@@ -40,6 +45,7 @@ class WriteDeltaTableFromDatasetOperator(BaseOperator):
             **kwargs,
         )
 
+        self.dataset_handler = dataset_handler
         self.dataset_path = dataset_path
         self.destination_path = destination_path
         self.conn_id = adls_conn_id
@@ -61,7 +67,7 @@ class WriteDeltaTableFromDatasetOperator(BaseOperator):
             source_path=source_path["path"],
             source_container=source_path["container"],
             dataset_type="ArrowDataset",
-            handler=AzureDatasetArrowHandler,
+            handler=self.dataset_handler or AzureDatasetArrowHandler,
             **(self.pyarrow_options or {}),
         )
 
