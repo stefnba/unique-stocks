@@ -112,3 +112,26 @@ class AzureDataLakeStorageHook(BaseHook):
         blob_client.upload_blob(data=data, overwrite=overwrite)
 
         return f"{container}/{blob_path}"
+
+    def upload_from_url(
+        self,
+        url: str,
+        container: str,
+        blob_path: str,
+    ):
+        blob_client = self.blob_service_client.get_blob_client(container=container, blob=blob_path)
+        blob_client.upload_blob_from_url(source_url=url)
+
+    def stream_to_local_file(
+        self,
+        file_path: str,
+        container: str,
+        blob_path: str,
+    ):
+        blob_client = self.blob_service_client.get_blob_client(container=container, blob=blob_path)
+
+        stream = blob_client.download_blob()
+
+        with open(file=file_path, mode="wb") as f:
+            for chunk in stream.chunks():
+                f.write(chunk)
