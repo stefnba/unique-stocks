@@ -85,3 +85,18 @@ class AzureDatasetWriteUploadHandler(AzureDatasetWriteBaseHandler):
         )
 
         return self.path
+
+
+class LocalDatasetWriteHandler(AzureDatasetWriteBaseHandler):
+    """
+    Sink a dataset to local filesystem.
+    """
+
+    def sink(self):
+        dataset = self.dataset
+        path = f"{self.container}/{self.path}"
+
+        if isinstance(dataset, pl.LazyFrame):
+            dataset.sink_parquet(path=path)
+
+        return path

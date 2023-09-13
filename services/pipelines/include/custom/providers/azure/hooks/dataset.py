@@ -94,8 +94,8 @@ class AzureDatasetHook(BaseHook):
             container = destination_path.container
             destination_path = destination_path.path
 
-        if not container:
-            raise Exception('"container" must be specified.')
+        # if not container:
+        #     raise Exception('"container" must be specified.')
 
         _handler = handler(
             path=destination_path,
@@ -215,9 +215,6 @@ class AzureDatasetHook(BaseHook):
         if isinstance(source_path, DataLakePathBase):
             container = source_path.container
             source_path = source_path.path
-
-        if not container:
-            raise Exception('"container" must be specified.')
 
         # read dataset with specified handler
         dataset = handler(

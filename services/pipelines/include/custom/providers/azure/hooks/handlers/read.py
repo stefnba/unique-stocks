@@ -9,6 +9,10 @@ from utils.filesystem.path import TempFilePath
 from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageHook
 
 
+class ContainerNotSpecifiedError(Exception):
+    """"""
+
+
 def concatenate_path_container(path: str, container: str, prefix: Optional[str] = None):
     """Joins container name and path of file within container."""
 
@@ -22,16 +26,19 @@ def concatenate_path_container(path: str, container: str, prefix: Optional[str] 
 
 class AzureDatasetReadBaseHandler:
     path: str | list[str]
-    container: str
+    container: Optional[str]
     format: DataLakeDataFileTypes
     filesystem: AzureBlobFileSystem
     conn_id: str
 
+    no_container = False
+
     def __init__(
         self,
         source_path: str | list[str],
+        container: Optional[str] = None,
+        *,
         format: DataLakeDataFileTypes,
-        container: str,
         filesystem: AzureBlobFileSystem,
         conn_id: str,
     ):
@@ -40,6 +47,9 @@ class AzureDatasetReadBaseHandler:
         self.format = format
         self.filesystem = filesystem
         self.conn_id = conn_id
+
+        if not container and not self.no_container:
+            raise ContainerNotSpecifiedError()
 
     def read(self, **kwargs) -> pl.LazyFrame | duckdb.DuckDBPyRelation | ds.FileSystemDataset:
         """"""
@@ -89,6 +99,9 @@ class AzureDatasetDuckDbHandler(AzureDatasetReadBaseHandler):
     def read(self):
         prefix = "abfs://"
 
+        if not self.container:
+            raise ContainerNotSpecifiedError()
+
         duckdb.register_filesystem(filesystem=self.filesystem)
 
         if self.format == "parquet":
@@ -122,10 +135,20 @@ class AzureDatasetArrowHandler(AzureDatasetReadBaseHandler):
     """Loads a dataset with `pyarrow.dataset` and `adlfs.AzureBlobFileSystem` as filesystem."""
 
     def read(self, schema=None, **kwargs) -> ds.FileSystemDataset:
+        if not self.container:
+            raise ContainerNotSpecifiedError()
+
         # pyarrow.dataset doesn't allow for glob pattern *, so use walk_adls_glob to achieve it
         path = self._find_paths(path=self.path, container=self.container)
         filesystem = self.filesystem
         return ds.dataset(source=path, filesystem=filesystem, format=self.format, schema=schema)
+
+
+class LocalDatasetArrowHandler(AzureDatasetReadBaseHandler):
+    """Loads a dataset from local filesystem with `pyarrow.dataset`."""
+
+    def read(self, schema=None, **kwargs) -> ds.FileSystemDataset:
+        return ds.dataset(source=self.path, format=self.format, schema=schema)
 
 
 class AzureDatasetStreamHandler(AzureDatasetReadBaseHandler):
@@ -135,6 +158,9 @@ class AzureDatasetStreamHandler(AzureDatasetReadBaseHandler):
     """
 
     def read(self, **kwargs) -> pl.LazyFrame:
+        if not self.container:
+            raise ContainerNotSpecifiedError()
+
         path = self._find_paths(path=self.path, container=self.container)
 
         if isinstance(path, list):
@@ -168,3 +194,25 @@ class AzureDatasetReadHandler(AzureDatasetReadBaseHandler):
         content = AzureDataLakeStorageHook(conn_id=self.conn_id).read_blob(container=self.container, blob_path=path)
 
         return pl.read_json(content).lazy()
+
+
+class LocalDatasetReadHandler(AzureDatasetReadBaseHandler):
+    """
+    Lazy scan of a local dataset with `polars`.
+    Works only for `parquet` and `csv` files.
+    """
+
+    no_container = True
+
+    def read(self, **kwargs) -> pl.LazyFrame:
+        path = self.path
+
+        if isinstance(path, list):
+            raise Exception("Multiple paths are not suported.")
+
+        if self.format == "parquet":
+            return pl.scan_parquet(path)
+        if self.format == "csv":
+            return pl.scan_csv(path)
+
+        raise ValueError("File format not supported.")
