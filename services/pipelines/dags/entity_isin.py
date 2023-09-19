@@ -12,6 +12,7 @@ from custom.providers.azure.hooks.handlers.read import LocalDatasetReadHandler
 from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
 from shared.data_lake_path import EntityIsinPath, TempFile
 from utils.dag.xcom import get_xcom_template
+from shared import schema
 
 
 @task
@@ -68,12 +69,7 @@ sink = WriteDeltaTableFromDatasetOperator(
     dataset_path=get_xcom_template(task_id="transform"),
     destination_path=EntityIsinPath.curated(),
     pyarrow_options={
-        "schema": pa.schema(
-            [
-                pa.field("lei", pa.string()),
-                pa.field("isin", pa.string()),
-            ]
-        )
+        "schema": schema.EntityIsin,
     },
     delta_table_options={
         "mode": "overwrite",
