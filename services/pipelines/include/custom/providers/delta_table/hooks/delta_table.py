@@ -79,6 +79,7 @@ class DeltaTableHook(BaseHook):
             partition_by=partition_by,
             mode=mode,
             overwrite_schema=overwrite_schema,
+            storage_options=self.storage_options,
         )
 
         return table_uri
