@@ -1,15 +1,19 @@
 SELECT
-    isin,
-    wkn,
-    ticker,
+    isin_source,
+    wkn_source,
+    ticker_source,
     ticker_figi,
-    exchange_mic AS exchange_mic_figi,
     name_figi,
-    currency,
-    country,
     figi,
     share_class_figi,
     composite_figi,
-    security_type_id
+    exchange_code_figi,
+    security_type_figi,
+    security_type2_figi,
+    market_sector_figi,
+    security_description_figi
 FROM
-    mapping.figi
+    "mapping"."figi"
+WHERE
+    is_active;
+

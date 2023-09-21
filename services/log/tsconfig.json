@@ -1,13 +1,24 @@
 {
     "compilerOptions": {
-        "target": "es2016",
-        "module": "commonjs",
+        "target": "ESNext",
+        "module": "ESNext",
         "rootDir": "./src",
         "outDir": "./dist",
+
         "declaration": true,
         "typeRoots": ["src/@types", "./node_module/@types", "src/*/@types"],
         "esModuleInterop": true,
-        "strict": true
+        "strict": true,
+        "moduleResolution": "nodenext",
+        "allowSyntheticDefaultImports": true,
+        "sourceMap": true,
+        "baseUrl": "src",
+        "paths": {
+            "@root/*": ["./*"],
+            "@db/*": ["_db/*"],
+            "@config": ["app/config/config.js"],
+            "@router": ["router/index.js"]
+        }
     },
     "exclude": ["testing", "dist"],
     "include": ["./src"]

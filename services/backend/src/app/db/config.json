@@ -1,0 +1,10 @@
+{
+    "connection": {
+        "host": "env:DB_HOST",
+        "port": "env:DB_PORT",
+        "user": "env:DB_ADMIN_USER",
+        "password": "env:DB_ADMIN_PASSWORD",
+        "database": "env:DB_NAME"
+    },
+    "typesFile": "/db/model.d.ts"
+}

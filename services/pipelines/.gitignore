@@ -132,7 +132,11 @@ dmypy.json
 # Airflow
 plugins/
 logs/
+**/connections.yaml
+**/connection.yaml
+
 
 
 # Testing
 test-notebook*.py
+testing/airflow/

@@ -1,21 +1,34 @@
 {
     "compilerOptions": {
-        "allowJs": true,
-        "target": "es2016",
-        "module": "CommonJS",
-        "outDir": "./dist",
+        "target": "ESNext",
+        "module": "ESNext",
         "rootDir": "./src",
-        "baseUrl": "./src",
+        "outDir": "./dist",
+
         "declaration": true,
+        "typeRoots": ["src/@types", "./node_module/@types", "src/*/@types"],
         "esModuleInterop": true,
-        "moduleResolution": "node",
         "strict": false,
-        "typeRoots": ["src/@types", "./node_module/@types", "src/*/@types"]
+        "moduleResolution": "nodenext",
+        "allowSyntheticDefaultImports": true,
+        "sourceMap": true,
+        "noImplicitAny": false,
+        "baseUrl": "src",
+        "paths": {
+            "@root/*": ["./*"],
+            "@app/*": ["./app/*"],
+            "@db/query": ["db/query.js"],
+            "@db": ["db/index.js"],
+            "@config": ["app/config/config.js"],
+            "@sharedUtils/*": ["shared/utils/*"],
+            "@lib/*": ["shared/lib/*"],
+            "@middleware": ["middleware/index.js"],
+            "@controller/*": ["./controller/*"],
+            "@service/*": ["./service/*"],
+            "@router": ["./router/index.js"],
+            "@routes/*": ["./router/*"]
+        }
     },
     "exclude": ["testing", "dist"],
-    "include": ["src"],
-    "ts-node": {
-        "esm": true,
-        "experimentalSpecifierResolution": "node"
-    }
+    "include": ["./src"]
 }

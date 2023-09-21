@@ -6,6 +6,32 @@ sys.path.append("..")
 os.chdir("..")
 
 # %%
+
+
+path = "/zone=temp/20230718_114705__c7daece3666844588e4f6e20d5d5bbd6.parquet"
+
+from shared.hooks.data_lake import data_lake_hooks
+from dags.exchange.shared import jobs
+
+
+jobs.load_into_db(data_lake_hooks.download(path).to_polars_df())
+
+
+# %%
+
+from shared.loggers import logger
+
+logger.airflow.error("ASdf")
+
+
+# %%
+
+from shared.clients.api.eod.client import EodHistoricalDataApiClient
+
+EodHistoricalDataApiClient.get_exchange_details("XETRA")
+
+
+# %%
 from shared.hooks.data_lake import data_lake_hooks
 from typing import TypedDict
 
@@ -103,4 +129,12 @@ tmp = merge({"eod_historical_data": eod_historical_data(), "iso_mic": iso_mic(),
 
 tmp = add_surr_keys(tmp)
 
-data_lake_hooks.download(tmp).to_polars_df()
+
+# %%
+
+# %%
+from shared.clients.db.postgres.repositories import DbQueryRepositories
+
+df_to_add = data_lake_hooks.download(tmp).to_polars_df()
+
+DbQueryRepositories.exchange.add(df_to_add)

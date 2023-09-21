@@ -1,5 +1,6 @@
 SELECT
-    *
+    surrogate_key,
+    uid
 FROM
     mapping.surrogate_key
 WHERE

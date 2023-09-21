@@ -1,44 +1,67 @@
-from shared.loggers import events as Events
-from shared.loggers import types as Types
-from shared.loggers.handlers import console_handler, file_handler
-from shared.utils.logging import Logger
+from shared.loggers.handlers import console_handler, file_handler, http_handler
+from shared.utils.logging.logger import Logger
 
-logger = Logger[str, dict]()
+from shared.loggers import events
+
+logger = Logger()
 logger.add_handler(handler=console_handler)
-logger.add_handler(handler=file_handler)
+# logger.add_handler(handler=file_handler)
+logger.add_handler(handler=http_handler)
 
 
-transform = Logger[Events.Transform, dict]("transform")
+dataset = Logger("dataset")
+dataset.add_handler(handler=console_handler)
+# dataset.add_handler(handler=file_handler)
+dataset.add_handler(handler=http_handler)
+
+
+transform = Logger("transform")
 transform.add_handler(handler=console_handler)
-transform.add_handler(handler=file_handler)
-transform.add_events(Events.Transform)
+# transform.add_handler(handler=file_handler)
+transform.add_handler(handler=http_handler)
 
 
-mapping = Logger[Events.Mapping, dict]("mapping")
+file = Logger("file")
+file.add_handler(handler=console_handler)
+# file.add_handler(handler=file_handler)
+file.add_handler(handler=http_handler)
+
+
+job = Logger("job")
+job.add_handler(handler=console_handler)
+# job.add_handler(handler=file_handler)
+job.add_handler(handler=http_handler)
+
+
+mapping = Logger("mapping")
 mapping.add_handler(handler=console_handler)
-mapping.add_handler(handler=file_handler)
-mapping.add_events(Events.Mapping)
+# mapping.add_handler(handler=file_handler)
+mapping.add_handler(handler=http_handler)
 
 
-airflow = Logger[Events.Airflow, dict]("airflow")
+airflow = Logger("airflow")
 airflow.add_handler(handler=console_handler)
-airflow.add_handler(handler=file_handler)
-airflow.add_events(Events.Airflow)
+# airflow.add_handler(handler=file_handler)
+airflow.add_handler(handler=http_handler)
 
 
-db = Logger[Events.Database, Types.DatabaseExtra]("database")
+db = Logger("database")
 db.add_handler(handler=console_handler)
-db.add_handler(handler=file_handler)
-db.add_events(Events.Database)
+# db.add_handler(handler=file_handler)
+db.add_handler(handler=http_handler)
 
 
-api = Logger[Events.Api, Types.ApiExtra]("api")
+api = Logger("api")
 api.add_handler(handler=console_handler)
-api.add_handler(handler=file_handler)
-api.add_events(Events.Api)
+# api.add_handler(handler=file_handler)
+api.add_handler(handler=http_handler)
 
 
-datalake = Logger[Events.DataLake, Types.DataLakeExtra]("datalake")
+datalake = Logger("datalake")
 datalake.add_handler(handler=console_handler)
-datalake.add_handler(handler=file_handler)
-datalake.add_events(Events.DataLake)
+# datalake.add_handler(handler=file_handler)
+datalake.add_handler(handler=http_handler)
+
+
+log_exception = Logger("log_exception")
+log_exception.add_handler(handler=file_handler)

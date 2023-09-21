@@ -2,11 +2,11 @@ import userAgentParser from 'ua-parser-js';
 export {};
 
 declare global {
-    namespace Express {
-        interface Request {
-            user: string;
-        }
-    }
+    // namespace Express {
+    //     interface Request {
+    //         user?: string;
+    //     }
+    // }
 
     namespace NodeJS {
         interface ProcessEnv {
@@ -14,11 +14,11 @@ declare global {
 
             APP_PORT: string;
 
-            DB_HOST: string;
-            DB_PORT: string;
-            DB_ROOT_PASSWORD: string;
-            DB_NAME: string;
-            DB_SCHEMA: string;
+            // DB_HOST: string;
+            // DB_PORT: string;
+            // DB_ROOT_PASSWORD: string;
+            // DB_NAME: string;
+            // DB_SCHEMA: string;
 
             DB_ADMIN_USER: string;
             DB_ADMIN_PASSWORD: string;
@@ -26,10 +26,15 @@ declare global {
             DB_APP_PASSWORD: string;
 
             STOCKS_DB_HOST: string;
-            STOCKS_DB_PORT: number;
+            STOCKS_DB_PORT: string;
             STOCKS_DB_NAME: string;
             STOCKS_DB_APP_USER: string;
             STOCKS_DB_APP_PASSWORD: string;
+
+            LOG_DB_HOST: string;
+            LOG_DB_PORT: string;
+            LOG_DB_USER: string;
+            LOG_DB_PASSWORD: string;
         }
     }
 }
@@ -41,7 +46,7 @@ declare global {
 import 'http';
 declare module 'http' {
     interface IncomingMessage {
-        user: string;
+        user?: string;
         ip: string;
         userAgent: userAgentParser.IResult;
         correlationId: string;

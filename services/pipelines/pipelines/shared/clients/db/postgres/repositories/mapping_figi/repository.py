@@ -5,28 +5,16 @@ from shared.utils.sql.file import QueryFile
 
 
 class MappingFigiRepository(PgRepositories):
-    table = "mapping.figi"
+    table = ("mapping", "figi")
+    schema = MappingFigi
 
     def find_all(self):
-        return self._query.find(QueryFile("./sql/get.sql")).get_polars_df(
-            schema={
-                "isin": pl.Utf8,
-                "wkn": pl.Utf8,
-                "ticker": pl.Utf8,
-                "ticker_figi": pl.Utf8,
-                "exchange_mic_figi": pl.Utf8,
-                "name_figi": pl.Utf8,
-                "exchange_code_figi": pl.Utf8,
-                "currency": pl.Utf8,
-                "country": pl.Utf8,
-                "figi": pl.Utf8,
-                "share_class_figi": pl.Utf8,
-                "composite_figi": pl.Utf8,
-                "security_type_id": pl.Int64,
-            }
-        )
+        return self._query.find(QueryFile("./sql/get.sql")).get_polars_df(schema=self.schema)
 
-    def add(self, data):
-        return self._query.add(
-            data=data, column_model=MappingFigi, table=self.table, conflict="DO_NOTHING", returning="ALL_COLUMNS"
+    def add(self, data) -> None:
+        if len(data) == 0:
+            return
+
+        self._query.add(
+            data=data, column_model=self.schema, table=self.table, conflict="DO_NOTHING", returning="ALL_COLUMNS"
         ).get_all()

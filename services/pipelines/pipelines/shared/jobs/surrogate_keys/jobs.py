@@ -1,97 +1,170 @@
 import polars as pl
+from typing import overload, Literal
 from shared.clients.db.postgres.repositories import DbQueryRepositories
-from shared.clients.duck.client import duck
-from shared.loggers import logger
+from shared.loggers import logger, events as logger_events
+from shared.utils.dataset.validate import ValidateDataset
 
 
-def get_existing_surrogate_keys(product: str):
-    """
-    Get existing active surrogate keys from database.
-    """
-    keys = DbQueryRepositories.mapping_surrogate_key.find_all(product=product)
-    return keys[["surrogate_key", "uid"]]
+@overload
+def map_surrogate_keys(
+    data: pl.LazyFrame | pl.DataFrame,
+    product: str,
+    uid_col_name: str = "uid",
+    id_col_name: str = "id",
+    add_missing_keys=True,
+    optional=False,
+    collect: Literal[True] = True,
+) -> pl.DataFrame:
+    ...
 
 
-def get_data(data: str | pl.DataFrame) -> pl.DataFrame:
-    """
-    Get data from data lake file path if a file path is specified (must be .parquet file).
-    """
+@overload
+def map_surrogate_keys(
+    data: pl.LazyFrame | pl.DataFrame,
+    product: str,
+    uid_col_name: str = "uid",
+    id_col_name: str = "id",
+    add_missing_keys=True,
+    optional=False,
+    collect: Literal[False] = False,
+) -> pl.LazyFrame:
+    ...
 
-    if isinstance(data, str):
-        return duck.get_data(data, handler="azure_abfs", format="parquet").pl()
-    if isinstance(data, pl.DataFrame):
-        return data
 
+def map_surrogate_keys(
+    data: pl.LazyFrame | pl.DataFrame,
+    product: str,
+    uid_col_name: str = "uid",
+    id_col_name: str = "id",
+    add_missing_keys=True,
+    optional=False,
+    collect=True,
+) -> pl.DataFrame | pl.LazyFrame:
+    """Map surrogate existing keys to dataset. If no keys exists, they'll be added to database. To reduce memory,
+    LayFrame will be used.
 
-def _map_to_data(data: pl.DataFrame, product: str, uid_col_name: str) -> pl.DataFrame:
-    """
-    Map surrogate keys from database to a dataset.
 
     Args:
-        data (pl.DataFrame): Dataset.
+        data (pl.LazyFrame | pl.DataFrame): Dataset.
         product (str): Data product.
-        uid_col_name (str): _description_
-
-    Returns:
-        pl.DataFrame: _description_
-    """
-    keys = get_existing_surrogate_keys(product)
-
-    if len(keys) == 0:
-        return data.with_columns(pl.lit(None).alias("surrogate_key"))
-
-    return data.join(keys, how="left", left_on=uid_col_name, right_on="uid")
-
-
-def map_surrogate_keys(data: str | pl.DataFrame, product: str, uid_col_name: str = "uid", id_col_name: str = "id"):
-    """
-    Maps exisiting surrogate keys to a dataset or creates new ones if no keys exists for a given uid.
-
-    Approach for generating surrogate keys:
-    - get polars df for currently existing keys for given product
-    - map to data (also polars df) and filter where no match (these one must be created)
-    - create missing keys
-
-    Args:
-        data (str | pl.DataFrame): Dataset to be mapped.
-        product (str): Data product for which to retrieve and save surrogate keys.
-        uid_col_name (str, optional): Column name for lookup of surrogate key mapping. Defaults to "uid".
-        id_col_name (str, optional): Column name for surrogate key. Defaults to "id".
+        uid_col_name (str, optional): Column from dataset used for mapping. Defaults to "uid".
+        id_col_name (str, optional): Name of mapped surrogate key column. Defaults to "id".
+        add_missing_keys (bool, optional): If True, create new surrogate keys and add them to database.
+        Defaults to True.
+        optional (bool, optional): If True, return entire provided database, even if no keys are mapped.
+        Defaults to False.
+        collect (bool, optional): If True, turn LazyFrame into DataFrame by calling .collect().
     """
 
-    _data = get_data(data)
+    # for logging
+    args = {
+        "uid_col_name": uid_col_name,
+        "id_col_name": id_col_name,
+        "add_missing_keys": add_missing_keys,
+        "optional": optional,
+    }
+
+    def handle_missing_keys(data: pl.LazyFrame, add_missing_keys: bool) -> int:
+        """
+
+        Args:
+            data (pl.LazyFrame): Dataset.
+            add_missing_keys (bool): Whether to add keys to database.
+
+        Returns:
+            int: Number of keys added to database.
+        """
+        missing_keys = data.join(
+            other=existing_keys,
+            left_on=uid_col_name,
+            right_on="uid",
+            how="left",
+        ).filter(pl.col("surrogate_key").is_null())
+
+        # how many keys are missing
+        missing_length = missing_keys.select(pl.count()).collect()[0, 0]
+
+        if missing_length == 0:
+            logger.mapping.info(
+                msg=f"All surrogate keys for '{product}' already found in database.",
+                event=logger_events.mapping.NoMissingRecords(job="SurrogateKey", product=product),
+                arguments=args,
+            )
+            return 0
+
+        if missing_length > 0 and not add_missing_keys:
+            logger.mapping.info(
+                msg=f"{missing_length} surrogate keys are missing for '{product}'. Adding to database is skipped.",
+                event=logger_events.mapping.MissingRecords(job="SurrogateKey", product=product, size=missing_length),
+                arguments=args,
+            )
+            return 0
+
+        # add keys if missing
+        if missing_length > 0:
+            logger.mapping.info(
+                msg=f"{missing_length} surrogate keys are missing for '{product}' and will be added to database.",
+                event=logger_events.mapping.MissingRecords(job="SurrogateKey", product=product, size=missing_length),
+                arguments=args,
+            )
+
+            added_length = DbQueryRepositories.mapping_surrogate_key.add(
+                data=missing_keys.rename({uid_col_name: "uid"})
+                .select("uid")
+                .with_columns(pl.lit(product).alias("product"))
+                .collect()
+            )
+
+            if added_length > 0:
+                delta = missing_length - added_length
+                logger.mapping.info(
+                    msg=f"{added_length} surrogate keys added to database.",
+                    event=logger_events.mapping.RecordsCreated(job="SurrogateKey", product=product),
+                    arguments=args,
+                    length={"missing": missing_length, "added": added_length, "delta": delta},
+                )
+                return added_length
+
+        return 0
 
     logger.mapping.info(
-        f'{len(_data)} records to be mapped with surrogate keys for product "{product}" and uid column "{uid_col_name}"'
+        event=logger_events.mapping.InitMapping(job="SurrogateKey", product=product),
+        arguments=args,
     )
 
-    # Idenfity and then add missing keys, based on data and existing keys
-    data_missing_keys = (
-        _map_to_data(data=_data, product=product, uid_col_name=uid_col_name).filter(pl.col("surrogate_key").is_null())
-        # .to_dicts()
-    )
-    # add data product as column, required for adding missing keys to db
-    data_missing_keys = data_missing_keys.with_columns(pl.lit(product).alias("product"))
+    _data = _convert_data(data)
+    existing_keys = DbQueryRepositories.mapping_surrogate_key.find_all(product=product)
+    missing_length = handle_missing_keys(_data, add_missing_keys)
+
+    # refetch if new keys were added to database
+    if missing_length > 0:
+        existing_keys = DbQueryRepositories.mapping_surrogate_key.find_all(product=product)
+
+    all_keys = _data.join(
+        other=existing_keys,
+        left_on=uid_col_name,
+        right_on="uid",
+        how="left",
+    ).rename({"surrogate_key": id_col_name})
 
     logger.mapping.info(
-        f"{len(data_missing_keys)} missing surrogate keys", extra={"data": data_missing_keys.to_dicts()}
+        event=logger_events.mapping.MappingSuccess(job="SurrogateKey", product=product),
+        arguments=args,
     )
 
-    # add previously missing keys to database
-    if len(data_missing_keys) > 0:
-        logger.mapping.info(
-            f"{len(data_missing_keys)} missing surrogate keys will be added to database",
-            extra={"data": data_missing_keys.to_dicts()},
-        )
-        added = DbQueryRepositories.mapping_surrogate_key.add(
-            data=data_missing_keys.to_dicts(), uid_col_name=uid_col_name
-        )
-        if len(added) > 0:
-            logger.mapping.info(f"{len(added)} missing surrogate keys added to database")
+    # return only records w/ mapped keys if optional=False
+    if not optional:
+        all_keys = all_keys.filter(pl.col(id_col_name).is_not_null())
 
-    mapped_data = _map_to_data(_data, product, uid_col_name)
-    mapped_data = mapped_data.with_columns(pl.col("surrogate_key").alias(id_col_name)).drop("surrogate_key")
-    return mapped_data
+    # collect or not
+    if collect:
+        return all_keys.collect()
+
+    return all_keys
 
 
-__all__ = ["map_surrogate_keys"]
+def _convert_data(data: pl.LazyFrame | pl.DataFrame):
+    if isinstance(data, pl.DataFrame):
+        return data.lazy()
+    else:
+        return data

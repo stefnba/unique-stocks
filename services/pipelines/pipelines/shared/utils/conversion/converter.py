@@ -46,6 +46,8 @@ def _classify_schema(type: str, field: str, format: Optional[str] = None):
         return pl.Float64
     if type == "boolean":
         return pl.Boolean
+    if type == "array":
+        return pl.Struct
     raise Exception(f'Schema conversion not possible for field "{field}" with type "{type}".')
 
 

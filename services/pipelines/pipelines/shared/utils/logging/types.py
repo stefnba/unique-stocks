@@ -1,8 +1,8 @@
-from typing import Literal, Optional
+from pydantic import BaseModel
 
-Levels = Literal["INFO", "ERROR", "CRITICAL", "WARNING", "DEBUG"]
-FileHandlerFormats = Literal[
-    "JSON",
-    "TEXT",
-]
-Extra = Optional[object | list]
+
+class LogEvent(BaseModel):
+    name: str
+
+    def __name__(self) -> str:
+        return str(self.__name__)

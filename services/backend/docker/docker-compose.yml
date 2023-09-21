@@ -9,29 +9,19 @@ services:
         env_file:
             - .env
         environment:
-            - DB_HOST=unique-stocks-db-pg # necessary to change since communication through container networks
-            - DB_PORT=5432 # necessary to change since communication through container networks
-        depends_on:
-            - db
+            DB_HOST: unique-stocks-db-pg # necessary to change since communication through container networks
+            DB_PORT: 5432 # necessary to change since communication through container networks
+            STOCKS_DB_HOST: unique-stocks-db-pg # necessary to change since communication through container networks
+            STOCKS_DB_PORT: 5432 # necessary to change since communication through container networks
+            LOG_DB_HOST: unique-stocks-log-mongodb # necessary to change since communication through container networks
         restart: always
-    db:
-        image: postgres:14.5-alpine
-        restart: always
-        # container_name: database
-        # env_file:
-        #     - .env
-        environment:
-            - POSTGRES_PASSWORD=${DB_ROOT_PASSWORD}
-            - DB_PORT=${DB_PORT}
-            - DB_NAME=${DB_NAME}
-            - DB_SCHEMA=${DB_SCHEMA}
-            - DB_ADMIN_USER=${DB_ADMIN_USER}
-            - DB_ADMIN_PASSWORD=${DB_ADMIN_PASSWORD}
-            - DB_APP_USER=${DB_APP_USER}
-            - DB_APP_PASSWORD=${DB_APP_PASSWORD}
-        volumes:
-            - ./scripts/db:/docker-entrypoint-initdb.d/ # Run setup scripts
-            - pg-data:/var/lib/postgresql/data/ # Make db data persist
+        networks:
+            - unique-stocks-network
+            - default
 
-volumes:
-    pg-data:
+
+
+networks:
+    unique-stocks-network:
+        name: unique-stocks-network
+        external: true

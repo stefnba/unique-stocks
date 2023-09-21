@@ -1,80 +1,100 @@
 import logging
 from typing import Optional
+from shared.utils.logging.formatter import BaseFormatter, TextFormatter, JsonFormatter
+from pathlib import Path
+import requests
+from shared.config import CONFIG
+from logging import LogRecord
 
-from shared.utils.logging.formatter import BaseFormatter, JSONFormatter
-from shared.utils.logging.types import FileHandlerFormats
+log_exception = logging.getLogger("asdf")
+log_exception.addHandler(logging.FileHandler("lloooooooog.log"))
 
-ROOT_FORMAT = (
-    "%(asctime)s-%(levelname)s-%(extra)s-%(name)s::[%(filename)s:%(lineno)d]::%(module)s|%(lineno)s:: %(message)s"
-)
+
+class CustomHttp(logging.Handler):
+    url: str
+    session: requests.Session
+
+    def __init__(
+        self,
+    ) -> None:
+        # self.host = CONFIG.logging.host
+        # self.endpoint = CONFIG.logging.endpoint
+        # self.port = CONFIG.logging.port
+
+        self.url = f"{CONFIG.logging.host}:{CONFIG.logging.port}/{CONFIG.logging.endpoint.lstrip('/')}"
+        # sets up a session with the server
+        # MAX_POOLSIZE = 100
+        print(self.url)
+
+        self.session = requests.Session()
+        self.session.headers.update(
+            {
+                "Content-Type": "application/json",
+                # 'Authorization': 'Bearer %s' % (self.token)
+            }
+        )
+
+        super().__init__()
+
+    def emit(self, record: LogRecord) -> None:
+        # add service
+        record.service = "PIPELINES"
+
+        json_record = self.format(record)
+
+        try:
+            self.session.post(self.url, data=json_record, timeout=0.000000001)
+        except requests.Timeout:
+            pass
+        except Exception as error:
+            log_exception.error(msg=f"Log HTTP handler not working:\n{error}")
 
 
 class BaseHandler:
-    format = BaseFormatter(None)
+    formatter: BaseFormatter = TextFormatter()
+    handler: logging.Handler
 
-    def __init__(self, format: FileHandlerFormats = "TEXT") -> None:
-        if format == "JSON":
-            self.format = JSONFormatter(None)
-
-    def get_handler(self) -> logging.Handler:
-        """
-        Placeholder method to return handler. Will to overwritten by actual handlers.
-        """
-        return logging.Handler()
+    def __init__(self, formatter: Optional[BaseFormatter] = None) -> None:
+        if formatter:
+            self.formatter = formatter
 
 
-class Handlers:
-    class Console(BaseHandler):
-        """
-        Logs to console.
-        """
+class HttpHandler(BaseHandler):
+    formatter = JsonFormatter()
+    handler = CustomHttp()
 
-        def __init__(self, format: FileHandlerFormats = "TEXT") -> None:
-            super().__init__(format)
 
-        def get_handler(self):
-            """
-            Returns handler.
-            """
-            return logging.StreamHandler()
+class ConsoleHandler(BaseHandler):
+    handler = logging.StreamHandler()
+    formatter = TextFormatter()
 
-    class File(BaseHandler):
-        """
-        Logs to file.
-        """
 
-        file_path: str
-        file_name: Optional[str]
+class FileHandler(BaseHandler):
+    handler: logging.FileHandler
+    loggername_as_filename = False  # log filename based on logger name if True
+    path: str
+    filename: str
 
-        def __init__(
-            self,
-            file_name: Optional[str] = None,
-            *,
-            file_path: str,
-            format: FileHandlerFormats = "TEXT",
-        ) -> None:
-            super().__init__(format)
+    def __init__(
+        self, filename: Optional[str] = None, path: str = "./", formatter: Optional[BaseFormatter] = None
+    ) -> None:
+        super().__init__(formatter=formatter)
 
-            self.file_path = file_path
-            self.file_name = file_name
+        self.path = path
 
-        def get_handler(self):
-            """
-            Returns handler.
-            """
-            file_name = self.build_file_name()
-            return logging.FileHandler(filename=file_name, mode="a", encoding="utf-8")
+        if filename:
+            self.filename = filename
+            self.assign_handler()
+        else:
+            self.loggername_as_filename = True
 
-        def build_file_name(self) -> str:
-            """
-            Constructs file_name based on name and path.
+    def build_file_path(self):
+        ext = "log"
 
-            Args:
-                name (str):
-                path (str):
+        Path(self.path).mkdir(parents=True, exist_ok=True)
 
-            Returns:
-                str: constructed full file_name.
-            """
-            ext = "log"
-            return f"{self.file_path}/{self.file_name or 'out'}.{ext}"
+        return f"{self.path}/{self.filename.lower()}.{ext}"
+
+    def assign_handler(self):
+        location = self.build_file_path()
+        self.handler = logging.FileHandler(filename=location)
