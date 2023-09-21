@@ -3,12 +3,13 @@ from shared.clients.db.postgres.repositories.security_quote.schema import Securi
 
 
 class SecurityQuoteRepo(PgRepositories):
-    table = "data.security_quote"
+    table = ("data", "security_quote")
+    schema = SecurityQuote
 
     def find_all(self):
         return self._query.find("SELECT * FROM data.security_quote").get_polars_df()
 
     def add(self, data):
-        return self._query.add(
-            data=data, column_model=SecurityQuote, table=self.table, conflict="DO_NOTHING", returning="ALL_COLUMNS"
-        ).get_polars_df()
+        self._query.add(
+            data=data, column_model=self.schema, table=self.table, conflict="DO_NOTHING", returning="ALL_COLUMNS"
+        )

@@ -1,9 +1,7 @@
-from typing import Optional
-
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class SecurityTicker(BaseModel):
     id: int
-    ticker: str = Field(..., alias="ticker_figi")
+    ticker: str
     security_id: int

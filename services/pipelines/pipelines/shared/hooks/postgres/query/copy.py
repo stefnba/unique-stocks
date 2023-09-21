@@ -7,7 +7,10 @@ import polars as pl
 import pandas as pd
 from typing import TypeAlias, Optional
 from shared.hooks.postgres.types import ConflictParams, ReturningParams
-from shared.hooks.postgres.query.utils import build_conflict_query, build_returning_query
+from shared.hooks.postgres.query.utils import build_conflict_query, build_returning_query, build_table_name
+
+from shared.loggers.logger import db as logger
+from shared.loggers.events import database as log_events
 
 DataInput: TypeAlias = str | pl.DataFrame | pd.DataFrame
 
@@ -28,7 +31,7 @@ def _temp_table_query(table: str | tuple[str, str]) -> sql.Composed:
             LIKE {table} INCLUDING DEFAULTS
         ) ON COMMIT DROP;
         """
-    ).format(table=sql.Identifier(*table if isinstance(table, tuple) else table))
+    ).format(table=build_table_name(table))
 
 
 def _insert_query(table: str | tuple[str, str]) -> sql.Composed:
@@ -39,7 +42,7 @@ def _insert_query(table: str | tuple[str, str]) -> sql.Composed:
         SELECT *
         FROM tmp_table
         """
-    ).format(table=sql.Identifier(*table if isinstance(table, tuple) else table))
+    ).format(table=build_table_name(table))
 
 
 def _copy_query(columns: list[str]) -> sql.Composed:
@@ -67,6 +70,9 @@ class CopyQuery(QueryBase):
         A temporary table is created and populated using the COPY command and then records are inserted into the
         final table using the INSERT INTO command to handle conflicts with ON CONFLICT.
         """
+
+        logger.info(event=log_events.CopyInit(table=table, columns=columns))
+
         # remove columns from DataFrame that are not part of COPY statement
         if isinstance(data, pl.DataFrame) or isinstance(data, pd.DataFrame):
             data = data[columns]
@@ -76,6 +82,8 @@ class CopyQuery(QueryBase):
                 cursor.execute(_temp_table_query(table))
 
                 with cursor.copy(_copy_query(columns)) as copy:
+                    # https://stackoverflow.com/questions/74209444/import-of-csv-data-into-postgresql-using-psycopg3-results-in-psycopg-errors-inva
+                    # write to temp table
                     copy.write(_classify_data(data))
 
                 insert_query = _insert_query(table)
@@ -86,15 +94,20 @@ class CopyQuery(QueryBase):
                 if returning:
                     insert_query += build_returning_query(returning)
 
-                query_as_string = insert_query.as_string(cursor)
-                print(query_as_string)
+                logger.info(
+                    event=log_events.CopyInsertFromTemp(
+                        table=table, columns=columns, query=insert_query.as_string(cursor)
+                    )
+                )
 
+                # execute insert from temp table
                 cursor.execute(insert_query)
 
-                # todo log
                 row_count = cursor.rowcount
                 # records = cursor.fetchall()
 
+                # committ
                 cursor.execute("COMMIT;")
+                logger.info(event=log_events.CopySuccess(table=table, columns=columns, row_count=row_count))
 
                 return row_count

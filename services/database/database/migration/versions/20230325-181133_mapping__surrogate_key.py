@@ -28,10 +28,19 @@ migration_file = MigrationFile(revision)
 
 def upgrade() -> None:
     op.execute(migration_file.upgrade(wrap_in_trx=True))
+
     seed.load_from_csv(
         table=TABLE_NAME,
         schema=SCHEMA_NAME,
         columns=COLUMNS,
+    )
+
+    op.execute(
+        """
+        --sql
+        SELECT setval('mapping.surrogate_key_surrogate_key_seq', max(surrogate_key)) FROM "mapping"."surrogate_key"; 
+        ;
+        """
     )
 
 

@@ -133,4 +133,4 @@ dmypy.json
 
 old/
 
-seeds/*.csv
+/database/seeds/*.csv

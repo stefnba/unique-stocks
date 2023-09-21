@@ -4,22 +4,27 @@
             "path": ".",
             "name": "Root"
         },
-		{
-			"path": "./services/database",
+        {
+            "path": "./services/database",
             "name": "Database"
-		},
-		{
-			"path": "./services/pipelines",
+        },
+        {
+            "path": "./services/pipelines",
             "name": "Pipelines"
-		},
-		{
-			"path": "./services/backend",
+        },
+        {
+            "path": "./services/backend",
             "name": "Backend"
-		},
-		{
-			"path": "./services/log",
+        },
+        {
+            "path": "./services/frontend",
+            "name": "Frontend"
+        },
+        {
+            "path": "./services/log",
             "name": "Log"
-		}
+        },
+        
     ],
     "settings": {
         "files.associations": {
@@ -29,11 +34,9 @@
         "[postgres]": {
             "editor.defaultFormatter": "bradymholt.pgformatter"
         },
-        // "pgFormatter.placeholder": "\\$[a-zA-Z]+",
-        "pgFormatter.placeholder": "\\%\\([a-zA-Z]+\\)[a-zA-Z]|\\$[a-zA-Z]+",
+        "pgFormatter.placeholder": "\\%\\([a-zA-Z]+\\)[a-zA-Z]|\\$[a-zA-Z]+|\\$\\<[a-zA-Z]+>|\\$\\<[a-zA-Z]+\\:[a-zA-Z]+>",
         "[python]": {
             "editor.defaultFormatter": "ms-python.black-formatter"
         },
-        "python.formatting.provider": "none"
     }
 }

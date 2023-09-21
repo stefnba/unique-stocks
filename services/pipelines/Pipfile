@@ -8,13 +8,15 @@ azure-identity = "*"
 azure-storage-file-datalake = "*"
 python-dotenv = "*"
 requests = "*"
-pandas = "*"
 polars = "*"
 pydantic = "*"
 pyarrow = "*"
 duckdb = "*"
 adlfs = "*"
 psycopg = {extras = ["binary"], version = "*"}
+pydantic-settings = "*"
+pandas = "<2.1"
+deltalake = "*"
 
 [dev-packages]
 black = "*"
@@ -24,4 +26,4 @@ ruff = "*"
 ipykernel = "*"
 
 [requires]
-python_version = "3"
+python_version = "3.10"

@@ -3,7 +3,7 @@ from shared.clients.db.postgres.repositories.security_type.schema import Securit
 
 
 class SecurityTypeRepo(PgRepositories):
-    table = "data.security_type"
+    table = ("data", "security_type")
     schema = SecurityType
 
     def find_all(self):

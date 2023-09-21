@@ -1,52 +1,49 @@
 import polars as pl
 from shared.clients.api.eod.client import EodHistoricalDataApiClient
+from shared.utils.dataset.validate import ValidateDataset
+from typing import TypedDict
+from shared.clients.duck.client import duck
+
 
 ApiClient = EodHistoricalDataApiClient
 ASSET_SOURCE = ApiClient.client_key
 
-from typing import TypedDict
-
 
 class SecurityExtractDict(TypedDict):
-    security_code: str
+    ticker: str
+    id: int
+    mic: str
     exchange_code: str
-    figi: str
-    exchange_mic: str
-    exchange_id: int
-    security_listing_id: int
 
 
-def extract() -> list[SecurityExtractDict]:
-    return [
-        {
-            "exchange_code": "NASDAQ",
-            "figi": "asdf",
-            "security_code": "AAPL",
-            "exchange_mic": "ADSf",
-            "exchange_id": 12,
-            "security_listing_id": 34662,
-        }
-    ]
+def extract():
+    from shared.clients.db.postgres.repositories import DbQueryRepositories
 
+    security = DbQueryRepositories.security_listing.find_all_with_quote_source(source="EodHistoricalData")
 
-def ingest(security: SecurityExtractDict):
-    return ApiClient.get_historical_eod_quotes(security["security_code"], security["exchange_code"])
-
-
-def transform(data: pl.DataFrame, security: SecurityExtractDict):
-    data = data.with_columns(
-        [
-            pl.lit(security["figi"]).alias("figi"),
-            pl.lit(security["exchange_mic"]).alias("exchange_mic"),
-            pl.lit(security["exchange_id"]).alias("exchange_id"),
-            pl.lit(security["security_listing_id"]).alias("security_listing_id"),
-            pl.lit(1).alias("interval_id"),
-        ]
+    exchange_code_mapping = DbQueryRepositories.mappings.get_mappings(
+        source="EodHistoricalData", product="exchange", field="exchange_code"
     )
 
-    data = data.rename({"date": "timestamp"})
+    data = (
+        security.join(exchange_code_mapping[["source_value", "uid"]], how="left", left_on="mic", right_on="uid")
+        .rename({"source_value": "exchange_code"})
+        .drop("mic")
+    )
 
-    return data
+    data = ValidateDataset(dataset=data).is_not_null("exchange_code").is_not_null("ticker").return_dataset()
+
+    return data.head(200).to_dicts()
+
+
+def ingest(ticker: str, exchange_code: str):
+    return ApiClient.get_historical_eod_quotes(ticker, exchange_code)
+
+
+def transform(data: pl.DataFrame, security_listing_id: int):
+    data = duck.query("sql/transform.sql", data=data, security_listing_id=security_listing_id, interval_id=1).pl()
+
+    return ValidateDataset(dataset=data).is_not_null("security_listing_id").return_dataset()
 
 
 def load(data: pl.DataFrame):

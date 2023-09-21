@@ -1,6 +1,7 @@
 from shared.clients.api.open_figi.types import MappingInput
 from shared.config import CONFIG
 from shared.hooks.api import ApiHook
+import polars as pl
 
 
 class OpenFigiApiClient(ApiHook):
@@ -15,9 +16,9 @@ class OpenFigiApiClient(ApiHook):
     _base_headers = {"X-OPENFIGI-APIKEY": CONFIG.api_keys.open_figi}
 
     @classmethod
-    def get_mapping(cls, mapping_input: MappingInput):
+    def get_mapping(cls, mapping_input: list[dict]):
         """
-        Map third party identifiers to FIGIs.
+        Map third party identifiers to FIGI.
 
         Returns:
             list[dict]: list of mapping objects
@@ -31,7 +32,7 @@ class OpenFigiApiClient(ApiHook):
             json=mapping_input,
         )
 
-        return response
+        return pl.DataFrame(response)
 
     @classmethod
     def get_figi(cls):

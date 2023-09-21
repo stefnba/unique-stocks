@@ -9,7 +9,7 @@ from shared.clients.data_lake.azure.azure_data_lake import dl_client
 from shared.clients.data_lake.azure.file_system import abfs_client
 from shared.hooks.data_lake.dataset import types
 from shared.hooks.data_lake.dataset.utils import get_format
-from shared.loggers import logger
+from shared.loggers import logger, events as logger_events
 from shared.utils.path.builder import FilePathBuilder
 from shared.utils.path.data_lake.file_path import DataLakeFilePath
 
@@ -56,6 +56,9 @@ def upload(data: types.DataInput, path: types.Path, format: Optional[types.DataF
                 orient="records",
             )
         ).encode()
+
+    if not file:
+        raise Exception("No file specified")
 
     uploaded_file = dl_client.upload_file(file=file, destination_file_path=_path)
     return uploaded_file.file.full_path
@@ -142,18 +145,16 @@ def _download_json(path: str):
         data = duck.read_json(DataLakeFilePath.build_abfs_path(path)).pl()
 
     except Exception as error:
-        logger.datalake.info(
-            str(error),
-            event=logger.datalake.events.DOWNLOAD_ERROR,
-            extra={"path": path, "format": "json", "handler": handler},
+        logger.datalake.error(
+            event=logger_events.data_lake.DownloadError(
+                path=path, format="json", handler=str(handler), error=str(error)
+            ),
         )
 
         handler = "dl_client"
         data = pl.DataFrame(json.loads(dl_client.download_file_into_memory(path)))
 
-    logger.datalake.info(
-        "", event=logger.datalake.events.DOWNLOAD_SUCCESS, extra={"path": path, "format": "json", "handler": handler}
-    )
+    logger.datalake.info(event=logger_events.data_lake.DownloadSuccess(path=path, format="json", handler=handler))
     return data
 
 
@@ -170,10 +171,10 @@ def _download_parquet(path: str) -> pl.DataFrame:
         data = duck.read_parquet(DataLakeFilePath.build_abfs_path(path))
         return data.pl()
     except Exception as error:
-        logger.datalake.info(
-            str(error),
-            event=logger.datalake.events.DOWNLOAD_ERROR,
-            extra={"path": path, "format": "json", "handler": handler},
+        logger.datalake.error(
+            event=logger_events.data_lake.DownloadError(
+                path=path, format="parquet", handler=str(handler), error=str(error)
+            ),
         )
         handler = "pyarrow"
         data = _download_with_arrow(path, "parquet")
@@ -226,7 +227,9 @@ def download(path: types.Path, format: Optional[types.DataFormat] = None) -> Dat
     _path = FilePathBuilder.convert_to_file_path(path)
     _format = get_format(_path, format)
 
-    logger.datalake.info(event=logger.datalake.events.DOWNLOAD_INIT, extra={"path": _path, "format": _format})
+    logger.datalake.info(
+        event=logger_events.data_lake.DownloadInit(path=_path, format=_format),
+    )
 
     data = pl.DataFrame()
     if _format == "csv":

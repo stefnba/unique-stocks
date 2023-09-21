@@ -5,7 +5,7 @@ from typing import Any, Mapping, Optional, Sequence, cast
 import requests
 from requests.exceptions import HTTPError, JSONDecodeError, Timeout, TooManyRedirects
 from shared.hooks.api.types import EndpointParam, JsonResponse, Methods, RequestFileBytesReturn, RequestFileDiskReturn
-from shared.loggers import logger
+from shared.loggers import logger, events as logger_events
 from shared.utils.path.builder import FilePathBuilder, UrlBuilder
 
 
@@ -80,17 +80,19 @@ class ApiHook:
         """
         Make a request to download a file and save it to disk.
         """
-        response = self._make_request(
+        with self._make_request(
             endpoint=endpoint,
             method=method,
             params=params,
             headers=headers,
             json=json,
             stream=True,
-        )
-        with open(file_destination, "wb") as file:
-            for chunk in response.iter_content(chunk_size=8192):
-                file.write(chunk)
+        ) as r:
+            logger.api.info("Start streaming", headers=r.headers)
+            with open(file_destination, "wb") as file:
+                for chunk in r.iter_content(chunk_size=8192):
+                    file.write(chunk)
+
         filename, file_extension = os.path.splitext(file_destination)
 
         return RequestFileDiskReturn(extension=file_extension, path=file_destination, name=filename)
@@ -160,26 +162,29 @@ class ApiHook:
         headers = {**self._base_headers, **headers} if isinstance(headers, dict) else self._base_headers
 
         try:
-            logger.api.info("", event=logger.api.events.REQUEST_INIT, extra={"url": url, "method": method})
+            logger.api.info(event=logger_events.api.RequestInit(url=url, method=method, headers=headers))
 
             response = requests.request(
                 method=method,
                 params=params,
                 url=url,
                 headers=headers,
-                timeout=(2, 5),
+                timeout=(10, 20),
                 json=json,
                 stream=stream,
             )
 
             response.raise_for_status()
 
-            logger.api.info("", event=logger.api.events.SUCCESS, extra={"url": url, "method": method})
+            if not stream:
+                logger.api.info(event=logger_events.api.RequestSuccess(url=url, method=method, headers=headers))
 
             return response
 
         except Timeout as error:
-            logger.api.error(str(error), event=logger.api.events.TIMEOUT, extra={"url": url, "method": method})
+            logger.api.info(
+                error, event=logger_events.api.RequestTimeout(url=url, method=method, headers=headers, body=json)
+            )
             raise
 
         except TooManyRedirects:
@@ -189,13 +194,17 @@ class ApiHook:
         except HTTPError as error:
             logger.api.error(
                 str(error),
-                event=logger.api.events.ERROR,
-                extra={"url": url, "method": method, "status": error.response.status_code, "message": str(error)},
+                event=logger_events.api.RequestError(
+                    url=url, method=method, headers=headers, error=str(error), body=json
+                ),
             )
             raise
 
         except Exception as error:
             logger.api.error(
-                str(error), event=logger.api.events.ERROR, extra={"url": url, "method": method, "message": str(error)}
+                str(error),
+                event=logger_events.api.RequestError(
+                    url=url, method=method, headers=headers, error=str(error), body=json
+                ),
             )
             raise

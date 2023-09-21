@@ -35,7 +35,7 @@ class EntityRepo(PgRepositories):
     def bulk_add(self, data):
         add = self._query.bulk_add(
             data=data,
-            table=("data", "entity"),
+            table=self.table,
             columns=[
                 "lei",
                 "name",
@@ -62,7 +62,11 @@ class EntityRepo(PgRepositories):
             returning="ALL_COLUMNS",
             conflict={
                 "target": ["id"],
-                "action": [{"column": "is_active", "value": False}],
+                "action": [
+                    {"column": "is_active", "value": True},
+                    {"column": "updated_at", "value": "now()"},
+                    {"column": "active_until", "value": None},
+                ],
             },
         )
-        print(add)
+        return str(add)
