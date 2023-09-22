@@ -1,35 +1,10 @@
 import polars as pl
 from pyarrow import dataset as ds
 import duckdb
-from typing import TypeAlias
-from adlfs import AzureBlobFileSystem
 from io import BytesIO
 from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageHook
 from custom.providers.delta_table.hooks.delta_table import DeltaTableHook
-
-Dataset: TypeAlias = pl.LazyFrame | duckdb.DuckDBPyRelation | ds.FileSystemDataset
-
-
-class AzureDatasetWriteBaseHandler:
-    path: str
-    dataset: Dataset
-
-    def __init__(
-        self,
-        path: str,
-        dataset: Dataset,
-        container: str,
-        filesystem: AzureBlobFileSystem,
-        conn_id: str,
-    ):
-        self.path = path
-        self.dataset = dataset
-        self.container = container
-        self.filesystem = filesystem
-        self.conn_id = conn_id
-
-    def sink(self, **kwargs) -> str:
-        raise NotImplementedError()
+from custom.providers.azure.hooks.handlers.base import DatasetWriteBaseHandler, AzureDatasetWriteBaseHandler
 
 
 class AzureDatasetWriteDeltaTableHandler(AzureDatasetWriteBaseHandler):
@@ -39,7 +14,7 @@ class AzureDatasetWriteDeltaTableHandler(AzureDatasetWriteBaseHandler):
     `pyarrow.Dataset.to_batches()` method is used, a schema must be provided.
     """
 
-    def sink(self, schema=None, **kwargs):
+    def write(self, schema=None, **kwargs):
         dataset = self.dataset
 
         hook = DeltaTableHook(self.conn_id)
@@ -52,7 +27,7 @@ class AzureDatasetWriteDeltaTableHandler(AzureDatasetWriteBaseHandler):
             raise ValueError("AzureDatasetWriteDeltaTableHandler not yet supports writing a `pl.LazyFrame`.")
 
         if isinstance(dataset, ds.FileSystemDataset):
-            return hook.write(
+            hook.write(
                 data=dataset.to_batches(),
                 destination_container=self.container,
                 destination_path=self.path,
@@ -66,7 +41,7 @@ class AzureDatasetWriteUploadHandler(AzureDatasetWriteBaseHandler):
     Upload a dataset with `AzureDataLakeStorageHook`.
     """
 
-    def sink(self):
+    def write(self):
         dataset = self.dataset
 
         df = pl.DataFrame()
@@ -87,16 +62,15 @@ class AzureDatasetWriteUploadHandler(AzureDatasetWriteBaseHandler):
         return self.path
 
 
-class LocalDatasetWriteHandler(AzureDatasetWriteBaseHandler):
+class LocalDatasetWriteHandler(DatasetWriteBaseHandler):
     """
-    Sink a dataset to local filesystem.
+    Sink a `pl.LazyFrame` dataset to local filesystem.
     """
 
-    def sink(self):
+    def write(self):
         dataset = self.dataset
-        path = f"{self.container}/{self.path}"
 
         if isinstance(dataset, pl.LazyFrame):
-            dataset.sink_parquet(path=path)
+            dataset.sink_parquet(path=self.path)
 
-        return path
+        return self.path

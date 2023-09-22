@@ -9,9 +9,16 @@ import duckdb
 from utils.filesystem.path import TempDirPath, TempFilePath
 from utils.filesystem.data_lake.base import DataLakePathBase
 
-from custom.providers.azure.hooks.types import AzureDataLakeCredentials, DatasetType, DatasetReadPath, DatasetWritePath
-from custom.providers.azure.hooks.handlers.read import AzureDatasetReadBaseHandler, AzureDatasetReadHandler
-from custom.providers.azure.hooks.handlers.write import AzureDatasetWriteBaseHandler, AzureDatasetWriteUploadHandler
+from custom.providers.azure.hooks.types import (
+    AzureDataLakeCredentials,
+    DatasetType,
+    DatasetReadPath,
+    DatasetWritePath,
+)
+
+from custom.providers.azure.hooks.handlers.base import DatasetReadBaseHandler, DatasetWriteBaseHandler
+from custom.providers.azure.hooks.handlers.read import AzureDatasetReadHandler
+from custom.providers.azure.hooks.handlers.write import AzureDatasetWriteUploadHandler
 
 
 class AzureDatasetHook(BaseHook):
@@ -25,10 +32,6 @@ class AzureDatasetHook(BaseHook):
         self, conn_id: str, account_name: Optional[str] = None, default_container: Optional[str] = None
     ) -> None:
         self.conn_id = conn_id
-
-        account_name = account_name or config_settings.azure.account_name
-        if not account_name:
-            raise Exception('"account_name" needs to be specified.')
 
         self.credentials = self.get_conn()
 
@@ -70,7 +73,7 @@ class AzureDatasetHook(BaseHook):
         dataset: pl.LazyFrame | duckdb.DuckDBPyRelation | ds.FileSystemDataset,
         destination_path: DatasetWritePath,
         destination_container: Optional[str] = None,
-        handler: type[AzureDatasetWriteBaseHandler] = AzureDatasetWriteUploadHandler,
+        handler: type[DatasetWriteBaseHandler] = AzureDatasetWriteUploadHandler,
         **kwargs,
     ) -> str:
         """
@@ -94,9 +97,6 @@ class AzureDatasetHook(BaseHook):
             container = destination_path.container
             destination_path = destination_path.path
 
-        # if not container:
-        #     raise Exception('"container" must be specified.')
-
         _handler = handler(
             path=destination_path,
             dataset=dataset,
@@ -104,7 +104,7 @@ class AzureDatasetHook(BaseHook):
             container=container,
             filesystem=self.filesystem,
         )
-        return _handler.sink(**kwargs)
+        return _handler.write(**kwargs)
 
         return destination_path
 
@@ -124,7 +124,7 @@ class AzureDatasetHook(BaseHook):
         source_path: DatasetReadPath,
         source_format: DataLakeDataFileTypes = ...,
         source_container: Optional[str] = ...,
-        handler: type[AzureDatasetReadBaseHandler] = ...,
+        handler: type[DatasetReadBaseHandler] = ...,
         *,
         dataset_type: Literal["DuckDBRel", "DuckDBLocalScan"],
         **kwargs,
@@ -137,7 +137,7 @@ class AzureDatasetHook(BaseHook):
         source_path: DatasetReadPath,
         source_format: DataLakeDataFileTypes = ...,
         source_container: Optional[str] = ...,
-        handler: type[AzureDatasetReadBaseHandler] = ...,
+        handler: type[DatasetReadBaseHandler] = ...,
         *,
         dataset_type: Literal["PolarsDataFrame"],
         **kwargs,
@@ -150,7 +150,7 @@ class AzureDatasetHook(BaseHook):
         source_path: DatasetReadPath,
         source_format: DataLakeDataFileTypes = ...,
         source_container: Optional[str] = ...,
-        handler: type[AzureDatasetReadBaseHandler] = ...,
+        handler: type[DatasetReadBaseHandler] = ...,
         *,
         dataset_type: Literal["PolarsLocalScan"],
         **kwargs,
@@ -163,7 +163,7 @@ class AzureDatasetHook(BaseHook):
         source_path: DatasetReadPath,
         source_format: DataLakeDataFileTypes = ...,
         source_container: Optional[str] = ...,
-        handler: type[AzureDatasetReadBaseHandler] = ...,
+        handler: type[DatasetReadBaseHandler] = ...,
         *,
         dataset_type: Literal["PolarsLazyFrame"] = ...,
         **kwargs,
@@ -176,7 +176,7 @@ class AzureDatasetHook(BaseHook):
         source_path: DatasetReadPath,
         source_format: DataLakeDataFileTypes = ...,
         source_container: Optional[str] = ...,
-        handler: type[AzureDatasetReadBaseHandler] = ...,
+        handler: type[DatasetReadBaseHandler] = ...,
         *,
         dataset_type: Literal["ArrowDataset"] = ...,
         **kwargs,
@@ -188,7 +188,7 @@ class AzureDatasetHook(BaseHook):
         source_path: DatasetReadPath,
         source_format: DataLakeDataFileTypes = "parquet",
         source_container: Optional[str] = None,
-        handler: type[AzureDatasetReadBaseHandler] = AzureDatasetReadHandler,
+        handler: type[DatasetReadBaseHandler] = AzureDatasetReadHandler,
         dataset_type: DatasetType = "DuckDBRel",
         **kwargs,
     ) -> duckdb.DuckDBPyRelation | pl.LazyFrame | pl.DataFrame | str | ds.FileSystemDataset:
@@ -218,7 +218,7 @@ class AzureDatasetHook(BaseHook):
 
         # read dataset with specified handler
         dataset = handler(
-            source_path=source_path,
+            path=source_path,
             format=source_format,
             container=container,
             filesystem=self.filesystem,

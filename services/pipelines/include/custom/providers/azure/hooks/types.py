@@ -1,6 +1,11 @@
-from typing import Optional, TypeAlias, Literal
+from typing import TypeAlias, Literal
 from pydantic import BaseModel
 from utils.filesystem.data_lake.base import DataLakePathBase
+
+
+from polars import LazyFrame
+from duckdb import DuckDBPyRelation
+import pyarrow.dataset as ds
 
 
 class AzureDataLakeCredentials(BaseModel):
@@ -16,3 +21,5 @@ DatasetWritePath: TypeAlias = str | DataLakePathBase
 DatasetType = Literal[
     "PolarsLazyFrame", "PolarsDataFrame", "DuckDBRel", "PolarsLocalScan", "DuckDBLocalScan", "ArrowDataset"
 ]
+
+Dataset: TypeAlias = LazyFrame | DuckDBPyRelation | ds.FileSystemDataset

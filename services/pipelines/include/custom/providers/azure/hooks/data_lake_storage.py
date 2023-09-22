@@ -23,10 +23,6 @@ class AzureDataLakeStorageHook(BaseHook):
     ) -> None:
         self.conn_id = conn_id
 
-        account_name = account_name or config_settings.azure.account_name
-        if not account_name:
-            raise Exception('"account_name" needs to be specified.')
-
         self.credentials = self.get_conn()
 
         self.container = default_container
