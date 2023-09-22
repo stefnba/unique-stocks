@@ -4,7 +4,6 @@
 from datetime import datetime
 
 from airflow.decorators import task, dag
-import pyarrow as pa
 
 
 from custom.operators.data.transformation import DuckDbTransformationOperator, DataBindingCustomHandler
