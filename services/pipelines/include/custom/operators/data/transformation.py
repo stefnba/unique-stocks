@@ -10,8 +10,9 @@ from utils.dag.xcom import XComGetter
 from custom.providers.azure.hooks.dataset import AzureDatasetHook
 from custom.operators.data.utils import extract_dataset_path
 from custom.operators.data.types import DatasetPath
-from custom.providers.azure.hooks.handlers.read import AzureDatasetReadHandler, AzureDatasetReadBaseHandler
-from custom.providers.azure.hooks.handlers.write import AzureDatasetWriteBaseHandler, AzureDatasetWriteUploadHandler
+from custom.providers.azure.hooks.handlers.base import DatasetReadBaseHandler, DatasetWriteBaseHandler
+from custom.providers.azure.hooks.handlers.read import AzureDatasetReadHandler
+from custom.providers.azure.hooks.handlers.write import AzureDatasetWriteUploadHandler
 from dataclasses import dataclass
 
 
@@ -21,7 +22,7 @@ class DataBindingCustomHandler:
 
     path: DatasetPath
     container: Optional[str] = None
-    handler: Optional[type[AzureDatasetReadBaseHandler]] = None
+    handler: Optional[type[DatasetReadBaseHandler]] = None
     format: Optional[DataLakeDataFileTypes] = None
 
     template_fields: tuple[str, ...] = ("path", "container")
@@ -131,7 +132,7 @@ class DuckDbTransformationOperator(BaseOperator):
                 return "json"
             raise Exception("File Type not supported.")
 
-        handler: type[AzureDatasetReadBaseHandler] = AzureDatasetReadHandler
+        handler: type[DatasetReadBaseHandler] = AzureDatasetReadHandler
         container = None
 
         if isinstance(data_item, DataBindingCustomHandler):
@@ -193,7 +194,7 @@ class LazyFrameTransformationOperator(BaseOperator):
     transformation: Callable[[pl.LazyFrame], pl.LazyFrame]
     conn_id: str
     context: Context
-    dataset_handler: Optional[type[AzureDatasetReadBaseHandler]]
+    dataset_handler: Optional[type[DatasetReadBaseHandler]]
 
     template_fields = ("dataset_path", "destination_path")
 
@@ -203,8 +204,8 @@ class LazyFrameTransformationOperator(BaseOperator):
         adls_conn_id: str,
         dataset_path: DatasetPath,
         dataset_format: DataLakeDataFileTypes = "parquet",
-        dataset_handler: Optional[type[AzureDatasetReadBaseHandler]] = None,
-        write_handler: Optional[type[AzureDatasetWriteBaseHandler]] = None,
+        dataset_handler: Optional[type[DatasetReadBaseHandler]] = None,
+        write_handler: Optional[type[DatasetWriteBaseHandler]] = None,
         *,
         destination_path: DatasetPath,
         transformation: Callable[[pl.LazyFrame], pl.LazyFrame],
