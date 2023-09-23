@@ -49,10 +49,7 @@ class AzureDatasetArrowHandler(AzureDatasetReadBaseHandler):
         # pyarrow.dataset doesn't allow for glob pattern *, so use walk_adls_glob to achieve it
         path = self._find_paths(path=self.path, container=self.container)
 
-        print(1111, path, self.format, self.filesystem)
-
         d = ds.dataset(source=path, filesystem=self.filesystem, format=self.format, schema=schema)
-        print("Ddd", d)
         return d
 
 
