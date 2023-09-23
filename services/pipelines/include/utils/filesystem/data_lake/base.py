@@ -42,12 +42,7 @@ class DataLakePathBase:
 
     @property
     def extension(self):
-        return "." + self._format
-
-    # @property
-    # def airflow(self) -> str:
-    #     import json
-    #     return json.dumps()
+        return "." + self.format
 
     @property
     def serialized(self) -> DataLakePathSerialized:

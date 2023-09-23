@@ -1,5 +1,5 @@
 from typing import Sequence
-from shared.types import DataLakeDataFileTypes, DataLakeZone
+from shared.types import DataLakeDataFileTypes
 from utils.filesystem.path import random_name
 
 
@@ -14,8 +14,19 @@ class TempDataLakePath(DataLakePathBase):
 
 
 class TempFile(TempDataLakePath):
+    _filename: str
+
+    def __init__(self, format: DataLakeDataFileTypes = "parquet") -> None:
+        self._format = format
+        self._filename = self.randon_iter
+
     @property
-    def filename(self):
+    def filename(self) -> str:
+        return self._filename
+
+    @property
+    def randon_iter(self):
+        """Random filename each time property is accessed."""
         return random_name() + self.extension
 
     @property
