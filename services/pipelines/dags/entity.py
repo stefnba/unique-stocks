@@ -10,10 +10,10 @@ from utils.filesystem.path import TempFilePath
 from custom.operators.data.transformation import (
     LazyFrameTransformationOperator,
 )
-from custom.providers.azure.hooks.handlers.read import LocalDatasetReadHandler, LocalDatasetArrowHandler
-from custom.providers.azure.hooks.handlers.write import LocalDatasetWriteHandler
+from custom.providers.azure.hooks.handlers.read import AzureDatasetStreamHandler, AzureDatasetArrowHandler
+from custom.providers.azure.hooks.handlers.write import LocalDatasetWriteHandler, AzureDatasetWriteUploadHandler
 from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
-from shared.data_lake_path import EntityPath
+from shared.data_lake_path import EntityPath, TempFile
 from utils.dag.xcom import get_xcom_template
 import polars as pl
 from shared import schema
@@ -90,7 +90,7 @@ def ingest():
 
 
 @task
-def unizp(path):
+def unizp_transform(path):
     from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageHook
     from utils.file.unzip import unzip_file
 
@@ -106,26 +106,42 @@ def unizp(path):
     # unzip
     unzipped_file_path = unzip_file(file_path)
 
-    return unzipped_file_path
+    lf = pl.scan_csv(unzipped_file_path)
+
+    transformed = transform_entity_job(lf)
+
+    file_path_parquet = TempFilePath.create()
+    transformed.sink_parquet(file_path_parquet)
+
+    # pl.scan_csv(unzipped_file_path).sink_parquet(file_path_parquet)
+
+    destination = TempFile()
+
+    # upload unzip file to azure
+    hook.upload_file(
+        container=destination.container, blob_path=destination.path, file_path=file_path_parquet, stream=True
+    )
+
+    return destination.serialized
 
 
-transform = LazyFrameTransformationOperator(
-    task_id="transform",
-    adls_conn_id="azure_data_lake",
-    destination_path=TempFilePath.create(),
-    dataset_format="csv",
-    dataset_path=get_xcom_template(task_id="unizp"),
-    dataset_handler=LocalDatasetReadHandler,
-    write_handler=LocalDatasetWriteHandler,
-    transformation=transform_entity_job,
-)
+# transform = LazyFrameTransformationOperator(
+#     task_id="transform",
+#     adls_conn_id="azure_data_lake",
+#     destination_path=TempFilePath.create(),
+#     dataset_format="csv",
+#     dataset_path=get_xcom_template(task_id="unizp"),
+#     dataset_handler=AzureDatasetStreamHandler,
+#     write_handler=AzureDatasetWriteUploadHandler,
+#     transformation=transform_entity_job,
+# )
 
 
 sink = WriteDeltaTableFromDatasetOperator(
     task_id="sink",
     adls_conn_id="azure_data_lake",
-    dataset_path=get_xcom_template(task_id="transform"),
-    dataset_handler=LocalDatasetArrowHandler,
+    dataset_path=get_xcom_template(task_id="unizp_transform"),
+    dataset_handler=AzureDatasetArrowHandler,
     destination_path=EntityPath.curated(),
     pyarrow_options={
         "schema": schema.Entity,
@@ -146,7 +162,7 @@ sink = WriteDeltaTableFromDatasetOperator(
 )
 def entity():
     ingest_task = ingest()
-    unizp(ingest_task) >> transform >> sink
+    unizp_transform(ingest_task) >> sink
 
 
 dag_object = entity()

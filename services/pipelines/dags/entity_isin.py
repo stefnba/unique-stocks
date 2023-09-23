@@ -45,7 +45,14 @@ def unizp(path):
     # unzip
     unzipped_file_path = unzip_file(file_path)
 
-    return unzipped_file_path
+    destination = TempFile(format="csv")
+
+    # upload unzip file to azure
+    hook.upload_file(
+        container=destination.container, blob_path=destination.path, file_path=unzipped_file_path, stream=True
+    )
+
+    return destination.serialized
 
 
 transform = DuckDbTransformationOperator(
@@ -54,10 +61,7 @@ transform = DuckDbTransformationOperator(
     destination_path=TempFile(),
     query="sql/entity_isin/transform.sql",
     data={
-        "data": DataBindingCustomHandler(
-            path=get_xcom_template(task_id="unizp"),
-            handler=LocalDatasetReadHandler,
-        )
+        "data": get_xcom_template(task_id="unizp"),
     },
 )
 
