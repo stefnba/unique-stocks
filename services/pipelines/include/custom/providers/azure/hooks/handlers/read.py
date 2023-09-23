@@ -4,6 +4,7 @@ import duckdb
 from utils.filesystem.path import TempFilePath
 from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageHook
 from custom.providers.azure.hooks.handlers.base import AzureDatasetReadBaseHandler, DatasetReadBaseHandler
+from utils.file.type import get_dataset_format
 
 
 class AzureDatasetDuckDbHandler(AzureDatasetReadBaseHandler):
@@ -101,7 +102,16 @@ class AzureDatasetReadHandler(AzureDatasetReadBaseHandler):
 
         content = AzureDataLakeStorageHook(conn_id=self.conn_id).read_blob(container=self.container, blob_path=path)
 
-        return pl.read_json(content).lazy()
+        format = get_dataset_format(path)
+
+        if format == "json":
+            return pl.read_json(content).lazy()
+        if format == "csv":
+            return pl.read_csv(content).lazy()
+        if format == "parquet":
+            return pl.read_parquet(content).lazy()
+
+        raise Exception("File Format")
 
 
 class LocalDatasetReadHandler(DatasetReadBaseHandler):

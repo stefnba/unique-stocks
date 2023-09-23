@@ -14,6 +14,7 @@ from custom.providers.azure.hooks.handlers.base import DatasetReadBaseHandler, D
 from custom.providers.azure.hooks.handlers.read import AzureDatasetReadHandler
 from custom.providers.azure.hooks.handlers.write import AzureDatasetWriteUploadHandler
 from dataclasses import dataclass
+from utils.file.type import get_dataset_format
 
 
 @dataclass
@@ -22,7 +23,7 @@ class DataBindingCustomHandler:
 
     path: DatasetPath
     container: Optional[str] = None
-    handler: Optional[type[DatasetReadBaseHandler]] = None
+    handler: Optional[type[DatasetReadBaseHandler]] = AzureDatasetReadHandler
     format: Optional[DataLakeDataFileTypes] = None
 
     template_fields: tuple[str, ...] = ("path", "container")
@@ -123,15 +124,6 @@ class DuckDbTransformationOperator(BaseOperator):
     def _collect_dataset(self, data_item: DatasetPath | DataBindingCustomHandler) -> pl.LazyFrame:
         """Convert various DataFrames and remote files into polars.LazyFrame."""
 
-        def file_ext(file_name: str) -> DataLakeDataFileTypes:
-            if file_name.endswith(".parquet"):
-                return "parquet"
-            if file_name.endswith(".csv"):
-                return "csv"
-            if file_name.endswith(".json"):
-                return "json"
-            raise Exception("File Type not supported.")
-
         handler: type[DatasetReadBaseHandler] = AzureDatasetReadHandler
         container = None
 
@@ -143,7 +135,7 @@ class DuckDbTransformationOperator(BaseOperator):
             data_item = data_item.path
 
         path = extract_dataset_path(path=data_item, context=self.context)
-        file_format = file_ext(path["path"])
+        file_format = get_dataset_format(path["path"])
 
         return self.hook.read(
             source_path=path["path"],
