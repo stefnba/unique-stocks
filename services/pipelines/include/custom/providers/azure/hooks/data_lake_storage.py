@@ -69,6 +69,7 @@ class AzureDataLakeStorageHook(BaseHook):
         **kwargs,
     ):
         """Downloads a blob to the StorageStreamDownloader."""
+
         container = container or self.container
 
         if not container:
@@ -117,6 +118,53 @@ class AzureDataLakeStorageHook(BaseHook):
     ):
         blob_client = self.blob_service_client.get_blob_client(container=container, blob=blob_path)
         blob_client.upload_blob_from_url(source_url=url)
+
+    def upload_file(
+        self,
+        container: str,
+        blob_path: str,
+        file_path: str,
+        stream=False,
+        overwrite=False,
+        **kwargs,
+    ):
+        """
+        Upload a local file to a blob.
+
+        Args:
+            container (str): _description_
+            blob_path (str): _description_
+            file_path (str): _description_
+            overwrite (bool, optional): _description_. Defaults to False.
+
+        Returns:
+            _type_: _description_
+        """
+
+        # read entire file content and upload to blob
+        if not stream:
+            with open(file_path, "rb") as file:
+                return self.upload(container=container, blob_path=blob_path, data=file.read())
+
+        # read file content in chunks and upload each chunk
+        if stream:
+            blob_client = self.blob_service_client.get_blob_client(container=container, blob=blob_path)
+
+            def read_large_file(file_path, chunk_size=4 * 1024 * 1024):
+                """Generator function to read a large file in chunks."""
+
+                with open(file_path, "rb") as file:
+                    while True:
+                        data = file.read(chunk_size)
+                        if not data:
+                            break
+                        yield data
+
+            blob_client.upload_blob(
+                data=read_large_file(file_path=file_path),
+            )
+
+            return f"{container}/{blob_path}"
 
     def stream_to_local_file(
         self,
