@@ -27,7 +27,7 @@ class SecurityPath(AdlsDatasetPath):
     dir_template = [
         "product",
         "source",
-        PathElement(name="security", hive_flavor=True),
+        PathElement(name="exchange", hive_flavor=True),
         PathElement(name="year", hive_flavor=True),
         PathElement(name="month", hive_flavor=True),
         PathElement(name="day", hive_flavor=True),
@@ -36,12 +36,12 @@ class SecurityPath(AdlsDatasetPath):
         "datetime",
         "product",
         "source",
-        "security",
+        "exchange",
     ]
 
     @classmethod
-    def raw(cls, security: str, format: DataLakeDatasetFileTypes, source: DataSources):
-        return super().raw(format=format, source=source, security=security)
+    def raw(cls, exchange: str, format: DataLakeDatasetFileTypes, source: DataSources):
+        return super().raw(format=format, source=source, security=exchange)
 
 
 class SecurityQuotePath(AdlsDatasetPath):
