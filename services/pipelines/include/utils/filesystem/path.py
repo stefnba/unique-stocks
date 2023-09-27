@@ -1,6 +1,6 @@
 import shutil
 from settings import config_settings
-
+import json
 
 from typing import Any, Optional, get_args, cast, TypedDict, Dict, TypeAlias
 from pydantic import BaseModel, Field, ConfigDict
@@ -18,9 +18,6 @@ class AdlsDict(TypedDict):
     container: str
 
 
-PathInput: TypeAlias = "str | Dict | AdlsPath | LocalPath | Path | XComGetter"
-
-
 class Path(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -29,7 +26,7 @@ class Path(BaseModel):
     format: Optional[str] = None
     dataset_format: Optional[DataLakeDatasetFileTypes] = Field(repr=False, default=None)
     uri: str = Field(default=None, repr=False)
-    protocol: str = Field(default=None, repr=False)
+    protocol: str | None = Field(default=None, repr=False)
 
     _protocol: Optional[str] = None
     _temp_dir: str = ""
@@ -82,19 +79,24 @@ class Path(BaseModel):
         return cls(root=cls._temp_dir.get_default(), path=uuid.uuid4().hex + f".{format}")  # type: ignore
 
     @classmethod
-    def create(cls, path: PathInput) -> "Path | AdlsPath | LocalPath":
+    def create(cls, path: "PathInput") -> "Path | AdlsPath | LocalPath":
         """Takes `path` arg of various types and creates new `Path` model out of it."""
 
         if isinstance(path, dict):
             return cls(**path)
         if isinstance(path, str):
+            # string can also be json
+            try:
+                j = json.loads(path)
+                return cls.create(j)
+            except ValueError:
+                pass
+
+            # real string
             p = PathlibPath(path.lstrip("/"))
             return cls(root=cast(DataLakeZone, p.parts[0]), path=p.relative_to(p.parts[0]).as_posix())
         if isinstance(path, Path):
             return path
-        # if isinstance(path, (LocalPath, Path)):
-        #     return cls(**path.dump())
-
         if isinstance(path, XComGetter):
             xcom_value = path.pull()
             if xcom_value:
@@ -238,7 +240,8 @@ class AdlsDatasetPath:
             return
         self.filename = (
             self.filename_sep.join([e for e in list(map(self.build_path_element, self.filename_template)) if e])
-            + ".csv"
+            + "."
+            + self.args.get("format", "parquet")
         )
 
     @classmethod
@@ -270,3 +273,6 @@ class AdlsDatasetPath:
         if filename.endswith(".json"):
             return "json"
         raise Exception(f"File Type of file `{filename}` not supported.")
+
+
+PathInput: TypeAlias = str | Dict | AdlsPath | LocalPath | Path | XComGetter
