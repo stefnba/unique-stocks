@@ -17,6 +17,9 @@ psycopg = {extras = ["binary"], version = "*"}
 pydantic-settings = "*"
 pandas = "<2.1"
 deltalake = "*"
+asyncio = "*"
+aiohttp = "*"
+aiolimiter = "*"
 
 [dev-packages]
 black = "*"
