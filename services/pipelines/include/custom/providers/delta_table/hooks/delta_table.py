@@ -1,23 +1,17 @@
 from deltalake import DeltaTable
 from deltalake.writer import write_deltalake
 from airflow.hooks.base import BaseHook
-from custom.providers.azure.hooks.types import DatasetReadPath, DatasetWritePath
-from typing import Optional, TypedDict, Dict, Literal, List, cast
-from utils.filesystem.data_lake.base import DataLakePathBase
-
-
-class DeltaTableStorageOptions(TypedDict):
-    account_name: str
-    client_id: str
-    tenant_id: str
-    client_secret: str
+from typing import Dict, Literal, List, cast
+from utils.filesystem.path import Path, PathInput
+from custom.providers.delta_table.hooks.types import DeltaTableStorageOptions
+from pyarrow import dataset as ds
 
 
 class DeltaTableHook(BaseHook):
     conn_id: str
     storage_options: Dict[str, str]
 
-    prefix = "abfs://"
+    protocol = "abfs"
 
     def __init__(self, conn_id: str):
         self.conn_id = conn_id
@@ -45,41 +39,37 @@ class DeltaTableHook(BaseHook):
 
     def read(
         self,
-        source_path: DatasetReadPath,
-        source_container: Optional[str] = None,
+        path: PathInput,
         version: int | None = None,
     ):
-        if isinstance(source_path, DataLakePathBase):
-            source_container = source_path.container
-            source_path = source_path.path
-
-        table_uri = f"{self.prefix}{source_container}/{source_path}"
-
-        return DeltaTable(table_uri=table_uri, storage_options=self.storage_options, version=version)
+        path = Path.create(path)
+        path.set_protocol(self.protocol)
+        return DeltaTable(table_uri=path.uri, storage_options=self.storage_options, version=version)
 
     def write(
         self,
-        data,
-        destination_path: DatasetWritePath,
-        destination_container: Optional[str] = None,
+        data: ds.FileSystemDataset,
+        path: PathInput,
         schema=None,
         partition_by: List[str] | str | None = None,
         mode: Literal["error", "append", "overwrite", "ignore"] = "error",
         overwrite_schema: bool = False,
     ):
-        if isinstance(destination_path, DataLakePathBase):
-            destination_container = destination_path.container
-            destination_path = destination_path.path
+        path = Path.create(path)
+        path.set_protocol(self.protocol)
 
-        table_uri = f"{self.prefix}{destination_container}/{destination_path}"
+        self.log.info(f"Writing Delta Table to '{path.uri}' with mode '{mode}'.")
+
         write_deltalake(
-            table_or_uri=table_uri,
-            data=data,
-            schema=schema,
+            table_or_uri=path.uri,
+            data=data.to_batches(),
+            schema=schema or data.schema,
             partition_by=partition_by,
             mode=mode,
             overwrite_schema=overwrite_schema,
             storage_options=self.storage_options,
         )
 
-        return table_uri
+        self.log.info(f"Finished writing Delta Table to '{path.uri}' with mode '{mode}'.")
+
+        return path

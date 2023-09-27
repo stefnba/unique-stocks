@@ -5,37 +5,37 @@ import polars as pl
 from typing import Dict, Optional, TypeAlias, Any, Callable
 
 from string import Template
-from shared.types import DataLakeDataFileTypes
+from shared.types import DataLakeDatasetFileTypes
 from utils.dag.xcom import XComGetter
 from custom.providers.azure.hooks.dataset import AzureDatasetHook
-from custom.operators.data.utils import extract_dataset_path
-from custom.operators.data.types import DatasetPath
-from custom.providers.azure.hooks.handlers.base import DatasetReadBaseHandler, DatasetWriteBaseHandler
-from custom.providers.azure.hooks.handlers.read import AzureDatasetReadHandler
-from custom.providers.azure.hooks.handlers.write import AzureDatasetWriteUploadHandler
+from utils.filesystem.path import PathInput
+from custom.providers.azure.hooks.handlers.base import DatasetHandler
+from custom.providers.azure.hooks.handlers.read.azure import AzureDatasetReadHandler
+from custom.providers.azure.hooks.handlers.write.azure import AzureDatasetWriteUploadHandler
 from dataclasses import dataclass
-from utils.file.type import get_dataset_format
+from custom.providers.azure.hooks.types import DatasetConverter
+from custom.providers.azure.hooks import converters
+from utils.filesystem.path import Path
 
 
 @dataclass
 class DataBindingCustomHandler:
     """Specify custom handler per data binding."""
 
-    path: DatasetPath
-    container: Optional[str] = None
-    handler: Optional[type[DatasetReadBaseHandler]] = AzureDatasetReadHandler
-    format: Optional[DataLakeDataFileTypes] = None
+    path: PathInput
+    handler: type[DatasetHandler] = AzureDatasetReadHandler
+    format: DataLakeDatasetFileTypes = "parquet"
+    dataset_converter: Optional[DatasetConverter] = None
 
-    template_fields: tuple[str, ...] = ("path", "container")
+    template_fields: tuple[str, ...] = ("path",)
 
 
-DataBindingArgs: TypeAlias = Dict[str, DatasetPath | DataBindingCustomHandler]
+DataBindingArgs: TypeAlias = Dict[str, PathInput | DataBindingCustomHandler]
 QueryArgs: TypeAlias = Dict[str, str | None | int | bool | list | XComGetter]
 
 
 class DuckDbTransformationOperator(BaseOperator):
-    destination_path: DatasetPath
-    destination_container: Optional[str]
+    destination_path: PathInput
     adls_conn_id: str
     query: str
     data_bindings: Optional[DataBindingArgs]
@@ -43,7 +43,7 @@ class DuckDbTransformationOperator(BaseOperator):
     duck: duckdb.DuckDBPyConnection
     context: Context
 
-    template_fields = ("destination_path", "destination_container", "query_args", "data_bindings", "query")
+    template_fields = ("destination_path", "query_args", "data_bindings", "query")
     template_ext = (".sql",)
 
     def __init__(
@@ -52,8 +52,7 @@ class DuckDbTransformationOperator(BaseOperator):
         *,
         query: str,
         adls_conn_id: str,
-        destination_path: DatasetPath,
-        destination_container: Optional[str] = None,
+        destination_path: PathInput,
         data: Optional[DataBindingArgs] = None,
         query_args: Optional[QueryArgs] = None,
         **kwargs,
@@ -66,7 +65,6 @@ class DuckDbTransformationOperator(BaseOperator):
         self.data_bindings = data
 
         self.destination_path = destination_path
-        self.destination_container = destination_container
 
     def execute(self, context: Context):
         """Main method executed by Airflow."""
@@ -107,7 +105,7 @@ class DuckDbTransformationOperator(BaseOperator):
             }
             return bindings
 
-    def _register_one_data_binding(self, data_binding: DatasetPath | DataBindingCustomHandler):
+    def _register_one_data_binding(self, data_binding: PathInput | DataBindingCustomHandler):
         """Register one data binding as duckdb view and return binding key with reference."""
 
         # turn dataset into polars.LazyFrame
@@ -121,28 +119,21 @@ class DuckDbTransformationOperator(BaseOperator):
 
         return reference
 
-    def _collect_dataset(self, data_item: DatasetPath | DataBindingCustomHandler) -> pl.LazyFrame:
+    def _collect_dataset(self, data_item: PathInput | DataBindingCustomHandler):
         """Convert various DataFrames and remote files into polars.LazyFrame."""
 
-        handler: type[DatasetReadBaseHandler] = AzureDatasetReadHandler
-        container = None
-
         if isinstance(data_item, DataBindingCustomHandler):
-            if data_item.handler:
-                handler = data_item.handler
-            if data_item.container:
-                container = data_item.container
-            data_item = data_item.path
+            return self.hook.read(
+                source_path=data_item.path,
+                source_format=data_item.format,
+                dataset_converter=data_item.dataset_converter,
+                handler=data_item.handler,
+            )
 
-        path = extract_dataset_path(path=data_item, context=self.context)
-        file_format = get_dataset_format(path["path"])
+        path = Path.create(data_item)
 
         return self.hook.read(
-            source_path=path["path"],
-            source_format=file_format,
-            source_container=container or path["container"],
-            dataset_type="PolarsLazyFrame",
-            handler=handler,
+            source_path=path.uri, source_format=path.dataset_format, dataset_converter=converters.LazyFrame
         )
 
     def _build_query(self, query: str, bindings: Dict[str, Any]) -> str:
@@ -164,29 +155,22 @@ class DuckDbTransformationOperator(BaseOperator):
         self.duck = duckdb.connect(":memory:")
 
     def write_data(self, data: duckdb.DuckDBPyRelation):
-        path = extract_dataset_path(path=self.destination_path, context=self.context)
-        container = self.destination_container or path["container"]
-
         self.hook.write(
             dataset=data,
-            destination_path=path["path"],
-            destination_container=container,
+            destination_path=self.destination_path,
         )
 
-        return {
-            "path": path["path"],
-            "container": container,
-        }
+        return Path.create(self.destination_path).to_json()
 
 
 class LazyFrameTransformationOperator(BaseOperator):
-    dataset_path: DatasetPath
-    dataset_format: DataLakeDataFileTypes
-    destination_path: DatasetPath
+    dataset_path: PathInput
+    dataset_format: DataLakeDatasetFileTypes
+    destination_path: PathInput
     transformation: Callable[[pl.LazyFrame], pl.LazyFrame]
     conn_id: str
     context: Context
-    dataset_handler: Optional[type[DatasetReadBaseHandler]]
+    dataset_handler: Optional[type[DatasetHandler]]
 
     template_fields = ("dataset_path", "destination_path")
 
@@ -194,12 +178,12 @@ class LazyFrameTransformationOperator(BaseOperator):
         self,
         task_id: str,
         adls_conn_id: str,
-        dataset_path: DatasetPath,
-        dataset_format: DataLakeDataFileTypes = "parquet",
-        dataset_handler: Optional[type[DatasetReadBaseHandler]] = None,
-        write_handler: Optional[type[DatasetWriteBaseHandler]] = None,
+        dataset_path: PathInput,
+        dataset_format: DataLakeDatasetFileTypes = "parquet",
+        dataset_handler: Optional[type[DatasetHandler]] = None,
+        write_handler: Optional[type[DatasetHandler]] = None,
         *,
-        destination_path: DatasetPath,
+        destination_path: PathInput,
         transformation: Callable[[pl.LazyFrame], pl.LazyFrame],
         **kwargs,
     ):
@@ -221,15 +205,11 @@ class LazyFrameTransformationOperator(BaseOperator):
 
         self.hook = AzureDatasetHook(conn_id=self.conn_id)
 
-        path = extract_dataset_path(path=self.dataset_path, context=self.context)
-
         # get dataset
         df = self.hook.read(
-            source_path=path["path"],
-            source_container=path["container"],
+            source_path=self.dataset_path,
             source_format=self.dataset_format,
-            dataset_type="PolarsLazyFrame",
-            handler=self.dataset_handler or AzureDatasetReadHandler,
+            dataset_converter=converters.DuckDbRelation,
         )
 
         # transform
@@ -239,13 +219,10 @@ class LazyFrameTransformationOperator(BaseOperator):
         return self.write(dataset=transformed_data)
 
     def write(self, dataset: pl.LazyFrame):
-        path = extract_dataset_path(path=self.destination_path, context=self.context)
-
         self.hook.write(
             dataset=dataset,
-            destination_path=path["path"],
-            destination_container=path["container"],
+            destination_path=self.destination_path,
             handler=self.write_handler or AzureDatasetWriteUploadHandler,
         )
 
-        return path
+        return self.destination_path

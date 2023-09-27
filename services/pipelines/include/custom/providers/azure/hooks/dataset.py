@@ -4,24 +4,18 @@ import pyarrow.dataset as ds
 from shared.types import DataLakeDatasetFileTypes
 
 import polars as pl
-from typing import Literal, overload
+from typing import overload, Optional, Callable
 import duckdb
 
 from utils.filesystem.path import Path, PathInput
 
-from custom.providers.azure.hooks.types import AzureDataLakeCredentials, DatasetType
+from custom.providers.azure.hooks.types import AzureDataLakeCredentials, DatasetType, DatasetConverter, DatasetTypeInput
+from custom.providers.azure.hooks import converters
+
 
 from custom.providers.azure.hooks.handlers.base import DatasetHandler
 from custom.providers.azure.hooks.handlers.read.azure import AzureDatasetReadHandler
 from custom.providers.azure.hooks.handlers.write.azure import AzureDatasetWriteUploadHandler
-
-from enum import Enum
-
-
-class DatasetTypeEnum(Enum):
-    LazyFrame = pl.LazyFrame
-    DataFrame = pl.DataFrame
-    DuckDbRelation = duckdb.DuckDBPyRelation
 
 
 class AzureDatasetHook(BaseHook):
@@ -88,54 +82,20 @@ class AzureDatasetHook(BaseHook):
     def read(
         self,
         source_path: PathInput,
-        source_format: DataLakeDatasetFileTypes = "parquet",
-        handler: type[DatasetHandler] = AzureDatasetReadHandler,
+        source_format: Optional[DataLakeDatasetFileTypes] = ...,
+        handler: type[DatasetHandler] = ...,
         *,
-        dataset_type: Literal["DuckDBRel", "DuckDBLocalScan"],
+        dataset_converter: DatasetConverter,
         **kwargs,
-    ) -> duckdb.DuckDBPyRelation:
+    ) -> DatasetType:
         ...
 
     @overload
     def read(
         self,
         source_path: PathInput,
-        source_format: DataLakeDatasetFileTypes = "parquet",
-        handler: type[DatasetHandler] = AzureDatasetReadHandler,
-        *,
-        dataset_type: Literal["PolarsDataFrame"] = ...,
-        **kwargs,
-    ) -> pl.DataFrame:
-        ...
-
-    @overload
-    def read(
-        self,
-        source_path: PathInput,
-        source_format: DataLakeDatasetFileTypes = "parquet",
-        handler: type[DatasetHandler] = AzureDatasetReadHandler,
-        *,
-        dataset_type: Literal["PolarsLocalScan", "PolarsLazyFrame"],
-        **kwargs,
-    ) -> pl.LazyFrame:
-        ...
-
-    @overload
-    def read(
-        self,
-        source_path: PathInput,
-        source_format: DataLakeDatasetFileTypes = "parquet",
-        handler: type[DatasetHandler] = AzureDatasetReadHandler,
-        *,
-        dataset_type: Literal["ArrowDataset"] = ...,
-        **kwargs,
-    ) -> ds.FileSystemDataset:
-        ...
-
-    @overload
-    def read(
-        self,
-        source_path: PathInput,
+        source_format: Optional[DataLakeDatasetFileTypes] = ...,
+        handler: type[DatasetHandler] = ...,
         **kwargs,
     ) -> duckdb.DuckDBPyRelation:
         ...
@@ -143,21 +103,16 @@ class AzureDatasetHook(BaseHook):
     def read(
         self,
         source_path: PathInput,
-        source_format: DataLakeDatasetFileTypes = "parquet",
+        source_format: Optional[DataLakeDatasetFileTypes] = "parquet",
         handler: type[DatasetHandler] = AzureDatasetReadHandler,
-        dataset_type: DatasetType = "DuckDBRel",
+        dataset_converter: Optional[Callable[[DatasetTypeInput], DatasetType]] = None,
         **kwargs,
-    ) -> duckdb.DuckDBPyRelation | pl.LazyFrame | pl.DataFrame | str | ds.FileSystemDataset:
+    ) -> DatasetType | duckdb.DuckDBPyRelation:
         """
-        Loads a dataset and return it.
+        Loads a dataset and returns it.
 
         The method to load is specified by the `handler` arg and how the dataset is returned is specified by
-        the `dataset_type` arg.
-
-
-        Returns:
-            Dataset either as duckdb.DuckDBPyRelation | pl.LazyFrame | pl.DataFrame | file path string depending on
-            specified `dataset_type` arg.
+        the `dataset_converter` arg.
         """
 
         source_path = Path.create(source_path)
@@ -173,26 +128,11 @@ class AzureDatasetHook(BaseHook):
         ).read(**kwargs)
 
         self.log.info(
-            f"Finished reading dataset from {source_path.uri} with handler '{handler.__name__}' and returning dataset as '{dataset_type}'."  # noqa: E501
+            f"Finished reading dataset from {source_path.uri} with handler '{handler.__name__}' and returning dataset as '{dataset_converter or converters.DuckDbRelation}'."
         )
 
-        # return dataset depending on dataset_type
-        if isinstance(dataset, duckdb.DuckDBPyRelation):
-            if dataset_type == "DuckDBRel":
-                return dataset
+        # convert dataset to specified return format
+        if dataset_converter:
+            return dataset_converter(dataset)
 
-            if dataset_type == "PolarsDataFrame":
-                return dataset.pl()
-
-        if isinstance(dataset, pl.LazyFrame):
-            if dataset_type == "PolarsDataFrame":
-                return dataset.collect()
-
-            if dataset_type == "PolarsLazyFrame":
-                return dataset
-
-        if isinstance(dataset, ds.FileSystemDataset):
-            if dataset_type == "ArrowDataset":
-                return dataset
-
-        raise Exception("Handler not supported.")
+        return converters.DuckDbRelation(dataset=dataset)

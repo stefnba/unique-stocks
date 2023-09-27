@@ -1,7 +1,6 @@
 from airflow.hooks.base import BaseHook
 from custom.providers.azure.hooks.types import AzureDataLakeCredentials
-from settings import config_settings
-from typing import Optional, Literal
+from typing import Literal
 from azure.storage.blob import BlobServiceClient
 from azure.identity import ClientSecretCredential
 
@@ -18,14 +17,10 @@ class AzureDataLakeStorageHook(BaseHook):
     credentials: AzureDataLakeCredentials
     blob_service_client: BlobServiceClient
 
-    def __init__(
-        self, conn_id: str, account_name: Optional[str] = None, default_container: Optional[str] = None
-    ) -> None:
+    def __init__(self, conn_id: str) -> None:
         self.conn_id = conn_id
 
         self.credentials = self.get_conn()
-
-        self.container = default_container
 
         self.blob_service_client = BlobServiceClient(
             account_url=self.credentials.account_url,
@@ -62,20 +57,15 @@ class AzureDataLakeStorageHook(BaseHook):
 
     def download(
         self,
-        blob_path: str,
-        container: Optional[str] = None,
+        blob: str,
+        container: str,
         offset: int | None = None,
         length: int | None = None,
         **kwargs,
     ):
         """Downloads a blob to the StorageStreamDownloader."""
 
-        container = container or self.container
-
-        if not container:
-            raise Exception('"container" must be specified.')
-
-        blob_client = self.blob_service_client.get_blob_client(container=container, blob=blob_path)
+        blob_client = self.blob_service_client.get_blob_client(container=container, blob=blob)
         if offset:
             kwargs["offset"] = offset
         if length:
@@ -85,16 +75,16 @@ class AzureDataLakeStorageHook(BaseHook):
 
     def read_blob(
         self,
-        blob_path: str,
-        container: Optional[str] = None,
+        blob: str,
+        container: str,
     ):
         """Read a file from Azure Blob Storage and return as a bytes."""
-        return self.download(blob_path=blob_path, container=container).readall()
+        return self.download(blob=blob, container=container).readall()
 
     def upload(
         self,
         container: str,
-        blob_path: str,
+        blob: str,
         data: str | bytes,
         blob_type: Literal["BlockBlob", "PageBlob", "AppendBlob"] = "BlockBlob",
         length: int | None = None,
@@ -105,24 +95,24 @@ class AzureDataLakeStorageHook(BaseHook):
         Creates a new blob from a data source with automatic chunking.
         """
 
-        blob_client = self.blob_service_client.get_blob_client(container=container, blob=blob_path)
+        blob_client = self.blob_service_client.get_blob_client(container=container, blob=blob)
         blob_client.upload_blob(data=data, overwrite=overwrite)
 
-        return f"{container}/{blob_path}"
+        return f"{container}/{blob}"
 
     def upload_from_url(
         self,
         url: str,
         container: str,
-        blob_path: str,
+        blob: str,
     ):
-        blob_client = self.blob_service_client.get_blob_client(container=container, blob=blob_path)
+        blob_client = self.blob_service_client.get_blob_client(container=container, blob=blob)
         blob_client.upload_blob_from_url(source_url=url)
 
     def upload_file(
         self,
         container: str,
-        blob_path: str,
+        blob: str,
         file_path: str,
         stream=False,
         overwrite=False,
@@ -133,7 +123,7 @@ class AzureDataLakeStorageHook(BaseHook):
 
         Args:
             container (str): _description_
-            blob_path (str): _description_
+            blob (str): _description_
             file_path (str): _description_
             overwrite (bool, optional): _description_. Defaults to False.
 
@@ -144,11 +134,11 @@ class AzureDataLakeStorageHook(BaseHook):
         # read entire file content and upload to blob
         if not stream:
             with open(file_path, "rb") as file:
-                return self.upload(container=container, blob_path=blob_path, data=file.read())
+                return self.upload(container=container, blob=blob, data=file.read())
 
         # read file content in chunks and upload each chunk
         if stream:
-            blob_client = self.blob_service_client.get_blob_client(container=container, blob=blob_path)
+            blob_client = self.blob_service_client.get_blob_client(container=container, blob=blob)
 
             def read_large_file(file_path, chunk_size=4 * 1024 * 1024):
                 """Generator function to read a large file in chunks."""
@@ -164,15 +154,15 @@ class AzureDataLakeStorageHook(BaseHook):
                 data=read_large_file(file_path=file_path),
             )
 
-            return f"{container}/{blob_path}"
+            return f"{container}/{blob}"
 
     def stream_to_local_file(
         self,
         file_path: str,
         container: str,
-        blob_path: str,
+        blob: str,
     ):
-        blob_client = self.blob_service_client.get_blob_client(container=container, blob=blob_path)
+        blob_client = self.blob_service_client.get_blob_client(container=container, blob=blob)
 
         stream = blob_client.download_blob()
 
