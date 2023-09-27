@@ -1,14 +1,13 @@
 from airflow.models.baseoperator import BaseOperator
 from airflow.utils.context import Context
-from typing import TypeAlias, Literal, Optional, Dict
+from typing import TypeAlias, Literal
 from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageHook
 from custom.providers.azure.hooks.dataset import AzureDatasetHook
 from utils.dag.xcom import XComGetter
 import json
 import polars as pl
 from functools import reduce
-from custom.operators.data.types import DatasetPath
-from custom.operators.data.utils import extract_dataset_path
+from utils.filesystem.path import Path
 
 SourcePath: TypeAlias = str | XComGetter
 Period = Literal["yearly", "quarterly"]
@@ -36,8 +35,8 @@ class EodIndexMemberTransformOperator(BaseOperator):
     template_fields = ("source_path", "destination_path")
 
     context: Context
-    source_path: DatasetPath
-    destination_path: DatasetPath
+    source_path: Path
+    destination_path: Path
     adls_conn_id: str
     entity_id: str
 
@@ -45,8 +44,8 @@ class EodIndexMemberTransformOperator(BaseOperator):
         self,
         task_id: str,
         adls_conn_id: str,
-        source_path: DatasetPath,
-        destination_path: DatasetPath,
+        source_path: Path,
+        destination_path: Path,
         **kwargs,
     ):
         super().__init__(
@@ -61,10 +60,8 @@ class EodIndexMemberTransformOperator(BaseOperator):
     def execute(self, context: Context):
         self.context = context
 
-        source_path = extract_dataset_path(path=self.source_path, context=context)
-
         hook = AzureDataLakeStorageHook(conn_id=self.conn_id)
-        data = hook.read_blob(blob_path=source_path["path"], container=source_path["container"])
+        data = hook.read_blob(**self.source_path.afls_path)
 
         index_data = json.loads(data)
 
@@ -94,15 +91,6 @@ class EodIndexMemberTransformOperator(BaseOperator):
             )
         )
 
-        destination_path = extract_dataset_path(path=self.destination_path, context=context)
+        AzureDatasetHook(conn_id=self.conn_id).write(dataset=df.lazy(), destination_path=self.destination_path)
 
-        AzureDatasetHook(conn_id=self.conn_id).write(
-            dataset=df.lazy(),
-            destination_path=destination_path["path"],
-            destination_container=destination_path["container"],
-        )
-
-        return {
-            "path": destination_path["path"],
-            "container": destination_path["container"],
-        }
+        return self.destination_path
