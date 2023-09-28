@@ -1,4 +1,16 @@
 from pathlib import Path
+from utils.filesystem.path import LocalPath, PathInput
+
+
+def read_large_file(file_path: PathInput, chunk_size=4 * 1024 * 1024):
+    """Generator function to read a large file in chunks."""
+
+    with open(LocalPath.create(file_path).uri, "rb") as file:
+        while True:
+            data = file.read(chunk_size)
+            if not data:
+                break
+            yield data
 
 
 class StreamDiskFile:
