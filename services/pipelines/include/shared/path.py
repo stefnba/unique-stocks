@@ -1,4 +1,4 @@
-from shared.types import DataLakeDatasetFileTypes, DataSources
+from shared.types import DataLakeDatasetFileTypes, DataSources, DataLakeDataFileTypes
 from utils.filesystem.path import AdlsDatasetPath, PathElement
 from utils.filesystem import path as PathAlias
 
@@ -16,9 +16,19 @@ class ExchangePath(AdlsDatasetPath):
 class EntityPath(AdlsDatasetPath):
     product = "entity"
 
+    @classmethod
+    def raw(cls, format: DataLakeDataFileTypes, source: DataSources, **kwargs):
+        c = cls(format=format, source=source, **kwargs)
+        return AdlsPath(container="raw", blob=c.uri, format=format)
+
 
 class EntityIsinPath(AdlsDatasetPath):
     product = "entity_isin"
+
+    @classmethod
+    def raw(cls, format: DataLakeDataFileTypes, source: DataSources, **kwargs):
+        c = cls(format=format, source=source, **kwargs)
+        return AdlsPath(container="raw", blob=c.uri, format=format)
 
 
 class SecurityPath(AdlsDatasetPath):
