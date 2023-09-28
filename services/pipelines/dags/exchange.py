@@ -3,15 +3,15 @@
 # pyright: reportUnusedExpression=false
 from datetime import datetime
 
-from airflow.decorators import task, dag, task_group
+from airflow.decorators import task, dag
 import pyarrow as pa
 
 
 from typing import TypedDict
 from custom.operators.data.transformation import DuckDbTransformationOperator
 from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
-from shared.data_lake_path import ExchangePath, TempFile
-from utils.dag.xcom import XComGetter, set_xcom_value, get_xcom_template, get_xcom_value
+from shared.path import ExchangePath, AdlsPath
+from utils.dag.xcom import XComGetter
 
 
 class QuoteSecurity(TypedDict):
@@ -22,7 +22,7 @@ class QuoteSecurity(TypedDict):
 @task
 def ingest():
     from custom.providers.eod_historical_data.hooks.api import EodHistoricalDataApiHook
-    from shared.data_lake_path import ExchangePath
+    from shared.path import ExchangePath
     from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageHook
 
     exchange_raw = EodHistoricalDataApiHook().exchange()
@@ -30,24 +30,24 @@ def ingest():
     destination = ExchangePath.raw(source="EodHistoricalData", format="json")
 
     hook = AzureDataLakeStorageHook(conn_id="azure_data_lake")
-    hook.upload(container=destination.container, blob_path=destination.path, data=exchange_raw)
+    hook.upload(**destination.afls_path, data=exchange_raw)
 
-    return destination.serialized
+    return destination.to_dict()
 
 
 transform = DuckDbTransformationOperator(
     task_id="transform",
     adls_conn_id="azure_data_lake",
-    destination_path=TempFile(),
+    destination_path=AdlsPath.create_temp_file_path(),
     query="sql/exchange/transform.sql",
-    data={"exchange": get_xcom_template(task_id="ingest")},
+    data={"exchange": XComGetter.pull_with_template(task_id="ingest")},
 )
 
 
 sink = WriteDeltaTableFromDatasetOperator(
     task_id="sink",
     adls_conn_id="azure_data_lake",
-    dataset_path=get_xcom_template(task_id="transform"),
+    dataset_path=XComGetter.pull_with_template(task_id="transform"),
     destination_path=ExchangePath.curated(),
     pyarrow_options={
         "schema": pa.schema(

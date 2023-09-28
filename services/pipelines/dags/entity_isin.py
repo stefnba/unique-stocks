@@ -7,10 +7,10 @@ from airflow.decorators import task, dag
 
 
 from custom.operators.data.transformation import DuckDbTransformationOperator, DataBindingCustomHandler
-from custom.providers.azure.hooks.handlers.read import LocalDatasetReadHandler
+from custom.providers.azure.hooks.handlers.read.local import LocalDatasetReadHandler
 from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
-from shared.data_lake_path import EntityIsinPath, TempFile
-from utils.dag.xcom import get_xcom_template
+from shared.path import EntityIsinPath, Path, LocalPath, AdlsPath
+from utils.dag.xcom import XComGetter
 from shared import schema
 
 
@@ -22,46 +22,44 @@ def ingest():
     url = "https://mapping.gleif.org/api/v2/isin-lei/d6996d23-cdaf-413e-b594-5219d40f3da5/download"
 
     hook = AzureDataLakeStorageHook(conn_id="azure_data_lake")
-    hook.upload_from_url(url=url, container=destination.container, blob_path=destination.path)
+    hook.upload_from_url(url=url, **destination.afls_path)
 
-    return destination.serialized
+    return destination.to_dict()
 
 
 @task
 def unizp(path):
     from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageHook
-    from utils.filesystem.path import TempFilePath
+
     from utils.file.unzip import unzip_file
 
     hook = AzureDataLakeStorageHook(conn_id="azure_data_lake")
 
-    blob_path = path.get("path")
-    container = path.get("container")
-    file_path = TempFilePath.create(file_format="zip")
+    path = AdlsPath.create(path)
+
+    file_path = LocalPath.create_temp_file_path(format="zip")
 
     # download to file
-    hook.stream_to_local_file(container=container, blob_path=blob_path, file_path=file_path)
+    hook.stream_to_local_file(**path.afls_path, file_path=file_path)
 
     # unzip
     unzipped_file_path = unzip_file(file_path)
 
-    destination = TempFile(format="csv")
+    destination = AdlsPath.create_temp_file_path(format="csv")
 
     # upload unzip file to azure
-    hook.upload_file(
-        container=destination.container, blob_path=destination.path, file_path=unzipped_file_path, stream=True
-    )
+    hook.upload_file(**destination.afls_path, file_path=unzipped_file_path, stream=True)
 
-    return destination.serialized
+    return destination.to_dict()
 
 
 transform = DuckDbTransformationOperator(
     task_id="transform",
     adls_conn_id="azure_data_lake",
-    destination_path=TempFile(),
+    destination_path=AdlsPath.create_temp_file_path(),
     query="sql/entity_isin/transform.sql",
     data={
-        "data": get_xcom_template(task_id="unizp"),
+        "data": XComGetter.pull_with_template(task_id="unizp"),
     },
 )
 
@@ -69,7 +67,7 @@ transform = DuckDbTransformationOperator(
 sink = WriteDeltaTableFromDatasetOperator(
     task_id="sink",
     adls_conn_id="azure_data_lake",
-    dataset_path=get_xcom_template(task_id="transform"),
+    dataset_path=XComGetter.pull_with_template(task_id="transform"),
     destination_path=EntityIsinPath.curated(),
     pyarrow_options={
         "schema": schema.EntityIsin,

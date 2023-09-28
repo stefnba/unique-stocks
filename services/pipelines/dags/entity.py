@@ -5,16 +5,14 @@ from datetime import datetime
 
 from airflow.decorators import task, dag
 
-from utils.filesystem.path import TempFilePath
 
-from custom.operators.data.transformation import (
-    LazyFrameTransformationOperator,
-)
-from custom.providers.azure.hooks.handlers.read import AzureDatasetStreamHandler, AzureDatasetArrowHandler
-from custom.providers.azure.hooks.handlers.write import LocalDatasetWriteHandler, AzureDatasetWriteUploadHandler
+from custom.operators.data.transformation import LazyFrameTransformationOperator
+from custom.providers.azure.hooks.handlers.read.azure import AzureDatasetStreamHandler, AzureDatasetArrowHandler
+from custom.providers.azure.hooks.handlers.write.azure import AzureDatasetWriteUploadHandler
+from custom.providers.azure.hooks.handlers.write.local import LocalDatasetWriteHandler
 from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
-from shared.data_lake_path import EntityPath, TempFile
-from utils.dag.xcom import get_xcom_template
+from shared.path import EntityPath, Path, AdlsPath
+from utils.dag.xcom import XComGetter
 import polars as pl
 from shared import schema
 
@@ -84,9 +82,9 @@ def ingest():
     url = "https://leidata-preview.gleif.org/storage/golden-copy-files/2023/07/17/808968/20230717-0000-gleif-goldencopy-lei2-golden-copy.csv.zip"
 
     hook = AzureDataLakeStorageHook(conn_id="azure_data_lake")
-    hook.upload_from_url(url=url, container=destination.container, blob_path=destination.path)
+    hook.upload_from_url(url=url, **destination.afls_path)
 
-    return destination.serialized
+    return destination.to_dict()
 
 
 @task
@@ -96,33 +94,30 @@ def unizp_transform(path):
 
     hook = AzureDataLakeStorageHook(conn_id="azure_data_lake")
 
-    blob_path = path.get("path")
-    container = path.get("container")
-    file_path = TempFilePath.create(file_format="zip")
+    path = Path.create(path=path)
+    file_path = Path.create_temp_file_path(format="zip")
 
     # download to file
-    hook.stream_to_local_file(container=container, blob_path=blob_path, file_path=file_path)
+    hook.stream_to_local_file(**path.afls_path, file_path=file_path)
 
     # unzip
     unzipped_file_path = unzip_file(file_path)
 
-    lf = pl.scan_csv(unzipped_file_path)
+    lf = pl.scan_csv(unzipped_file_path.uri)
 
     transformed = transform_entity_job(lf)
 
-    file_path_parquet = TempFilePath.create()
-    transformed.sink_parquet(file_path_parquet)
+    file_path_parquet = Path.create_temp_file_path()
+    transformed.sink_parquet(file_path_parquet.uri)
 
     # pl.scan_csv(unzipped_file_path).sink_parquet(file_path_parquet)
 
-    destination = TempFile()
+    destination = AdlsPath.create_temp_file_path().to_dict()
 
     # upload unzip file to azure
-    hook.upload_file(
-        container=destination.container, blob_path=destination.path, file_path=file_path_parquet, stream=True
-    )
+    hook.upload_file(**destination, file_path=file_path_parquet, stream=True)
 
-    return destination.serialized
+    return destination
 
 
 # transform = LazyFrameTransformationOperator(
@@ -140,7 +135,7 @@ def unizp_transform(path):
 sink = WriteDeltaTableFromDatasetOperator(
     task_id="sink",
     adls_conn_id="azure_data_lake",
-    dataset_path=get_xcom_template(task_id="unizp_transform"),
+    dataset_path=XComGetter.pull_with_template(task_id="unizp_transform"),
     dataset_handler=AzureDatasetArrowHandler,
     destination_path=EntityPath.curated(),
     pyarrow_options={
