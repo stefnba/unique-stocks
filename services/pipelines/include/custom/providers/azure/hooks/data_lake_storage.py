@@ -3,6 +3,9 @@ from custom.providers.azure.hooks.types import AzureDataLakeCredentials
 from typing import Literal
 from azure.storage.blob import BlobServiceClient
 from azure.identity import ClientSecretCredential
+from utils.filesystem.path import PathInput, LocalPath, AdlsPath
+from utils.file.stream import read_large_file
+from shared.types import DataLakeZone
 
 
 class AzureDataLakeStorageHook(BaseHook):
@@ -58,7 +61,7 @@ class AzureDataLakeStorageHook(BaseHook):
     def download(
         self,
         blob: str,
-        container: str,
+        container: DataLakeZone,
         offset: int | None = None,
         length: int | None = None,
         **kwargs,
@@ -76,14 +79,14 @@ class AzureDataLakeStorageHook(BaseHook):
     def read_blob(
         self,
         blob: str,
-        container: str,
+        container: DataLakeZone,
     ):
         """Read a file from Azure Blob Storage and return as a bytes."""
         return self.download(blob=blob, container=container).readall()
 
     def upload(
         self,
-        container: str,
+        container: DataLakeZone,
         blob: str,
         data: str | bytes,
         blob_type: Literal["BlockBlob", "PageBlob", "AppendBlob"] = "BlockBlob",
@@ -103,7 +106,7 @@ class AzureDataLakeStorageHook(BaseHook):
     def upload_from_url(
         self,
         url: str,
-        container: str,
+        container: DataLakeZone,
         blob: str,
     ):
         blob_client = self.blob_service_client.get_blob_client(container=container, blob=blob)
@@ -111,61 +114,48 @@ class AzureDataLakeStorageHook(BaseHook):
 
     def upload_file(
         self,
-        container: str,
+        container: DataLakeZone,
         blob: str,
-        file_path: str,
+        file_path: PathInput,
         stream=False,
         overwrite=False,
+        chunk_size=4 * 1024 * 1024,
         **kwargs,
-    ):
-        """
+    ) -> AdlsPath:
+        """`
         Upload a local file to a blob.
-
-        Args:
-            container (str): _description_
-            blob (str): _description_
-            file_path (str): _description_
-            overwrite (bool, optional): _description_. Defaults to False.
-
-        Returns:
-            _type_: _description_
         """
 
-        # read entire file content and upload to blob
-        if not stream:
-            with open(file_path, "rb") as file:
-                return self.upload(container=container, blob=blob, data=file.read())
+        file_path = LocalPath.create(file_path)
 
-        # read file content in chunks and upload each chunk
         if stream:
+            # read file content in chunks and upload each chunk
             blob_client = self.blob_service_client.get_blob_client(container=container, blob=blob)
 
-            def read_large_file(file_path, chunk_size=4 * 1024 * 1024):
-                """Generator function to read a large file in chunks."""
-
-                with open(file_path, "rb") as file:
-                    while True:
-                        data = file.read(chunk_size)
-                        if not data:
-                            break
-                        yield data
-
             blob_client.upload_blob(
-                data=read_large_file(file_path=file_path),
+                data=read_large_file(file_path=file_path, chunk_size=chunk_size),
             )
 
-            return f"{container}/{blob}"
+        else:
+            # read entire file content and upload to blob
+            with open(file_path.uri, "rb") as file:
+                self.upload(container=container, blob=blob, data=file.read())
+
+        return AdlsPath(container=container, blob=blob)
 
     def stream_to_local_file(
         self,
-        file_path: str,
-        container: str,
+        file_path: PathInput,
+        container: DataLakeZone,
         blob: str,
     ):
         blob_client = self.blob_service_client.get_blob_client(container=container, blob=blob)
 
+        file_path = LocalPath.create(file_path)
+        file_path.create_dir()  # create all dirs if they don't exist yet
+
         stream = blob_client.download_blob()
 
-        with open(file=file_path, mode="wb") as f:
+        with open(file=file_path.uri, mode="wb") as f:
             for chunk in stream.chunks():
                 f.write(chunk)

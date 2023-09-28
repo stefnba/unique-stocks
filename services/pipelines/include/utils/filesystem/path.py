@@ -5,47 +5,47 @@ import json
 from typing import Any, Optional, get_args, cast, TypedDict, Dict, TypeAlias
 from pydantic import BaseModel, Field, ConfigDict
 from pathlib import Path as PathlibPath
-from shared.types import DataLakeZone, DataLakeDatasetFileTypes, DataProducts, DataSources
+from shared.types import DataLakeZone, DataLakeDatasetFileTypes, DataProducts, DataSources, DataLakeDataFileTypes
 import uuid
 from datetime import datetime
 
 from utils.dag.xcom import XComGetter
-from airflow.utils.context import Context
 
 
 class AdlsDict(TypedDict):
     blob: str
-    container: str
+    container: DataLakeZone
 
 
 class Path(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
     root: str = ""
     path: str  # can be either directory or file
     format: Optional[str] = None
     dataset_format: Optional[DataLakeDatasetFileTypes] = Field(repr=False, default=None)
-    uri: str = Field(default=None, repr=False)
     protocol: str | None = Field(default=None, repr=False)
 
     _protocol: Optional[str] = None
     _temp_dir: str = ""
 
-    def dump(self):
+    def dump(self, **kwargs):
         """Convert FilePath model to python dict."""
-        return self.model_dump()
+        return self.model_dump(**kwargs)
 
-    def to_dict(self) -> dict[str, Any]:
-        """Convert FilePath model to python dict."""
-        return self.dump()  # type: ignore
+    def to_dict(self, **kwargs) -> dict[str, Any]:
+        """Convert Path model to python dict."""
+        return self.dump(**kwargs)  # type: ignore
 
-    def to_json(self) -> str:
-        """Convert FilePath model to json."""
-        return self.model_dump_json()
+    def to_json(self, **kwargs) -> str:
+        """Convert Path model to json."""
+        return self.model_dump_json(**kwargs)
+
+    def to_pathlib(self) -> PathlibPath:
+        """Convert Path model to `pathlib.Path`."""
+        return PathlibPath(self.root, self.path)
 
     def model_post_init(self, __context: Any) -> None:
-        self.uri = self._create_uri()
-
         # check if path points to a file
         if PathlibPath(self.path).suffix:
             # path points to a file
@@ -55,34 +55,31 @@ class Path(BaseModel):
         if self.format in get_args(DataLakeDatasetFileTypes):
             self.dataset_format = cast(DataLakeDatasetFileTypes, self.format)
 
-    def _create_uri(self):
-        """Build file uri with protocol if specified."""
-
-        full_path = ((PathlibPath(self.root) or PathlibPath("")) / self.path).as_posix()
-
-        if self.protocol is not None:
-            full_path = self.protocol.replace("://", "") + "://" + full_path.lstrip("/")
-
-        return full_path
-
     def set_protocol(self, protocol: str):
         """Allow setting of protocol after init."""
         self.protocol = protocol
-        self.uri = self._create_uri()
 
     @classmethod
     def create_temp_dir_path(cls):
         return cls(root=cls._temp_dir.get_default(), path=uuid.uuid4().hex)  # type: ignore
 
     @classmethod
-    def create_temp_file_path(cls, format: DataLakeDatasetFileTypes = "parquet"):
+    def create_temp_file_path(cls, format: DataLakeDataFileTypes = "parquet"):
         return cls(root=cls._temp_dir.get_default(), path=uuid.uuid4().hex + f".{format}")  # type: ignore
 
     @classmethod
-    def create(cls, path: "PathInput") -> "Path | AdlsPath | LocalPath":
+    def create(cls, path: "PathInput") -> "Path":
         """Takes `path` arg of various types and creates new `Path` model out of it."""
 
         if isinstance(path, dict):
+            # duplicate pair path/root or container/blob into other pair
+            if not ("container" in path and "blob" in path):
+                path["container"] = path.get("root")
+                path["blob"] = path.get("path")
+            if not ("path" in path and "root" in path):
+                path["root"] = path.get("container")
+                path["path"] = path.get("blob")
+
             return cls(**path)
         if isinstance(path, str):
             # string can also be json
@@ -93,7 +90,7 @@ class Path(BaseModel):
                 pass
 
             # real string
-            p = PathlibPath(path.lstrip("/"))
+            p = PathlibPath(path)
             return cls(root=cast(DataLakeZone, p.parts[0]), path=p.relative_to(p.parts[0]).as_posix())
         if isinstance(path, Path):
             return path
@@ -101,6 +98,8 @@ class Path(BaseModel):
             xcom_value = path.pull()
             if xcom_value:
                 return cls.create(path=xcom_value)
+        if isinstance(path, PathlibPath):
+            return cls.create(path.as_posix())
 
         raise Exception(f"Parsing of path '{path}' failed.")
 
@@ -114,6 +113,17 @@ class Path(BaseModel):
         }
 
     @property
+    def uri(self) -> str:
+        """Build file uri with protocol (if specified), root and path."""
+
+        full_path = ((PathlibPath(self.root) or PathlibPath("")) / self.path).as_posix()
+
+        if self.protocol is not None:
+            full_path = self.protocol.replace("://", "") + "://" + full_path.lstrip("/")
+
+        return full_path
+
+    @property
     def name(self) -> str:
         """The final path component (if any), i.e. the filename with extension."""
         return PathlibPath(self.path).name
@@ -122,6 +132,10 @@ class Path(BaseModel):
     def stem(self) -> str:
         """The final path component w/o file extension."""
         return PathlibPath(self.path).stem
+
+    @property
+    def parts(self) -> tuple[str, ...]:
+        return self.to_pathlib().parts
 
 
 class AdlsPath(Path):
@@ -138,6 +152,14 @@ class AdlsPath(Path):
     def model_post_init(self, __context: Any) -> None:
         return super().model_post_init(__context)
 
+    @classmethod
+    def create(cls, path: "PathInput") -> "AdlsPath":
+        p = super().create(path)
+        return cls(**p.to_dict())
+
+    def to_dict(self, **kwargs) -> dict[str, Any]:
+        return super().to_dict(by_alias=True, **kwargs)
+
 
 class LocalPath(Path):
     _temp_dir: str = config_settings.app.temp_dir_path
@@ -151,8 +173,13 @@ class LocalPath(Path):
         File `self.path` is a file, take parent of it, otherwise same level.
         """
         pathlib_path = PathlibPath(self.path)
-        path = PathlibPath(self.root or "") / pathlib_path.parent if pathlib_path.is_file() else pathlib_path
+        path = PathlibPath(self.root or "") / pathlib_path.parent if pathlib_path.suffix else pathlib_path
         path.mkdir(parents=parents, exist_ok=exist_ok)
+
+    @classmethod
+    def create(cls, path: "PathInput") -> "LocalPath":
+        p = super().create(path)
+        return cls(**p.to_dict())
 
 
 def cleanup_tmp_dir():
@@ -275,4 +302,4 @@ class AdlsDatasetPath:
         raise Exception(f"File Type of file `{filename}` not supported.")
 
 
-PathInput: TypeAlias = str | Dict | AdlsPath | LocalPath | Path | XComGetter
+PathInput: TypeAlias = str | Dict | AdlsPath | LocalPath | Path | XComGetter | PathlibPath
