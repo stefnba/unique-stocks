@@ -272,7 +272,7 @@ class AdlsDatasetPath:
         )
 
     @classmethod
-    def raw(cls, format: DataLakeDatasetFileTypes, source: DataSources, **kwargs):
+    def raw(cls, format: DataLakeDataFileTypes, source: DataSources, **kwargs):
         c = cls(format=format, source=source, **kwargs)
         return AdlsPath(container="raw", blob=c.uri, format=format)
 

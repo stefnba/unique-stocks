@@ -61,7 +61,7 @@ class SecurityQuotePath(AdlsDatasetPath):
         "product",
         "source",
         PathElement(name="security", hive_flavor=True),
-        PathElement(name="exhange", hive_flavor=True),
+        PathElement(name="exchange", hive_flavor=True),
         PathElement(name="year", hive_flavor=True),
         PathElement(name="month", hive_flavor=True),
         PathElement(name="day", hive_flavor=True),
@@ -71,12 +71,12 @@ class SecurityQuotePath(AdlsDatasetPath):
         "product",
         "source",
         "security",
-        "exhange",
+        "exchange",
     ]
 
     @classmethod
-    def raw(cls, security: str, exhange: str, format: DataLakeDatasetFileTypes, source: DataSources):
-        return super().raw(format=format, source=source, exhange=exhange, security=security)
+    def raw(cls, security: str, exchange: str, format: DataLakeDatasetFileTypes, source: DataSources):
+        return super().raw(format=format, source=source, exchange=exchange, security=security)
 
 
 class IndexMemberPath(AdlsDatasetPath):
