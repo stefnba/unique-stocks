@@ -44,6 +44,7 @@ class DeltaTableHook(BaseHook):
     ):
         path = Path.create(path)
         path.set_protocol(self.protocol)
+        self.log.info(f"Reading Delta Table from '{path.uri}'.")
         return DeltaTable(table_uri=path.uri, storage_options=self.storage_options, version=version)
 
     def write(
@@ -59,6 +60,9 @@ class DeltaTableHook(BaseHook):
         path.set_protocol(self.protocol)
 
         self.log.info(f"Writing Delta Table to '{path.uri}' with mode '{mode}'.")
+
+        if not isinstance(data, ds.FileSystemDataset):
+            raise TypeError("Dataset is not a valid `pyarrow.FileSystemDataset`.")
 
         write_deltalake(
             table_or_uri=path.uri,
