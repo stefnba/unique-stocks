@@ -5,10 +5,23 @@ import asyncio
 import aiohttp
 from string import Template
 from pathlib import Path
-
+from utils.filesystem.path import LocalPath, AdlsPath, AdlsDatasetPath
 from aiolimiter import AsyncLimiter
+from pyarrow import dataset as ds
+from custom.providers.azure.hooks.dataset import AzureDatasetHook
+from custom.providers.azure.hooks.handlers.write.azure import AzureDatasetWriteArrowHandler
+from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageHook
+from dataclasses import dataclass
+from shared.types import DataLakeDataFileTypes
 
 HttpMethods = Literal["POST", "GET", "PUT", "DELETE"]
+
+
+@dataclass
+class BulkApiAdlsUploadConfig:
+    path: type[AdlsDatasetPath]
+    conn_id: str
+    record_mapping: Optional[dict[str, str]] = None
 
 
 class BulkApiHook(BaseHook):
@@ -16,6 +29,8 @@ class BulkApiHook(BaseHook):
     Hook to make parallel requests to an API endpoint using `asyncio` and `aiohttp` packages.
     Rates limits are also followed through `aiolimiter`.
     """
+
+    AdlsUploadConfig = BulkApiAdlsUploadConfig
 
     hook_name = "BulkApiHook"
     conn_name_attr = "conn_id"
@@ -28,9 +43,9 @@ class BulkApiHook(BaseHook):
     rate_limit = AsyncLimiter(999, 60)
     max_parallel_requests = 30  # Semaphore
 
-    base_dir: str
-    filename: Optional[str]
-    container: Optional[str]
+    response_format: DataLakeDataFileTypes
+    local_download_dir: LocalPath
+    adls_upload: Optional[BulkApiAdlsUploadConfig]
 
     errors: list[dict[str, Any]] = []
 
@@ -40,18 +55,20 @@ class BulkApiHook(BaseHook):
     def __init__(
         self,
         conn_id: str = default_conn_name,
-        *,
-        base_dir: str,
-        filename: Optional[str] = None,
-        container: Optional[str] = None,
+        response_format: DataLakeDataFileTypes = "json",
+        adls_upload: Optional[BulkApiAdlsUploadConfig] = None,
         method: HttpMethods = "GET",
     ) -> None:
-        self.base_dir = base_dir
-        self.container = container
-        self.filename = filename
         self.conn_id = conn_id
         self.get_conn()
         self.method = method
+        self.adls_upload = adls_upload
+        self.response_format = response_format
+
+        self.local_download_dir = LocalPath.create_temp_dir_path()
+
+        if adls_upload:
+            self.hook = AzureDataLakeStorageHook(conn_id=adls_upload.conn_id)
 
     def get_conn(self):
         """Set `base_url` and `token`."""
@@ -85,7 +102,9 @@ class BulkApiHook(BaseHook):
                 self.counter += 1
 
                 if self.counter % 100 == 0:
-                    print(f"{self.counter}/{self.total} () requests done.")
+                    print(
+                        f"API Session in progress: {self.counter:,}/{self.total:,} ({(self.counter/self.total):.0%}) requests done."
+                    )
 
                 try:
                     if self.method == "GET":
@@ -110,26 +129,46 @@ class BulkApiHook(BaseHook):
 
                 raise ValueError("Method not implemented")
 
-    # async def upload_response(self, data: bytes, filename: str, args: dict[str, str]) -> None:
-    #     filename = Template(filename).safe_substitute(args).lstrip("/")
-    #     dir = Template(self.base_dir).safe_substitute(args).rstrip("/")
+    def upload_response(self, data: bytes, id: str, record: dict[str, str]) -> None:
+        """Save data from response to a Azure Data Lake Storage."""
 
-    #     full_path = Path(dir) / Path(filename + ".csv")
+        if not self.adls_upload:
+            return
 
-    #     from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageHook
+        adls_upload = self.adls_upload
 
-    #     AzureDataLakeStorageHook(conn_id="azure_data_lake").upload(
-    #         container="temp", blob_path=full_path.as_posix(), data=data
-    #     )
+        add_info = {}
 
-    async def save_response(self, data: bytes, filename: str, args: dict[str, str]) -> None:
-        filename = Template(filename).safe_substitute(args).lstrip("/")
-        dir = Template(self.base_dir).safe_substitute(args).rstrip("/")
+        if adls_upload.record_mapping:
+            add_info = {k: record.get(v) for k, v in adls_upload.record_mapping.items()}
+
+        path = adls_upload.path.raw(
+            format=self.response_format,
+            source="EodHistoricalData",
+            **add_info,
+        )
+
+        self.hook.upload(
+            **path.to_dict(),
+            data=data,
+        )
+
+        # self.log.info(f"{Template(id).safe_substitute(record)} Uploaded to '{path}'.")
+
+        return
+
+    async def save_response_local(self, data: bytes, id: str, record: dict[str, str]) -> None:
+        """Save data from response to a local file."""
+
+        id = id.replace("/", "_")
+
+        dir = Path(self.local_download_dir.uri) / Path(*[f"{k}={v}" for k, v in record.items()])
+        filename = Template(id).safe_substitute(record).strip("/") + f".{self.response_format}"
 
         # check if dir exists, if not create
-        Path(dir).mkdir(parents=True, exist_ok=True)
+        dir.mkdir(parents=True, exist_ok=True)
 
-        full_path = Path(dir) / Path(filename + ".csv")
+        full_path = dir / filename
 
         with open(full_path, "wb") as f:
             f.write(data)
@@ -139,12 +178,17 @@ class BulkApiHook(BaseHook):
 
         try:
             res = await self.make_request(endpoint=endpoint, args=args)
-            await self.save_response(data=res, args=args, filename=self.filename or endpoint.replace("/", "_"))
+            await self.save_response_local(data=res, record=args, id=endpoint)
+
+            if self.adls_upload:
+                self.upload_response(data=res, record=args, id=endpoint)
+
         except Exception:
             pass
 
     async def _run(self, endpoint: str, arg_seq: list[dict[str, str]]) -> None:
         """Initiate asyncio tasks."""
+
         tasks = []
         self.semaphore = asyncio.Semaphore(value=self.max_parallel_requests)
 
@@ -161,9 +205,35 @@ class BulkApiHook(BaseHook):
         if len(self.errors) > 0:
             print(self.errors)
 
-    def run(self, endpoint: str, args: list[dict[str, str]]):
+    def run(self, endpoint: str, items: list[dict[str, str]]) -> None:
         """Entrypoint to start bulk api calls."""
-        asyncio.run(self._run(endpoint=endpoint, arg_seq=args))
+        asyncio.run(self._run(endpoint=endpoint, arg_seq=items))
+
+    def read_dataset(self):
+        """Read local files into Arrow Dataset."""
+
+        return ds.dataset(
+            source=self.local_download_dir.uri,
+            format=self.response_format,
+            partitioning="hive",
+        )
+
+    def upload_dataset(self, conn_id: str) -> AdlsPath:
+        """Read local files into Arrow Dataset and write dataset to temp container on Adls."""
+        dataset = self.read_dataset()
+        destination_path = AdlsPath.create_temp_dir_path()
+        hook = AzureDatasetHook(conn_id=conn_id)
+
+        hook.write(
+            dataset=dataset,
+            destination_path=destination_path,
+            handler=AzureDatasetWriteArrowHandler,
+            existing_data_behavior="overwrite_or_ignore",
+            basename_template="{i}" + AdlsPath.create_temp_file_path().name,
+            format="parquet",
+        )
+
+        return destination_path  # type: ignore
 
 
 class SharedApiHook(HttpHook):
