@@ -6,7 +6,7 @@ from custom.providers.azure.hooks.dataset import AzureDatasetHook
 import json
 import polars as pl
 from functools import reduce
-from utils.filesystem.path import Path
+from utils.filesystem.path import Path, PathInput
 
 Period = Literal["yearly", "quarterly"]
 
@@ -33,18 +33,16 @@ class EodFundamentalTransformOperator(BaseOperator):
     template_fields = ("source_path", "entity_id", "destination_path")
 
     context: Context
-    source_path: Path
-    destination_path: Path
+    source_path: PathInput
+    destination_path: PathInput
     adls_conn_id: str
-    entity_id: str
 
     def __init__(
         self,
         task_id: str,
         adls_conn_id: str,
-        entity_id: str,
-        source_path: Path,
-        destination_path: Path,
+        source_path: PathInput,
+        destination_path: PathInput,
         **kwargs,
     ):
         super().__init__(
@@ -52,7 +50,6 @@ class EodFundamentalTransformOperator(BaseOperator):
             **kwargs,
         )
 
-        self.entity_id = entity_id
         self.source_path = source_path
         self.conn_id = adls_conn_id
         self.destination_path = destination_path
