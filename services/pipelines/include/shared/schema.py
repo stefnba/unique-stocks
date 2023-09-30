@@ -7,6 +7,20 @@ EntityIsin = pa.schema(
     ]
 )
 
+SecurityQuote = pa.schema(
+    [
+        pa.field("date", pa.string()),
+        pa.field("open", pa.float64()),
+        pa.field("high", pa.float64()),
+        pa.field("low", pa.float64()),
+        pa.field("close", pa.float64()),
+        pa.field("adjusted_close", pa.float64()),
+        pa.field("volume", pa.int64()),
+        pa.field("exchange_code", pa.string()),
+        pa.field("security_code", pa.string()),
+    ]
+)
+
 Entity = pa.schema(
     [
         pa.field("lei", pa.string()),
