@@ -33,6 +33,7 @@ setup-airflow-local:
 
 # Docker
 docker-up-prod:
+	export AIRFLOW_HOME=${AIRFLOW_HOME_CONTAINER} && \
 	docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml --project-directory . up -d --build --force-recreate --remove-orphans
 docker-up:
 	export AIRFLOW_HOME=${AIRFLOW_HOME_CONTAINER} && \
