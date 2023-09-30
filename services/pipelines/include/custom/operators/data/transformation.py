@@ -40,6 +40,7 @@ class DuckDbTransformationOperator(BaseOperator):
     query: str
     data_bindings: Optional[DataBindingArgs]
     query_args: Optional[QueryArgs]
+    write_handler: Optional[type[DatasetHandler]]
     duck: duckdb.DuckDBPyConnection
     context: Context
 
@@ -53,6 +54,7 @@ class DuckDbTransformationOperator(BaseOperator):
         query: str,
         adls_conn_id: str,
         destination_path: PathInput,
+        write_handler: Optional[type[DatasetHandler]] = None,
         data: Optional[DataBindingArgs] = None,
         query_args: Optional[QueryArgs] = None,
         **kwargs,
@@ -63,6 +65,7 @@ class DuckDbTransformationOperator(BaseOperator):
         self.query = query
         self.query_args = query_args
         self.data_bindings = data
+        self.write_handler = write_handler
 
         self.destination_path = destination_path
 
@@ -157,6 +160,7 @@ class DuckDbTransformationOperator(BaseOperator):
     def write_data(self, data: duckdb.DuckDBPyRelation):
         self.hook.write(
             dataset=data,
+            handler=self.write_handler or AzureDatasetWriteUploadHandler,
             destination_path=self.destination_path,
         )
 
