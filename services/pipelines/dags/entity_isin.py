@@ -6,12 +6,13 @@ from datetime import datetime
 from airflow.decorators import task, dag
 
 
-from custom.operators.data.transformation import DuckDbTransformationOperator, DataBindingCustomHandler
-from custom.providers.azure.hooks.handlers.read.local import LocalDatasetReadHandler
+from custom.operators.data.transformation import DuckDbTransformationOperator
 from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
-from shared.path import EntityIsinPath, Path, LocalPath, AdlsPath
+from shared.path import EntityIsinPath, LocalPath, AdlsPath
 from utils.dag.xcom import XComGetter
 from shared import schema
+
+URL = "https://mapping.gleif.org/api/v2/isin-lei/d6996d23-cdaf-413e-b594-5219d40f3da5/download"
 
 
 @task
@@ -19,10 +20,9 @@ def ingest():
     from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageHook
 
     destination = EntityIsinPath.raw(source="Gleif", format="zip")
-    url = "https://mapping.gleif.org/api/v2/isin-lei/d6996d23-cdaf-413e-b594-5219d40f3da5/download"
 
     hook = AzureDataLakeStorageHook(conn_id="azure_data_lake")
-    hook.upload_from_url(url=url, **destination.afls_path)
+    hook.upload_from_url(url=URL, **destination.afls_path)
 
     return destination.to_dict()
 

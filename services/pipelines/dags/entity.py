@@ -73,16 +73,17 @@ def transform_entity_job(data: pl.LazyFrame) -> pl.LazyFrame:
     return data
 
 
+URL = "https://leidata-preview.gleif.org/storage/golden-copy-files/2023/07/17/808968/20230717-0000-gleif-goldencopy-lei2-golden-copy.csv.zip"
+
+
 @task
 def ingest():
     from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageHook
 
     destination = EntityPath.raw(source="Gleif", format="zip")
 
-    url = "https://leidata-preview.gleif.org/storage/golden-copy-files/2023/07/17/808968/20230717-0000-gleif-goldencopy-lei2-golden-copy.csv.zip"
-
     hook = AzureDataLakeStorageHook(conn_id="azure_data_lake")
-    hook.upload_from_url(url=url, **destination.afls_path)
+    hook.upload_from_url(url=URL, **destination.afls_path)
 
     return destination.to_dict()
 
