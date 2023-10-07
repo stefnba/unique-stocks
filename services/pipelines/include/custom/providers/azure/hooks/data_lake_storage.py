@@ -159,3 +159,11 @@ class AzureDataLakeStorageHook(BaseHook):
         with open(file=file_path.uri, mode="wb") as f:
             for chunk in stream.chunks():
                 f.write(chunk)
+
+    def remove_container(self, container: DataLakeZone):
+        """Delete a container."""
+        self.blob_service_client.delete_container(container=container)
+
+    def create_container(self, container: DataLakeZone):
+        """Create a container."""
+        self.blob_service_client.create_container(name=container)
