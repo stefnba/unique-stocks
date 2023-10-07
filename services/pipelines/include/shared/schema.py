@@ -7,6 +7,7 @@ EntityIsin = pa.schema(
     ]
 )
 
+
 SecurityQuote = pa.schema(
     [
         pa.field("date", pa.string()),
@@ -43,5 +44,21 @@ Entity = pa.schema(
         pa.field("expiration_reason", pa.string()),
         pa.field("registration_date", pa.string()),
         pa.field("registration_status", pa.string()),
+    ]
+)
+
+
+Mapping = pa.schema(
+    [
+        pa.field("source", pa.string()),
+        pa.field("product", pa.string()),
+        pa.field("field", pa.string()),
+        pa.field("source_value", pa.string()),
+        pa.field("source_description", pa.string()),
+        pa.field("mapping_value", pa.string()),
+        pa.field("uid_description", pa.string()),
+        pa.field("active_from", pa.date64()),
+        pa.field("active_until", pa.date32()),
+        pa.field("is_active", pa.bool_()),
     ]
 )

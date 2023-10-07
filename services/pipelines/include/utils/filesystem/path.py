@@ -173,13 +173,19 @@ class LocalPath(Path):
         File `self.path` is a file, take parent of it, otherwise same level.
         """
         pathlib_path = PathlibPath(self.path)
-        path = PathlibPath(self.root or "") / pathlib_path.parent if pathlib_path.suffix else pathlib_path
+        path = PathlibPath(self.root or "") / pathlib_path
         path.mkdir(parents=parents, exist_ok=exist_ok)
 
     @classmethod
     def create(cls, path: "PathInput") -> "LocalPath":
         p = super().create(path)
         return cls(**p.to_dict())
+
+    @classmethod
+    def create_temp_dir_path(cls):
+        p = super().create_temp_dir_path()
+        p.create_dir()
+        return p
 
 
 def cleanup_tmp_dir():

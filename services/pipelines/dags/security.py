@@ -3,15 +3,18 @@
 # pyright: reportUnusedExpression=false
 from datetime import datetime
 from airflow.utils.trigger_rule import TriggerRule
-from airflow.decorators import task, dag, task_group
+from airflow.decorators import task, dag
 import pyarrow as pa
 
 from typing import TypedDict
-from custom.operators.data.transformation import DuckDbTransformationOperator
+from custom.operators.data.transformation import DuckDbTransformationOperator, DataBindingCustomHandler
 
-from shared.data_lake_path import SecurityPath, TempDirectory
-from utils.dag.xcom import XComGetter, set_xcom_value, get_xcom_template
+from shared.path import SecurityPath, ExchangePath, AdlsPath
+from utils.dag.xcom import XComGetter
 from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
+from custom.providers.azure.hooks.handlers.read.azure import AzureDatasetArrowHandler
+
+from custom.providers.azure.hooks import converters
 
 
 class Exchange(TypedDict):
@@ -23,75 +26,86 @@ def extract_exchange():
     from custom.providers.delta_table.hooks.delta_table import DeltaTableHook
     import polars as pl
 
-    set_xcom_value(key="temp_dir", value=TempDirectory().directory)
-
-    dt = DeltaTableHook(conn_id="azure_data_lake").read(source_path="exchange", source_container="curated")
+    dt = DeltaTableHook(conn_id="azure_data_lake").read(path=ExchangePath.curated())
 
     exchanges = pl.from_arrow(dt.to_pyarrow_dataset().to_batches())
 
+    # return [
+    #     {"exchange_code": "US"},
+    #     {"exchange_code": "XETRA"},
+    #     {"exchange_code": "GSE"},
+    #     {"exchange_code": "VFEX"},
+    #     # {"code": "F"},
+    #     # {"code": "FOREX"},
+    # ]
+
     if isinstance(exchanges, pl.DataFrame):
         return [
-            *exchanges.select("code").to_dicts(),
-            {"code": "INDX"},  # add virtual exchange INDEX to get all index
+            *exchanges.select(
+                [
+                    pl.col("code").alias("exchange_code"),
+                ]
+            ).to_dicts(),
+            {"exchange_code": "INDX"},  # add virtual exchange INDEX to get all index
         ]
 
-    return [
-        # {"code": "US"},
-        # {"code": "XETRA"},
-        {"code": "GSE"},
-        {"code": "VFEX"},
-        # {"code": "F"},
-        # {"code": "FOREX"},
-    ]
 
+@task
+def ingest(security: list):
+    from custom.hooks.api.shared import BulkApiHook
 
-@task_group
-def one_exchange(one_exchange: str):
-    @task()
-    def ingest(exchange: Exchange):
-        from custom.providers.eod_historical_data.hooks.api import EodHistoricalDataApiHook
-        from airflow.providers.microsoft.azure.hooks.wasb import WasbHook
-        import json
-
-        data = EodHistoricalDataApiHook().exchange_security(exchange_code=exchange["code"])
-
-        # some exchanges return empty response
-        if len(data) == 0:
-            return
-
-        destination = SecurityPath.raw(source="EodHistoricalData", format="json").add_element(exchange=exchange["code"])
-        WasbHook(wasb_conn_id="azure_blob").upload(
-            data=json.dumps(data),
-            container_name=destination.container,
-            blob_name=destination.path,
-        )
-
-        set_xcom_value("exchange_code", exchange["code"])
-
-        return destination.serialized
-
-    transform = DuckDbTransformationOperator(
-        task_id="transform",
-        adls_conn_id="azure_data_lake",
-        destination_path=TempDirectory(
-            base_dir=get_xcom_template(task_id="extract_exchange", key="temp_dir", use_map_index=False)
+    api = BulkApiHook(
+        conn_id="eod_historical_data",
+        response_format="csv",
+        adls_upload=BulkApiHook.AdlsUploadConfig(
+            path=SecurityPath,
+            conn_id="azure_data_lake",
+            record_mapping={
+                "exchange": "exchange_code",
+            },
         ),
-        query="sql/security/transform.sql",
-        data={"security_raw": get_xcom_template(task_id="one_exchange.ingest")},
-        query_args={
-            "exchange_code": XComGetter(task_id="one_exchange.ingest", key="exchange_code"),
-        },
+    )
+    api.run(endpoint="exchange-symbol-list/${exchange_code}", items=security)
+
+    # upload as arrow ds
+    destination_path = api.upload_dataset(
+        conn_id="azure_data_lake",
+        schema=pa.schema(
+            [
+                pa.field("Code", pa.string()),
+                pa.field("Name", pa.string()),
+                pa.field("Country", pa.string()),
+                pa.field("Exchange", pa.string()),
+                pa.field("Currency", pa.string()),
+                pa.field("Type", pa.string()),
+                pa.field("Isin", pa.string()),
+            ]
+        ),
     )
 
-    ingest_task = ingest(one_exchange)
-    ingest_task >> transform
+    return destination_path.to_dict()
+
+
+transform = DuckDbTransformationOperator(
+    task_id="transform",
+    adls_conn_id="azure_data_lake",
+    destination_path=AdlsPath.create_temp_file_path(),
+    query="sql/security/transform.sql",
+    data={
+        "security_raw": DataBindingCustomHandler(
+            path=XComGetter.pull_with_template(task_id="ingest"),
+            handler=AzureDatasetArrowHandler,
+            dataset_converter=converters.PyArrowDataset,
+        )
+    },
+)
 
 
 sink = WriteDeltaTableFromDatasetOperator(
     task_id="sink",
-    trigger_rule=TriggerRule.ALL_DONE,
+    trigger_rule=TriggerRule.ALL_SUCCESS,
     adls_conn_id="azure_data_lake",
-    dataset_path={"container": "temp", "path": get_xcom_template(task_id="extract_exchange", key="temp_dir")},
+    dataset_path=XComGetter.pull_with_template(task_id="transform"),
     destination_path=SecurityPath.curated(),
     pyarrow_options={
         "schema": pa.schema(
@@ -121,7 +135,8 @@ sink = WriteDeltaTableFromDatasetOperator(
     tags=["security"],
 )
 def security():
-    one_exchange.expand(one_exchange=extract_exchange()) >> sink
+    extract_exchange_task = extract_exchange()
+    ingest(extract_exchange_task) >> transform >> sink
 
 
 dag_object = security()

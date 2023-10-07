@@ -1,4 +1,4 @@
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, Protocol, TypeAlias
 from airflow.providers.http.hooks.http import HttpHook
 from airflow.hooks.base import BaseHook
 import asyncio
@@ -15,13 +15,21 @@ from dataclasses import dataclass
 from shared.types import DataLakeDataFileTypes
 
 HttpMethods = Literal["POST", "GET", "PUT", "DELETE"]
+Record: TypeAlias = dict[str, str]
+
+# TransformFunc: TypeAlias = Callable[[bytes], Optional[bytes]]
+
+
+class TransformFunc(Protocol):
+    def __call__(self, data: bytes, record: Record, local_download_dir: LocalPath) -> Optional[bytes]:
+        ...
 
 
 @dataclass
 class BulkApiAdlsUploadConfig:
     path: type[AdlsDatasetPath]
     conn_id: str
-    record_mapping: Optional[dict[str, str]] = None
+    record_mapping: Optional[Record] = None
 
 
 class BulkApiHook(BaseHook):
@@ -46,6 +54,7 @@ class BulkApiHook(BaseHook):
     response_format: DataLakeDataFileTypes
     local_download_dir: LocalPath
     adls_upload: Optional[BulkApiAdlsUploadConfig]
+    transform: Optional[TransformFunc]
 
     errors: list[dict[str, Any]] = []
 
@@ -57,6 +66,7 @@ class BulkApiHook(BaseHook):
         conn_id: str = default_conn_name,
         response_format: DataLakeDataFileTypes = "json",
         adls_upload: Optional[BulkApiAdlsUploadConfig] = None,
+        transform: Optional[TransformFunc] = None,
         method: HttpMethods = "GET",
     ) -> None:
         self.conn_id = conn_id
@@ -64,6 +74,7 @@ class BulkApiHook(BaseHook):
         self.method = method
         self.adls_upload = adls_upload
         self.response_format = response_format
+        self.transform = transform
 
         self.local_download_dir = LocalPath.create_temp_dir_path()
 
@@ -88,7 +99,7 @@ class BulkApiHook(BaseHook):
         if conn.password is not None:
             self.token = conn.password
 
-    async def make_request(self, endpoint: str, args: dict[str, str]) -> bytes:
+    async def make_request(self, endpoint: str, args: Record) -> bytes:
         """Make api call and return response."""
 
         endpoint = Template(endpoint).safe_substitute(args).lstrip("/")
@@ -129,7 +140,7 @@ class BulkApiHook(BaseHook):
 
                 raise ValueError("Method not implemented")
 
-    def upload_response(self, data: bytes, id: str, record: dict[str, str]) -> None:
+    def upload_response(self, data: bytes, id: str, record: Record) -> None:
         """Save data from response to a Azure Data Lake Storage."""
 
         if not self.adls_upload:
@@ -157,7 +168,7 @@ class BulkApiHook(BaseHook):
 
         return
 
-    async def save_response_local(self, data: bytes, id: str, record: dict[str, str]) -> None:
+    async def save_response_local(self, data: bytes, id: str, record: Record) -> None:
         """Save data from response to a local file."""
 
         id = id.replace("/", "_")
@@ -173,54 +184,73 @@ class BulkApiHook(BaseHook):
         with open(full_path, "wb") as f:
             f.write(data)
 
-    async def task(self, endpoint: str, args: dict[str, str]) -> None:
+    async def task(self, endpoint: str, record: Record) -> None:
         """Task to be performed for each request."""
 
         try:
-            res = await self.make_request(endpoint=endpoint, args=args)
-            await self.save_response_local(data=res, record=args, id=endpoint)
+            data = await self.make_request(endpoint=endpoint, args=record)
+
+            if self.transform:
+                transformed = self.transform(data=data, record=record, local_download_dir=self.local_download_dir)
+
+                if transformed:
+                    # save transformed data
+                    await self.save_response_local(data=transformed, record=record, id=endpoint)
+            else:
+                await self.save_response_local(data=data, record=record, id=endpoint)
 
             if self.adls_upload:
-                self.upload_response(data=res, record=args, id=endpoint)
+                # alway upload original data
+                self.upload_response(data=data, record=record, id=endpoint)
 
         except Exception:
             pass
 
-    async def _run(self, endpoint: str, arg_seq: list[dict[str, str]]) -> None:
+    async def _run(self, endpoint: str, records: list[Record]) -> None:
         """Initiate asyncio tasks."""
 
         tasks = []
         self.semaphore = asyncio.Semaphore(value=self.max_parallel_requests)
 
-        self.total = len(arg_seq)
+        self.total = len(records)
 
-        self.log.info(f"Starting bulk api session ({len(arg_seq)} calls)")
+        self.log.info(f"Starting bulk api session ({len(records)} calls)")
 
-        for arg in arg_seq:
-            tasks.append(self.task(endpoint=endpoint, args=arg))
+        for arg in records:
+            tasks.append(self.task(endpoint=endpoint, record=arg))
         await asyncio.wait(tasks)
 
-        self.log.info(f"Finished bulk api session. {len(arg_seq)} calls done, {len(self.errors)} errors occured.")
+        self.log.info(f"Finished bulk api session. {len(records)} calls done, {len(self.errors)} errors occured.")
 
         if len(self.errors) > 0:
             print(self.errors)
 
-    def run(self, endpoint: str, items: list[dict[str, str]]) -> None:
+    def run(self, endpoint: str, items: list[Record]) -> None:
         """Entrypoint to start bulk api calls."""
-        asyncio.run(self._run(endpoint=endpoint, arg_seq=items))
+        asyncio.run(self._run(endpoint=endpoint, records=items))
 
-    def read_dataset(self):
+    def read_dataset(
+        self,
+        schema=None,
+        dataset_format: Optional[Literal["parquet", "csv"]] = None,
+    ):
         """Read local files into Arrow Dataset."""
 
         return ds.dataset(
             source=self.local_download_dir.uri,
-            format=self.response_format,
+            format=dataset_format or self.response_format,
             partitioning="hive",
+            schema=schema,
         )
 
-    def upload_dataset(self, conn_id: str) -> AdlsPath:
+    def upload_dataset(
+        self,
+        conn_id: str,
+        schema=None,
+        dataset_format: Optional[Literal["parquet", "csv"]] = None,
+    ) -> AdlsPath:
         """Read local files into Arrow Dataset and write dataset to temp container on Adls."""
-        dataset = self.read_dataset()
+        dataset = self.read_dataset(dataset_format=dataset_format, schema=schema)
         destination_path = AdlsPath.create_temp_dir_path()
         hook = AzureDatasetHook(conn_id=conn_id)
 

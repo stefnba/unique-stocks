@@ -3,15 +3,17 @@
 # pyright: reportUnusedExpression=false
 from datetime import datetime
 
-from airflow.decorators import task, dag, task_group
-
+from airflow.decorators import task, dag
+from string import Template
 
 from typing import TypedDict
 
-from utils.dag.xcom import XComGetter, set_xcom_value, get_xcom_template
-from custom.providers.eod_historical_data.operators.fundamental.transform import EodFundamentalTransformOperator
-from shared.data_lake_path import FundamentalPath, TempDirectory
-from airflow.utils.trigger_rule import TriggerRule
+from utils.dag.xcom import XComGetter
+from custom.providers.eod_historical_data.transformers.fundamental.common_stock import (
+    EoDCommonStockFundamentalTransformer,
+)
+from shared.path import FundamentalPath, SecurityPath, AdlsPath, LocalPath
+from custom.hooks.api.shared import BulkApiHook
 import pyarrow as pa
 from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
 
@@ -25,12 +27,12 @@ class FundamentalSecurity(TypedDict):
 def extract_security():
     import polars as pl
     from custom.providers.delta_table.hooks.delta_table import DeltaTableHook
+    from custom.hooks.data.mapping import MappingDatasetHook
+    import duckdb
 
-    set_xcom_value(key="temp_dir", value=TempDirectory().directory)
+    mapping = MappingDatasetHook().mapping(product="exchange", source="EodHistoricalData", field="composite_code")
 
-    # return [{"security_code": "8TI", "exchange_code": "XETRA"}]
-
-    dt = DeltaTableHook(conn_id="azure_data_lake").read(source_path="security", source_container="curated")
+    dt = DeltaTableHook(conn_id="azure_data_lake").read(path=SecurityPath.curated())
 
     securities = pl.from_arrow(
         dt.to_pyarrow_dataset(
@@ -40,8 +42,8 @@ def extract_security():
                     "in",
                     [
                         "XETRA",
-                        # "NASDAQ",
-                        # "NYSE",
+                        "NASDAQ",
+                        "NYSE",
                     ],
                 ),
                 ("type", "=", "common_stock"),
@@ -49,72 +51,107 @@ def extract_security():
         ).to_batches()
     )
 
-    if isinstance(securities, pl.DataFrame):
-        s = securities.select([pl.col("code").alias("security_code"), pl.col("exchange_code")]).to_dicts()
-
-        return s[:1000]
-
-
-@task_group
-def one_fundamental(one_fundamental: FundamentalSecurity):
-    @task
-    def ingest(security: FundamentalSecurity):
-        from custom.providers.eod_historical_data.hooks.api import EodHistoricalDataApiHook
-        from airflow.providers.microsoft.azure.hooks.wasb import WasbHook
-        import json
-
-        fundamental_data = EodHistoricalDataApiHook().fundamental(**security)
-
-        destination = FundamentalPath.raw(source="EodHistoricalData", format="json").add_element(
-            entity=security["security_code"]
-        )
-
-        WasbHook(wasb_conn_id="azure_blob").upload(
-            data=json.dumps(fundamental_data),
-            container_name=destination.container,
-            blob_name=destination.path,
-        )
-
-        set_xcom_value(key="entity_id", value=security["security_code"])
-
-        return destination.serialized
-
-    transform = EodFundamentalTransformOperator(
-        task_id="transform",
-        adls_conn_id="azure_data_lake",
-        source_path=XComGetter(task_id="one_fundamental.ingest"),
-        destination_path=TempDirectory(
-            base_dir=get_xcom_template(task_id="extract_security", key="temp_dir", use_map_index=False)
-        ),
-        entity_id=get_xcom_template(task_id="one_fundamental.ingest", key="entity_id"),
+    data = (
+        duckdb.sql(
+            """
+        --sql
+        SELECT
+            s.exchange_code,
+            s.code AS entity_code,
+            COALESCE(m.mapping_value, s.exchange_code) AS api_exchange_code
+        FROM securities s
+        LEFT JOIN mapping m on s.exchange_code = m.source_value
+        ;
+        """
+        ).pl()
+        # .sample(300)
+        .to_dicts()
     )
 
-    ingest(one_fundamental) >> transform
+    return data
+
+    if isinstance(securities, pl.DataFrame):
+        return securities.select(
+            [
+                # pl.lit("US").alias("composite_exchange_code"),
+                pl.col("exchange_code"),
+                pl.col("code").alias("entity_code"),
+            ]
+        ).to_dicts()
+
+
+def transform_on_ingest(data: bytes, record: dict[str, str], local_download_dir: LocalPath):
+    import json
+    from custom.providers.eod_historical_data.transformers.utils import deep_get
+
+    data_dict = json.loads(data)
+    sec_type = deep_get(data_dict, ["General", "Type"])
+
+    # Common stocks
+    if sec_type == "Common Stock":
+        # Only primary ticker
+        if deep_get(data_dict, ["General", "PrimaryTicker"]) == Template(
+            "${entity_code}.${api_exchange_code}"
+        ).safe_substitute(record):
+            transformer = EoDCommonStockFundamentalTransformer(data=data)
+            transformed_data = transformer.transform()
+
+            if transformed_data is not None:
+                transformed_data.write_parquet(local_download_dir.to_pathlib() / f"{transformer.security}.parquet")
+
+        return
+
+
+@task
+def ingest(securities: list[dict[str, str]]):
+    api = BulkApiHook(
+        conn_id="eod_historical_data",
+        response_format="json",
+        transform=transform_on_ingest,
+        adls_upload=BulkApiHook.AdlsUploadConfig(
+            path=FundamentalPath,
+            conn_id="azure_data_lake",
+            record_mapping={
+                "exchange": "exchange_code",
+                "entity": "entity_code",
+            },
+        ),
+    )
+    api.run(endpoint="fundamentals/${entity_code}.${api_exchange_code}", items=securities)
+
+    # upload as arrow ds
+    destination_path = api.upload_dataset(conn_id="azure_data_lake", dataset_format="parquet")
+
+    return destination_path.to_dict()
 
 
 sink = WriteDeltaTableFromDatasetOperator(
     task_id="sink",
-    trigger_rule=TriggerRule.ALL_DONE,
     adls_conn_id="azure_data_lake",
-    dataset_path={"container": "temp", "path": get_xcom_template(task_id="extract_security", key="temp_dir")},
-    destination_path=FundamentalPath.curated(),
+    dataset_path=XComGetter.pull_with_template(task_id="ingest"),
+    # destination_path=FundamentalPath.curated(),
+    destination_path="curated/test_fina",
     pyarrow_options={
         "schema": pa.schema(
             [
-                pa.field("entity_id", pa.string()),
-                pa.field("currency", pa.string()),
+                pa.field("exchange_code", pa.string()),
+                pa.field("security_code", pa.string()),
+                pa.field("category", pa.string()),
                 pa.field("metric", pa.string()),
                 pa.field("value", pa.string()),
-                pa.field("period_name", pa.string()),
+                pa.field("currency", pa.string()),
                 pa.field("period", pa.date32()),
+                pa.field("period_type", pa.string()),
                 pa.field("published_at", pa.date32()),
-                pa.field("year", pa.int32()),
             ]
         )
     },
     delta_table_options={
         "mode": "overwrite",
-        # "partition_by": ["security_code", "exchange_code"],
+        "partition_by": [
+            "exchange_code",
+            # "security_code",
+        ],
     },
 )
 
@@ -127,7 +164,9 @@ sink = WriteDeltaTableFromDatasetOperator(
     tags=["fundamental"],
 )
 def fundamental():
-    one_fundamental.expand(one_fundamental=extract_security()) >> sink
+    extract_security_task = extract_security()
+
+    ingest(extract_security_task) >> sink
 
 
 dag_object = fundamental()

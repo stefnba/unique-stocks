@@ -51,7 +51,7 @@ class SecurityPath(AdlsDatasetPath):
 
     @classmethod
     def raw(cls, exchange: str, format: DataLakeDatasetFileTypes, source: DataSources):
-        return super().raw(format=format, source=source, security=exchange)
+        return super().raw(format=format, source=source, exchange=exchange)
 
 
 class SecurityQuotePath(AdlsDatasetPath):
@@ -85,7 +85,6 @@ class IndexMemberPath(AdlsDatasetPath):
     dir_template = [
         "product",
         "source",
-        PathElement(name="security", hive_flavor=True),
         PathElement(name="index", hive_flavor=True),
         PathElement(name="year", hive_flavor=True),
         PathElement(name="month", hive_flavor=True),
@@ -95,13 +94,12 @@ class IndexMemberPath(AdlsDatasetPath):
         "datetime",
         "product",
         "source",
-        "security",
         "index",
     ]
 
     @classmethod
-    def raw(cls, security: str, index: str, format: DataLakeDatasetFileTypes, source: DataSources):
-        return super().raw(format=format, source=source, index=index, security=security)
+    def raw(cls, index: str, format: DataLakeDatasetFileTypes, source: DataSources):
+        return super().raw(format=format, source=source, index=index)
 
 
 class FundamentalPath(AdlsDatasetPath):
@@ -111,6 +109,7 @@ class FundamentalPath(AdlsDatasetPath):
         "product",
         "source",
         PathElement(name="entity", hive_flavor=True),
+        PathElement(name="exchange", hive_flavor=True),
         PathElement(name="year", hive_flavor=True),
         PathElement(name="month", hive_flavor=True),
         PathElement(name="day", hive_flavor=True),
@@ -120,8 +119,9 @@ class FundamentalPath(AdlsDatasetPath):
         "product",
         "source",
         "entity",
+        "exchange",
     ]
 
     @classmethod
-    def raw(cls, entity: str, format: DataLakeDatasetFileTypes, source: DataSources):
-        return super().raw(format=format, source=source, security=entity)
+    def raw(cls, entity: str, exchange: str, format: DataLakeDatasetFileTypes, source: DataSources):
+        return super().raw(format=format, source=source, entity=entity, exchange=exchange)

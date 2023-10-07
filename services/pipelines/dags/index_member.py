@@ -3,16 +3,15 @@
 # pyright: reportUnusedExpression=false
 from datetime import datetime
 
-from airflow.decorators import task, dag, task_group
+from airflow.decorators import task, dag
 from airflow.utils.trigger_rule import TriggerRule
 import pyarrow as pa
 
 from typing import TypedDict
-from custom.providers.eod_historical_data.operators.index_member.transform import EodIndexMemberTransformOperator
 
-from shared.data_lake_path import IndexMemberPath, TempDirectory
-from utils.dag.xcom import set_xcom_value, get_xcom_template
+from shared.path import IndexMemberPath, SecurityPath, AdlsPath, LocalPath
 from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
+from utils.dag.xcom import XComGetter
 
 
 class Index(TypedDict):
@@ -25,9 +24,7 @@ def extract_index():
     import polars as pl
     from custom.providers.delta_table.hooks.delta_table import DeltaTableHook
 
-    set_xcom_value(key="temp_dir", value=TempDirectory().directory)
-
-    dt = DeltaTableHook(conn_id="azure_data_lake").read(source_path="security", source_container="curated")
+    dt = DeltaTableHook(conn_id="azure_data_lake").read(path=SecurityPath.curated())
 
     securities = pl.from_arrow(
         dt.to_pyarrow_dataset(
@@ -38,67 +35,89 @@ def extract_index():
     )
 
     if isinstance(securities, pl.DataFrame):
-        s = securities.select([pl.col("code").alias("index_code"), pl.col("exchange_code")]).to_dicts()
+        s = securities.select(
+            [
+                pl.col("code").alias("index_code"),
+                pl.col("exchange_code"),
+            ],
+        ).to_dicts()
         return s
 
-    # return [
-    #     # {"index_code": "GDAXI", "exchange_code": "INDX"},
-    #     # {"index_code": "000906", "exchange_code": "INDX"},
-    #     {"index_code": "5QQ0", "exchange_code": "INDX"},
-    # ]
 
+def transform_on_ingest(data: bytes, local_download_dir: LocalPath):
+    import json
+    import polars as pl
 
-@task_group
-def one_index(one_index: Index):
-    @task()
-    def ingest(index: Index):
-        from custom.providers.eod_historical_data.hooks.api import EodHistoricalDataApiHook
-        from airflow.providers.microsoft.azure.hooks.wasb import WasbHook
-        import json
+    index_data = json.loads(data)
 
-        data = EodHistoricalDataApiHook().fundamental(
-            security_code=index["index_code"], exchange_code=index["exchange_code"]
-        )
+    members = index_data.get("Components")
+    general = index_data.get("General")
 
-        destination = IndexMemberPath.raw(source="EodHistoricalData", format="json").add_element(
-            index=index["index_code"], exchange=index["exchange_code"]
-        )
-        WasbHook(wasb_conn_id="azure_blob").upload(
-            data=json.dumps(data),
-            container_name=destination.container,
-            blob_name=destination.path,
-        )
+    if not members:
+        return
 
-        set_xcom_value("exchange_code", index["exchange_code"])
-        set_xcom_value("index_code", index["index_code"])
+    # transform
+    lf = pl.LazyFrame([m for m in members.values()])
 
-        return destination.serialized
-
-    transform = EodIndexMemberTransformOperator(
-        task_id="transform",
-        adls_conn_id="azure_data_lake",
-        destination_path=TempDirectory(
-            base_dir=get_xcom_template(task_id="extract_index", key="temp_dir", use_map_index=False)
-        ),
-        source_path=get_xcom_template(task_id="one_index.ingest"),
+    lf = lf.select(
+        [
+            pl.col("Code").alias("security_code"),
+            pl.col("Name").alias("security_name"),
+            pl.col("Exchange").alias("exchange_code"),
+        ]
+    ).with_columns(
+        [
+            pl.lit(general.get("Code")).alias("index_code"),
+            pl.lit(general.get("Name")).alias("index_name"),
+            pl.lit(general.get("CurrencyCode")).alias("currency"),
+            pl.lit(general.get("CountryISO")).alias("country"),
+        ]
     )
 
-    ingest_task = ingest(one_index)
-    ingest_task >> transform
+    lf.sink_parquet(local_download_dir.to_pathlib() / f"{general.get('Code')}.parquet")
+
+
+@task
+def ingest(index: list):
+    from custom.hooks.api.shared import BulkApiHook
+
+    api = BulkApiHook(
+        conn_id="eod_historical_data",
+        response_format="json",
+        transform=transform_on_ingest,
+        adls_upload=BulkApiHook.AdlsUploadConfig(
+            path=IndexMemberPath,
+            conn_id="azure_data_lake",
+            record_mapping={
+                "index": "index_code",
+            },
+        ),
+    )
+    api.run(endpoint="fundamentals/${index_code}.${exchange_code}", items=index)
+
+    # upload as arrow ds
+    destination_path = api.upload_dataset(
+        conn_id="azure_data_lake",
+        dataset_format="parquet",
+    )
+
+    return destination_path.to_dict()
 
 
 sink = WriteDeltaTableFromDatasetOperator(
     task_id="sink",
-    trigger_rule=TriggerRule.ALL_DONE,
+    trigger_rule=TriggerRule.ALL_SUCCESS,
     adls_conn_id="azure_data_lake",
-    dataset_path={"container": "temp", "path": get_xcom_template(task_id="extract_index", key="temp_dir")},
+    dataset_path=XComGetter.pull_with_template(task_id="ingest"),
     destination_path=IndexMemberPath.curated(),
     pyarrow_options={
         "schema": pa.schema(
             [
-                pa.field("code", pa.string()),
+                pa.field("security_code", pa.string()),
+                pa.field("security_name", pa.string()),
                 pa.field("exchange_code", pa.string()),
-                pa.field("name", pa.string()),
+                pa.field("country", pa.string()),
+                pa.field("currency", pa.string()),
                 pa.field("index_code", pa.string()),
                 pa.field("index_name", pa.string()),
             ]
@@ -116,7 +135,8 @@ sink = WriteDeltaTableFromDatasetOperator(
     tags=["index", "security"],
 )
 def index_member():
-    one_index.expand(one_index=extract_index()) >> sink
+    extract_index_task = extract_index()
+    ingest(extract_index_task) >> sink
 
 
 dag_object = index_member()
