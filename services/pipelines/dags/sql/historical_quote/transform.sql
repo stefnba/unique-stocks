@@ -6,7 +6,7 @@ SELECT
     "Close" AS "close",
     "Adjusted_close" AS "adjusted_close",
     "Volume" AS "volume",
-    "security_code",
-    "exchange_code"
+    "security" AS "security_code",
+    "exchange" AS "exchange_code"
 FROM
     $quotes_raw

@@ -12,7 +12,7 @@ from utils.dag.xcom import XComGetter
 from custom.providers.eod_historical_data.transformers.fundamental.common_stock import (
     EoDCommonStockFundamentalTransformer,
 )
-from shared.path import FundamentalPath, SecurityPath, AdlsPath, LocalPath
+from shared.path import FundamentalPath, SecurityPath, LocalPath
 from custom.hooks.api.shared import BulkApiHook
 import pyarrow as pa
 from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
@@ -28,56 +28,52 @@ def extract_security():
     import polars as pl
     from custom.providers.delta_table.hooks.delta_table import DeltaTableHook
     from custom.hooks.data.mapping import MappingDatasetHook
-    import duckdb
 
     mapping = MappingDatasetHook().mapping(product="exchange", source="EodHistoricalData", field="composite_code")
 
     dt = DeltaTableHook(conn_id="azure_data_lake").read(path=SecurityPath.curated())
 
-    securities = pl.from_arrow(
+    exchanges = [
+        "XETRA",
+        # "LSE",
+        # "NASDAQ",
+        # "NYSE",
+    ]
+    security_types = [
+        "common_stock",
+    ]
+
+    securities = pl.scan_pyarrow_dataset(
         dt.to_pyarrow_dataset(
             partitions=[
                 (
                     "exchange_code",
                     "in",
-                    [
-                        "XETRA",
-                        "NASDAQ",
-                        "NYSE",
-                    ],
+                    exchanges,
                 ),
-                ("type", "=", "common_stock"),
+                ("type", "in", security_types),
             ]
-        ).to_batches()
+        )
     )
 
-    data = (
-        duckdb.sql(
-            """
-        --sql
-        SELECT
-            s.exchange_code,
-            s.code AS entity_code,
-            COALESCE(m.mapping_value, s.exchange_code) AS api_exchange_code
-        FROM securities s
-        LEFT JOIN mapping m on s.exchange_code = m.source_value
-        ;
-        """
-        ).pl()
-        # .sample(300)
-        .to_dicts()
-    )
+    securities = securities.join(
+        mapping.lazy().select(["source_value", "mapping_value"]),
+        left_on="exchange_code",
+        right_on="source_value",
+        how="left",
+    ).with_columns(pl.coalesce(["mapping_value", "exchange_code"]).alias("api_exchange_code"))
 
-    return data
-
-    if isinstance(securities, pl.DataFrame):
-        return securities.select(
+    return (
+        securities.select(
             [
-                # pl.lit("US").alias("composite_exchange_code"),
                 pl.col("exchange_code"),
-                pl.col("code").alias("entity_code"),
+                "api_exchange_code",
+                pl.col("code").alias("security_code"),
             ]
-        ).to_dicts()
+        )
+        # .head(10)
+        .collect().to_dicts()
+    )
 
 
 def transform_on_ingest(data: bytes, record: dict[str, str], local_download_dir: LocalPath):
@@ -102,40 +98,80 @@ def transform_on_ingest(data: bytes, record: dict[str, str], local_download_dir:
         return
 
 
+def convert_to_url_upload_records(security: dict):
+    """Convert exchange and security code into a `UrlUploadRecord` with blob name and API endpoint."""
+    from custom.providers.azure.hooks.data_lake_storage import UrlUploadRecord
+
+    exchange_code = security["exchange_code"]
+    security_code = security["security_code"]
+    api_exchange_code = security["api_exchange_code"]
+
+    return UrlUploadRecord(
+        endpoint=f"{security_code}.{api_exchange_code}",
+        blob=FundamentalPath.raw(
+            exchange=exchange_code,
+            format="json",
+            entity=security_code,
+            source="EodHistoricalData",
+        ).path,
+    )
+
+
 @task
 def ingest(securities: list[dict[str, str]]):
-    api = BulkApiHook(
-        conn_id="eod_historical_data",
-        response_format="json",
-        transform=transform_on_ingest,
-        adls_upload=BulkApiHook.AdlsUploadConfig(
-            path=FundamentalPath,
-            conn_id="azure_data_lake",
-            record_mapping={
-                "exchange": "exchange_code",
-                "entity": "entity_code",
-            },
-        ),
+    from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageBulkHook
+    from custom.providers.eod_historical_data.hooks.api import EodHistoricalDataApiHook
+
+    hook = AzureDataLakeStorageBulkHook(conn_id="azure_data_lake")
+    api_hook = EodHistoricalDataApiHook()
+
+    url_endpoints = list(
+        map(
+            convert_to_url_upload_records,
+            securities,
+        )
     )
-    api.run(endpoint="fundamentals/${entity_code}.${api_exchange_code}", items=securities)
 
-    # upload as arrow ds
-    destination_path = api.upload_dataset(conn_id="azure_data_lake", dataset_format="parquet")
+    uploaded_blobs = hook.upload_from_url(
+        container="raw",
+        base_url="https://eodhistoricaldata.com/api/fundamentals",
+        base_params=api_hook._base_params,
+        url_endpoints=url_endpoints,
+    )
 
-    return destination_path.to_dict()
+    return uploaded_blobs
+
+
+@task
+def merge(blobs):
+    from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageBulkHook
+    from custom.providers.azure.hooks.dataset import AzureDatasetHook
+    from custom.providers.azure.hooks.handlers.write.azure import AzureDatasetWriteArrowHandler
+    import pyarrow.dataset as ds
+    import pyarrow as pa
+
+    hook = AzureDataLakeStorageBulkHook(conn_id="azure_data_lake")
+
+    download_dir = LocalPath.create_temp_dir_path()
+
+    hook.download_blobs_from_list(
+        container="raw",
+        blobs=blobs,
+        destination_dir=download_dir.uri,
+    )
 
 
 sink = WriteDeltaTableFromDatasetOperator(
     task_id="sink",
     adls_conn_id="azure_data_lake",
     dataset_path=XComGetter.pull_with_template(task_id="ingest"),
-    # destination_path=FundamentalPath.curated(),
-    destination_path="curated/test_fina",
+    destination_path=FundamentalPath.curated(),
     pyarrow_options={
         "schema": pa.schema(
             [
                 pa.field("exchange_code", pa.string()),
                 pa.field("security_code", pa.string()),
+                pa.field("security_type", pa.string()),
                 pa.field("category", pa.string()),
                 pa.field("metric", pa.string()),
                 pa.field("value", pa.string()),
@@ -148,10 +184,11 @@ sink = WriteDeltaTableFromDatasetOperator(
     },
     delta_table_options={
         "mode": "overwrite",
-        "partition_by": [
-            "exchange_code",
-            # "security_code",
-        ],
+        # "partition_by": [
+        #     "security_type",
+        #     "exchange_code",
+        #     "security_code",
+        # ],
     },
 )
 
@@ -165,8 +202,9 @@ sink = WriteDeltaTableFromDatasetOperator(
 )
 def fundamental():
     extract_security_task = extract_security()
-
-    ingest(extract_security_task) >> sink
+    ingest_task = ingest(extract_security_task)
+    merge(ingest_task)
+    # >> sink
 
 
 dag_object = fundamental()

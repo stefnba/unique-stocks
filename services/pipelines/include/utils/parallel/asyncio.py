@@ -104,37 +104,36 @@ class RateLimiter:
 
 
 class AsyncIoRoutine:
-    coros: list[t.Coroutine] = []
+    coros: list[t.Coroutine]
     lock: Lock
 
     limiter: RateLimiter
-    errors: list[Exception] = []
+    errors: list[Exception]
 
     def __init__(self, name: t.Optional[str] = None) -> None:
         self.lock = Lock()
+        self.coros = []
+        self.errors = []
 
     async def coro_task(self, *args, **kwargs):
-        pass
+        raise NotImplementedError("Method not implemented.")
 
     async def gather(self):
         result = await asyncio.gather(*self.coros)
         return result
 
     async def main(self, *args, **kwargs):
-        ...
+        raise NotImplementedError("Method not implemented.")
 
-    def execute(self, *args, **kwargs):
+    def run(self, *args, **kwargs):
         print("Starting execution.")
         s = time.perf_counter()
-        result = asyncio.run(self.main(*args, **kwargs))
+
+        result = asyncio.run(self.main(*args, **kwargs))  # type: ignore
+
         print(f"Execution time: {(time.perf_counter() - s):0.2f} seconds. {len(self.errors)} errors occured.")
         return result
 
-    @classmethod
-    def run(cls, *args, **kwargs):
-        return cls().execute(*args, **kwargs)
-
     @staticmethod
     def get_http_client():
-        # connector = aiohttp.TCPConnector(limit_per_host=100)
         return aiohttp.ClientSession(raise_for_status=True)
