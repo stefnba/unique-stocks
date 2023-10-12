@@ -19,7 +19,7 @@ pandas = "<2.1"
 deltalake = "*"
 asyncio = "*"
 aiohttp = "*"
-aiolimiter = "*"
+aiofiles = "*"
 
 [dev-packages]
 black = "*"
