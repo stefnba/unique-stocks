@@ -6,7 +6,7 @@ import aiohttp
 from string import Template
 from pathlib import Path
 from utils.filesystem.path import LocalPath, AdlsPath, AdlsDatasetPath
-from aiolimiter import AsyncLimiter
+
 from pyarrow import dataset as ds
 from custom.providers.azure.hooks.dataset import AzureDatasetHook
 from custom.providers.azure.hooks.handlers.write.azure import AzureDatasetWriteArrowHandler
@@ -36,6 +36,8 @@ class BulkApiHook(BaseHook):
     """
     Hook to make parallel requests to an API endpoint using `asyncio` and `aiohttp` packages.
     Rates limits are also followed through `aiolimiter`.
+
+    More info: https://blog.devgenius.io/best-way-to-speed-up-a-bulk-of-http-requests-in-python-4ec75badabed
     """
 
     AdlsUploadConfig = BulkApiAdlsUploadConfig
@@ -48,7 +50,7 @@ class BulkApiHook(BaseHook):
     method: HttpMethods
     token: Optional[str]
     semaphore: asyncio.Semaphore
-    rate_limit = AsyncLimiter(999, 60)
+    rate_limit = 1
     max_parallel_requests = 30  # Semaphore
 
     response_format: DataLakeDataFileTypes
@@ -99,46 +101,13 @@ class BulkApiHook(BaseHook):
         if conn.password is not None:
             self.token = conn.password
 
-    async def make_request(self, endpoint: str, args: Record) -> bytes:
-        """Make api call and return response."""
+    # async def make_request(self, endpoint: str, args: Record) -> bytes:
+    #     """Make api call and return response."""
 
-        endpoint = Template(endpoint).safe_substitute(args).lstrip("/")
-        url = self.base_url.rstrip("/") + "/" + endpoint
+    #     endpoint = Template(endpoint).safe_substitute(args).lstrip("/")
+    #     url = self.base_url.rstrip("/") + "/" + endpoint
 
-        data = {"api_token": self.token}
-
-        async with aiohttp.ClientSession(raise_for_status=True) as session:
-            await self.semaphore.acquire()
-            async with self.rate_limit:
-                self.counter += 1
-
-                if self.counter % 100 == 0:
-                    print(
-                        f"API Session in progress: {self.counter:,}/{self.total:,} ({(self.counter/self.total):.0%}) requests done."
-                    )
-
-                try:
-                    if self.method == "GET":
-                        async with session.get(url, params=data) as resp:
-                            # self.log.info(f"Successful request to {url}")
-                            content = await resp.read()
-                            self.semaphore.release()
-                            return content
-
-                except aiohttp.ClientResponseError as err:
-                    self.log.error(f"Request '{url}' failed ({err.status}) with '{err.message}'! \n\t{args}")
-
-                    self.errors.append(
-                        {
-                            "message": err.message,
-                            "messastatusge": err.status,
-                            "payload": args,
-                            "url": url,
-                        }
-                    )
-                    raise
-
-                raise ValueError("Method not implemented")
+    #     data = {"api_token": self.token}
 
     def upload_response(self, data: bytes, id: str, record: Record) -> None:
         """Save data from response to a Azure Data Lake Storage."""
@@ -187,24 +156,24 @@ class BulkApiHook(BaseHook):
     async def task(self, endpoint: str, record: Record) -> None:
         """Task to be performed for each request."""
 
-        try:
-            data = await self.make_request(endpoint=endpoint, args=record)
+        # try:
+        #     data = await self.make_request(endpoint=endpoint, args=record)
 
-            if self.transform:
-                transformed = self.transform(data=data, record=record, local_download_dir=self.local_download_dir)
+        #     if self.transform:
+        #         transformed = self.transform(data=data, record=record, local_download_dir=self.local_download_dir)
 
-                if transformed:
-                    # save transformed data
-                    await self.save_response_local(data=transformed, record=record, id=endpoint)
-            else:
-                await self.save_response_local(data=data, record=record, id=endpoint)
+        #         if transformed:
+        #             # save transformed data
+        #             await self.save_response_local(data=transformed, record=record, id=endpoint)
+        #     else:
+        #         await self.save_response_local(data=data, record=record, id=endpoint)
 
-            if self.adls_upload:
-                # alway upload original data
-                self.upload_response(data=data, record=record, id=endpoint)
+        #     if self.adls_upload:
+        #         # alway upload original data
+        #         self.upload_response(data=data, record=record, id=endpoint)
 
-        except Exception:
-            pass
+        # except Exception:
+        #     pass
 
     async def _run(self, endpoint: str, records: list[Record]) -> None:
         """Initiate asyncio tasks."""

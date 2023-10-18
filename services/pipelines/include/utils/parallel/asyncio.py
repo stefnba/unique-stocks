@@ -48,7 +48,7 @@ class RateLimiter:
     rate_limit: float
     semaphore: Semaphore
 
-    def __init__(self, rate_limit: int, period_in_sec=60, concurrency_limit=500):
+    def __init__(self, rate_limit: int, period_in_sec=60, concurrency_limit=50):
         if not rate_limit or rate_limit < 1:
             raise ValueError("rate_limit must be non zero positive number")
         if not concurrency_limit or concurrency_limit < 1:
@@ -135,5 +135,6 @@ class AsyncIoRoutine:
         return result
 
     @staticmethod
-    def get_http_client():
-        return aiohttp.ClientSession(raise_for_status=True)
+    def get_http_client(tcp_connector_limit=50):
+        connector = aiohttp.TCPConnector(limit=tcp_connector_limit)
+        return aiohttp.ClientSession(raise_for_status=True, trust_env=True, connector=connector)
