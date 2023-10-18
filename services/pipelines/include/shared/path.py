@@ -54,6 +54,10 @@ class SecurityPath(AdlsDatasetPath):
         return super().raw(format=format, source=source, exchange=exchange)
 
 
+class SecurityQuotePerformancePath(AdlsDatasetPath):
+    product = "quote_performance"
+
+
 class SecurityQuotePath(AdlsDatasetPath):
     product = "security_quote"
 

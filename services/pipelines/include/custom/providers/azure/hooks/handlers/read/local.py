@@ -36,3 +36,8 @@ class LocalDatasetReadHandler(DatasetHandler):
             )
 
         raise ValueError("File format not supported.")
+
+
+class LocalReadHandlers:
+    Arrow = LocalDatasetArrowHandler
+    Read = LocalDatasetReadHandler

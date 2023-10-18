@@ -72,10 +72,10 @@ class XComGetter:
         )
 
     @staticmethod
-    def pull_with_template(task_id: str, key: str = "return_value", use_map_index=True) -> str:
+    def pull_with_template(task_id: str, key: str = "return_value", use_map_index_of_task=True) -> str:
         """Helper to build a Jinja templating string to get a XComs value."""
 
-        map_index = "task_instance.map_index" if use_map_index else -1
+        map_index = "task_instance.map_index" if use_map_index_of_task else None
         template = f"{{{{ task_instance.xcom_pull(task_ids='{task_id}', key='{key}', map_indexes={map_index}) }}}}"
         return template
 

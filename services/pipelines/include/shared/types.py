@@ -12,6 +12,7 @@ DataProducts: TypeAlias = Literal[
     "entity",
     "entity_isin",
     "index_member",
+    "quote_performance",
 ]
 DataSources: TypeAlias = Literal["EodHistoricalData", "OpenFigi", "Gleif"]
 

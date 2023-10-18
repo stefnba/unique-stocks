@@ -19,8 +19,23 @@ SecurityQuote = pa.schema(
         pa.field("volume", pa.int64()),
         pa.field("exchange_code", pa.string()),
         pa.field("security_code", pa.string()),
+        pa.field("created_at", pa.date32()),
     ]
 )
+
+QuotePerformance = pa.schema(
+    [
+        pa.field("security_code", pa.string()),
+        pa.field("exchange_code", pa.string()),
+        pa.field("base_date", pa.date32()),
+        pa.field("base_close", pa.float32()),
+        pa.field("reference_date", pa.date32()),
+        pa.field("reference_close", pa.float32()),
+        pa.field("performance", pa.float32()),
+        pa.field("period", pa.string()),
+    ]
+)
+
 
 Entity = pa.schema(
     [
@@ -60,5 +75,21 @@ Mapping = pa.schema(
         pa.field("active_from", pa.date64()),
         pa.field("active_until", pa.date32()),
         pa.field("is_active", pa.bool_()),
+    ]
+)
+
+
+Fundamental = pa.schema(
+    [
+        pa.field("exchange_code", pa.string()),
+        pa.field("security_code", pa.string()),
+        pa.field("security_type", pa.string()),
+        pa.field("category", pa.string()),
+        pa.field("metric", pa.string()),
+        pa.field("value", pa.string()),
+        pa.field("currency", pa.string()),
+        pa.field("period", pa.date32()),
+        pa.field("period_type", pa.string()),
+        pa.field("published_at", pa.date32()),
     ]
 )

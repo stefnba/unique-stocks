@@ -143,6 +143,8 @@ class EoDCommonStockFundamentalTransformer(EoDFundamentalTransformer):
     - SplitsDividends.NumberDividendsByYear
     """
 
+    type = "CommonStock"
+
     frames = [
         "general",
         "listing",

@@ -32,6 +32,7 @@ class AzureDatasetHandler(DatasetHandler):
 
     path: AdlsPath
     filesystem: AzureBlobFileSystem
+    storage_options: dict
     conn_id: str
 
     def __init__(self, path: Path, format: DataLakeDatasetFileTypes = "parquet", **kwargs):
@@ -39,13 +40,14 @@ class AzureDatasetHandler(DatasetHandler):
 
         self.init_azure_dataset(**kwargs)
 
-    def init_azure_dataset(self, conn_id: str, filesystem: AzureBlobFileSystem):
+    def init_azure_dataset(self, conn_id: str, filesystem: AzureBlobFileSystem, storage_options: dict):
         """"""
 
         self.path = AdlsPath(**Path.create(self.path).to_dict())
 
         self.conn_id = conn_id
         self.filesystem = filesystem
+        self.storage_options = storage_options
 
         if not self.filesystem:
             raise Exception("No filesystem")

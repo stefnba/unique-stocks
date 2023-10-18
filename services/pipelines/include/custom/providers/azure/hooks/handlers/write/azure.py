@@ -84,3 +84,9 @@ class AzureDatasetWriteUploadHandler(AzureDatasetHandler):
         )
 
         return self.path
+
+
+class AzureWriteHandlers:
+    Upload = AzureDatasetWriteUploadHandler
+    Delta = AzureDatasetWriteDeltaTableHandler
+    Arrow = AzureDatasetWriteArrowHandler

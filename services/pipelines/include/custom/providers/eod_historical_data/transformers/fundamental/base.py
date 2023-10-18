@@ -22,6 +22,7 @@ class EoDFundamentalTransformer:
     data: dict
     security: str
     exchange: Optional[str]
+    type: str
 
     frames: list[str]
 
@@ -59,6 +60,7 @@ class EoDFundamentalTransformer:
                     pl.col("published_at").str.to_date().keep_name(),
                     pl.lit(self.exchange).cast(pl.Utf8).alias("exchange_code"),
                     pl.lit(self.security).cast(pl.Utf8).alias("security_code"),
+                    pl.lit(self.type).cast(pl.Utf8).alias("security_type"),
                 ]
             )
 
