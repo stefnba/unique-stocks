@@ -10,7 +10,7 @@ EntityIsin = pa.schema(
 
 SecurityQuote = pa.schema(
     [
-        pa.field("date", pa.string()),
+        pa.field("date", pa.date32()),
         pa.field("open", pa.float64()),
         pa.field("high", pa.float64()),
         pa.field("low", pa.float64()),
