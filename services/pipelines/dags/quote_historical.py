@@ -85,22 +85,9 @@ def extract_security():
         securities.select(["exchange_code", "api_exchange_code", "security_code"])
         .collect()
         .filter(pl.col("exchange_code") == e)
-        .head(3)
         .to_dicts()
         for e in exchanges
     ]
-
-    return (
-        securities.select(
-            [
-                pl.col("exchange_code"),
-                "api_exchange_code",
-                pl.col("code").alias("security_code"),
-            ]
-        )
-        .collect()
-        .to_dicts()
-    )
 
 
 def convert_to_url_upload_records(security: dict):
@@ -242,14 +229,14 @@ sink = WriteDeltaTableFromDatasetOperator(
     tags=["quote", "security"],
     default_args=default_args,
 )
-def historical_quote():
+def quote_historical():
     extract_security_task = extract_security()
     ingest_task = ingest.expand(securities=extract_security_task)
 
     merge(ingest_task) >> transform >> sink
 
 
-dag_object = historical_quote()
+dag_object = quote_historical()
 
 if __name__ == "__main__":
     connections = "testing/connections/connections.yaml"
