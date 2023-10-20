@@ -7,7 +7,7 @@ from typing import TypedDict
 from airflow.decorators import dag, task
 from airflow.utils.trigger_rule import TriggerRule
 from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
-from shared import schema
+from shared import airflow_dataset, schema
 from shared.path import IndexMemberPath, SecurityPath
 from utils.dag.xcom import XComGetter
 from utils.filesystem.directory import DirFile
@@ -159,7 +159,7 @@ sink = WriteDeltaTableFromDatasetOperator(
 
 
 @dag(
-    schedule=None,
+    schedule=[airflow_dataset.Security],
     start_date=datetime(2023, 1, 1),
     catchup=False,
     render_template_as_native_obj=True,

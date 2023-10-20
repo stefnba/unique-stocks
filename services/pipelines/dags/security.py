@@ -160,6 +160,7 @@ sink = WriteDeltaTableFromDatasetOperator(
         "mode": "overwrite",
         "partition_by": ["exchange_code", "type"],
     },
+    outlets=[airflow_dataset.Security],
 )
 
 

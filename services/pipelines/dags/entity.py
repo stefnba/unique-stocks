@@ -7,7 +7,7 @@ import polars as pl
 from airflow.decorators import dag, task
 from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
 from custom.providers.azure.hooks.handlers.read.azure import AzureDatasetArrowHandler
-from shared import schema
+from shared import airflow_dataset, schema
 from shared.path import AdlsPath, EntityPath, Path
 from utils.dag.xcom import XComGetter
 
@@ -141,6 +141,7 @@ sink = WriteDeltaTableFromDatasetOperator(
         "mode": "overwrite",
         # "partition_by": ["headquarter_address_country"],
     },
+    outlets=[airflow_dataset.Entity],
 )
 
 

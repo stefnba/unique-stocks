@@ -6,7 +6,7 @@ from datetime import datetime
 from airflow.decorators import dag, task
 from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
 from custom.operators.data.transformation import DuckDbTransformationOperator
-from shared import schema
+from shared import airflow_dataset, schema
 from shared.path import AdlsPath, EntityIsinPath, LocalPath
 from utils.dag.xcom import XComGetter
 
@@ -76,7 +76,7 @@ sink = WriteDeltaTableFromDatasetOperator(
 
 
 @dag(
-    schedule=None,
+    schedule=[airflow_dataset.Entity],
     start_date=datetime(2023, 1, 1),
     catchup=False,
     render_template_as_native_obj=True,
