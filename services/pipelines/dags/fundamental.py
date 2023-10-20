@@ -6,14 +6,17 @@ from airflow.decorators import task, dag
 from typing import TypedDict
 from airflow.utils.dates import days_ago
 from utils.dag.xcom import XComGetter
+from shared import schema
 from custom.providers.eod_historical_data.transformers.fundamental.common_stock import (
     EoDCommonStockFundamentalTransformer,
 )
-from shared import schema
 from shared.path import FundamentalPath, SecurityPath, LocalPath
 from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
+
+
 from utils.filesystem.directory import DirFile
 import logging
+
 
 default_args = {
     "owner": "airflow",
@@ -164,7 +167,6 @@ def merge(blobs):
     from custom.providers.azure.hooks.dataset import AzureDatasetHook
     from custom.providers.azure.hooks.handlers.write.azure import AzureDatasetWriteArrowHandler
     import pyarrow.dataset as ds
-    import pyarrow as pa
     from utils.filesystem.directory import scan_dir_files
     from utils.parallel.concurrent import proces_paralell
     from utils.filesystem.path import LocalPath, AdlsPath

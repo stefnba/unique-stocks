@@ -4,7 +4,7 @@
 from datetime import datetime, timedelta
 
 from airflow.decorators import task, dag
-
+from airflow.models.param import Param
 
 from typing import TypedDict
 
@@ -228,6 +228,37 @@ sink = WriteDeltaTableFromDatasetOperator(
     render_template_as_native_obj=True,
     tags=["quote", "security"],
     default_args=default_args,
+    params={
+        "exchanges": Param(
+            type="array",
+            default=[
+                "XETRA",
+                "NASDAQ",
+                "NYSE",
+                "INDX",
+            ],
+            examples=[
+                "XETRA",
+                "NASDAQ",
+                "NYSE",
+                "LSE",
+                "SW",
+            ],
+        ),
+        "security_types": Param(
+            type="array",
+            default=[
+                "common_stock",
+                "index",
+                "preferred_stock",
+            ],
+            examples=[
+                "common_stock",
+                "index",
+                "preferred_stock",
+            ],
+        ),
+    },
 )
 def quote_historical():
     extract_security_task = extract_security()
@@ -245,7 +276,7 @@ if __name__ == "__main__":
         conn_file_path=connections,
         run_conf={
             "delta_table_mode": "overwrite",
-            "exchanges": ["XETRA", "NASDAQ"],
+            "exchanges": ["XETRA", "NASDAQ", "INDX"],
             "security_types": [
                 "common_stock",
             ],

@@ -13,21 +13,26 @@ from airflow.operators.trigger_dagrun import TriggerDagRunOperator
     render_template_as_native_obj=True,
     tags=["fundamental"],
 )
-def fundamental_focus_securities_A():
+def fundamental_groupB():
     TriggerDagRunOperator(
         wait_for_completion=False,
         trigger_dag_id="fundamental",
         task_id="trigger",
         conf={
             "delta_table_mode": "overwrite",
-            "exchanges": ["XETRA", "NASDAQ", "NYSE"],
-            # "exchanges": "{{ var.value.EodHistoricalData_FocusExchange_A }}",
-            "security_types": "{{ var.value.EodHistoricalData_FocusSecType_A }}",
+            "exchanges": [
+                "SW",
+                "LSE",
+            ],
+            "security_types": [
+                "common_stock",
+                "preferred_stock",
+            ],
         },
     )
 
 
-dag_object = fundamental_focus_securities_A()
+dag_object = fundamental_groupB()
 
 if __name__ == "__main__":
     connections = "testing/connections/connections.yaml"

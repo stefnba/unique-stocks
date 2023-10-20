@@ -11,22 +11,29 @@ from airflow.operators.trigger_dagrun import TriggerDagRunOperator
     start_date=datetime(2023, 1, 1),
     catchup=False,
     render_template_as_native_obj=True,
-    tags=["quote", "security"],
+    tags=["fundamental"],
 )
-def quote_historical_focus_securities_A():
+def fundamental_groupA():
     TriggerDagRunOperator(
         wait_for_completion=False,
-        trigger_dag_id="historical_quote",
+        trigger_dag_id="fundamental",
         task_id="trigger",
         conf={
             "delta_table_mode": "overwrite",
-            "exchanges": "{{ var.value.EodHistoricalData_FocusExchange_A }}",
-            "security_types": "{{ var.value.EodHistoricalData_FocusSecType_A }}",
+            "exchanges": [
+                "XETRA",
+                "NASDAQ",
+                "NYSE",
+            ],
+            "security_types": [
+                "common_stock",
+                "preferred_stock",
+            ],
         },
     )
 
 
-dag_object = quote_historical_focus_securities_A()
+dag_object = fundamental_groupA()
 
 if __name__ == "__main__":
     connections = "testing/connections/connections.yaml"
