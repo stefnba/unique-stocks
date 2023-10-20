@@ -1,4 +1,5 @@
 from pathlib import Path
+
 from utils.filesystem.path import LocalPath, PathInput
 
 
@@ -29,8 +30,8 @@ class StreamDiskFile:
 
     def iter_content(self, chunk_size=1024 * 1024):
         """Iterate over file in chunks."""
-        size = self.get_file_size()
-        sizeMB = self.get_file_size() / 1024 / 1024
+        self.get_file_size()
+        self.get_file_size() / 1024 / 1024
 
         # logger.file.info(
         #     "Initiating file read with stream.",

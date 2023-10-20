@@ -1,16 +1,18 @@
+# pylint: disable=W0106:expression-not-assigned, C0415:import-outside-toplevel
+# pylint: disable=W0106:expression-not-assigned, C0415:import-outside-toplevel
+# pyright: reportUnusedExpression=false
 import logging
 from datetime import datetime, timedelta
 from typing import TypedDict
 
 from airflow.decorators import dag, task
-from airflow.models.param import Param
 from airflow.utils.dates import days_ago
 from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
 from custom.operators.data.transformation import DataBindingCustomHandler, DuckDbTransformationOperator
 from custom.providers.azure.hooks import converters
 from custom.providers.azure.hooks.handlers.read.azure import AzureDatasetArrowHandler
 from shared import airflow_dataset, schema
-from shared.path import AdlsPath, LocalPath, SecurityPath, SecurityQuotePath
+from shared.path import AdlsPath, LocalPath, SecurityQuotePath
 from utils.dag.xcom import XComGetter
 
 default_args = {
@@ -31,97 +33,72 @@ class QuoteSecurity(TypedDict):
 
 
 @task
-def extract_security():
+def extract_exchange():
+    from datetime import datetime
+
     import polars as pl
     from custom.hooks.data.mapping import MappingDatasetHook
     from custom.providers.delta_table.hooks.delta_table import DeltaTableHook
-    from utils.dag.conf import get_dag_conf
-
-    conf = get_dag_conf()
+    from shared.path import SecurityQuotePath
 
     mapping = MappingDatasetHook().mapping(product="exchange", source="EodHistoricalData", field="composite_code")
 
-    exchanges = conf.get("exchanges", [])
-    security_types = conf.get("security_types", [])
-
-    logging.info(
-        f"""Getting security quotes for exchanges: '{", ".join(exchanges)}' and security types: '{", ".join(security_types)}'."""
-    )
-
-    data = (
-        DeltaTableHook(conn_id="azure_data_lake")
-        .read(path=SecurityPath.curated())
-        .to_pyarrow_dataset(
-            partitions=[
-                (
-                    "exchange_code",
-                    "in",
-                    exchanges,
-                ),
-                ("type", "in", security_types),
-            ],
+    today = datetime.now()
+    last_quote_per_exchange = (
+        pl.scan_pyarrow_dataset(
+            DeltaTableHook(conn_id="azure_data_lake").read(path=SecurityQuotePath.curated()).to_pyarrow_dataset()
         )
+        .group_by("exchange_code")
+        .agg([pl.max("date").str.to_date().alias("last_date")])
+        .with_columns(today=pl.date(today.year, today.month, today.day))
+        .with_columns(dates=pl.date_ranges(start="last_date", end="today", interval="1d", closed="none"))
+        .select("exchange_code", pl.col("dates").cast(pl.List(pl.Utf8)))
     )
 
-    securities = pl.scan_pyarrow_dataset(data).select(pl.col("code").alias("security_code"), pl.col("exchange_code"))
-
-    securities = securities.join(
-        mapping.lazy().select(["source_value", "mapping_value"]),
+    exchange = last_quote_per_exchange.join(
+        mapping.lazy().select("source_value", "mapping_value"),
         left_on="exchange_code",
-        right_on="source_value",
+        right_on="mapping_value",
         how="left",
-    ).with_columns(
-        pl.coalesce(["mapping_value", "exchange_code"]).alias("api_exchange_code"),
+    ).select(
+        [
+            pl.coalesce(["source_value", "exchange_code"]).alias("exchange_code"),
+            "dates",
+        ]
     )
 
-    return [
-        securities.select(["exchange_code", "api_exchange_code", "security_code"])
-        .collect()
-        .filter(pl.col("exchange_code") == e)
-        .to_dicts()
-        for e in exchanges
-    ]
+    return exchange.collect().to_dicts()
 
 
-def convert_to_url_upload_records(security: dict):
-    """Convert exchange and security code into a `UrlUploadRecord` with blob name and API endpoint."""
+def convert_to_url_upload_records(exchange: str, date: str):
+    """Convert exchange code and date code a `UrlUploadRecord` with blob name and API endpoint."""
     from custom.providers.azure.hooks.data_lake_storage import UrlUploadRecord
 
-    exchange_code = security["exchange_code"]
-    security_code = security["security_code"]
-    api_exchange_code = security["api_exchange_code"]
-
     return UrlUploadRecord(
-        endpoint=f"{security_code}.{api_exchange_code}",
-        blob=SecurityQuotePath.raw(
-            exchange=exchange_code,
-            format="csv",
-            security=security_code,
-            source="EodHistoricalData",
-        ).path,
+        endpoint=exchange,
+        blob=SecurityQuotePath.raw(exchange=exchange, format="csv", security="BULK", source="EodHistoricalData").path,
+        param={"date": date},
     )
 
 
-@task(max_active_tis_per_dag=1)
-def ingest(securities):
+@task()
+def ingest(exchange):
     from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageBulkHook
     from custom.providers.eod_historical_data.hooks.api import EodHistoricalDataApiHook
 
-    logging.info(f"""Ingest of securities for exchange '{securities[0].get("exchange_code", "")}'.""")
+    exchange_code = exchange.get("exchange_code")
+    dates = exchange.get("dates", [])
+
+    logging.info(f"""Ingest of quotes for exchange '{exchange_code}' for dates {dates}.""")
 
     hook = AzureDataLakeStorageBulkHook(conn_id="azure_data_lake")
     api_hook = EodHistoricalDataApiHook()
 
-    url_endpoints = list(
-        map(
-            convert_to_url_upload_records,
-            securities,
-        )
-    )
+    url_endpoints = list(map(lambda d: convert_to_url_upload_records(exchange=exchange_code, date=d), dates))
 
     uploaded_blobs = hook.upload_from_url(
         container="raw",
-        base_url="https://eodhistoricaldata.com/api/eod",
+        base_url="https://eodhistoricaldata.com/api/eod-bulk-last-day",
         base_params=api_hook._base_params,
         url_endpoints=url_endpoints,
     )
@@ -164,14 +141,13 @@ def merge(blobs):
                 ("Close", pa.float32()),
                 ("Adjusted_close", pa.float32()),
                 ("Volume", pa.float32()),
-                ("security", pa.string()),
+                ("Code", pa.string()),
                 ("exchange", pa.string()),
             ]
         ),
         partitioning=ds.partitioning(
             schema=pa.schema(
                 [
-                    ("security", pa.string()),
                     ("exchange", pa.string()),
                 ]
             ),
@@ -188,7 +164,7 @@ transform = DuckDbTransformationOperator(
     task_id="transform",
     adls_conn_id="azure_data_lake",
     destination_path=AdlsPath.create_temp_file_path(),
-    query="sql/quote_historical/transform.sql",
+    query="sql/quote_update/transform.sql",
     data={
         "quotes_raw": DataBindingCustomHandler(
             path=XComGetter.pull_with_template(task_id="merge"),
@@ -207,7 +183,7 @@ sink = WriteDeltaTableFromDatasetOperator(
         "schema": schema.SecurityQuote,
     },
     delta_table_options={
-        "mode": "{{ dag_run.conf.get('delta_table_mode', 'overwrite') }}",  # type: ignore
+        "mode": "append",
         "schema": schema.SecurityQuote,
     },
     outlets=[airflow_dataset.SecurityQuote],
@@ -221,46 +197,15 @@ sink = WriteDeltaTableFromDatasetOperator(
     render_template_as_native_obj=True,
     tags=["quote", "security"],
     default_args=default_args,
-    params={
-        "exchanges": Param(
-            type="array",
-            default=[
-                "XETRA",
-                "NASDAQ",
-                "NYSE",
-                "INDX",
-            ],
-            examples=[
-                "XETRA",
-                "NASDAQ",
-                "NYSE",
-                "LSE",
-                "SW",
-            ],
-        ),
-        "security_types": Param(
-            type="array",
-            default=[
-                "common_stock",
-                "index",
-                "preferred_stock",
-            ],
-            examples=[
-                "common_stock",
-                "index",
-                "preferred_stock",
-            ],
-        ),
-    },
 )
-def quote_historical():
-    extract_security_task = extract_security()
-    ingest_task = ingest.expand(securities=extract_security_task)
+def quote_update():
+    extract_exchange_task = extract_exchange()
+    ingest_task = ingest.expand(exchange=extract_exchange_task)
 
     merge(ingest_task) >> transform >> sink
 
 
-dag_object = quote_historical()
+dag_object = quote_update()
 
 if __name__ == "__main__":
     connections = "testing/connections/connections.yaml"
@@ -269,7 +214,7 @@ if __name__ == "__main__":
         conn_file_path=connections,
         run_conf={
             "delta_table_mode": "overwrite",
-            "exchanges": ["XETRA", "NASDAQ", "INDX"],
+            "exchanges": ["XETRA", "NASDAQ"],
             "security_types": [
                 "common_stock",
             ],

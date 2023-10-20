@@ -1,22 +1,20 @@
 # pylint: disable=W0106:expression-not-assigned, C0415:import-outside-toplevel
 # pylint: disable=W0106:expression-not-assigned, C0415:import-outside-toplevel
 # pyright: reportUnusedExpression=false
+import logging
 from datetime import datetime, timedelta
-from airflow.decorators import task, dag
 from typing import TypedDict
+
+from airflow.decorators import dag, task
 from airflow.utils.dates import days_ago
-from utils.dag.xcom import XComGetter
-from shared import schema
+from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
 from custom.providers.eod_historical_data.transformers.fundamental.common_stock import (
     EoDCommonStockFundamentalTransformer,
 )
-from shared.path import FundamentalPath, SecurityPath, LocalPath
-from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
-
-
+from shared import schema
+from shared.path import FundamentalPath, LocalPath, SecurityPath
+from utils.dag.xcom import XComGetter
 from utils.filesystem.directory import DirFile
-import logging
-
 
 default_args = {
     "owner": "airflow",
@@ -51,8 +49,8 @@ class FundamentalSecurity(TypedDict):
 @task
 def extract_security():
     import polars as pl
-    from custom.providers.delta_table.hooks.delta_table import DeltaTableHook
     from custom.hooks.data.mapping import MappingDatasetHook
+    from custom.providers.delta_table.hooks.delta_table import DeltaTableHook
     from utils.dag.conf import get_dag_conf
 
     conf = get_dag_conf()
@@ -101,8 +99,9 @@ def extract_security():
 
 def transform(file: DirFile, sink_dir: str):
     import json
-    from custom.providers.eod_historical_data.transformers.utils import deep_get
     from pathlib import Path
+
+    from custom.providers.eod_historical_data.transformers.utils import deep_get
 
     data = Path(file.path).read_text()
 
@@ -163,13 +162,13 @@ def ingest(securities: list[dict[str, str]]):
 
 @task
 def merge(blobs):
+    import pyarrow.dataset as ds
     from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageBulkHook
     from custom.providers.azure.hooks.dataset import AzureDatasetHook
     from custom.providers.azure.hooks.handlers.write.azure import AzureDatasetWriteArrowHandler
-    import pyarrow.dataset as ds
     from utils.filesystem.directory import scan_dir_files
+    from utils.filesystem.path import AdlsPath, LocalPath
     from utils.parallel.concurrent import proces_paralell
-    from utils.filesystem.path import LocalPath, AdlsPath
 
     hook = AzureDataLakeStorageBulkHook(conn_id="azure_data_lake")
     dataset_hook = AzureDatasetHook(conn_id="azure_data_lake")

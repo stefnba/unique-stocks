@@ -2,15 +2,13 @@
 # pylint: disable=W0106:expression-not-assigned, C0415:import-outside-toplevel
 # pyright: reportUnusedExpression=false
 from datetime import datetime
-
-from airflow.decorators import task, dag
-from airflow.utils.trigger_rule import TriggerRule
-import pyarrow as pa
-
 from typing import TypedDict
 
-from shared.path import IndexMemberPath, SecurityPath, AdlsPath, LocalPath
+import pyarrow as pa
+from airflow.decorators import dag, task
+from airflow.utils.trigger_rule import TriggerRule
 from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
+from shared.path import IndexMemberPath, LocalPath, SecurityPath
 from utils.dag.xcom import XComGetter
 
 
@@ -46,6 +44,7 @@ def extract_index():
 
 def transform_on_ingest(data: bytes, local_download_dir: LocalPath):
     import json
+
     import polars as pl
 
     index_data = json.loads(data)

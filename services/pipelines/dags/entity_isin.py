@@ -3,14 +3,12 @@
 # pyright: reportUnusedExpression=false
 from datetime import datetime
 
-from airflow.decorators import task, dag
-
-
-from custom.operators.data.transformation import DuckDbTransformationOperator
+from airflow.decorators import dag, task
 from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
-from shared.path import EntityIsinPath, LocalPath, AdlsPath
-from utils.dag.xcom import XComGetter
+from custom.operators.data.transformation import DuckDbTransformationOperator
 from shared import schema
+from shared.path import AdlsPath, EntityIsinPath, LocalPath
+from utils.dag.xcom import XComGetter
 
 URL = "https://mapping.gleif.org/api/v2/isin-lei/d6996d23-cdaf-413e-b594-5219d40f3da5/download"
 
@@ -30,7 +28,6 @@ def ingest():
 @task
 def unizp(path):
     from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageHook
-
     from utils.file.unzip import unzip_file
 
     hook = AzureDataLakeStorageHook(conn_id="azure_data_lake")

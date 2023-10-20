@@ -2,19 +2,17 @@
 # pylint: disable=W0106:expression-not-assigned, C0415:import-outside-toplevel
 # pyright: reportUnusedExpression=false
 from datetime import datetime
-from airflow.utils.trigger_rule import TriggerRule
-from airflow.decorators import task, dag
-import pyarrow as pa
-
 from typing import TypedDict
-from custom.operators.data.transformation import DuckDbTransformationOperator, DataBindingCustomHandler
 
-from shared.path import SecurityPath, ExchangePath, AdlsPath
-from utils.dag.xcom import XComGetter
+import pyarrow as pa
+from airflow.decorators import dag, task
+from airflow.utils.trigger_rule import TriggerRule
 from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
-from custom.providers.azure.hooks.handlers.read.azure import AzureDatasetArrowHandler
-
+from custom.operators.data.transformation import DataBindingCustomHandler, DuckDbTransformationOperator
 from custom.providers.azure.hooks import converters
+from custom.providers.azure.hooks.handlers.read.azure import AzureDatasetArrowHandler
+from shared.path import AdlsPath, ExchangePath, SecurityPath
+from utils.dag.xcom import XComGetter
 
 
 class Exchange(TypedDict):
@@ -23,8 +21,8 @@ class Exchange(TypedDict):
 
 @task
 def extract_exchange():
-    from custom.providers.delta_table.hooks.delta_table import DeltaTableHook
     import polars as pl
+    from custom.providers.delta_table.hooks.delta_table import DeltaTableHook
 
     dt = DeltaTableHook(conn_id="azure_data_lake").read(path=ExchangePath.curated())
 

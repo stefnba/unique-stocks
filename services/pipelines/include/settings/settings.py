@@ -1,8 +1,7 @@
-from typing import Optional, Literal
+from typing import Literal
+
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import (
-    Field,
-)
 
 
 class DataProductSettings(BaseSettings):

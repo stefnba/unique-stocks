@@ -1,9 +1,9 @@
-from airflow.operators.python import get_current_context
-from airflow.models.taskinstance import TaskInstance
-from airflow.exceptions import AirflowException
-from airflow.utils.context import Context
+from typing import Any, TypeVar
 
-from typing import TypeVar, Any, Optional, overload, Type
+from airflow.exceptions import AirflowException
+from airflow.models.taskinstance import TaskInstance
+from airflow.operators.python import get_current_context
+from airflow.utils.context import Context
 
 R = TypeVar("R")
 

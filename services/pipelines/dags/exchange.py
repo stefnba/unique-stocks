@@ -2,15 +2,13 @@
 # pylint: disable=W0106:expression-not-assigned, C0415:import-outside-toplevel
 # pyright: reportUnusedExpression=false
 from datetime import datetime
-
-from airflow.decorators import task, dag
-import pyarrow as pa
-
-
 from typing import TypedDict
-from custom.operators.data.transformation import DuckDbTransformationOperator
+
+import pyarrow as pa
+from airflow.decorators import dag, task
 from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
-from shared.path import ExchangePath, AdlsPath
+from custom.operators.data.transformation import DuckDbTransformationOperator
+from shared.path import AdlsPath, ExchangePath
 from utils.dag.xcom import XComGetter
 
 
@@ -21,9 +19,9 @@ class QuoteSecurity(TypedDict):
 
 @task
 def ingest():
+    from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageHook
     from custom.providers.eod_historical_data.hooks.api import EodHistoricalDataApiHook
     from shared.path import ExchangePath
-    from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageHook
 
     exchange_raw = EodHistoricalDataApiHook().exchange()
 

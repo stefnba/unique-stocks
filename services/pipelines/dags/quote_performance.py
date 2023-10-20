@@ -3,13 +3,13 @@
 # pyright: reportUnusedExpression=false
 
 from datetime import datetime
-from airflow.decorators import dag
 
-from utils.dag.xcom import XComGetter
+from airflow.decorators import dag
 from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
 from custom.providers.eod_historical_data.operators.transformers import EoDQuotePerformanceTransformOperator
+from shared import airflow_dataset, schema
 from shared.path import SecurityQuotePath, SecurityQuotePerformancePath
-from shared import schema, airflow_dataset
+from utils.dag.xcom import XComGetter
 
 
 @dag(

@@ -1,21 +1,20 @@
-from airflow.models.baseoperator import BaseOperator
-from airflow.utils.context import Context
+from dataclasses import dataclass
+from string import Template
+from typing import Any, Callable, Dict, Optional, TypeAlias
+
 import duckdb
 import polars as pl
-from typing import Dict, Optional, TypeAlias, Any, Callable
-
-from string import Template
-from shared.types import DataLakeDatasetFileTypes
-from utils.dag.xcom import XComGetter
+from airflow.models.baseoperator import BaseOperator
+from airflow.utils.context import Context
+from custom.providers.azure.hooks import converters
 from custom.providers.azure.hooks.dataset import AzureDatasetHook
-from utils.filesystem.path import PathInput
 from custom.providers.azure.hooks.handlers.base import DatasetHandler
 from custom.providers.azure.hooks.handlers.read.azure import AzureDatasetReadHandler
 from custom.providers.azure.hooks.handlers.write.azure import AzureDatasetWriteUploadHandler
-from dataclasses import dataclass
 from custom.providers.azure.hooks.types import DatasetConverter
-from custom.providers.azure.hooks import converters
-from utils.filesystem.path import Path
+from shared.types import DataLakeDatasetFileTypes
+from utils.dag.xcom import XComGetter
+from utils.filesystem.path import Path, PathInput
 
 
 @dataclass

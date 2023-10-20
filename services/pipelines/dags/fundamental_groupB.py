@@ -2,6 +2,7 @@
 # pylint: disable=W0106:expression-not-assigned, C0415:import-outside-toplevel
 # pyright: reportUnusedExpression=false
 from datetime import datetime
+
 from airflow.decorators import dag
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 

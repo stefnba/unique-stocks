@@ -2,16 +2,18 @@
 # pylint: disable=W0106:expression-not-assigned, C0415:import-outside-toplevel
 # pyright: reportUnusedExpression=false
 from datetime import datetime
-from airflow.decorators import task, dag
+
+from airflow.decorators import dag, task
 
 
 @task
 def clean():
     """Delete and re-create temp container on Azure Data Lake Storage."""
-    from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageHook
-    import time
-    from azure.core.exceptions import ResourceNotFoundError
     import logging
+    import time
+
+    from azure.core.exceptions import ResourceNotFoundError
+    from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageHook
 
     hook = AzureDataLakeStorageHook(conn_id="azure_data_lake")
 

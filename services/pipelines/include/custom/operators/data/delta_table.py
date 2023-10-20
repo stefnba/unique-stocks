@@ -1,16 +1,16 @@
+from typing import Optional
+
 from airflow.models.baseoperator import BaseOperator
 from airflow.utils.context import Context
-from custom.providers.azure.hooks.dataset import AzureDatasetHook
-from utils.filesystem.path import Path, PathInput
-
 from custom.operators.data.types import DeltaTableOptionsDict, PyarrowOptionsDict
+from custom.providers.azure.hooks import converters
+from custom.providers.azure.hooks.dataset import AzureDatasetHook
+from custom.providers.azure.hooks.handlers.base import DatasetHandler
 from custom.providers.azure.hooks.handlers.read.azure import AzureDatasetArrowHandler
 from custom.providers.delta_table.hooks.delta_table import DeltaTableHook
-from custom.providers.azure.hooks.handlers.base import DatasetHandler
-from custom.providers.azure.hooks import converters
-from shared.types import DataLakeDatasetFileTypes
 from pyarrow import dataset as ds
-from typing import Optional
+from shared.types import DataLakeDatasetFileTypes
+from utils.filesystem.path import Path, PathInput
 
 
 class WriteDeltaTableFromDatasetOperator(BaseOperator):

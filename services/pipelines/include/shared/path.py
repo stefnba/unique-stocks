@@ -1,7 +1,7 @@
-from shared.types import DataLakeDatasetFileTypes, DataSources, DataLakeDataFileTypes
-from utils.filesystem.path import AdlsDatasetPath, PathElement
 from utils.filesystem import path as PathAlias
+from utils.filesystem.path import AdlsDatasetPath, PathElement
 
+from shared.types import DataLakeDataFileTypes, DataLakeDatasetFileTypes, DataSources
 
 # For re-export
 Path = PathAlias.Path

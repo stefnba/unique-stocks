@@ -1,5 +1,5 @@
-from airflow.operators.python import get_current_context
 from airflow.models import dagrun
+from airflow.operators.python import get_current_context
 
 
 def get_dag_conf() -> dict:
