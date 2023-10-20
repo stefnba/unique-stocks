@@ -1,11 +1,12 @@
-from airflow.hooks.base import BaseHook
-from shared.types import DataProducts, DataSources
 from typing import Literal
+
 import polars as pl
 import pyarrow.dataset as ds
-from shared import schema
-from custom.providers.azure.hooks.types import AzureDataLakeCredentials
 from adlfs import AzureBlobFileSystem
+from airflow.hooks.base import BaseHook
+from custom.providers.azure.hooks.types import AzureDataLakeCredentials
+from shared import schema
+from shared.types import DataProducts, DataSources
 
 MappingFields = Literal["is_virtual", "composite_code"]
 
@@ -56,9 +57,10 @@ class MappingDatasetHook(BaseHook):
         )
 
     def mapping(self, product: DataProducts, source: DataSources, field: MappingFields) -> pl.DataFrame:
-        """Read mapping dataset into `polars.DataFrame`."""
+        """Read general mapping dataset into `polars.DataFrame`."""
+        PATH = "mapping"
 
-        return self._get_mapping(path="mapping", product=product, source=source, field=field)
+        return self._get_mapping(path=PATH, product=product, source=source, field=field)
 
     def _get_mapping(self, path: str, product: DataProducts, source: DataSources, field: MappingFields) -> pl.DataFrame:
         """Read mapping dataset into `polars.DataFrame`."""
