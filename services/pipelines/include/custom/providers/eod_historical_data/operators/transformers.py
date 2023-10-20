@@ -89,7 +89,7 @@ class EoDQuotePerformanceTransformOperator(BaseOperator):
         if isinstance(dataset, pl.LazyFrame):
             self.data = dataset.select(
                 [
-                    pl.col("date").str.to_date(),
+                    "date",
                     "security_code",
                     "exchange_code",
                     "adjusted_close",
