@@ -11,6 +11,7 @@ from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
 from custom.operators.data.transformation import DataBindingCustomHandler, DuckDbTransformationOperator
 from custom.providers.azure.hooks import converters
 from custom.providers.azure.hooks.handlers.read.azure import AzureDatasetArrowHandler
+from shared import airflow_dataset
 from shared.path import AdlsPath, ExchangePath, SecurityPath
 from utils.dag.xcom import XComGetter
 
@@ -28,15 +29,6 @@ def extract_exchange():
 
     exchanges = pl.from_arrow(dt.to_pyarrow_dataset().to_batches())
 
-    # return [
-    #     {"exchange_code": "US"},
-    #     {"exchange_code": "XETRA"},
-    #     {"exchange_code": "GSE"},
-    #     {"exchange_code": "VFEX"},
-    #     # {"code": "F"},
-    #     # {"code": "FOREX"},
-    # ]
-
     if isinstance(exchanges, pl.DataFrame):
         return [
             *exchanges.select(
@@ -48,26 +40,70 @@ def extract_exchange():
         ]
 
 
-@task
-def ingest(security: list):
-    from custom.hooks.api.shared import BulkApiHook
+def convert_to_url_upload_records(exchange: dict):
+    """Convert exchange and security code into a `UrlUploadRecord` with blob name and API endpoint."""
+    from custom.providers.azure.hooks.data_lake_storage import UrlUploadRecord
+    from shared.path import SecurityPath
 
-    api = BulkApiHook(
-        conn_id="eod_historical_data",
-        response_format="csv",
-        adls_upload=BulkApiHook.AdlsUploadConfig(
-            path=SecurityPath,
-            conn_id="azure_data_lake",
-            record_mapping={
-                "exchange": "exchange_code",
-            },
-        ),
+    exchange_code = exchange["exchange_code"]
+
+    return UrlUploadRecord(
+        endpoint=f"{exchange_code}",
+        blob=SecurityPath.raw(
+            exchange=exchange_code,
+            format="csv",
+            source="EodHistoricalData",
+        ).path,
     )
-    api.run(endpoint="exchange-symbol-list/${exchange_code}", items=security)
 
-    # upload as arrow ds
-    destination_path = api.upload_dataset(
-        conn_id="azure_data_lake",
+
+@task
+def ingest(exchanges: list):
+    import logging
+
+    from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageBulkHook
+    from custom.providers.eod_historical_data.hooks.api import EodHistoricalDataApiHook
+
+    logging.info(f"""Ingest of securities of {len(exchanges)} exchanges.""")
+
+    hook = AzureDataLakeStorageBulkHook(conn_id="azure_data_lake")
+    api_hook = EodHistoricalDataApiHook()
+
+    url_endpoints = list(map(convert_to_url_upload_records, exchanges))
+
+    uploaded_blobs = hook.upload_from_url(
+        container="raw",
+        base_url="https://eodhistoricaldata.com/api/exchange-symbol-list",
+        base_params=api_hook._base_params,
+        url_endpoints=url_endpoints,
+    )
+
+    return uploaded_blobs
+
+
+@task
+def merge(blobs):
+    from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageBulkHook
+    from custom.providers.azure.hooks.dataset import AzureDatasetHook, DatasetConverters, DatasetHandlers
+    from shared.path import AdlsPath, LocalPath
+
+    storage_hook = AzureDataLakeStorageBulkHook(conn_id="azure_data_lake")
+    dataset_hook = AzureDatasetHook(conn_id="azure_data_lake")
+    download_dir = LocalPath.create_temp_dir_path()
+    adls_destination_path = AdlsPath.create_temp_dir_path()
+
+    storage_hook.download_blobs_from_list(
+        container="raw",
+        blobs=blobs,
+        destination_dir=download_dir.uri,
+        # destination_nested_relative_to="security/EodHistoricalData",
+    )
+
+    data = dataset_hook.read(
+        source_path=download_dir,
+        handler=DatasetHandlers.Read.Local.Arrow,
+        source_format="csv",
+        dataset_converter=DatasetConverters.PyArrowDataset,
         schema=pa.schema(
             [
                 pa.field("Code", pa.string()),
@@ -81,7 +117,9 @@ def ingest(security: list):
         ),
     )
 
-    return destination_path.to_dict()
+    dataset_hook.write(dataset=data, handler=DatasetHandlers.Write.Azure.Arrow, destination_path=adls_destination_path)
+
+    return adls_destination_path.to_dict()
 
 
 transform = DuckDbTransformationOperator(
@@ -91,7 +129,7 @@ transform = DuckDbTransformationOperator(
     query="sql/security/transform.sql",
     data={
         "security_raw": DataBindingCustomHandler(
-            path=XComGetter.pull_with_template(task_id="ingest"),
+            path=XComGetter.pull_with_template(task_id="merge"),
             handler=AzureDatasetArrowHandler,
             dataset_converter=converters.PyArrowDataset,
         )
@@ -126,7 +164,7 @@ sink = WriteDeltaTableFromDatasetOperator(
 
 
 @dag(
-    schedule=None,
+    schedule=[airflow_dataset.Exchange],
     start_date=datetime(2023, 1, 1),
     catchup=False,
     render_template_as_native_obj=True,
@@ -134,7 +172,8 @@ sink = WriteDeltaTableFromDatasetOperator(
 )
 def security():
     extract_exchange_task = extract_exchange()
-    ingest(extract_exchange_task) >> transform >> sink
+    ingest_task = ingest(extract_exchange_task)
+    merge(ingest_task) >> transform >> sink
 
 
 dag_object = security()

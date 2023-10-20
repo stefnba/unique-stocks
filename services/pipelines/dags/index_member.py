@@ -4,12 +4,13 @@
 from datetime import datetime
 from typing import TypedDict
 
-import pyarrow as pa
 from airflow.decorators import dag, task
 from airflow.utils.trigger_rule import TriggerRule
 from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
-from shared.path import IndexMemberPath, LocalPath, SecurityPath
+from shared import schema
+from shared.path import IndexMemberPath, SecurityPath
 from utils.dag.xcom import XComGetter
+from utils.filesystem.directory import DirFile
 
 
 class Index(TypedDict):
@@ -24,30 +25,27 @@ def extract_index():
 
     dt = DeltaTableHook(conn_id="azure_data_lake").read(path=SecurityPath.curated())
 
-    securities = pl.from_arrow(
-        dt.to_pyarrow_dataset(
-            partitions=[
-                ("type", "=", "index"),
-            ]
-        ).to_batches()
-    )
+    securities = pl.scan_pyarrow_dataset(dt.to_pyarrow_dataset(partitions=[("type", "=", "index")]))
 
-    if isinstance(securities, pl.DataFrame):
-        s = securities.select(
+    return (
+        securities.select(
             [
                 pl.col("code").alias("index_code"),
                 pl.col("exchange_code"),
             ],
-        ).to_dicts()
-        return s
+        )
+        .collect()
+        .to_dicts()
+    )
 
 
-def transform_on_ingest(data: bytes, local_download_dir: LocalPath):
+def transform(file: DirFile, sink_dir: str):
     import json
+    from pathlib import Path
 
     import polars as pl
 
-    index_data = json.loads(data)
+    index_data = json.loads(Path(file.path).read_text())
 
     members = index_data.get("Components")
     general = index_data.get("General")
@@ -73,55 +71,89 @@ def transform_on_ingest(data: bytes, local_download_dir: LocalPath):
         ]
     )
 
-    lf.sink_parquet(local_download_dir.to_pathlib() / f"{general.get('Code')}.parquet")
+    lf.sink_parquet(Path(sink_dir) / f"{general.get('Code')}.parquet")
 
 
 @task
 def ingest(index: list):
-    from custom.hooks.api.shared import BulkApiHook
+    import logging
 
-    api = BulkApiHook(
-        conn_id="eod_historical_data",
-        response_format="json",
-        transform=transform_on_ingest,
-        adls_upload=BulkApiHook.AdlsUploadConfig(
-            path=IndexMemberPath,
-            conn_id="azure_data_lake",
-            record_mapping={
-                "index": "index_code",
-            },
-        ),
+    from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageBulkHook, UrlUploadRecord
+    from custom.providers.eod_historical_data.hooks.api import EodHistoricalDataApiHook
+    from shared.path import IndexMemberPath
+
+    logging.info(f"""Ingest of securities of {len(index)} exchanges.""")
+
+    hook = AzureDataLakeStorageBulkHook(conn_id="azure_data_lake")
+    api_hook = EodHistoricalDataApiHook()
+
+    url_endpoints = list(
+        map(
+            lambda i: UrlUploadRecord(
+                endpoint=f"""{i["index_code"]}.{i["exchange_code"]}""",
+                blob=IndexMemberPath.raw(
+                    index=i["index_code"],
+                    format="json",
+                    source="EodHistoricalData",
+                ).path,
+            ),
+            index,
+        )
     )
-    api.run(endpoint="fundamentals/${index_code}.${exchange_code}", items=index)
 
-    # upload as arrow ds
-    destination_path = api.upload_dataset(
-        conn_id="azure_data_lake",
-        dataset_format="parquet",
+    uploaded_blobs = hook.upload_from_url(
+        container="raw",
+        base_url="https://eodhistoricaldata.com/api/fundamentals",
+        base_params=api_hook._base_params,
+        url_endpoints=url_endpoints,
     )
 
-    return destination_path.to_dict()
+    return uploaded_blobs
+
+
+@task
+def merge(blobs):
+    from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageBulkHook
+    from custom.providers.azure.hooks.dataset import AzureDatasetHook, DatasetConverters, DatasetHandlers
+    from shared.path import AdlsPath, LocalPath
+    from utils.filesystem.directory import scan_dir_files
+    from utils.parallel.concurrent import proces_paralell
+
+    storage_hook = AzureDataLakeStorageBulkHook(conn_id="azure_data_lake")
+    dataset_hook = AzureDatasetHook(conn_id="azure_data_lake")
+    sink_dir = LocalPath.create_temp_dir_path()
+    download_dir = LocalPath.create_temp_dir_path()
+    adls_destination_path = AdlsPath.create_temp_dir_path()
+
+    storage_hook.download_blobs_from_list(
+        container="raw",
+        blobs=blobs,
+        destination_dir=download_dir.uri,
+    )
+
+    files = scan_dir_files(download_dir.uri)
+
+    proces_paralell(task=transform, iterable=files, sink_dir=sink_dir.uri)
+
+    data = dataset_hook.read(
+        source_path=sink_dir,
+        handler=DatasetHandlers.Read.Local.Arrow,
+        dataset_converter=DatasetConverters.PyArrowDataset,
+        schema=schema.IndexMember,
+    )
+
+    dataset_hook.write(dataset=data, handler=DatasetHandlers.Write.Azure.Arrow, destination_path=adls_destination_path)
+
+    return adls_destination_path.to_dict()
 
 
 sink = WriteDeltaTableFromDatasetOperator(
     task_id="sink",
     trigger_rule=TriggerRule.ALL_SUCCESS,
     adls_conn_id="azure_data_lake",
-    dataset_path=XComGetter.pull_with_template(task_id="ingest"),
+    dataset_path=XComGetter.pull_with_template(task_id="merge"),
     destination_path=IndexMemberPath.curated(),
-    pyarrow_options={
-        "schema": pa.schema(
-            [
-                pa.field("security_code", pa.string()),
-                pa.field("security_name", pa.string()),
-                pa.field("exchange_code", pa.string()),
-                pa.field("country", pa.string()),
-                pa.field("currency", pa.string()),
-                pa.field("index_code", pa.string()),
-                pa.field("index_name", pa.string()),
-            ]
-        )
-    },
+    pyarrow_options={"schema": schema.IndexMember},
     delta_table_options={"mode": "overwrite"},
 )
 
@@ -135,7 +167,8 @@ sink = WriteDeltaTableFromDatasetOperator(
 )
 def index_member():
     extract_index_task = extract_index()
-    ingest(extract_index_task) >> sink
+    ingest_task = ingest(extract_index_task)
+    merge(ingest_task) >> sink
 
 
 dag_object = index_member()

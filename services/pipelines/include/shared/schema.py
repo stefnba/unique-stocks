@@ -93,3 +93,16 @@ Fundamental = pa.schema(
         pa.field("published_at", pa.date32()),
     ]
 )
+
+
+IndexMember = pa.schema(
+    [
+        pa.field("security_code", pa.string()),
+        pa.field("security_name", pa.string()),
+        pa.field("exchange_code", pa.string()),
+        pa.field("country", pa.string()),
+        pa.field("currency", pa.string()),
+        pa.field("index_code", pa.string()),
+        pa.field("index_name", pa.string()),
+    ]
+)

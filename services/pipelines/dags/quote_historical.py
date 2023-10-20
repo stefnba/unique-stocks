@@ -112,12 +112,7 @@ def ingest(securities):
     hook = AzureDataLakeStorageBulkHook(conn_id="azure_data_lake")
     api_hook = EodHistoricalDataApiHook()
 
-    url_endpoints = list(
-        map(
-            convert_to_url_upload_records,
-            securities,
-        )
-    )
+    url_endpoints = list(map(convert_to_url_upload_records, securities))
 
     uploaded_blobs = hook.upload_from_url(
         container="raw",

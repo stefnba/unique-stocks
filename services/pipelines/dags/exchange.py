@@ -8,6 +8,7 @@ import pyarrow as pa
 from airflow.decorators import dag, task
 from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
 from custom.operators.data.transformation import DuckDbTransformationOperator
+from shared import airflow_dataset
 from shared.path import AdlsPath, ExchangePath
 from utils.dag.xcom import XComGetter
 
@@ -61,6 +62,7 @@ sink = WriteDeltaTableFromDatasetOperator(
     delta_table_options={
         "mode": "overwrite",
     },
+    outlets=[airflow_dataset.Exchange],
 )
 
 
