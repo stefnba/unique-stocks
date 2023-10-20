@@ -376,10 +376,13 @@ class UploadFromUrlRoutine(AsyncIoRoutine):
         async with self.http_client, self.container_client:
             async for url in make_async_iterable(url_endpoints):
                 blob = ""
+                param = {}
 
                 if isinstance(url, UrlUploadRecord):
                     if url.blob:
                         blob = url.blob
+                    if url.param:
+                        param = url.param
                     url = url.endpoint
                 else:
                     raise ValueError("Blob name missing.")
@@ -390,7 +393,7 @@ class UploadFromUrlRoutine(AsyncIoRoutine):
                 if base_url:
                     url = base_url.rstrip("/") + "/" + str(url).lstrip("/")
 
-                self.coros.append(self.coro_task(url=url, blob=blob, params=base_params))
+                self.coros.append(self.coro_task(url=url, blob=blob, params={**(base_params or {}), **param}))
 
             return await asyncio.gather(*self.coros)
 
