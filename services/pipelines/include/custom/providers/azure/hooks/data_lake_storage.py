@@ -1,21 +1,21 @@
+import asyncio
+import logging
 import typing as t
+from dataclasses import dataclass
+from pathlib import Path
+
+import aiofiles
+from aiohttp import ClientResponseError
 from airflow.hooks.base import BaseHook
-from custom.providers.azure.hooks.types import AzureDataLakeCredentials
+from azure.identity import ClientSecretCredential
 from azure.storage.blob import BlobServiceClient, ContainerClient
 from azure.storage.blob.aio import ContainerClient as AsyncContainerClient
-from azure.identity import ClientSecretCredential
-from utils.filesystem.path import PathInput, LocalPath, AdlsPath
-from pathlib import Path
-from utils.file.stream import read_large_file
+from custom.providers.azure.hooks.types import AzureDataLakeCredentials
 from shared.types import DataLakeZone
-from dataclasses import dataclass
-import aiofiles
-
-from aiohttp import ClientResponseError
-import asyncio
-from utils.filesystem.directory import scan_dir_files, DirFile
-from utils.parallel.asyncio import AsyncIoRoutine, RateLimiter, Counter, make_async_iterable
-import logging
+from utils.file.stream import read_large_file
+from utils.filesystem.directory import DirFile, scan_dir_files
+from utils.filesystem.path import AdlsPath, LocalPath, PathInput
+from utils.parallel.asyncio import AsyncIoRoutine, Counter, RateLimiter, make_async_iterable
 
 
 class AzureCredentialBaseHook(BaseHook):
@@ -332,6 +332,31 @@ class AzureDataLakeStorageBulkHook(AzureCredentialBaseHook):
         r.container_client = self.get_async_container_client(container=container)
         return r.run(blob_dir=blob_dir, local_files=local_files)
 
+    def delete_blobs(
+        self, container: str, blobs: t.Optional[t.Iterable[str]] = None, start_with: t.Optional[str] = None
+    ):
+        r = DeleteBlobsRoutine("DeleteBlobs")
+        r.container_client = self.get_async_container_client(container=container)
+
+        if not blobs and start_with is not None:
+            blobs = list(self.get_container_client(container).list_blob_names(name_starts_with=start_with))
+
+        if blobs is None:
+            self.log.info("No blobs were specified for deletion.")
+            return
+
+        if not blobs:
+            self.log.info("No blobs were found.")
+            return
+
+        r.run(blobs=blobs)
+
+        self.log.info(
+            f"{len(blobs) if isinstance(blobs, list) else 'All'} blobs in container '{container}' were removed."
+        )
+
+        return blobs
+
 
 class UploadFromUrlRoutine(AsyncIoRoutine):
     """
@@ -497,3 +522,14 @@ class UploadBlobsRoutine(AsyncIoRoutine):
 
     def run(self, local_files: t.Iterable, blob_dir: str):
         return super().run(local_files=local_files, blob_dir=blob_dir)
+
+
+class DeleteBlobsRoutine(AsyncIoRoutine):
+    container_client: AsyncContainerClient
+
+    async def main(self, blobs: t.Iterable):
+        async with self.container_client:
+            await self.container_client.delete_blobs(*blobs)
+
+    def run(self, blobs: t.Iterable):
+        return super().run(blobs=blobs)

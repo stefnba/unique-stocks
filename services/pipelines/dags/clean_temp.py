@@ -8,27 +8,13 @@ from airflow.decorators import dag, task
 
 @task
 def clean():
-    """Delete and re-create temp container on Azure Data Lake Storage."""
-    import logging
-    import time
+    """Delete all blobs in temp container."""
 
-    from azure.core.exceptions import ResourceNotFoundError
-    from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageHook
+    from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageBulkHook
 
-    hook = AzureDataLakeStorageHook(conn_id="azure_data_lake")
+    hook = AzureDataLakeStorageBulkHook(conn_id="azure_data_lake")
 
-    try:
-        hook.remove_container(container="temp")
-        logging.info("Container removed.")
-        # After you delete a container, you can't create a container with the same name for at least 30 seconds.
-        # Attempting to create a container with the same name will fail with HTTP error code 409 (Conflict). Any other
-        # operations on the container or the blobs it contains will fail with HTTP error code 404 (Not Found).
-        time.sleep(60)
-    except ResourceNotFoundError:
-        pass
-
-    hook.create_container(container="temp")
-    logging.info("Container created.")
+    hook.delete_blobs(container="temp", start_with="")
 
 
 @dag(
