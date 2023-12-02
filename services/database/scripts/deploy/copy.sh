@@ -8,4 +8,4 @@ cd $(dirname $0)
 
 files=$(./files.sh)
 
-rsync $files "$1@$2:$3" -v -R
+rsync $files "$1@$2:$3" -v -r -R --exclude '__pycache__'
