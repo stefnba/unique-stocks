@@ -7,8 +7,9 @@ Create Date: 2023-06-01 12:00:59.473292
 
 """
 from alembic import op
-from database.utils.migration_file import MigrationFile
+
 from database.utils import seed
+from database.utils.migration_file import MigrationFile
 
 SCHEMA_NAME = "data"
 

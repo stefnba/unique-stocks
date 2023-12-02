@@ -8,9 +8,8 @@ Create Date: 2023-03-25 18:11:33.846218
 """
 from alembic import op
 
-
-from database.utils.migration_file import MigrationFile
 from database.utils import seed
+from database.utils.migration_file import MigrationFile
 
 # revision identifiers, used by Alembic.
 revision = "cccf9790cfb3"

@@ -1,8 +1,9 @@
-from configparser import ConfigParser
 import os
+import re
+from configparser import ConfigParser
 from pathlib import Path
 from typing import Literal
-import re
+
 from pydantic import BaseModel
 
 MigrationDirection = Literal["up", "down"]

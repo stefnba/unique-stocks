@@ -7,7 +7,7 @@ class Connection(BaseSettings):
 
     host: str = Field(alias="DB_HOST", default="localhost")
     port: int = Field(alias="DB_PORT", default=5432)
-    dbname: str = Field(alias="DB_NAME_STOCKS", default=None)
+    dbname: str = Field(alias="DB_NAME", default=None)
     user: str = Field(alias="DB_ADMIN_USER", default=None)
     password: str = Field(alias="DB_ADMIN_PASSWORD", default=None)
 

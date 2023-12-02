@@ -1,10 +1,11 @@
 # pylint: disable=no-member
 
 from logging.config import fileConfig
-from sqlalchemy import create_engine
-from alembic import context
-from database.utils.connection import connection_string
 
+from alembic import context
+from sqlalchemy import create_engine
+
+from database.utils.connection import connection_string
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -20,6 +21,8 @@ if config.config_file_name is not None:
 migration_table_section = config.get_section("migration_table")
 if migration_table_section is not None:
     migration_table_name = migration_table_section.get("table", "_migrations")
+else:
+    raise Exception("migration_table_name missing")
 
 # add your model's MetaData object here
 # for 'autogenerate' support

@@ -1,8 +1,8 @@
-from typing import Optional, Literal
+from typing import Literal, Optional
 
 from psycopg import connect, sql
-from database.utils.connection import connection_model
 
+from database.utils.connection import connection_model
 from database.utils.shared import get_seed_file_path
 
 Method = Literal["SEED", "EXPORT"]

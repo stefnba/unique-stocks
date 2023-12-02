@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 import sys
-
-from alembic.config import Config
-from alembic import command
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
+from alembic import command
+from alembic.config import Config
 
 SQL_FILE_TEMPLATE = "/* UP */\n\n/* DOWN */"
 
