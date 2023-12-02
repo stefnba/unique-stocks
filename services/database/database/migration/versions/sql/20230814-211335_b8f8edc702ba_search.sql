@@ -1,4 +1,5 @@
 /* UP */
+SET search_path = "data","public";
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 ALTER TABLE "data"."exchange"
@@ -18,3 +19,4 @@ CREATE INDEX ON "data"."security" USING GIN("search_token");
 
 
 /* DOWN */
+DROP EXTENSION IF EXISTS pg_trgm;
