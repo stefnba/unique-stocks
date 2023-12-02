@@ -17,7 +17,7 @@ services:
             - DB_APP_USER=${DB_APP_USER}
             - DB_APP_PASSWORD=${DB_APP_PASSWORD}
         volumes:
-            - ./scripts:/docker-entrypoint-initdb.d/
+            - ./scripts/db:/docker-entrypoint-initdb.d/
             - pg-data:/var/lib/postgresql/data/
         networks:
             - unique-stocks-network
