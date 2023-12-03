@@ -6,3 +6,6 @@
 !Pipfile.lock
 !include/
 !scripts/
+!config/
+!dags/
+!plugins/
