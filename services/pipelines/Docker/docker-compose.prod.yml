@@ -2,16 +2,11 @@
 version: '3.8'
 
 x-airflow-common: &airflow-common
-    build:
-        context: .
-        dockerfile: docker/Dockerfile
-        args:
-            AIRFLOW_HOME: ${AIRFLOW_HOME}
-            AIRFLOW_PROJ_DIR: ${AIRFLOW_PROJ_DIR}
+    image: ${DOCKER_USER}/${DOCKER_IMAGE_NAME}
     env_file:
         - .env
     environment: &airflow-common-env
-        ENV: DockerDevelopment
+        ENV: Production
         AIRFLOW_HOME: ${AIRFLOW_HOME}
         TEMP_DIR_PATH: ${AIRFLOW_HOME}/temp
         AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@airflow-postgres/${AIRFLOW_DB_NAME}
@@ -24,11 +19,6 @@ x-airflow-common: &airflow-common
         AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
         LOGGING_REMOTE_HOST: http://unique-stocks-log
     user: '${AIRFLOW_UID:-50000}:0'
-    volumes:
-        - ${AIRFLOW_PROJ_DIR}/dags:${AIRFLOW_HOME}/dags
-        - ${AIRFLOW_PROJ_DIR}/logs:${AIRFLOW_HOME}/logs
-        - ${AIRFLOW_PROJ_DIR}/plugins:${AIRFLOW_HOME}/plugins
-        - ${AIRFLOW_PROJ_DIR}/include:${AIRFLOW_HOME}/include
     depends_on: &airflow-common-depends-on
         airflow-postgres:
             condition: service_healthy
@@ -39,20 +29,43 @@ x-airflow-common: &airflow-common
 services:
     airflow-webserver:
         <<: *airflow-common
+        container_name: uniquestocks-airflow-webserver
         depends_on:
             - airflow-postgres
         ports:
-            - '${AIRFLOW__WEBSERVER_PORT}:8080'
+            - '127.0.0.1:${AIRFLOW__WEBSERVER_PORT}:8080'
         entrypoint: ${AIRFLOW_HOME}/airflow_init.sh
         restart: always
 
     airflow-scheduler:
         <<: *airflow-common
+        container_name: uniquestocks-airflow-scheduler
         command: scheduler
         depends_on:
             - airflow-webserver
+    
+    airflow-postgres:
+        image: postgres:14.5-alpine
+        container_name: uniquestocks-airflow-metadb
+        ports:
+            - '127.0.0.1:5418:5432'
+        restart: always
+        env_file:
+            - .env
+        environment:
+            POSTGRES_USER: ${AIRFLOW_DB_USER}
+            POSTGRES_PASSWORD: ${AIRFLOW_DB_PASSWORD}
+            POSTGRES_DB: ${AIRFLOW_DB_NAME}
+        healthcheck:
+            test: ['CMD', 'pg_isready', '-U', 'airflow']
+            interval: 5s
+            retries: 5
+        volumes:
+            - uniquestocks-airflow-metadb-volume:/var/lib/postgresql/data/
+
     redis:
         image: redis:latest
+        container_name: uniquestocks-airflow-redis
         expose:
             - 6379
         healthcheck:
@@ -62,8 +75,10 @@ services:
             retries: 50
             start_period: 30s
         restart: always
-    airflow-worker:
+
+    airflow-worker-1:
         <<: *airflow-common
+        container_name: uniquestocks-airflow-worker-1
         command: airflow celery worker
         healthcheck:
             # yamllint disable rule:line-length
@@ -82,9 +97,11 @@ services:
         restart: always
         depends_on:
             <<: *airflow-common-depends-on
+
     airflow-worker-2:
         <<: *airflow-common
         command: airflow celery worker
+        container_name: uniquestocks-airflow-worker-2
         healthcheck:
             # yamllint disable rule:line-length
             test:
@@ -102,8 +119,10 @@ services:
         restart: always
         depends_on:
             <<: *airflow-common-depends-on
+
     airflow-worker-3:
         <<: *airflow-common
+        container_name: uniquestocks-airflow-worker-3
         command: airflow celery worker
         healthcheck:
             # yamllint disable rule:line-length
@@ -122,13 +141,15 @@ services:
         restart: always
         depends_on:
             <<: *airflow-common-depends-on
+
     flower:
         <<: *airflow-common
         command: celery flower --basic-auth=admin:password
+        container_name: uniquestocks-airflow-flower
         # profiles:
         #     - flower
         ports:
-            - '5555:5555'
+            - '127.0.0.1:5555:5555'
         healthcheck:
             test: ['CMD', 'curl', '--fail', 'http://localhost:5555/']
             interval: 30s
@@ -138,19 +159,29 @@ services:
         restart: always
         depends_on:
             <<: *airflow-common-depends-on
-    # airflow-triggerer:
-    #     <<: *airflow-common
-    #     command: triggerer
-    #     healthcheck:
-    #         test:
-    #             [
-    #                 'CMD-SHELL',
-    #                 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"'
-    #             ]
-    #         interval: 30s
-    #         timeout: 10s
-    #         retries: 5
-    #         start_period: 30s
-    #     restart: always
-    #     depends_on:
-    #         <<: *airflow-common-depends-on
+
+
+    airflow-triggerer:
+        <<: *airflow-common
+        container_name: uniquestocks-airflow-triggerer
+        command: triggerer
+        healthcheck:
+            test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
+            interval: 30s
+            timeout: 10s
+            retries: 5
+            start_period: 30s
+        restart: always
+        depends_on:
+            <<: *airflow-common-depends-on
+
+
+
+volumes:
+    uniquestocks-airflow-metadb-volume:
+  
+
+networks:
+    unique-stocks-network:
+        name: unique-stocks-network
+        external: true

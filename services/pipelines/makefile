@@ -34,7 +34,17 @@ setup-airflow-local:
 # Docker
 docker-up-prod:
 	export AIRFLOW_HOME=${AIRFLOW_HOME_CONTAINER} && \
-	docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml --project-directory . up -d --build --force-recreate --remove-orphans
+	docker compose -f docker/docker-compose.prod.yml --project-directory . up -d --build --force-recreate --remove-orphans
 docker-up:
 	export AIRFLOW_HOME=${AIRFLOW_HOME_CONTAINER} && \
 	docker compose -f docker/docker-compose.yml --project-directory . up -d --build --force-recreate --remove-orphans
+docker-down:
+	docker compose -f docker/docker-compose.yml --project-directory . down --remove-orphans
+
+
+# Port forwarding
+# 4000:8080 -> webserver
+# 4001:5418 -> meta db
+# 4002:5555 -> flower
+port-forward:
+	ssh -L 4000:localhost:8080 -L 4001:localhost:5418 -L 4002:localhost:5555 contabo
