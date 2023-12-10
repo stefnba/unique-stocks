@@ -40,7 +40,7 @@ RUN pip install -r requirements.txt --no-cache-dir --user
 
 # Copy files
 COPY $AIRFLOW_PROJ_DIR/scripts/airflow_init.sh .
-COPY $AIRFLOW_PROJ_DIR/dags/ .
-COPY $AIRFLOW_PROJ_DIR/include/ .
-COPY $AIRFLOW_PROJ_DIR/config/ .
-COPY $AIRFLOW_PROJ_DIR/plugins/ .
+COPY $AIRFLOW_PROJ_DIR/dags/ ./dags
+COPY $AIRFLOW_PROJ_DIR/include/ ./include
+COPY $AIRFLOW_PROJ_DIR/config/ ./config
+COPY $AIRFLOW_PROJ_DIR/plugins/ ./plugins
