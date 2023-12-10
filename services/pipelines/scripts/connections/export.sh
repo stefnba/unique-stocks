@@ -5,7 +5,7 @@
 ##
 
 sink_file=/tmp/connections.yml
-sink_file_host=deploy/conn.env
+sink_file_host=deploy/conn.env.yml
 container_name=pipelines-airflow-webserver-1
 
 docker exec -it $container_name sh -c "airflow connections export $sink_file --file-format yaml"
