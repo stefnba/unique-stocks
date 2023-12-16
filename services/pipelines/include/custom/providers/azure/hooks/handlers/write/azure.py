@@ -1,11 +1,13 @@
-import polars as pl
-from pyarrow import dataset as ds
-import duckdb
+import pathlib
 from io import BytesIO
+
+import duckdb
+import polars as pl
 from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageHook
+from custom.providers.azure.hooks.handlers.base import AzureDatasetHandler
 from custom.providers.azure.hooks.types import Dataset
 from custom.providers.delta_table.hooks.delta_table import DeltaTableHook
-from custom.providers.azure.hooks.handlers.base import AzureDatasetHandler
+from pyarrow import dataset as ds
 
 
 class AzureDatasetWriteArrowHandler(AzureDatasetHandler):
@@ -17,9 +19,19 @@ class AzureDatasetWriteArrowHandler(AzureDatasetHandler):
         existing_data_behavior="error",
         basename_template=None,
         partitioning_flavor="hive",
+        partitioning=None,
         format="parquet",
+        max_rows_per_file=10 * 1024 * 1024,
+        max_rows_per_group=256 * 1024,
+        min_rows_per_group=64 * 1024,
         **kwargs,
     ):
+        if pathlib.Path(self.path.uri).suffix:
+            raise TypeError("Path must be a valid directory path, not a file path.")
+
+        if isinstance(dataset, duckdb.DuckDBPyRelation):
+            dataset = dataset.record_batch(max_rows_per_group)
+
         ds.write_dataset(
             data=dataset,
             base_dir=self.path.uri,
@@ -28,6 +40,10 @@ class AzureDatasetWriteArrowHandler(AzureDatasetHandler):
             existing_data_behavior=existing_data_behavior,
             partitioning_flavor=partitioning_flavor,
             basename_template=basename_template,
+            max_rows_per_file=max_rows_per_file,
+            max_rows_per_group=max_rows_per_group,
+            min_rows_per_group=min_rows_per_group,
+            partitioning=partitioning,
             **kwargs,
         )
 
