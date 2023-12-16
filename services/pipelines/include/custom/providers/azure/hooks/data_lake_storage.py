@@ -7,6 +7,7 @@ from pathlib import Path
 import aiofiles
 from aiohttp import ClientResponseError
 from airflow.hooks.base import BaseHook
+from azure.core.exceptions import ResourceNotFoundError
 from azure.identity import ClientSecretCredential
 from azure.storage.blob import BlobServiceClient, ContainerClient
 from azure.storage.blob.aio import ContainerClient as AsyncContainerClient
@@ -446,10 +447,12 @@ class DownloadBlobsRoutine(AsyncIoRoutine):
     async def coro_task(self, blob: str, local_file: str | Path):
         """Download blob content and save to local file."""
 
-        data = await self.container_client.download_blob(blob=blob)
-
-        async with aiofiles.open(local_file, mode="wb") as f:
-            await f.write(await data.readall())
+        try:
+            data = await self.container_client.download_blob(blob=blob)
+            async with aiofiles.open(local_file, mode="wb") as f:
+                await f.write(await data.readall())
+        except ResourceNotFoundError:
+            logging.error(f"The blob '{blob}' does not exist and cannot be downloaded.")
 
     async def main(
         self,
