@@ -64,23 +64,29 @@ class SecurityQuotePath(AdlsDatasetPath):
     dir_template = [
         "product",
         "source",
-        PathElement(name="security", hive_flavor=True),
+        "type",
+        "datetime",
         PathElement(name="exchange", hive_flavor=True),
-        PathElement(name="year", hive_flavor=True),
-        PathElement(name="month", hive_flavor=True),
-        PathElement(name="day", hive_flavor=True),
+        PathElement(name="security", hive_flavor=True),
     ]
     filename_template = [
         "datetime",
         "product",
         "source",
-        "security",
+        "type",
         "exchange",
+        "security",
     ]
 
     @classmethod
-    def raw(cls, security: str, exchange: str, format: DataLakeDatasetFileTypes, source: DataSources):
-        return super().raw(format=format, source=source, exchange=exchange, security=security)
+    def raw_historical(cls, security: str, exchange: str, format: DataLakeDatasetFileTypes, source: DataSources):
+        type = "historical"
+        return super().raw(format=format, source=source, exchange=exchange, security=security, type=type)
+
+    @classmethod
+    def raw_update(cls, security: str, exchange: str, format: DataLakeDatasetFileTypes, source: DataSources):
+        type = "update"
+        return super().raw(format=format, source=source, exchange=exchange, security=security, type=type)
 
 
 class IndexMemberPath(AdlsDatasetPath):

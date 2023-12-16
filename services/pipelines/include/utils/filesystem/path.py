@@ -5,6 +5,8 @@ from datetime import datetime
 from pathlib import Path as PathlibPath
 from typing import Any, Dict, Optional, TypeAlias, TypedDict, cast, get_args
 
+from airflow.exceptions import AirflowException
+from airflow.operators.python import get_current_context
 from pydantic import BaseModel, ConfigDict, Field
 from settings import config_settings
 from shared.types import DataLakeDataFileTypes, DataLakeDatasetFileTypes, DataLakeZone, DataProducts, DataSources
@@ -234,7 +236,11 @@ class AdlsDatasetPath:
     args: dict
 
     def __init__(self, **kwargs) -> None:
-        current = datetime.now()
+        try:
+            context = get_current_context()
+            current = datetime.fromisoformat(context["ts"])
+        except AirflowException:
+            current = datetime.now()
 
         self.args = {
             **kwargs,
