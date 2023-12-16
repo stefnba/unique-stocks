@@ -1,18 +1,17 @@
-from typing import Any, Literal, Optional, Protocol, TypeAlias
-from airflow.providers.http.hooks.http import HttpHook
-from airflow.hooks.base import BaseHook
 import asyncio
-import aiohttp
-from string import Template
+from dataclasses import dataclass
 from pathlib import Path
-from utils.filesystem.path import LocalPath, AdlsPath, AdlsDatasetPath
+from string import Template
+from typing import Any, Literal, Optional, Protocol, TypeAlias
 
-from pyarrow import dataset as ds
+from airflow.hooks.base import BaseHook
+from airflow.providers.http.hooks.http import HttpHook
+from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageHook
 from custom.providers.azure.hooks.dataset import AzureDatasetHook
 from custom.providers.azure.hooks.handlers.write.azure import AzureDatasetWriteArrowHandler
-from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageHook
-from dataclasses import dataclass
+from pyarrow import dataset as ds
 from shared.types import DataLakeDataFileTypes
+from utils.filesystem.path import AdlsDatasetPath, AdlsPath, LocalPath
 
 HttpMethods = Literal["POST", "GET", "PUT", "DELETE"]
 Record: TypeAlias = dict[str, str]
