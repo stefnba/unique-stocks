@@ -19,7 +19,8 @@ SecurityQuote = pa.schema(
         pa.field("volume", pa.int64()),
         pa.field("exchange_code", pa.string()),
         pa.field("security_code", pa.string()),
-        pa.field("created_at", pa.date32()),
+        pa.field("year", pa.int32()),
+        pa.field("created_at", pa.timestamp("us")),
     ]
 )
 
