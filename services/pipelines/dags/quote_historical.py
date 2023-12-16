@@ -8,8 +8,9 @@ from airflow.utils.dates import days_ago
 from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
 from custom.operators.data.transformation import DataBindingCustomHandler, DuckDbTransformationOperator
 from custom.providers.azure.hooks import converters
+from custom.providers.azure.hooks.dataset import DatasetHandlers
 from custom.providers.azure.hooks.handlers.read.azure import AzureDatasetArrowHandler
-from shared import airflow_dataset, schema
+from shared import schema
 from shared.path import AdlsPath, LocalPath, SecurityPath, SecurityQuotePath
 from utils.dag.xcom import XComGetter
 
@@ -63,7 +64,11 @@ def extract_security():
         )
     )
 
-    securities = pl.scan_pyarrow_dataset(data).select(pl.col("code").alias("security_code"), pl.col("exchange_code"))
+    securities = pl.scan_pyarrow_dataset(data).select(
+        pl.col("code").alias("security_code"),
+        "exchange_code",
+        "type",
+    )
 
     securities = securities.join(
         mapping.lazy().select(["source_value", "mapping_value"]),
@@ -74,13 +79,18 @@ def extract_security():
         pl.coalesce(["mapping_value", "exchange_code"]).alias("api_exchange_code"),
     )
 
-    return [
-        securities.select(["exchange_code", "api_exchange_code", "security_code"])
-        .collect()
-        .filter(pl.col("exchange_code") == e)
-        .to_dicts()
-        for e in exchanges
-    ]
+    securities_as_dict = []
+
+    securities = securities.select(["exchange_code", "api_exchange_code", "security_code", "type"]).collect()
+
+    for e in exchanges:
+        for t in security_types:
+            s = securities.filter((pl.col("exchange_code") == e) & (pl.col("type") == t)).to_dicts()
+
+            if len(s) > 0:
+                securities_as_dict.append(s)
+
+    return securities_as_dict
 
 
 def convert_to_url_upload_records(security: dict):
@@ -93,7 +103,7 @@ def convert_to_url_upload_records(security: dict):
 
     return UrlUploadRecord(
         endpoint=f"{security_code}.{api_exchange_code}",
-        blob=SecurityQuotePath.raw(
+        blob=SecurityQuotePath.raw_historical(
             exchange=exchange_code,
             format="csv",
             security=security_code,
@@ -107,7 +117,10 @@ def ingest(securities):
     from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageBulkHook
     from custom.providers.eod_historical_data.hooks.api import EodHistoricalDataApiHook
 
-    logging.info(f"""Ingest of securities for exchange '{securities[0].get("exchange_code", "")}'.""")
+    logging.info(
+        f"""Ingestion of {len(securities):,} securities of type '{securities[0].get("type", "")}'\
+            for exchange '{securities[0].get("exchange_code", "")}'."""
+    )
 
     hook = AzureDataLakeStorageBulkHook(conn_id="azure_data_lake")
     api_hook = EodHistoricalDataApiHook()
@@ -182,8 +195,9 @@ def merge(blobs):
 transform = DuckDbTransformationOperator(
     task_id="transform",
     adls_conn_id="azure_data_lake",
-    destination_path=AdlsPath.create_temp_file_path(),
+    destination_path=AdlsPath.create_temp_dir_path(),
     query="sql/quote_historical/transform.sql",
+    write_handler=DatasetHandlers.Write.Azure.Arrow,
     data={
         "quotes_raw": DataBindingCustomHandler(
             path=XComGetter.pull_with_template(task_id="merge"),
@@ -204,8 +218,9 @@ sink = WriteDeltaTableFromDatasetOperator(
     delta_table_options={
         "mode": "{{ dag_run.conf.get('delta_table_mode', 'overwrite') }}",  # type: ignore
         "schema": schema.SecurityQuote,
+        "partition_by": ["exchange_code", "year"],
     },
-    outlets=[airflow_dataset.SecurityQuote],
+    # outlets=[airflow_dataset.SecurityQuote],
 )
 
 
@@ -223,29 +238,218 @@ sink = WriteDeltaTableFromDatasetOperator(
                 "XETRA",
                 "NASDAQ",
                 "NYSE",
+                "CC",
+                "FOREX",
+                "MONEY",
+                "LSE",
                 "INDX",
+                "F",
+                "VI",
+                "PA",
+                "SW",
+                "AS",
+                "IL",
+                "STU",
+                "MU",
             ],
             examples=[
-                "XETRA",
                 "NASDAQ",
                 "NYSE",
                 "LSE",
+                "NEO",
+                "V",
+                "TO",
+                "BE",
+                "HM",
+                "XETRA",
+                "DU",
+                "MU",
+                "HA",
+                "F",
+                "STU",
+                "VI",
+                "LU",
+                "PA",
+                "BR",
+                "MC",
                 "SW",
+                "LS",
+                "AS",
+                "ST",
+                "IR",
+                "CO",
+                "OL",
+                "IC",
+                "HE",
+                "MSE",
+                "EGX",
+                "XBOT",
+                "GSE",
+                "BRVM",
+                "PR",
+                "XNAI",
+                "BC",
+                "SEM",
+                "XNSA",
+                "RSE",
+                "DSE",
+                "USE",
+                "LUSE",
+                "TA",
+                "XZIM",
+                "VFEX",
+                "KQ",
+                "KO",
+                "BUD",
+                "WAR",
+                "PSE",
+                "SN",
+                "JSE",
+                "JK",
+                "BK",
+                "SHG",
+                "NSE",
+                "AT",
+                "SR",
+                "SHE",
+                "KAR",
+                "AU",
+                "CM",
+                "VN",
+                "KLSE",
+                "BA",
+                "RO",
+                "SA",
+                "MX",
+                "IL",
+                "ZSE",
+                "TWO",
+                "MCX",
+                "TW",
+                "LIM",
+                "MONEY",
+                "EUFUND",
+                "IS",
+                "FOREX",
+                "CC",
             ],
+            values_display={
+                "NASDAQ": "NASDAQ",
+                "NYSE": "New York Stock Exchange",
+                "LSE": "London Exchange",
+                "NEO": "NEO Exchange",
+                "V": "TSX Venture Exchange",
+                "TO": "Toronto Exchange",
+                "BE": "Berlin Exchange",
+                "HM": "Hamburg Exchange",
+                "XETRA": "XETRA Exchange",
+                "DU": "Dusseldorf Exchange",
+                "MU": "Munich Exchange",
+                "HA": "Hanover Exchange",
+                "F": "Frankfurt Exchange",
+                "STU": "Stuttgart Exchange",
+                "VI": "Vienna Exchange",
+                "LU": "Luxembourg Stock Exchange",
+                "PA": "Euronext Paris",
+                "BR": "Euronext Brussels",
+                "MC": "Madrid Exchange",
+                "SW": "SIX Swiss Exchange",
+                "LS": "Euronext Lisbon",
+                "AS": "Euronext Amsterdam",
+                "ST": "Stockholm Exchange",
+                "IR": "Irish Exchange",
+                "CO": "Copenhagen Exchange",
+                "OL": "Oslo Stock Exchange",
+                "IC": "Iceland Exchange",
+                "HE": "Helsinki Exchange",
+                "MSE": "Malawi Stock Exchange",
+                "EGX": "Egyptian Exchange",
+                "XBOT": "Botswana Stock Exchange ",
+                "GSE": "Ghana Stock Exchange",
+                "BRVM": "Regional Securities Exchange",
+                "PR": "Prague Stock Exchange ",
+                "XNAI": "Nairobi Securities Exchange",
+                "BC": "Casablanca Stock Exchange",
+                "SEM": "Stock Exchange of Mauritius",
+                "XNSA": "Nigerian Stock Exchange",
+                "RSE": "Rwanda Stock Exchange",
+                "DSE": "Dar es Salaam Stock Exchange",
+                "USE": "Uganda Securities Exchange",
+                "LUSE": "Lusaka Stock Exchange",
+                "TA": "Tel Aviv Exchange",
+                "XZIM": "Zimbabwe Stock Exchange",
+                "VFEX": "Victoria Falls Stock Exchange",
+                "KQ": "KOSDAQ",
+                "KO": "Korea Stock Exchange",
+                "BUD": "Budapest Stock Exchange",
+                "WAR": "Warsaw Stock Exchange",
+                "PSE": "Philippine Stock Exchange",
+                "SN": "Chilean Stock Exchange",
+                "JSE": "Johannesburg Exchange",
+                "JK": "Jakarta Exchange",
+                "BK": "Thailand Exchange",
+                "SHG": "Shanghai Exchange",
+                "NSE": "NSE (India)",
+                "AT": "Athens Exchange",
+                "SR": "Saudi Arabia Exchange",
+                "SHE": "Shenzhen Exchange",
+                "KAR": "Karachi Stock Exchange",
+                "AU": "Australia Exchange",
+                "CM": "Colombo Stock Exchange",
+                "VN": "Vietnam Stocks",
+                "KLSE": "Kuala Lumpur Exchange",
+                "BA": "Buenos Aires Exchange",
+                "RO": "Bucharest Stock Exchange",
+                "SA": "Sao Paolo Exchange",
+                "MX": "Mexican Exchange",
+                "IL": "London IL",
+                "ZSE": "Zagreb Stock Exchange",
+                "TWO": "Taiwan OTC Exchange",
+                "MCX": "MICEX Moscow Russia",
+                "TW": "Taiwan Exchange",
+                "LIM": "Bolsa de Valores de Lima",
+                "MONEY": "Money Market Virtual Exchange",
+                "EUFUND": "Europe Fund Virtual Exchange",
+                "IS": "Istanbul Stock Exchange",
+                "FOREX": "FOREX",
+                "CC": "Cryptocurrencies",
+                "INDX": "Index",
+            },
         ),
         "security_types": Param(
             type="array",
             default=[
+                "rate",
                 "common_stock",
-                "index",
+                "capital_notes",
+                "unit",
+                "mutual_fund",
                 "preferred_stock",
+                "etc",
+                "money",
+                "etf",
+                "note",
+                "currency",
+                "index",
+                "fund",
             ],
             examples=[
+                "rate",
                 "common_stock",
-                "index",
+                "capital_notes",
+                "unit",
+                "mutual_fund",
                 "preferred_stock",
+                "etc",
+                "money",
+                "etf",
+                "note",
+                "currency",
+                "index",
+                "fund",
             ],
         ),
+        "delta_table_mode": Param(default="overwrite", type="string", enum=["overwrite", "append"]),
     },
 )
 def quote_historical():
@@ -265,8 +469,6 @@ if __name__ == "__main__":
         run_conf={
             "delta_table_mode": "overwrite",
             "exchanges": ["XETRA", "NASDAQ", "INDX"],
-            "security_types": [
-                "common_stock",
-            ],
+            "security_types": ["common_stock", "index", "preferred_stock"],
         },
     )
