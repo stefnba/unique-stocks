@@ -5,10 +5,11 @@ SELECT
     "Low" AS "low",
     "Close" AS "close",
     "Adjusted_close" AS "adjusted_close",
-    CAST("Volume" AS int) AS "volume",
+    CAST("Volume" AS bigint) AS "volume",
     "security" AS "security_code",
     "exchange" AS "exchange_code",
-    CURRENT_DATE AS "created_at"
+    year("date") AS "year",
+    CURRENT_TIMESTAMP AT TIME ZONE 'UTC' AS "created_at",
 FROM
     $quotes_raw
 WHERE
