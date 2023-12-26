@@ -9,6 +9,10 @@
             "name": "Database"
         },
         {
+            "path": "./services/lakehouse",
+            "name": "Lakehouse"
+        },
+        {
             "path": "./services/pipelines",
             "name": "Pipelines"
         },
