@@ -3,7 +3,8 @@ include .env
 
 # Python setup with pipenv
 ifeq ($(PY_VERSION),)
-PY_VERSION := 3.10
+PY_VERSION := 3.11
+
 endif
 
 setup:
@@ -24,8 +25,13 @@ install-prod:
 # Airflow local testing
 install-airflow-local:
 	source .venv/bin/activate && \
-	pip install "apache-airflow[celery]==2.7.0" --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.7.0/constraints-${PY_VERSION}.txt" && \
-	pip install apache-airflow-providers-postgres apache-airflow-providers-microsoft-azure
+	pip install "apache-airflow==2.8.0" --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.8.0/constraints-${PY_VERSION}.txt" && \
+	pip install \
+		celery \
+		apache-airflow-providers-postgres \
+		apache-airflow-providers-microsoft-azure \
+		apache-airflow-providers-apache-spark \
+		apache-airflow-providers-amazon
 setup-airflow-local:
 	export AIRFLOW_HOME=${CURDIR}/${AIRFLOW_HOME} && \
 	airflow db init && \
