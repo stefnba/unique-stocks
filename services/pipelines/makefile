@@ -52,5 +52,11 @@ docker-down:
 # 4000:8080 -> webserver
 # 4001:5418 -> meta db
 # 4002:5555 -> flower
+# 4010:9047 -> flower
 port-forward:
-	ssh -L 4000:localhost:8080 -L 4001:localhost:5418 -L 4002:localhost:5555 contabo
+	ssh \
+		-L 4000:localhost:8080 \
+		-L 4001:localhost:5418 \
+		-L 4002:localhost:5555 \
+		-L 4010:localhost:9047 \
+		contabo
