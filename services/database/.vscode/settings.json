@@ -1,22 +1,21 @@
 {
     "editor.formatOnSave": true,
-    "editor.codeActionsOnSave": {
-        "source.organizeImports": true,
-        "source.fixAll": false
-    },
+    "python.autoComplete.extraPaths": ["${workspaceFolder}/database"],
     "editor.defaultFormatter": "esbenp.prettier-vscode",
     "[python]": {
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports.ruff": "explicit",
+            "source.fixAll": "explicit"
+        },
         "editor.defaultFormatter": "ms-python.black-formatter"
     },
+    "ruff.path": ["./.venv/bin/ruff"],
+    "python.envFile": "${workspaceFolder}/.env",
     "python.defaultInterpreterPath": "./.venv/bin/python",
-    "python.formatting.provider": "black",
     "python.terminal.activateEnvironment": true,
     "python.analysis.typeCheckingMode": "basic",
     "editor.indentSize": 4,
-    "python.linting.lintOnSave": true,
-    "python.linting.enabled": true,
-    "python.linting.mypyEnabled": true,
-    "python.linting.mypyPath": "./.venv/bin/mypy",
     "search.exclude": {
         "**/node_modules": true,
         "**/bower_components": true,

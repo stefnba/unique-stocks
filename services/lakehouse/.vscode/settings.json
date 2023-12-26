@@ -1,0 +1,14 @@
+{
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.indentSize": 4,
+    "search.exclude": {
+        "**/node_modules": true,
+        "**/bower_components": true,
+        "**/*.code-search": true,
+        "**/__pycache__": true,
+    },
+    "files.exclude": {
+        "**/__pycache__": true,
+    }
+}

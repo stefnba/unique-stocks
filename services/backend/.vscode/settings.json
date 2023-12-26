@@ -11,7 +11,7 @@
     "editor.detectIndentation": false,
     "eslint.format.enable": true,
     "editor.codeActionsOnSave": {
-        "source.fixAll.eslint": true
+        "source.fixAll.eslint": "explicit"
     },
     "[postgres]": {
         "editor.defaultFormatter": "bradymholt.pgformatter"

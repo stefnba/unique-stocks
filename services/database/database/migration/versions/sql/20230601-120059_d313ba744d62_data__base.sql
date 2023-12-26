@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS "data"."country"(
     updated_at timestamp without time zone
 );
 
-CREATE TABLE "data"."entity"(
+CREATE TABLE IF NOT EXISTS "data"."entity"(
     "id" integer PRIMARY KEY,
     "lei" text UNIQUE,
     "type_id" integer,

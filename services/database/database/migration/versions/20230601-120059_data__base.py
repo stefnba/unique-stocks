@@ -7,8 +7,8 @@ Create Date: 2023-06-01 12:00:59.473292
 
 """
 from alembic import op
+
 from database.utils.migration_file import MigrationFile
-from database.utils import seed
 
 SCHEMA_NAME = "data"
 
@@ -22,7 +22,7 @@ COLUMNS_SECURITY_QUOTE_INTERVAL = ["id", "name", "min"]
 
 # revision identifiers, used by Alembic.
 revision = "d313ba744d62"
-down_revision = "b47ccf851657"
+down_revision = None
 branch_labels = None
 depends_on = None
 
@@ -32,28 +32,6 @@ migration_file = MigrationFile(revision)
 def upgrade() -> None:
     op.execute(migration_file.upgrade(wrap_in_trx=True))
 
-    seed.load_from_csv(
-        table=TABLE_NAME_SECURITY_TYPE,
-        schema=SCHEMA_NAME,
-        columns=COLUMNS_SECURITY_TYPE,
-    )
-    seed.load_from_csv(
-        table=TABLE_NAME_SECURITY_QUOTE_INTERVAL,
-        schema=SCHEMA_NAME,
-        columns=COLUMNS_SECURITY_QUOTE_INTERVAL,
-    )
-
 
 def downgrade() -> None:
-    seed.export_to_csv(
-        table=TABLE_NAME_SECURITY_TYPE,
-        schema=SCHEMA_NAME,
-        columns=COLUMNS_SECURITY_TYPE,
-    )
-    seed.export_to_csv(
-        table=TABLE_NAME_SECURITY_QUOTE_INTERVAL,
-        schema=SCHEMA_NAME,
-        columns=COLUMNS_SECURITY_QUOTE_INTERVAL,
-    )
-
     op.execute(migration_file.downgrade())

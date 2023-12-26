@@ -9,6 +9,10 @@
             "name": "Database"
         },
         {
+            "path": "./services/lakehouse",
+            "name": "Lakehouse"
+        },
+        {
             "path": "./services/pipelines",
             "name": "Pipelines"
         },
@@ -35,8 +39,7 @@
             "editor.defaultFormatter": "bradymholt.pgformatter"
         },
         "pgFormatter.placeholder": "\\%\\([a-zA-Z]+\\)[a-zA-Z]|\\$[a-zA-Z]+|\\$\\<[a-zA-Z]+>|\\$\\<[a-zA-Z]+\\:[a-zA-Z]+>",
-        "[python]": {
-            "editor.defaultFormatter": "ms-python.black-formatter"
-        },
+        "python.languageServer": "Pylance",
+        "notebook.formatOnSave.enabled": true,
     }
 }

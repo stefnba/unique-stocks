@@ -1,17 +1,15 @@
-from pydantic import BaseSettings, Field
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Connection(BaseSettings):
-    host: str = Field(env="DB_HOST", default="localhost")
-    port: int = Field(env="DB_PORT", default=5432)
-    dbname: str = Field(env="DB_NAME_STOCKS", default=None)
-    user: str = Field(env="DB_ADMIN_USER", default=None)
-    password: str = Field(env="DB_ADMIN_PASSWORD", default=None)
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sentive = False
+    host: str = Field(alias="DB_HOST", default="localhost")
+    port: int = Field(alias="DB_PORT", default=5432)
+    dbname: str = Field(alias="DB_NAME", default=None)
+    user: str = Field(alias="DB_ADMIN_USER", default=None)
+    password: str = Field(alias="DB_ADMIN_PASSWORD", default=None)
 
 
 def connection_string() -> str:
@@ -26,7 +24,4 @@ def connection_model():
     """
     Creates connection dict that can be used for psycopg.
     """
-    return Connection().dict()
-
-
-# %%
+    return Connection().model_dump()

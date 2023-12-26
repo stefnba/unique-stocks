@@ -1,8 +1,7 @@
-from typing import Optional, Literal
+from typing import Literal
+
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import (
-    Field,
-)
 
 
 class DataProductSettings(BaseSettings):
@@ -46,15 +45,9 @@ class LoggingSettings(BaseSettings):
     endpoint: str = Field(alias="LOGGING_REMOTE_ENDPOINT", default="/log/add")
 
 
-class AzureDataLakeSettings(BaseSettings):
-    storage_account_url: Optional[str] = Field(alias="AZURE_STORAGE_ACCOUNT_URL", default=None)
-    account_name: Optional[str] = Field(alias="AZURE_STORAGE_ACCOUNT_NAME", default=None)
-
-
 class ConfigSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     app: AppSettings = AppSettings()
-    azure: AzureDataLakeSettings = AzureDataLakeSettings()
     logging: LoggingSettings = LoggingSettings()
     data_product: DataProductSettings = DataProductSettings()

@@ -1,6 +1,5 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
-import os
 
 # retrieving your SQL Alchemy connection
 # if you are using Astro CLI this env variable will be set up automatically

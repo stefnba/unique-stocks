@@ -39,7 +39,7 @@ services:
         depends_on:
             - airflow-postgres
         ports:
-            - '8080:8080'
+            - '${AIRFLOW__WEBSERVER_PORT}:8080'
         entrypoint: ${AIRFLOW_HOME}/airflow_init.sh
         restart: always
 

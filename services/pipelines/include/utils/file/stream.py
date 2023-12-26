@@ -1,5 +1,18 @@
 from pathlib import Path
 
+from utils.filesystem.path import LocalPath, PathInput
+
+
+def read_large_file(file_path: PathInput, chunk_size=4 * 1024 * 1024):
+    """Generator function to read a large file in chunks."""
+
+    with open(LocalPath.create(file_path).uri, "rb") as file:
+        while True:
+            data = file.read(chunk_size)
+            if not data:
+                break
+            yield data
+
 
 class StreamDiskFile:
     """
@@ -17,8 +30,8 @@ class StreamDiskFile:
 
     def iter_content(self, chunk_size=1024 * 1024):
         """Iterate over file in chunks."""
-        size = self.get_file_size()
-        sizeMB = self.get_file_size() / 1024 / 1024
+        self.get_file_size()
+        self.get_file_size() / 1024 / 1024
 
         # logger.file.info(
         #     "Initiating file read with stream.",

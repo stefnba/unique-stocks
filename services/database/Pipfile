@@ -8,6 +8,8 @@ alembic = "*"
 python-dotenv = "*"
 psycopg2-binary = "*"
 psycopg = {extras = ["binary"], version = "*"}
+pydantic = "*"
+pydantic-settings = "*"
 
 [dev-packages]
 black = "*"

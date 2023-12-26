@@ -1,58 +1,94 @@
+# https://stackoverflow.com/questions/68194327/how-to-configure-celery-worker-on-distributed-airflow-architecture-using-docker
 version: '3.8'
 
 x-airflow-common: &airflow-common
-    build:
-        context: .
-        dockerfile: docker/Dockerfile
-        args:
-            AIRFLOW_HOME: ${AIRFLOW_HOME:-/app/airflow}
-            AIRFLOW_PROJ_DIR: ${AIRFLOW_PROJ_DIR:-./pipelines}
+    image: ${DOCKER_USER}/${DOCKER_IMAGE_NAME}
     env_file:
         - .env
     environment: &airflow-common-env
-        AIRFLOW_HOME: ${AIRFLOW_HOME:-/app/airflow}
+        ENV: Production
+        AIRFLOW_HOME: ${AIRFLOW_HOME}
+        TEMP_DIR_PATH: ${AIRFLOW_HOME}/temp
         AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@airflow-postgres/${AIRFLOW_DB_NAME}
-        PYTHONPATH: /app/airflow # allow packages from outside dags folder
+        PYTHONPATH: ${AIRFLOW_HOME}/include # add include custom code
+        AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
+        AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW__WEBSERVER__SECRET_KEY}
+        AIRFLOW__CORE__MAX_MAP_LENGTH: 100000
         AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+        AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@airflow-postgres/${AIRFLOW_DB_NAME}
+        AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+        LOGGING_REMOTE_HOST: http://unique-stocks-log
     user: '${AIRFLOW_UID:-50000}:0'
-    volumes:
-        - ${AIRFLOW_PROJ_DIR:-./pipelines}/dags:${AIRFLOW_HOME:-/app/airflow}/dags
-        - ${AIRFLOW_PROJ_DIR:-./pipelines}/logs:${AIRFLOW_HOME:-/app/airflow}/logs
-        - ${AIRFLOW_PROJ_DIR:-./pipelines}/plugins:${AIRFLOW_HOME:-/app/airflow}/plugins
-        - ${AIRFLOW_PROJ_DIR:-./pipelines}/shared:${AIRFLOW_HOME:-/app/airflow}/shared
     depends_on: &airflow-common-depends-on
-        airflow-redis:
-            condition: service_healthy
         airflow-postgres:
             condition: service_healthy
+    networks:
+        - unique-stocks-network
+        - default
 
 services:
     airflow-webserver:
-        environment:
-            <<: *airflow-common-env
+        <<: *airflow-common
+        container_name: uniquestocks-airflow-webserver
+        depends_on:
+            - airflow-postgres
+        ports:
+            - '127.0.0.1:${AIRFLOW__WEBSERVER_PORT}:8080'
+        entrypoint: ${AIRFLOW_HOME}/airflow_init.sh
+        restart: always
+
     airflow-scheduler:
+        <<: *airflow-common
+        container_name: uniquestocks-airflow-scheduler
+        command: scheduler
+        depends_on:
+            - airflow-webserver
+    
+    airflow-postgres:
+        image: postgres:14.5-alpine
+        container_name: uniquestocks-airflow-metadb
+        ports:
+            - '127.0.0.1:5418:5432'
+        restart: always
+        env_file:
+            - .env
         environment:
-            <<: *airflow-common-env
-    airflow-redis:
+            POSTGRES_USER: ${AIRFLOW_DB_USER}
+            POSTGRES_PASSWORD: ${AIRFLOW_DB_PASSWORD}
+            POSTGRES_DB: ${AIRFLOW_DB_NAME}
+        healthcheck:
+            test: ['CMD', 'pg_isready', '-U', 'airflow']
+            interval: 5s
+            retries: 5
+        volumes:
+            - uniquestocks-airflow-metadb-volume:/var/lib/postgresql/data/
+
+    redis:
         image: redis:latest
+        container_name: uniquestocks-airflow-redis
         expose:
             - 6379
         healthcheck:
             test: ['CMD', 'redis-cli', 'ping']
-            interval: 5s
+            interval: 10s
             timeout: 30s
             retries: 50
+            start_period: 30s
         restart: always
-    airflow-worker:
+
+    airflow-worker-1:
         <<: *airflow-common
-        command: celery worker
+        container_name: uniquestocks-airflow-worker-1
+        command: airflow celery worker
         healthcheck:
+            # yamllint disable rule:line-length
             test:
                 - 'CMD-SHELL'
-                - 'celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"'
-            interval: 10s
+                - 'celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}" || celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"'
+            interval: 30s
             timeout: 10s
             retries: 5
+            start_period: 30s
         environment:
             <<: *airflow-common-env
             # Required to handle warm shutdown of the celery workers properly
@@ -62,5 +98,90 @@ services:
         depends_on:
             <<: *airflow-common-depends-on
 
+    airflow-worker-2:
+        <<: *airflow-common
+        command: airflow celery worker
+        container_name: uniquestocks-airflow-worker-2
+        healthcheck:
+            # yamllint disable rule:line-length
+            test:
+                - 'CMD-SHELL'
+                - 'celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}" || celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"'
+            interval: 30s
+            timeout: 10s
+            retries: 5
+            start_period: 30s
+        environment:
+            <<: *airflow-common-env
+            # Required to handle warm shutdown of the celery workers properly
+            # See https://airflow.apache.org/docs/docker-stack/entrypoint.html#signal-propagation
+            DUMB_INIT_SETSID: '0'
+        restart: always
+        depends_on:
+            <<: *airflow-common-depends-on
+
+    airflow-worker-3:
+        <<: *airflow-common
+        container_name: uniquestocks-airflow-worker-3
+        command: airflow celery worker
+        healthcheck:
+            # yamllint disable rule:line-length
+            test:
+                - 'CMD-SHELL'
+                - 'celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}" || celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"'
+            interval: 30s
+            timeout: 10s
+            retries: 5
+            start_period: 30s
+        environment:
+            <<: *airflow-common-env
+            # Required to handle warm shutdown of the celery workers properly
+            # See https://airflow.apache.org/docs/docker-stack/entrypoint.html#signal-propagation
+            DUMB_INIT_SETSID: '0'
+        restart: always
+        depends_on:
+            <<: *airflow-common-depends-on
+
+    flower:
+        <<: *airflow-common
+        command: celery flower --basic-auth=admin:password
+        container_name: uniquestocks-airflow-flower
+        # profiles:
+        #     - flower
+        ports:
+            - '127.0.0.1:5555:5555'
+        healthcheck:
+            test: ['CMD', 'curl', '--fail', 'http://localhost:5555/']
+            interval: 30s
+            timeout: 10s
+            retries: 5
+            start_period: 30s
+        restart: always
+        depends_on:
+            <<: *airflow-common-depends-on
+
+
+    airflow-triggerer:
+        <<: *airflow-common
+        container_name: uniquestocks-airflow-triggerer
+        command: triggerer
+        healthcheck:
+            test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
+            interval: 30s
+            timeout: 10s
+            retries: 5
+            start_period: 30s
+        restart: always
+        depends_on:
+            <<: *airflow-common-depends-on
+
+
+
 volumes:
-    airflow-postgres-data:
+    uniquestocks-airflow-metadb-volume:
+  
+
+networks:
+    unique-stocks-network:
+        name: unique-stocks-network
+        external: true

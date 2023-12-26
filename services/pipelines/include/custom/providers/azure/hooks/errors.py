@@ -1,2 +1,0 @@
-class ContainerNotSpecifieError(Exception):
-    """"""

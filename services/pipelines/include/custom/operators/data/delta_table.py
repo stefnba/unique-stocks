@@ -1,17 +1,16 @@
+from typing import Optional
+
 from airflow.models.baseoperator import BaseOperator
 from airflow.utils.context import Context
+from custom.operators.data.types import DeltaTableOptionsDict, PyarrowOptionsDict
+from custom.providers.azure.hooks import converters
 from custom.providers.azure.hooks.dataset import AzureDatasetHook
-from utils.filesystem.data_lake.base import DataLakePathBase
-
-from custom.operators.data.utils import extract_dataset_path
-from custom.operators.data.types import DatasetPath, DeltaTableOptionsDict, PyarrowOptionsDict
-from custom.providers.azure.hooks.handlers.write import AzureDatasetWriteDeltaTableHandler
-from custom.providers.azure.hooks.handlers.read import (
-    AzureDatasetArrowHandler,
-    AzureDatasetReadBaseHandler,
-)
-
-from typing import Optional
+from custom.providers.azure.hooks.handlers.base import DatasetHandler
+from custom.providers.azure.hooks.handlers.read.azure import AzureDatasetArrowHandler
+from custom.providers.delta_table.hooks.delta_table import DeltaTableHook
+from pyarrow import dataset as ds
+from shared.types import DataLakeDatasetFileTypes
+from utils.filesystem.path import Path, PathInput
 
 
 class WriteDeltaTableFromDatasetOperator(BaseOperator):
@@ -22,9 +21,10 @@ class WriteDeltaTableFromDatasetOperator(BaseOperator):
 
     template_fields = ("destination_path", "dataset_path", "delta_table_options", "pyarrow_options")
 
-    dataset_path: DatasetPath
-    dataset_handler: Optional[type[AzureDatasetReadBaseHandler]] = None
-    destination_path: DatasetPath
+    dataset_path: PathInput
+    dataset_handler: type[DatasetHandler]
+    destination_path: PathInput
+    dataset_format: DataLakeDatasetFileTypes
     conn_id: str
     delta_table_options: Optional[DeltaTableOptionsDict]
     pyarrow_options: Optional[PyarrowOptionsDict]
@@ -33,9 +33,10 @@ class WriteDeltaTableFromDatasetOperator(BaseOperator):
         self,
         task_id: str,
         adls_conn_id: str,
-        dataset_path: DatasetPath,
-        destination_path: str | DataLakePathBase,
-        dataset_handler: Optional[type[AzureDatasetReadBaseHandler]] = None,
+        dataset_path: PathInput,
+        destination_path: PathInput,
+        dataset_handler: type[DatasetHandler] = AzureDatasetArrowHandler,
+        dataset_format: DataLakeDatasetFileTypes = "parquet",
         delta_table_options: Optional[DeltaTableOptionsDict] = None,
         pyarrow_options: Optional[PyarrowOptionsDict] = None,
         **kwargs,
@@ -47,38 +48,36 @@ class WriteDeltaTableFromDatasetOperator(BaseOperator):
 
         self.dataset_handler = dataset_handler
         self.dataset_path = dataset_path
+        self.dataset_format = dataset_format
         self.destination_path = destination_path
         self.conn_id = adls_conn_id
         self.delta_table_options = delta_table_options
         self.pyarrow_options = pyarrow_options
 
-    def execute(self, context: Context):
+    def execute(self, context: Context) -> str:
         self.context = context
-        self.hook = AzureDatasetHook(conn_id=self.conn_id)
 
         dataset = self.read()
+
         return self.write(dataset=dataset)
 
-    def read(self):
+    def read(self) -> ds.FileSystemDataset:
         """Read a dataset using `AzureDatasetArrowHandler`."""
-        source_path = extract_dataset_path(path=self.dataset_path, context=self.context)
 
-        return self.hook.read(
-            source_path=source_path["path"],
-            source_container=source_path["container"],
-            dataset_type="ArrowDataset",
-            handler=self.dataset_handler or AzureDatasetArrowHandler,
+        return AzureDatasetHook(conn_id=self.conn_id).read(
+            source_path=self.dataset_path,
+            dataset_converter=converters.PyArrowDataset,
+            source_format=self.dataset_format,
+            handler=self.dataset_handler,
             **(self.pyarrow_options or {}),
         )
 
-    def write(self, dataset):
-        """Write dataset with `AzureDatasetWriteDeltaTableHandler`."""
-        path = extract_dataset_path(path=self.destination_path, context=self.context)
+    def write(self, dataset: ds.FileSystemDataset) -> str:
+        """Write dataset using `DeltaTableHook`."""
 
-        return self.hook.write(
-            dataset=dataset,
-            destination_container=path["container"],
-            destination_path=path["path"],
-            handler=AzureDatasetWriteDeltaTableHandler,
+        DeltaTableHook(conn_id=self.conn_id).write(
+            data=dataset,
+            path=self.destination_path,
             **(self.delta_table_options or {}),
         )
+        return Path.create(self.destination_path).to_json()

@@ -1,0 +1,6 @@
+EodHistoricalData_FocusExchange_A:
+    key: EodHistoricalData_FocusExchange_A
+    value: ['XETRA', 'NASDAQ', 'NYSE', 'SW', 'LSE', 'INDX']
+EodHistoricalData_FocusSecType_A:
+    key: EodHistoricalData_FocusSecType_A
+    value: ['common_stock', 'index', 'preferred_stock']

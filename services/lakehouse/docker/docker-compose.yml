@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+    dremio:
+        container_name: uniquestocks-lakehouse
+        image: dremio/dremio-oss:latest
+        ports:
+            - 127.0.0.1:9047:9047
+            - 127.0.0.1:31010:31010
+            - 127.0.0.1:32010:32010

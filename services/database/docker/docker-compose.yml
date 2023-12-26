@@ -4,8 +4,6 @@ services:
     db:
         container_name: unique-stocks-db-pg
         image: postgres:14.5-alpine
-        ports:
-            - '${DB_PORT}:5432'
         restart: always
         env_file:
             - .env
@@ -17,13 +15,14 @@ services:
             - DB_APP_USER=${DB_APP_USER}
             - DB_APP_PASSWORD=${DB_APP_PASSWORD}
         volumes:
-            - ./scripts:/docker-entrypoint-initdb.d/
-            - pg-data:/var/lib/postgresql/data/
+            - ./scripts/db:/docker-entrypoint-initdb.d/
+            - unique-stocks-pg-data:/var/lib/postgresql/data/
         networks:
             - unique-stocks-network
 
 volumes:
-    pg-data:
+    unique-stocks-pg-data:
+        name: "unique-stocks-pg-data"
 
 networks:
     unique-stocks-network:

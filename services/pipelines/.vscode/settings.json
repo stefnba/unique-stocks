@@ -1,28 +1,26 @@
 {
     "editor.formatOnSave": true,
-    "editor.codeActionsOnSave": {
-        "source.organizeImports": true,
-        "source.fixAll": false
-    },
+    // "editor.codeActionsOnSave": {
+    //     "source.organizeImports": true,
+    //     "source.fixAll": false
+    // },
     "python.autoComplete.extraPaths": ["${workspaceFolder}/include"],
     "editor.defaultFormatter": "esbenp.prettier-vscode",
     "[python]": {
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit",
+            "source.organizeImports.ruff": "explicit",
+            "source.fixAll": "explicit"
+        },
         "editor.defaultFormatter": "ms-python.black-formatter"
     },
-
+    "ruff.path": ["./.venv/bin/ruff"],
     "python.envFile": "${workspaceFolder}/.env",
     "python.defaultInterpreterPath": "./.venv/bin/python",
-    "python.formatting.provider": "black",
     "python.terminal.activateEnvironment": true,
     "python.analysis.typeCheckingMode": "basic",
     "editor.indentSize": 4,
-    "python.linting.lintOnSave": true,
-    "ruff.path": ["./.venv/bin/ruff"],
-    "python.linting.enabled": true,
-    "python.linting.mypyEnabled": true,
-    "python.linting.mypyPath": "./.venv/bin/mypy",
-    // "python.linting.flake8Enabled": false,
-    // "python.linting.pylintEnabled": false,
     "search.exclude": {
         "**/node_modules": true,
         "**/bower_components": true,
