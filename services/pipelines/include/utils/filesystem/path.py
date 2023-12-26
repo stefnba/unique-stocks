@@ -66,6 +66,7 @@ class Path(BaseModel):
 
     @classmethod
     def create_temp_file_path(cls, format: DataLakeDataFileTypes = "parquet"):
+        """Create a temporary file path for the format specified."""
         return cls(root=cls._temp_dir.get_default(), path=uuid.uuid4().hex + f".{format}")  # type: ignore
 
     @classmethod
@@ -186,6 +187,19 @@ class LocalPath(Path):
     def create_temp_dir_path(cls):
         p = super().create_temp_dir_path()
         p.create_dir()
+        return p
+
+    @classmethod
+    def create_temp_file_path(cls, format: DataLakeDataFileTypes = "parquet"):
+        """
+        Create a temporary file path for the format specified. If a parent directory does not exist, create it.
+        """
+        p = super().create_temp_file_path(format)
+
+        # create parent directory if not exists
+        parent = p.to_pathlib().parent
+        if not parent.exists():
+            parent.mkdir(parents=True, exist_ok=True)
         return p
 
 

@@ -177,10 +177,10 @@ class AzureDataLakeStorageHook(AzureCredentialBaseHook):
         container: DataLakeZone,
         blob: str,
     ):
+        """Download a blob in chunks and directly save content to a local file."""
         blob_client = self.blob_service_client.get_blob_client(container=container, blob=blob)
 
         file_path = LocalPath.create(file_path)
-        file_path.create_dir()  # create all dirs if they don't exist yet
 
         stream = blob_client.download_blob()
 
