@@ -8,7 +8,7 @@ from airflow.decorators import dag, task
 from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
 from custom.providers.azure.hooks.handlers.read.azure import AzureDatasetArrowHandler
 from shared import airflow_dataset, schema
-from shared.path import AdlsPath, EntityPath, Path
+from shared.path import AdlsPath, EntityPath, LocalPath, Path
 from utils.dag.xcom import XComGetter
 
 
@@ -91,7 +91,7 @@ def unizp_transform(path):
     hook = AzureDataLakeStorageHook(conn_id="azure_data_lake")
 
     path = Path.create(path=path)
-    file_path = Path.create_temp_file_path(format="zip")
+    file_path = LocalPath.create_temp_file_path(format="zip")
 
     # download to file
     hook.stream_to_local_file(**path.afls_path, file_path=file_path)
@@ -146,7 +146,7 @@ sink = WriteDeltaTableFromDatasetOperator(
 
 
 @dag(
-    schedule=None,
+    schedule="@monthly",
     start_date=datetime(2023, 1, 1),
     catchup=False,
     render_template_as_native_obj=True,
