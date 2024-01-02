@@ -13,9 +13,7 @@ x-spark-common: &spark-common
         - unique-stocks-network
         - default
     volumes:
-        - ./apps:/opt/spark/apps
-        - spark-logs:/opt/spark/spark-events
-        - ./workspace:/opt/workspace
+        spark-logs:/opt/spark/spark-events
 
 services:
     spark-master:

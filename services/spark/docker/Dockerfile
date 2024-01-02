@@ -3,8 +3,6 @@ FROM python:3.11-bullseye as cluster-base
 ENV SPARK_VERSION=3.5.0
 ENV SPARK_MAJOR_VERSION=3.5
 
-ENV WORKSPACE = /opt/workspace
-
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       sudo \

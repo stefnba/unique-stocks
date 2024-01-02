@@ -8,6 +8,7 @@ if [ "$SPARK_WORKLOAD" == "master" ];
 then
     /usr/sbin/sshd # start ssh server
     echo "Starting Spark Master..."
+    (env | sed 's/^/export /') > /root/environment_variables.sh
     start-master.sh -p $SPARK_MASTER_PORT
 elif [ "$SPARK_WORKLOAD" == "worker" ];
 then
