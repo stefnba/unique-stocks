@@ -1,0 +1,59 @@
+version: '3.8'
+
+x-spark-common: &spark-common
+    build:
+        context: .
+        dockerfile: docker/Dockerfile
+        target: spark
+    environment:
+        - SPARK_NO_DAEMONIZE=true
+    env_file:
+        - .env
+    networks:
+        - unique-stocks-network
+        - default
+    volumes:
+        - ./apps:/opt/spark/apps
+        - spark-logs:/opt/spark/spark-events
+        - ./workspace:/opt/workspace
+
+services:
+    spark-master:
+        <<: *spark-common
+        container_name: uniquestocks-spark-master
+        entrypoint: ['./entrypoint.sh', 'master']
+        healthcheck:
+            test: ['CMD', 'curl', '-f', 'http://localhost:8080']
+            interval: 5s
+            timeout: 3s
+            retries: 3
+        ports:
+            - '9090:8080' # web ui
+            - '7077:7077' # master
+            - '8888:8888' # notebook server
+        expose:
+          - 22
+
+    spark-history:
+        <<: *spark-common
+        container_name: uniquestocks-spark-history
+        entrypoint: ['./entrypoint.sh', 'history']
+        depends_on:
+            - spark-master
+        ports:
+            - '18080:18080'
+
+    spark-worker:
+        <<: *spark-common
+        entrypoint: ['./entrypoint.sh', 'worker']
+        container_name: uniquestocks-spark-worker
+        depends_on:
+            - spark-master
+
+volumes:
+    spark-logs:
+
+networks:
+    unique-stocks-network:
+        name: unique-stocks-network
+        external: true
