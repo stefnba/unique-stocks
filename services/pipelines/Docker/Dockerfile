@@ -15,7 +15,10 @@ ENV PYTHONUNBUFFERED=1
 
 USER root
 
-RUN sudo apt update -y && sudo apt install -y build-essential libpq-dev
+RUN sudo apt update -y && sudo apt install -y \
+    build-essential \
+    libpq-dev \
+    openssh-client 
 
 USER airflow
 
@@ -36,7 +39,9 @@ RUN pip install \
     apache-airflow-providers-postgres \
     apache-airflow-providers-microsoft-azure \
     apache-airflow-providers-apache-spark \
-    apache-airflow-providers-amazon
+    apache-airflow-providers-amazon \
+    apache-airflow-providers-ssh \
+    apache-airflow-providers-sftp
 
 WORKDIR $AIRFLOW_HOME
 
