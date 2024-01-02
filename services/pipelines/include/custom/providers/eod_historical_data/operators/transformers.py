@@ -1,12 +1,11 @@
-from airflow.models.baseoperator import BaseOperator
-from airflow.utils.context import Context
-from dataclasses import dataclass
 import datetime
-from utils.filesystem.path import PathInput, AdlsPath, LocalPath
-from custom.providers.azure.hooks.dataset import AzureDatasetHook, DatasetHandlers, DatasetConverters
-
+from dataclasses import dataclass
 
 import polars as pl
+from airflow.models.baseoperator import BaseOperator
+from airflow.utils.context import Context
+from custom.providers.azure.hooks.dataset import AzureDatasetHook, DatasetConverters, DatasetHandlers
+from utils.filesystem.path import AdlsPath, LocalPath, PathInput
 
 
 @dataclass
