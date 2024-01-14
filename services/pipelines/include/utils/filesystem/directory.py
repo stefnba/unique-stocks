@@ -1,6 +1,6 @@
+import os
 import typing
 from dataclasses import dataclass
-import os
 from pathlib import Path
 
 
