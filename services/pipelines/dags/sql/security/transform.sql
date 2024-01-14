@@ -2,7 +2,7 @@ CREATE OR REPLACE TEMP TABLE "tbl" AS
 SELECT
     *
 FROM
-    $security_raw;
+    read_csv_auto('$securities/*/*.csv', HEADER=TRUE, hive_partitioning=0);
 
 ALTER TABLE "tbl"
     ADD COLUMN IF NOT EXISTS "isin" TEXT;

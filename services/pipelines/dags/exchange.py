@@ -2,72 +2,70 @@
 # pylint: disable=W0106:expression-not-assigned, C0415:import-outside-toplevel
 # pyright: reportUnusedExpression=false
 from datetime import datetime
-from typing import TypedDict
 
-import pyarrow as pa
 from airflow.decorators import dag, task
-from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
-from custom.operators.data.transformation import DuckDbTransformationOperator
+from conf.spark import config as spark_config
+from conf.spark import packages as spark_packages
+from custom.providers.duckdb.operators.transform import DuckDbTransformOperator
+from custom.providers.spark.operators.submit import SparkSubmitSHHOperator
 from shared import airflow_dataset
-from shared.path import AdlsPath, ExchangePath
+from shared.path import S3RawZonePath, S3TempPath
 from utils.dag.xcom import XComGetter
 
-
-class QuoteSecurity(TypedDict):
-    exchange_code: str
-    security_code: str
+AWS_DATA_LAKE_CONN_ID = "aws"
+AZURE_DATA_LAKE_CONN_ID = "azure_data_lake"
 
 
 @task
 def ingest():
-    from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageHook
+    from airflow.providers.amazon.aws.hooks.s3 import S3Hook
     from custom.providers.eod_historical_data.hooks.api import EodHistoricalDataApiHook
-    from shared.path import ExchangePath
 
     exchange_raw = EodHistoricalDataApiHook().exchange()
 
-    destination = ExchangePath.raw(source="EodHistoricalData", format="json")
+    destination = S3RawZonePath(source="EodHistoricalData", type="json", product="exchange")
 
-    hook = AzureDataLakeStorageHook(conn_id="azure_data_lake")
-    hook.upload(**destination.afls_path, data=exchange_raw)
+    hook = S3Hook(aws_conn_id=AWS_DATA_LAKE_CONN_ID)
+    hook.load_string(string_data=exchange_raw, key=destination.key, bucket_name=destination.bucket)
 
-    return destination.to_dict()
+    return destination.uri
 
 
-transform = DuckDbTransformationOperator(
+transform = DuckDbTransformOperator(
     task_id="transform",
-    adls_conn_id="azure_data_lake",
-    destination_path=AdlsPath.create_temp_file_path(),
+    conn_id=AWS_DATA_LAKE_CONN_ID,
+    destination_path=S3TempPath.create_file().uri,
     query="sql/exchange/transform.sql",
-    data={"exchange": XComGetter.pull_with_template(task_id="ingest")},
+    query_params={"exchange": XComGetter.pull_with_template("ingest")},
 )
 
 
-sink = WriteDeltaTableFromDatasetOperator(
-    task_id="sink",
-    adls_conn_id="azure_data_lake",
-    dataset_path=XComGetter.pull_with_template(task_id="transform"),
-    destination_path=ExchangePath.curated(),
-    pyarrow_options={
-        "schema": pa.schema(
-            [
-                pa.field("name", pa.string()),
-                pa.field("code", pa.string()),
-                pa.field("operating_mic", pa.string()),
-                pa.field("currency", pa.string()),
-                pa.field("country", pa.string()),
-            ]
-        )
+sink = SparkSubmitSHHOperator(
+    task_id="sink_to_iceberg",
+    app_file_name="sink_exchange.py",
+    ssh_conn_id="ssh_test",
+    spark_conf={
+        **spark_config.aws,
+        **spark_config.iceberg,
     },
-    delta_table_options={
-        "mode": "overwrite",
+    spark_packages=[*spark_packages.aws, *spark_packages.iceberg],
+    connections=[AWS_DATA_LAKE_CONN_ID, AZURE_DATA_LAKE_CONN_ID],
+    dataset=XComGetter.pull_with_template("transform"),
+    conn_env_mapping={
+        "AWS_ACCESS_KEY_ID": "AWS__LOGIN",
+        "AWS_SECRET_ACCESS_KEY": "AWS__PASSWORD",
+        "AWS_REGION": "AWS__EXTRA__REGION_NAME",
+        "ADLS_STORAGE_ACCOUNT_NAME": "AZURE_DATA_LAKE__HOST",
+        "ADLS_CLIENT_ID": "AZURE_DATA_LAKE__LOGIN",
+        "ADLS_CLIENT_SECRET": "AZURE_DATA_LAKE__PASSWORD",
+        "ADLS_TENANT_ID": "AZURE_DATA_LAKE__EXTRA__TENANT_ID",
     },
     outlets=[airflow_dataset.Exchange],
 )
 
 
 @dag(
-    schedule="@daily",
+    schedule="@weekly",
     start_date=datetime(2023, 1, 1),
     catchup=False,
     render_template_as_native_obj=True,
