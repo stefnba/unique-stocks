@@ -1,5 +1,6 @@
 import typing as t
 from datetime import datetime as dt
+from typing import ClassVar
 from urllib.parse import urlsplit
 from uuid import uuid4
 
@@ -9,6 +10,8 @@ from utils.filesystem.storage.utils import flatten_list, is_valid_adls_schema, i
 
 
 class StoragePath:
+    __version__: ClassVar[int] = 1
+
     _scheme: Schemes
     _dirs: t.Optional[list[str]] = []
     _root: t.Optional[str] = None
@@ -28,6 +31,19 @@ class StoragePath:
         else:
             p = self.join_components(scheme, root, path)
             self._parse(p)
+
+    def __str__(self) -> str:
+        return self.uri
+
+    def __repr__(self) -> str:
+        return f"<StoragePath uri='{self.uri}'>"
+
+    def serialize(self):
+        return str(self.uri)
+
+    @staticmethod
+    def deserialize(uri: str, version: int):
+        return StoragePath(uri)
 
     def _parse(
         self,
@@ -275,7 +291,7 @@ class ADLSPath(StoragePath):
         return self.root
 
     @property
-    def blob(self):
+    def blob(self) -> str:
         """Return blob."""
         return self.path
 
@@ -290,7 +306,7 @@ class S3Path(StoragePath):
         return self.root
 
     @property
-    def key(self):
+    def key(self) -> str:
         """Return key."""
         return self.path
 
@@ -324,6 +340,7 @@ class UtilityStoragePath:
     path_prefix: t.Optional[str] = None
 
     _path: StoragePath
+    path_factory: t.Type[StoragePath] = StoragePath
 
     @property
     def path(self):
@@ -345,27 +362,20 @@ class TempStoragePath(UtilityStoragePath, t.Generic[T]):
 
     _path: T
 
-    # def __init__(self) -> None:
-    #     path = self.create_path()
+    def __init__(self) -> None:
+        path = StoragePath._join_path_elements(
+            self.path_prefix,
+            uuid4().hex,
+        )
 
-    # self._path = StoragePath(
-    #     path=path,
-    #     root=self.root,
-    #     scheme=self.scheme,
-    # )
+        self._path = self.path_factory(path=path, root=self.root, scheme=self.scheme)  # type: ignore
 
     @property
     def path(self) -> T:
         return self._path
 
-    def create_path(self):
-        return StoragePath._join_path_elements(
-            self.path_prefix,
-            uuid4().hex,
-        )
-
     @classmethod
-    def create_file(cls, type: FileTypes):
+    def create_file(cls, type: FileTypes = "parquet"):
         c = cls()
 
         current_path = c.path._dirs
@@ -383,8 +393,10 @@ class TempStoragePath(UtilityStoragePath, t.Generic[T]):
         return cls()
 
 
-class RawZoneStoragePath(UtilityStoragePath):
+class RawZoneStoragePath(UtilityStoragePath, t.Generic[T]):
     """Creae a path to a raw zone of a Cloud Data Lake."""
+
+    _path: T
 
     def __init__(self, product, source, type: FileTypes, partition: t.Optional[t.Dict[str, str]] = None) -> None:
         self.now = dt.now()
@@ -399,19 +411,22 @@ class RawZoneStoragePath(UtilityStoragePath):
             uuid4().hex + "." + type,
         )
 
-        self._path = StoragePath(
-            path=path,
-            root=root,
-            scheme=self.scheme,
-        )
+        self._path = self.path_factory(path=path, root=root, scheme=self.scheme)  # type: ignore
 
-    def add_partition(self, partition: t.Dict[str, str]):
+    @property
+    def path(self) -> T:
+        return self._path
+
+    def add_partition(self, partition: t.Dict[str, str]) -> T:
         """Add partition to path."""
 
-        current_dirs = self._path.dirs
-        self._path.dirs = StoragePath._join_path_elements(
-            current_dirs, *self.create_partition_dir_path_element(partition)
+        path = StoragePath._join_path_elements(
+            self.path.dirs,
+            *self.create_partition_dir_path_element(partition),
+            (uuid4().hex + "." + self.path.extension) if self.path.extension else None,
         )
+
+        return self.path_factory(path=path, root=self.root, scheme=self.scheme)  # type: ignore
 
     def create_partition_dir_path_element(self, dict: t.Dict[str, str]):
         """Create a path element for a partition based in Hive partitioning flavor."""
