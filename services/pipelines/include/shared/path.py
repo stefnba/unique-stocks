@@ -1,137 +1,71 @@
-from utils.filesystem import path as PathAlias
-from utils.filesystem.path import AdlsDatasetPath, PathElement
+import typing as t
 
-from shared.types import DataLakeDataFileTypes, DataLakeDatasetFileTypes, DataSources
+from utils.filesystem.storage.path import ADLSPath, RawZoneStoragePath, S3Path, StoragePath, TempStoragePath
 
-# For re-export
-Path = PathAlias.Path
-AdlsPath = PathAlias.AdlsPath
-LocalPath = PathAlias.LocalPath
+T = t.TypeVar("T", bound="StoragePath")
 
 
-class ExchangePath(AdlsDatasetPath):
-    product = "exchange"
+S3_BUCKET = "uniquestocks"
+S3_ROOT = "data-lake"
 
 
-class EntityPath(AdlsDatasetPath):
-    product = "entity"
+class S3TempPath(TempStoragePath[S3Path]):
+    root = S3_BUCKET
+    scheme = "s3"
+    path_prefix = f"{S3_ROOT}/temp"
 
-    @classmethod
-    def raw(cls, format: DataLakeDataFileTypes, source: DataSources, **kwargs):
-        c = cls(format=format, source=source, **kwargs)
-        return AdlsPath(container="raw", blob=c.uri, format=format)
+    path_factory = S3Path
 
+    @property
+    def bucket(self) -> str:
+        return self.path.bucket
 
-class EntityIsinPath(AdlsDatasetPath):
-    product = "entity_isin"
-
-    @classmethod
-    def raw(cls, format: DataLakeDataFileTypes, source: DataSources, **kwargs):
-        c = cls(format=format, source=source, **kwargs)
-        return AdlsPath(container="raw", blob=c.uri, format=format)
+    @property
+    def key(self) -> str:
+        return self.path.key
 
 
-class SecurityPath(AdlsDatasetPath):
-    product = "security"
+class S3RawZonePath(RawZoneStoragePath[S3Path]):
+    root = S3_BUCKET
+    scheme = "s3"
+    path_prefix = f"{S3_ROOT}/raw"
 
-    dir_template = [
-        "product",
-        "source",
-        PathElement(name="exchange", hive_flavor=True),
-        PathElement(name="year", hive_flavor=True),
-        PathElement(name="month", hive_flavor=True),
-        PathElement(name="day", hive_flavor=True),
-    ]
-    filename_template = [
-        "datetime",
-        "product",
-        "source",
-        "exchange",
-    ]
+    path_factory = S3Path
 
-    @classmethod
-    def raw(cls, exchange: str, format: DataLakeDatasetFileTypes, source: DataSources):
-        return super().raw(format=format, source=source, exchange=exchange)
+    @property
+    def bucket(self) -> str:
+        return self.path.bucket
+
+    @property
+    def key(self) -> str:
+        return self.path.key
 
 
-class SecurityQuotePerformancePath(AdlsDatasetPath):
-    product = "quote_performance"
+class ADLSRawZonePath(RawZoneStoragePath[ADLSPath]):
+    root = "raw"
+    scheme = "abfs"
+
+    path_factory = ADLSPath
+
+    @property
+    def container(self) -> str:
+        return self.path.container
+
+    @property
+    def blob(self) -> str:
+        return self.path.blob
 
 
-class SecurityQuotePath(AdlsDatasetPath):
-    product = "security_quote"
+class ADLSTempPath(TempStoragePath[ADLSPath]):
+    root = "temp"
+    scheme = "abfs"
 
-    dir_template = [
-        "product",
-        "source",
-        "type",
-        "datetime",
-        PathElement(name="exchange", hive_flavor=True),
-        PathElement(name="security", hive_flavor=True),
-    ]
-    filename_template = [
-        "datetime",
-        "product",
-        "source",
-        "type",
-        "exchange",
-        "security",
-    ]
+    path_factory = ADLSPath
 
-    @classmethod
-    def raw_historical(cls, security: str, exchange: str, format: DataLakeDatasetFileTypes, source: DataSources):
-        type = "historical"
-        return super().raw(format=format, source=source, exchange=exchange, security=security, type=type)
+    @property
+    def container(self) -> str:
+        return self.path.container
 
-    @classmethod
-    def raw_update(cls, security: str, exchange: str, format: DataLakeDatasetFileTypes, source: DataSources):
-        type = "update"
-        return super().raw(format=format, source=source, exchange=exchange, security=security, type=type)
-
-
-class IndexMemberPath(AdlsDatasetPath):
-    product = "index_member"
-
-    dir_template = [
-        "product",
-        "source",
-        PathElement(name="index", hive_flavor=True),
-        PathElement(name="year", hive_flavor=True),
-        PathElement(name="month", hive_flavor=True),
-        PathElement(name="day", hive_flavor=True),
-    ]
-    filename_template = [
-        "datetime",
-        "product",
-        "source",
-        "index",
-    ]
-
-    @classmethod
-    def raw(cls, index: str, format: DataLakeDatasetFileTypes, source: DataSources):
-        return super().raw(format=format, source=source, index=index)
-
-
-class FundamentalPath(AdlsDatasetPath):
-    product = "fundamental"
-
-    dir_template = [
-        "product",
-        "source",
-        PathElement(name="entity", hive_flavor=True),
-        PathElement(name="exchange", hive_flavor=True),
-        PathElement(name="year", hive_flavor=True),
-        PathElement(name="month", hive_flavor=True),
-        PathElement(name="day", hive_flavor=True),
-    ]
-    filename_template = [
-        "datetime",
-        "product",
-        "source",
-        "entity",
-        "exchange",
-    ]
-
-    @classmethod
-    def raw(cls, entity: str, exchange: str, format: DataLakeDatasetFileTypes, source: DataSources):
-        return super().raw(format=format, source=source, entity=entity, exchange=exchange)
+    @property
+    def blob(self) -> str:
+        return self.path.blob
