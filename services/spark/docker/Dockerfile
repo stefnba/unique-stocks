@@ -18,8 +18,6 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -p ${WORKSPACE}
-
 ENV JAVA_HOME /usr/lib/jvm/java-11-openjdk-arm64/
 
 RUN pip3 install pyspark
