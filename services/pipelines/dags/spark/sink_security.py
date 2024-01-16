@@ -28,6 +28,12 @@ data = spark.read.parquet(
 
 spark.sql(
     """
-    INSERT OVERWRITE security SELECT * FROM data;
+    INSERT OVERWRITE
+        security (code, name, isin, country, currency, exchange_code, type, created_at, updated_at) 
+    SELECT code, name, isin, country, currency, exchange_code, type, current_timestamp(), NULL
+    FROM data;
     """
 )
+
+
+spark.stop()
