@@ -40,3 +40,18 @@ run-iceberg-rest:
 	docker compose -f docker/docker-compose.yml -f docker/iceberg-rest/docker-compose.yml --project-directory . up -d --build --force-recreate --remove-orphans
 run-iceberg-local:
 	docker compose -f docker/docker-compose.yml -f docker/local/docker-compose.yml --project-directory . up -d --build --force-recreate --remove-orphans
+
+
+
+notebook:
+# stark a jupyter notebook server
+	docker exec -it uniquestocks-spark-master bash -c \
+		"cd / \
+		&& jupyter notebook \
+		--allow-root \
+		--no-browser \
+		--port=8888 \
+		--ServerApp.ip='0.0.0.0' \
+		--notebook-dir=/opt/spark/notebooks \
+		--IdentityProvider.token='${JUPYTER_TOKEN}' \
+		"
