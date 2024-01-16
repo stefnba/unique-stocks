@@ -8,29 +8,27 @@ from datetime import datetime
 from airflow.decorators import dag
 from custom.providers.spark.operators.submit import SparkSubmitSHHOperator
 
+AWS_DATA_LAKE_CONN_ID = "aws"
+from conf.spark import config as spark_config
+from conf.spark import packages as spark_packages
+
 
 @dag(
     schedule=None,
     start_date=datetime(2023, 1, 1),
     catchup=False,
     render_template_as_native_obj=True,
-    tags=["security"],
+    tags=["seed", "ddl"],
 )
 def create_iceberg_tables():
-    SparkSubmitSHHOperator(
+    create_tables = SparkSubmitSHHOperator(
         task_id="create_iceberg_tables",
         ssh_conn_id="ssh_test",
         app_file_name="ddl.py",
         spark_conf={
-            "spark.sql.catalog.uniquestocks_dev": "org.apache.iceberg.spark.SparkCatalog",
-            "spark.sql.catalog.uniquestocks_dev.catalog-impl": "org.apache.iceberg.aws.glue.GlueCatalog",
-            "spark.sql.catalog.uniquestocks_dev.warehouse": "s3a://uniquestocks-datalake-dev/curated/iceberg/",
-            "spark.sql.catalog.uniquestocks_dev.io-impl": "org.apache.iceberg.aws.s3.S3FileIO",
+            **spark_config.iceberg,
         },
-        spark_packages=[
-            "org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.4.3",
-            "org.apache.iceberg:iceberg-aws-bundle:1.4.3",
-        ],
+        spark_packages=[*spark_packages.iceberg],
         connections=["aws"],
         conn_env_mapping={
             "AWS_ACCESS_KEY_ID": "AWS__LOGIN",
@@ -38,6 +36,26 @@ def create_iceberg_tables():
             "AWS_REGION": "AWS__EXTRA__REGION_NAME",
         },
     )
+
+    seed_tables = SparkSubmitSHHOperator(
+        task_id="seed_tables",
+        ssh_conn_id="ssh_test",
+        app_file_name="seed_tables.py",
+        spark_conf={
+            **spark_config.aws,
+            **spark_config.iceberg,
+        },
+        spark_packages=[*spark_packages.aws, *spark_packages.iceberg],
+        connections=[AWS_DATA_LAKE_CONN_ID],
+        conn_env_mapping={
+            "AWS_ACCESS_KEY_ID": "AWS__LOGIN",
+            "AWS_SECRET_ACCESS_KEY": "AWS__PASSWORD",
+            "AWS_REGION": "AWS__EXTRA__REGION_NAME",
+        },
+        dataset="s3a://uniquestocks/data-lake/seed/",
+    )
+
+    create_tables >> seed_tables
 
 
 dag_object = create_iceberg_tables()
