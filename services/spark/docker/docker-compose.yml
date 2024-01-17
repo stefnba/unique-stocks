@@ -7,9 +7,6 @@ x-spark-common: &spark-common
         target: spark
     environment:
         - SPARK_NO_DAEMONIZE=true
-        - AWS_REGION=eu-central-1
-        - AWS_ACCESS_KEY_ID=AKIASTMZ635OXRGQ4FTA
-        - AWS_SECRET_ACCESS_KEY=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
     env_file:
         - .env
     networks:
