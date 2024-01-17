@@ -1,6 +1,4 @@
-import json
 import polars as pl
-from custom.providers.eod_historical_data.transformers.utils import deep_get
 from custom.providers.eod_historical_data.transformers.fundamental.base import EoDFundamentalTransformer, Period
 
 

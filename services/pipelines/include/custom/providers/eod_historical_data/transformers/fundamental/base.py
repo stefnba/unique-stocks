@@ -1,5 +1,6 @@
-from typing import Literal, Optional
 import json
+from typing import Literal, Optional
+
 import polars as pl
 from custom.providers.eod_historical_data.transformers.utils import deep_get
 
@@ -111,7 +112,8 @@ class EoDFundamentalTransformer:
 
     def _transform_to_json(self, metric: str, category: str, data_key: str | list[str], data_schema):
         """
-        Transform a nested JSON element into a JSON for value field of given metric, e.g. used for listings and officers.
+        Transform a nested JSON element into a JSON for value field of given metric,
+        e.g. used for listings and officers.
         """
 
         data = deep_get(self.data, data_key)
