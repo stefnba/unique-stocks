@@ -1,11 +1,7 @@
-import os
-
 from pyspark.sql import SparkSession
 
 spark = SparkSession.builder.appName("Insert into Iceberg table").getOrCreate()
 
-ADLS_STORAGE_ACCOUNT_NAME = os.getenv("ADLS_STORAGE_ACCOUNT_NAME")
-CONTAINER = "temp"
 PATH = spark.conf.get("spark.datasetPath")
 
 
