@@ -6,9 +6,9 @@
         "**/node_modules": true,
         "**/bower_components": true,
         "**/*.code-search": true,
-        "**/__pycache__": true,
+        "**/__pycache__": true
     },
     "files.exclude": {
-        "**/__pycache__": true,
+        "**/__pycache__": true
     }
 }
