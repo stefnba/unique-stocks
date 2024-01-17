@@ -7,6 +7,7 @@ spark.sql("USE uniquestocks_dev.uniquestocks_dev;")
 # spark.sql("DROP TABLE IF EXISTS exchange PURGE;")
 # spark.sql("DROP TABLE IF EXISTS security PURGE;")
 # spark.sql("DROP TABLE IF EXISTS security_quote PURGE;")
+# spark.sql("DROP TABLE IF EXISTS fundamental PURGE;")
 
 spark.sql(
     """
@@ -77,6 +78,27 @@ spark.sql(
     )
     USING iceberg
     PARTITIONED BY (product, source);
+    """
+)
+
+
+spark.sql(
+    """
+    CREATE TABLE IF NOT EXISTS fundamental (
+        category STRING,
+        metric STRING,
+        value STRING,
+        currency STRING,
+        period DATE,
+        period_type STRING,
+        published_at TIMESTAMP,
+        exchange_code STRING,
+        security_code STRING,
+        created_at TIMESTAMP,
+        updated_at TIMESTAMP
+    )
+    USING iceberg
+    PARTITIONED BY (exchange_code, security_code, year(period));
     """
 )
 
