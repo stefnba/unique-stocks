@@ -8,7 +8,7 @@ from pyiceberg.catalog import Catalog, load_catalog
 from pyiceberg.expressions import AlwaysTrue, BooleanExpression
 from pyiceberg.table import Table
 
-CatalogType = t.Literal["glue"]
+CatalogType = t.Literal["glue", "sql"]
 
 ALWAYS_TRUE = AlwaysTrue()
 
@@ -20,7 +20,8 @@ class IcebergHook(BaseHook):
     Query a Iceberg table using PyIceberg.
     """
 
-    conn_id: str
+    io_conn_id: str
+    catalog_conn_id: str
     connection: dict
     type: CatalogType
     table_name: str
@@ -29,12 +30,14 @@ class IcebergHook(BaseHook):
 
     def __init__(
         self,
-        conn_id: str,
+        io_conn_id: str,
         catalog_name: str,
         table_name: str,
-        type: CatalogType = "glue",
+        type: CatalogType = "sql",
+        catalog_conn_id: str = "iceberg_catalog_default",
     ):
-        self.conn_id = conn_id
+        self.io_conn_id = io_conn_id
+        self.catalog_conn_id = catalog_conn_id
         self.catalog_name = catalog_name
         self.table_name = table_name
         self.type = type
@@ -48,13 +51,13 @@ class IcebergHook(BaseHook):
         Retrieves connection from Airflow and initializes `self.connection` based on conn type.
         """
 
-        conn = self.get_connection(self.conn_id)
+        conn = self.get_connection(self.io_conn_id)
 
-        if conn.conn_type == "aws":
+        if str(conn.conn_type) == "aws":
             region = conn.extra_dejson.get("region_name")
 
             if not region:
-                raise AirflowException(f"Missing property 'region_name' in extra for connection '{self.conn_id}'.")
+                raise AirflowException(f"Missing property 'region_name' in extra for connection '{self.io_conn_id}'.")
 
             self.connection = {
                 "s3.access-key-id": conn.login,
@@ -70,6 +73,24 @@ class IcebergHook(BaseHook):
                         "aws_access_key_id": conn.login,
                         "aws_secret_access_key": conn.password,
                         "region_name": region,
+                    }
+                )
+
+            if self.type == "sql":
+                catalog_conn = self.get_connection(self.catalog_conn_id)
+
+                if not str(catalog_conn.conn_type) == "postgres":
+                    raise AirflowException(f"Connection type {catalog_conn.conn_type} is not supported.")
+
+                host = catalog_conn.host
+                port = catalog_conn.port
+                user = catalog_conn.login
+                password = catalog_conn.password
+                db = catalog_conn.schema
+
+                self.connection.update(
+                    {
+                        "uri": f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db}",
                     }
                 )
 
