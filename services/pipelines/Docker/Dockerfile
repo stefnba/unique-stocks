@@ -18,7 +18,8 @@ USER root
 RUN sudo apt update -y && sudo apt install -y \
     build-essential \
     libpq-dev \
-    openssh-client 
+    openssh-client \
+    git
 
 USER airflow
 
@@ -31,17 +32,17 @@ RUN pip install pipenv
 RUN pip uninstall psycopg2-binary -y
 RUN pip install psycopg2 --no-cache-dir --user
 
-RUN pip install apache-airflow --no-cache-dir --user
+# RUN pip install apache-airflow --no-cache-dir --user
 
-RUN pip install \
-    crypto \
-    celery \
-    apache-airflow-providers-postgres \
-    apache-airflow-providers-microsoft-azure \
-    apache-airflow-providers-apache-spark \
-    apache-airflow-providers-amazon \
-    apache-airflow-providers-ssh \
-    apache-airflow-providers-sftp
+# RUN pip install \
+#     crypto \
+#     celery \
+#     apache-airflow-providers-postgres \
+#     apache-airflow-providers-microsoft-azure \
+#     apache-airflow-providers-apache-spark \
+#     apache-airflow-providers-amazon \
+#     apache-airflow-providers-ssh \
+#     apache-airflow-providers-sftp
 
 WORKDIR $AIRFLOW_HOME
 
@@ -50,6 +51,19 @@ COPY Pipfile .
 COPY Pipfile.lock .
 RUN pipenv requirements > requirements.txt
 RUN pip install -r requirements.txt --no-cache-dir --user
+
+
+# duckdb
+# we need to compile duckdb ourselves because duckdb doesnt provide
+# binary extensions for 'httpfs' in platform: linux_arm64_gcc4
+# this means duckdb is not working to query remote files in 
+# both Mac M1 (only under docker) and Linux ARM (only under docker)
+# Note: without docker, duckdb extensions autoload mechanism works.
+# More info at:
+# https://github.com/duckdb/duckdb/issues/8035
+
+RUN git clone --depth 1 --branch v0.9.2 https://github.com/duckdb/duckdb && \
+    cd duckdb/tools/pythonpkg && BUILD_HTTPFS=1 python -m pip install . ;
 
 # Copy init script
 COPY "$AIRFLOW_PROJ_DIR/../scripts/airflow_init.sh" .
