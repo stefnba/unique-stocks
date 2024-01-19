@@ -1,6 +1,6 @@
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 import time
 import typing as t
+from concurrent.futures import ThreadPoolExecutor
 
 
 def proces_paralell(task: t.Callable, iterable: t.Iterable, max_workers=20, *args, **kwargs):
