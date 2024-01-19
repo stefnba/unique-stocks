@@ -1,5 +1,7 @@
 import typing as t
+from pathlib import Path as P
 
+from settings import config_settings
 from utils.filesystem.storage.path import ADLSPath, RawZoneStoragePath, S3Path, StoragePath, TempStoragePath
 
 T = t.TypeVar("T", bound="StoragePath")
@@ -7,6 +9,33 @@ T = t.TypeVar("T", bound="StoragePath")
 
 S3_BUCKET = "uniquestocks"
 S3_ROOT = "data-lake"
+
+
+class LocalStoragePath(TempStoragePath[StoragePath]):
+    root = config_settings.app.temp_dir_path
+    scheme = "file"
+
+    @property
+    def full_path(self):
+        return self.path.path
+
+    @classmethod
+    def create_dir(cls):
+        path = super().create_dir()
+
+        # create dir if not exists
+        P(path.path.path).mkdir(parents=True, exist_ok=True)
+
+        return path
+
+    @classmethod
+    def create_file(cls, type="paruqet"):
+        path = super().create_file(type=type)
+
+        # create dir if not exists
+        P(path.path.path).parent.mkdir(parents=True, exist_ok=True)
+
+        return path
 
 
 class S3TempPath(TempStoragePath[S3Path]):

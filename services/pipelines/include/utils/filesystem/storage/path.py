@@ -121,6 +121,11 @@ class StoragePath:
         """Return file extension."""
         return self._extension
 
+    @extension.setter
+    def extension(self, extension: FileTypes):
+        """Set file extension."""
+        self._extension = extension
+
     @property
     def root(self) -> str | None:
         """Return root directory."""
@@ -412,6 +417,13 @@ class RawZoneStoragePath(UtilityStoragePath, t.Generic[T]):
         )
 
         self._path = self.path_factory(path=path, root=root, scheme=self.scheme)  # type: ignore
+
+    @classmethod
+    def parse(cls, path: str, extension: FileTypes) -> "RawZoneStoragePath[T]":
+        c = cls("", "", extension)
+        c._path = c.path_factory.parse_string(path_string=path)  # type: ignore
+        c._path.extension = extension
+        return c
 
     @property
     def path(self) -> T:
