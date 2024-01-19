@@ -1,0 +1,4 @@
+catalog:
+    default:
+        type: sql
+        uri: postgresql+psycopg2://admin:password@localhost:5520/iceberg
