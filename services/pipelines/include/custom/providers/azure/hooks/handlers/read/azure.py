@@ -1,38 +1,10 @@
-import pathlib
-
 import duckdb
 import polars as pl
 import pyarrow.dataset as ds
-from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageBulkHook, AzureDataLakeStorageHook
+from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageHook
 from custom.providers.azure.hooks.handlers.base import AzureDatasetHandler
 from custom.providers.azure.hooks.types import Dataset
-from deltalake import DeltaTable
-from utils.filesystem.path import LocalPath, Path
-
-
-class DownloadDeltaFiles(AzureDatasetHandler):
-    """
-    Use DeltaTable method `file_uris()` to get uri of all file paths and download them using
-    `AzureDataLakeStorageBulkHook`.
-    """
-
-    def transform_file_uris(self, uri: str) -> str:
-        return pathlib.Path(uri.replace(f"{self.path.protocol}:/", "")).relative_to("/curated").as_posix()
-
-    def read(self, **kwargs) -> Dataset:
-        self.path.set_protocol("abfs")
-
-        files = DeltaTable(table_uri=self.path.uri, storage_options=self.storage_options).file_uris()
-
-        hook = AzureDataLakeStorageBulkHook(conn_id="azure_data_lake")
-
-        local_path = LocalPath.create_temp_dir_path().uri
-
-        files = list(map(self.transform_file_uris, files))
-
-        hook.download_blobs_from_list(container=self.path.root, destination_dir=local_path, blobs=files)
-
-        return ds.dataset(source=local_path)
+from utils.filesystem.path import Path
 
 
 class AzureDatasetPolarsDeltaHandler(AzureDatasetHandler):
@@ -42,14 +14,6 @@ class AzureDatasetPolarsDeltaHandler(AzureDatasetHandler):
         protocol = "azure"
         self.path.set_protocol(protocol)
         return pl.scan_delta(source=self.path.uri, storage_options=self.storage_options)
-
-
-class AzureDatasetDeltaHandler(AzureDatasetHandler):
-    """Scan Delta Table from ADLS using DeltaTable and convert it to `pyarrow_dataset`."""
-
-    def read(self, **kwargs) -> Dataset:
-        self.path.set_protocol("abfs")
-        return DeltaTable(table_uri=self.path.uri, storage_options=self.storage_options).to_pyarrow_dataset()
 
 
 class AzureDatasetDuckDbHandler(AzureDatasetHandler):
@@ -128,4 +92,3 @@ class AzureReadHandlers:
     PolarsDelta = AzureDatasetPolarsDeltaHandler
     Delta = AzureDatasetPolarsDeltaHandler
     Read = AzureDatasetReadHandler
-    DeltaDowonload = DownloadDeltaFiles
