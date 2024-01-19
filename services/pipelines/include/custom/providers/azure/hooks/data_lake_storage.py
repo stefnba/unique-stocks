@@ -12,7 +12,6 @@ from azure.identity import ClientSecretCredential
 from azure.storage.blob import BlobServiceClient, ContainerClient
 from azure.storage.blob.aio import ContainerClient as AsyncContainerClient
 from custom.providers.azure.hooks.types import AzureDataLakeCredentials
-from shared.types import DataLakeZone
 from utils.file.stream import read_large_file
 from utils.filesystem.directory import DirFile, scan_dir_files
 from utils.filesystem.path import AdlsPath, LocalPath, PathInput
@@ -89,7 +88,7 @@ class AzureDataLakeStorageHook(AzureCredentialBaseHook):
     def download(
         self,
         blob: str,
-        container: DataLakeZone,
+        container: str,
         offset: int | None = None,
         length: int | None = None,
         **kwargs,
@@ -107,14 +106,14 @@ class AzureDataLakeStorageHook(AzureCredentialBaseHook):
     def read_blob(
         self,
         blob: str,
-        container: DataLakeZone,
+        container: str,
     ):
         """Read a file from Azure Blob Storage and return as a bytes."""
         return self.download(blob=blob, container=container).readall()
 
     def upload(
         self,
-        container: DataLakeZone,
+        container: str,
         blob: str,
         data: str | bytes,
         blob_type: t.Literal["BlockBlob", "PageBlob", "AppendBlob"] = "BlockBlob",
@@ -134,7 +133,7 @@ class AzureDataLakeStorageHook(AzureCredentialBaseHook):
     def upload_from_url(
         self,
         url: str,
-        container: DataLakeZone,
+        container: str,
         blob: str,
     ):
         blob_client = self.blob_service_client.get_blob_client(container=container, blob=blob)
@@ -142,7 +141,7 @@ class AzureDataLakeStorageHook(AzureCredentialBaseHook):
 
     def upload_file(
         self,
-        container: DataLakeZone,
+        container: str,
         blob: str,
         file_path: PathInput,
         stream=False,
@@ -174,7 +173,7 @@ class AzureDataLakeStorageHook(AzureCredentialBaseHook):
     def stream_to_local_file(
         self,
         file_path: PathInput,
-        container: DataLakeZone,
+        container: str,
         blob: str,
     ):
         """Download a blob in chunks and directly save content to a local file."""
@@ -188,11 +187,11 @@ class AzureDataLakeStorageHook(AzureCredentialBaseHook):
             for chunk in stream.chunks():
                 f.write(chunk)
 
-    def remove_container(self, container: DataLakeZone):
+    def remove_container(self, container: str):
         """Delete a container."""
         self.blob_service_client.delete_container(container=container)
 
-    def create_container(self, container: DataLakeZone):
+    def create_container(self, container: str):
         """Create a container."""
         self.blob_service_client.create_container(name=container)
 
