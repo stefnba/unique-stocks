@@ -30,6 +30,6 @@ data = spark.read.options(header=True).schema(schema).csv(PATH).createOrReplaceT
 
 spark.sql(
     """
-    INSERT OVERWRITE mapping SELECT * FROM data;
+    INSERT OVERWRITE mapping.mapping SELECT * FROM data;
     """
 )

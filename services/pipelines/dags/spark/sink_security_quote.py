@@ -69,7 +69,7 @@ if mode == "APPEND":
     # Add new records
     spark.sql(
         """
-    MERGE INTO security_quote AS t 
+    MERGE INTO curated.security_quote AS t 
     USING (SELECT * FROM transformed) AS s  
     ON (t.date = s.date AND t.security_code = s.security_code AND t.exchange_code = s.exchange_code)
     WHEN NOT MATCHED THEN 
@@ -87,7 +87,7 @@ elif mode == "OVERWRITE":
     spark.sql(
         """
     INSERT OVERWRITE 
-        security_quote
+        curated.security_quote
         (date, open, high, low, close, adjusted_close, volume, security_code, exchange_code, created_at, updated_at)
     SELECT
         date, open, high, low, close, adjusted_close, volume, security_code, exchange_code, created_at, updated_at

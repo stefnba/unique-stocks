@@ -46,7 +46,7 @@ sink = SparkSubmitSHHOperator(
     ssh_conn_id="ssh_test",
     spark_conf={
         **spark_config.aws,
-        **spark_config.iceberg,
+        **spark_config.iceberg_jdbc_catalog,
     },
     spark_packages=[*spark_packages.aws, *spark_packages.iceberg],
     connections=[AWS_DATA_LAKE_CONN_ID, AZURE_DATA_LAKE_CONN_ID],

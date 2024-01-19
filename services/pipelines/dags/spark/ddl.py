@@ -2,16 +2,23 @@ from pyspark.sql import SparkSession
 
 spark = SparkSession.builder.appName("Create Iceberg Tables").getOrCreate()  # type: ignore
 
-spark.sql("USE uniquestocks_dev.uniquestocks_dev;")
+spark.sql("USE uniquestocks;")
 
-# spark.sql("DROP TABLE IF EXISTS exchange PURGE;")
-# spark.sql("DROP TABLE IF EXISTS security PURGE;")
-# spark.sql("DROP TABLE IF EXISTS security_quote PURGE;")
-# spark.sql("DROP TABLE IF EXISTS fundamental PURGE;")
+# spark.sql("DROP TABLE IF EXISTS curated.exchange PURGE;")
+# spark.sql("DROP TABLE IF EXISTS curated.security PURGE;")
+# spark.sql("DROP TABLE IF EXISTS curated.security_quote PURGE;")
+# spark.sql("DROP TABLE IF EXISTS curated.fundamental PURGE;")
+# spark.sql("DROP TABLE IF EXISTS curated.entity_isin PURGE;")
+# spark.sql("DROP TABLE IF EXISTS curated.entity PURGE;")
+# spark.sql("DROP TABLE IF EXISTS mapping.mapping PURGE;")
+
+spark.sql("CREATE namespace IF NOT EXISTS curated;")
+spark.sql("CREATE namespace IF NOT EXISTS mapping;")
+spark.sql("CREATE namespace IF NOT EXISTS transformed;")
 
 spark.sql(
     """
-    CREATE TABLE IF NOT EXISTS exchange (
+    CREATE TABLE IF NOT EXISTS curated.exchange (
         code STRING,
         name STRING,
         operating_mic STRING,
@@ -26,7 +33,7 @@ spark.sql(
 
 spark.sql(
     """
-    CREATE TABLE IF NOT EXISTS security (
+    CREATE TABLE IF NOT EXISTS curated.security (
         code STRING,
         name STRING,
         isin STRING,
@@ -44,7 +51,7 @@ spark.sql(
 
 spark.sql(
     """
-    CREATE TABLE IF NOT EXISTS security_quote (
+    CREATE TABLE IF NOT EXISTS curated.security_quote (
         security_code STRING,
         exchange_code STRING,
         date DATE,
@@ -64,7 +71,7 @@ spark.sql(
 
 spark.sql(
     """
-    CREATE TABLE IF NOT EXISTS mapping (
+    CREATE TABLE IF NOT EXISTS mapping.mapping (
         product STRING,
         source STRING,
         field STRING,
@@ -84,7 +91,7 @@ spark.sql(
 
 spark.sql(
     """
-    CREATE TABLE IF NOT EXISTS fundamental (
+    CREATE TABLE IF NOT EXISTS curated.fundamental (
         category STRING,
         metric STRING,
         value STRING,
@@ -99,6 +106,49 @@ spark.sql(
     )
     USING iceberg
     PARTITIONED BY (exchange_code, security_code, year(period));
+    """
+)
+
+
+spark.sql(
+    """
+    CREATE TABLE IF NOT EXISTS curated.entity_isin (
+        lei STRING,
+        isin STRING,
+        created_at TIMESTAMP,
+        updated_at TIMESTAMP
+    )
+    USING iceberg;
+    """
+)
+
+
+spark.sql(
+    """
+    CREATE TABLE curated.entity (
+        lei STRING,
+        name STRING,
+        legal_form_id STRING,
+        jurisdiction STRING,
+        legal_address_street STRING,
+        legal_address_street_number STRING,
+        legal_address_zip_code STRING,
+        legal_address_city STRING,
+        legal_address_country STRING,
+        headquarter_address_street STRING,
+        headquarter_address_street_number STRING,
+        headquarter_address_city STRING,
+        headquarter_address_zip_code STRING,
+        headquarter_address_country STRING,
+        status STRING,
+        creation_date STRING,
+        expiration_date STRING,
+        expiration_reason STRING,
+        registration_date STRING,
+        registration_status STRING
+    )
+    USING iceberg
+    PARTITIONED BY (legal_address_country);
     """
 )
 

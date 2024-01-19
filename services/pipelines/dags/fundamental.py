@@ -56,15 +56,11 @@ def extract_security():
         f"""security types: '{", ".join(security_types)}'."""
     )
 
-    mapping = IcebergHook(
-        conn_id="aws", catalog_name="uniquestocks_dev", table_name="uniquestocks_dev.mapping"
-    ).to_polars(
+    mapping = IcebergHook(conn_id="aws", catalog_name="uniquestocks", table_name="mapping.mapping").to_polars(
         selected_fields=("source_value", "mapping_value"),
         row_filter="field = 'composite_code' AND product = 'exchange' AND source = 'EodHistoricalData'",
     )
-    security = IcebergHook(
-        conn_id="aws", catalog_name="uniquestocks_dev", table_name="uniquestocks_dev.security"
-    ).to_polars(
+    security = IcebergHook(conn_id="aws", catalog_name="uniquestocks", table_name="curated.security").to_polars(
         selected_fields=("exchange_code", "code", "type"),
         row_filter=filter_expressions.In("exchange_code", exchanges),
     )
@@ -247,7 +243,7 @@ sink = SparkSubmitSHHOperator(
     ssh_conn_id="ssh_test",
     spark_conf={
         **spark_config.aws,
-        **spark_config.iceberg,
+        **spark_config.iceberg_jdbc_catalog,
     },
     spark_packages=[*spark_packages.aws, *spark_packages.iceberg],
     connections=[AWS_DATA_LAKE_CONN_ID],

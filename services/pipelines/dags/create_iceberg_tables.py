@@ -6,11 +6,11 @@
 from datetime import datetime
 
 from airflow.decorators import dag
+from conf.spark import config as spark_config
+from conf.spark import packages as spark_packages
 from custom.providers.spark.operators.submit import SparkSubmitSHHOperator
 
 AWS_DATA_LAKE_CONN_ID = "aws"
-from conf.spark import config as spark_config
-from conf.spark import packages as spark_packages
 
 
 @dag(
@@ -26,7 +26,7 @@ def create_iceberg_tables():
         ssh_conn_id="ssh_test",
         app_file_name="ddl.py",
         spark_conf={
-            **spark_config.iceberg,
+            **spark_config.iceberg_jdbc_catalog,
         },
         spark_packages=[*spark_packages.iceberg],
         connections=["aws"],
@@ -43,7 +43,7 @@ def create_iceberg_tables():
         app_file_name="seed_tables.py",
         spark_conf={
             **spark_config.aws,
-            **spark_config.iceberg,
+            **spark_config.iceberg_jdbc_catalog,
         },
         spark_packages=[*spark_packages.aws, *spark_packages.iceberg],
         connections=[AWS_DATA_LAKE_CONN_ID],

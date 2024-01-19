@@ -22,7 +22,10 @@ def extract_exchange_codes():
     from custom.providers.iceberg.hooks.pyiceberg import IcebergHook
 
     exchanges = IcebergHook(
-        conn_id="aws", catalog_name="uniquestocks_dev", table_name="uniquestocks_dev.exchange"
+        io_conn_id="aws",
+        catalog_conn_id="iceberg_postgres_catalog",
+        catalog_name="uniquestocks",
+        table_name="curated.exchange",
     ).to_polars()
 
     if isinstance(exchanges, pl.DataFrame):
@@ -104,7 +107,7 @@ sink = SparkSubmitSHHOperator(
     ssh_conn_id="ssh_test",
     spark_conf={
         **spark_config.adls,
-        **spark_config.iceberg,
+        **spark_config.iceberg_jdbc_catalog,
     },
     spark_packages=[*spark_packages.adls, *spark_packages.iceberg],
     connections=[AWS_DATA_LAKE_CONN_ID, AZURE_DATA_LAKE_CONN_ID],

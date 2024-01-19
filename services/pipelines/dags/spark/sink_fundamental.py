@@ -17,7 +17,7 @@ data = spark.read.parquet(PATH).createOrReplaceTempView("data")
 spark.sql(
     """
     INSERT OVERWRITE
-        fundamental (
+        curated.fundamental (
             category, metric, value, currency, period, period_type, published_at, 
             exchange_code, security_code, created_at, updated_at
             )

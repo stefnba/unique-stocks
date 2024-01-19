@@ -1,15 +1,29 @@
-CATALOG_NAME = "uniquestocks_dev"
-NAMESPACE_NAME = "uniquestocks_dev"
-WAREHOUSE_PATH = "s3a://uniquestocks-datalake-dev/curated/iceberg/"
+CATALOG_NAME = "uniquestocks"
+
+WAREHOUSE_PATH = "s3a://uniquestocks/data-lake/lakehouse/"
 
 
-iceberg = {
+iceberg_glue_catalog = {
     "spark.sql.extensions": "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions",
     f"spark.sql.catalog.{CATALOG_NAME}": "org.apache.iceberg.spark.SparkCatalog",
     f"spark.sql.catalog.{CATALOG_NAME}.catalog-impl": "org.apache.iceberg.aws.glue.GlueCatalog",
     f"spark.sql.catalog.{CATALOG_NAME}.warehouse": WAREHOUSE_PATH,
     f"spark.sql.catalog.{CATALOG_NAME}.io-impl": "org.apache.iceberg.aws.s3.S3FileIO",
-    f"spark.sql.catalog.{CATALOG_NAME}.default-namespace": NAMESPACE_NAME,
+    "spark.sql.defaultCatalog": CATALOG_NAME,
+}
+
+
+iceberg_jdbc_catalog = {
+    "spark.sql.extensions": "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions",
+    f"spark.sql.catalog.{CATALOG_NAME}": "org.apache.iceberg.spark.SparkCatalog",
+    f"spark.sql.catalog.{CATALOG_NAME}.catalog-impl": "org.apache.iceberg.jdbc.JdbcCatalog",
+    f"spark.sql.catalog.{CATALOG_NAME}.uri": "jdbc:postgresql://uniquestocks-lakehouse-catalog:5432/iceberg",
+    f"spark.sql.catalog.{CATALOG_NAME}.jdbc.user": "admin",  # todo env variable
+    f"spark.sql.catalog.{CATALOG_NAME}.jdbc.password": "password",  # todo env variable
+    f"spark.sql.catalog.{CATALOG_NAME}.warehouse": WAREHOUSE_PATH,
+    f"spark.sql.catalog.{CATALOG_NAME}.io-impl": "org.apache.iceberg.aws.s3.S3FileIO",
+    "spark.hadoop.fs.s3a.access.key": "$AWS_ACCESS_KEY_ID",
+    "spark.hadoop.fs.s3a.secret.key": "$AWS_SECRET_ACCESS_KEY",
     "spark.sql.defaultCatalog": CATALOG_NAME,
 }
 
