@@ -7,6 +7,8 @@ x-airflow-common: &airflow-common
         args:
             AIRFLOW_HOME: ${AIRFLOW_HOME}
             AIRFLOW_PROJ_DIR: ${AIRFLOW_PROJ_DIR}
+            AIRFLOW_VERSION: ${AIRFLOW_VERSION}
+            PY_MAJOR_VERSION: ${PY_MAJOR_VERSION}
     env_file:
         - .env
     environment: &airflow-common-env

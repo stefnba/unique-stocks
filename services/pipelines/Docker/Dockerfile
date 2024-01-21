@@ -1,4 +1,7 @@
-FROM apache/airflow:2.8.0-python3.11
+ARG AIRFLOW_VERSION
+ARG PY_MAJOR_VERSION
+
+FROM apache/airflow:${AIRFLOW_VERSION}-python${PY_MAJOR_VERSION}
 
 ARG AIRFLOW_HOME
 ARG AIRFLOW_PROJ_DIR
@@ -15,7 +18,8 @@ ENV PYTHONUNBUFFERED=1
 
 USER root
 
-RUN sudo apt update -y && sudo apt install -y \
+RUN sudo apt update -y && \
+    sudo apt install -y \
     build-essential \
     libpq-dev \
     openssh-client \
@@ -26,32 +30,13 @@ USER airflow
 RUN python -m pip install --upgrade pip
 
 # install pipenv
-RUN pip install pipenv
+# RUN pip install pipenv
 
 # Fix psycopg2 bug
 RUN pip uninstall psycopg2-binary -y
 RUN pip install psycopg2 --no-cache-dir --user
 
-# RUN pip install apache-airflow --no-cache-dir --user
-
-# RUN pip install \
-#     crypto \
-#     celery \
-#     apache-airflow-providers-postgres \
-#     apache-airflow-providers-microsoft-azure \
-#     apache-airflow-providers-apache-spark \
-#     apache-airflow-providers-amazon \
-#     apache-airflow-providers-ssh \
-#     apache-airflow-providers-sftp
-
 WORKDIR $AIRFLOW_HOME
-
-# Install python dependencies
-COPY Pipfile .
-COPY Pipfile.lock .
-RUN pipenv requirements > requirements.txt
-RUN pip install -r requirements.txt --no-cache-dir --user
-
 
 # duckdb
 # we need to compile duckdb ourselves because duckdb doesnt provide
@@ -61,9 +46,15 @@ RUN pip install -r requirements.txt --no-cache-dir --user
 # Note: without docker, duckdb extensions autoload mechanism works.
 # More info at:
 # https://github.com/duckdb/duckdb/issues/8035
-
 RUN git clone --depth 1 --branch v0.9.2 https://github.com/duckdb/duckdb && \
     cd duckdb/tools/pythonpkg && BUILD_HTTPFS=1 python -m pip install . ;
 
+# Install python dependencies
+COPY requirements.txt .
+RUN pip install "apache-airflow==${AIRFLOW_VERSION}" -r requirements.txt --no-cache-dir
+
+# fix flask-session bug https://github.com/apache/airflow/pull/36895
+RUN pip install "flask-session>=0.4.0,<0.6"  --no-cache-dir 
+
 # Copy init script
-COPY "$AIRFLOW_PROJ_DIR/../scripts/airflow_init.sh" .
+COPY scripts/airflow_init.sh .
