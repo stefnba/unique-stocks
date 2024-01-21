@@ -3,35 +3,42 @@ include .env
 
 # Python setup with pipenv
 ifeq ($(PY_VERSION),)
-PY_VERSION := 3.11
-
+PY_VERSION := 3.11.7
+endif
+ifeq ($(PY_MAJOR_VERSION),)
+PY_MAJOR_VERSION := 3.11
+endif
+ifeq ($(AIRFLOW_VERSION),)
+AIRFLOW_VERSION := 2.8.1
 endif
 
-setup:
-	mkdir ./.venv &&  \
-	pipenv --python ${PY_VERSION} && \
+# poetry
+setup-poetry:
+	export POETRY_VIRTUALENVS_IN_PROJECT=true
+	poetry init --python ^${PY_MAJOR_VERSION} -n
+	pyenv local ${PY_VERSION}
+	poetry env use ${PY_VERSION}
+	poetry add --dev black ruff mypy 
+
+install:
+	poetry env use ${PY_VERSION}
+	poetry install
+
+packages-export:
+	poetry export -f requirements.txt --without-hashes  --output requirements.txt --without dev
+
+# Airflow local for testing
+install-airflow-local:
+	poetry env use ${PY_VERSION}
 	source .venv/bin/activate && \
 	pip install --upgrade pip && \
-	make install-airflow-local && \
-	make setup-airflow-local && \
-	make install-dev
-install-dev:
-	pipenv install --dev
-packages-lock:
-	pipenv lock
-install-prod:
-	pipenv install --ignore-pipfile --deploy
+	pip install "apache-airflow==${AIRFLOW_VERSION}" --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PY_VERSION}.txt" && \
+	poetry add -D apache-airflow==${AIRFLOW_VERSION} && \
+	poetry install && \
+	pip uninstall -y pyiceberg && \
+	arch -arm64 python -m pip install pyiceberg --no-cache && \
+	make setup-airflow-local
 
-# Airflow local testing
-install-airflow-local:
-	source .venv/bin/activate && \
-	pip install "apache-airflow==2.8.0" --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.8.0/constraints-${PY_VERSION}.txt" && \
-	pip install \
-		celery \
-		apache-airflow-providers-postgres \
-		apache-airflow-providers-microsoft-azure \
-		apache-airflow-providers-apache-spark \
-		apache-airflow-providers-amazon
 setup-airflow-local:
 	export AIRFLOW_HOME=${CURDIR}/${AIRFLOW_HOME} && \
 	airflow db init && \
@@ -42,6 +49,7 @@ docker-up-prod:
 	export AIRFLOW_HOME=${AIRFLOW_HOME_CONTAINER} && \
 	docker compose -f docker/docker-compose.prod.yml --project-directory . up -d --build --force-recreate --remove-orphans
 docker-up:
+	make packages-export && \
 	export AIRFLOW_HOME=${AIRFLOW_HOME_CONTAINER} && \
 	docker compose -f docker/docker-compose.yml --project-directory . up -d --build --force-recreate --remove-orphans
 docker-down:

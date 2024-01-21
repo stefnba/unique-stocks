@@ -8,3 +8,32 @@ services:
             - 127.0.0.1:9047:9047
             - 127.0.0.1:31010:31010
             - 127.0.0.1:32010:32010
+
+    catalog:
+        image: postgres:15.5-alpine
+        container_name: uniquestocks-lakehouse-catalog
+        ports:
+            - '127.0.0.1:${DB_PORT}:5432'
+        restart: always
+        env_file:
+            - .env
+        environment:
+            - POSTGRES_PASSWORD=${DB_ROOT_PASSWORD}
+            - DB_PORT=${DB_PORT}
+            - DB_NAME=${DB_NAME}
+            - DB_ADMIN_USER=${DB_ADMIN_USER}
+            - DB_ADMIN_PASSWORD=${DB_ADMIN_PASSWORD}
+        volumes:
+            - ./scripts/db:/docker-entrypoint-initdb.d/
+            - uniquestocks-lakehouse-catalog:/var/lib/postgresql/data/
+        networks:
+            - unique-stocks-network
+
+volumes:
+    uniquestocks-lakehouse-catalog:
+        name: 'uniquestocks-lakehouse-catalog'
+
+networks:
+    unique-stocks-network:
+        name: unique-stocks-network
+        external: true

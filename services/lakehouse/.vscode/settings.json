@@ -6,9 +6,23 @@
         "**/node_modules": true,
         "**/bower_components": true,
         "**/*.code-search": true,
-        "**/__pycache__": true,
+        "**/__pycache__": true
     },
     "files.exclude": {
-        "**/__pycache__": true,
-    }
+        "**/__pycache__": true
+    },
+    "[python]": {
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit",
+            "source.organizeImports.ruff": "explicit",
+            "source.fixAll": "explicit"
+        },
+        "editor.defaultFormatter": "ms-python.black-formatter"
+    },
+    "ruff.path": [".venv/bin/ruff"],
+    "python.envFile": "${workspaceFolder}/.env",
+    "python.defaultInterpreterPath": ".venv/bin/python",
+    "python.terminal.activateEnvironment": true,
+    "python.analysis.typeCheckingMode": "basic"
 }

@@ -1,7 +1,6 @@
-import polars as pl
 import duckdb
+import polars as pl
 import pyarrow.dataset as ds
-
 from custom.providers.azure.hooks.types import DatasetTypeInput
 
 

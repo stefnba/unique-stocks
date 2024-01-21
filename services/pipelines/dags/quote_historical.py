@@ -1,20 +1,20 @@
 import logging
 from datetime import datetime, timedelta
-from typing import TypedDict
 
-from airflow.decorators import dag, task
+from airflow.decorators import dag, task, task_group
 from airflow.models.param import Param
 from airflow.utils.dates import days_ago
-from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
-from custom.operators.data.transformation import DataBindingCustomHandler, DuckDbTransformationOperator
-from custom.providers.azure.hooks import converters
-from custom.providers.azure.hooks.dataset import DatasetHandlers
-from custom.providers.azure.hooks.handlers.read.azure import AzureDatasetArrowHandler
-from shared import schema
-from shared.path import AdlsPath, LocalPath, SecurityPath, SecurityQuotePath
+from conf.spark import config as spark_config
+from conf.spark import packages as spark_packages
+from custom.providers.spark.operators.submit import SparkSubmitSHHOperator
+from shared.path import ADLSRawZonePath
 from utils.dag.xcom import XComGetter
 
-default_args = {
+AWS_DATA_LAKE_CONN_ID = "aws"
+AZURE_DATA_LAKE_CONN_ID = "azure_data_lake"
+
+
+DEFAULT_ARGS = {
     "owner": "airflow",
     "depends_on_past": False,
     "start_date": days_ago(2),
@@ -26,66 +26,47 @@ default_args = {
 }
 
 
-class QuoteSecurity(TypedDict):
-    exchange_code: str
-    security_code: str
-
-
 @task
 def extract_security():
+    """
+    Get all securities and map their exchange composite_code.
+    """
     import polars as pl
-    from custom.hooks.data.mapping import MappingDatasetHook
-    from custom.providers.delta_table.hooks.delta_table import DeltaTableHook
+    from custom.providers.iceberg.hooks.pyiceberg import IcebergHook, filter_expressions
     from utils.dag.conf import get_dag_conf
 
     conf = get_dag_conf()
 
-    mapping = MappingDatasetHook().mapping(product="exchange", source="EodHistoricalData", field="composite_code")
-
     exchanges = conf.get("exchanges", [])
     security_types = conf.get("security_types", [])
 
+    # exchanges = ["XETRA", "NASDAQ", "INDX"]
+    # security_types = ["common_stock", "index", "preferred_stock"]
+
     logging.info(
-        f"""Getting security quotes for exchanges: '{", ".join(exchanges)}' and security types: '{", ".join(security_types)}'."""
+        f"""Getting security quotes for exchanges: '{", ".join(exchanges)}' """
+        f"""and security types: '{", ".join(security_types)}'."""
     )
 
-    data = (
-        DeltaTableHook(conn_id="azure_data_lake")
-        .read(path=SecurityPath.curated())
-        .to_pyarrow_dataset(
-            partitions=[
-                (
-                    "exchange_code",
-                    "in",
-                    exchanges,
-                ),
-                ("type", "in", security_types),
-            ],
-        )
+    mapping = IcebergHook(conn_id="aws", catalog_name="uniquestocks", table_name="mapping.mapping").to_polars(
+        selected_fields=("source_value", "mapping_value"),
+        row_filter="field = 'composite_code' AND product = 'exchange' AND source = 'EodHistoricalData'",
+    )
+    security = IcebergHook(conn_id="aws", catalog_name="uniquestocks", table_name="curated.security").to_polars(
+        selected_fields=("exchange_code", "code", "type"),
+        row_filter=filter_expressions.In("exchange_code", exchanges),
     )
 
-    securities = pl.scan_pyarrow_dataset(data).select(
-        pl.col("code").alias("security_code"),
-        "exchange_code",
-        "type",
-    )
-
-    securities = securities.join(
-        mapping.lazy().select(["source_value", "mapping_value"]),
-        left_on="exchange_code",
-        right_on="source_value",
-        how="left",
-    ).with_columns(
+    security = security.join(mapping, left_on="exchange_code", right_on="source_value", how="left").with_columns(
         pl.coalesce(["mapping_value", "exchange_code"]).alias("api_exchange_code"),
     )
 
     securities_as_dict = []
 
-    securities = securities.select(["exchange_code", "api_exchange_code", "security_code", "type"]).collect()
-
+    # create a list of securities for each exchange and security type
     for e in exchanges:
         for t in security_types:
-            s = securities.filter((pl.col("exchange_code") == e) & (pl.col("type") == t)).to_dicts()
+            s = security.filter((pl.col("exchange_code") == e) & (pl.col("type") == t)).to_dicts()
 
             if len(s) > 0:
                 securities_as_dict.append(s)
@@ -93,134 +74,106 @@ def extract_security():
     return securities_as_dict
 
 
-def convert_to_url_upload_records(security: dict):
-    """Convert exchange and security code into a `UrlUploadRecord` with blob name and API endpoint."""
-    from custom.providers.azure.hooks.data_lake_storage import UrlUploadRecord
-
-    exchange_code = security["exchange_code"]
-    security_code = security["security_code"]
-    api_exchange_code = security["api_exchange_code"]
-
-    return UrlUploadRecord(
-        endpoint=f"{security_code}.{api_exchange_code}",
-        blob=SecurityQuotePath.raw_historical(
-            exchange=exchange_code,
-            format="csv",
-            security=security_code,
-            source="EodHistoricalData",
-        ).path,
-    )
-
-
-@task(max_active_tis_per_dag=1)
-def ingest(securities):
-    from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageBulkHook
-    from custom.providers.eod_historical_data.hooks.api import EodHistoricalDataApiHook
-
-    logging.info(
-        f"""Ingestion of {len(securities):,} securities of type '{securities[0].get("type", "")}'\
-            for exchange '{securities[0].get("exchange_code", "")}'."""
-    )
-
-    hook = AzureDataLakeStorageBulkHook(conn_id="azure_data_lake")
-    api_hook = EodHistoricalDataApiHook()
-
-    url_endpoints = list(map(convert_to_url_upload_records, securities))
-
-    uploaded_blobs = hook.upload_from_url(
-        container="raw",
-        base_url="https://eodhistoricaldata.com/api/eod",
-        base_params=api_hook._base_params,
-        url_endpoints=url_endpoints,
-    )
-
-    return uploaded_blobs
-
-
 @task
-def merge(blobs):
-    import pyarrow as pa
-    import pyarrow.dataset as ds
-    from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageBulkHook
-    from custom.providers.azure.hooks.dataset import AzureDatasetHook
-    from custom.providers.azure.hooks.handlers.write.azure import AzureDatasetWriteArrowHandler
+def set_sink_path():
+    sink_path = ADLSRawZonePath(product="security_quote", source="EodHistoricalData", type="csv")
 
-    hook = AzureDataLakeStorageBulkHook(conn_id="azure_data_lake")
-    dataset_hook = AzureDatasetHook(conn_id="azure_data_lake")
-    download_dir = LocalPath.create_temp_dir_path()
-    adls_destination_path = AdlsPath.create_temp_dir_path()
-
-    # flatten blobs
-    blobs = [t for b in blobs for t in b]
-
-    hook.download_blobs_from_list(
-        container="raw",
-        blobs=blobs,
-        destination_dir=download_dir.uri,
-        destination_nested_relative_to="security_quote/EodHistoricalData",
-    )
-
-    data = ds.dataset(
-        source=download_dir.uri,
-        format="csv",
-        schema=pa.schema(
-            [
-                ("Date", pa.date32()),
-                ("Open", pa.float32()),
-                ("High", pa.float32()),
-                ("Low", pa.float32()),
-                ("Close", pa.float32()),
-                ("Adjusted_close", pa.float32()),
-                ("Volume", pa.float32()),
-                ("security", pa.string()),
-                ("exchange", pa.string()),
-            ]
-        ),
-        partitioning=ds.partitioning(
-            schema=pa.schema(
-                [
-                    ("security", pa.string()),
-                    ("exchange", pa.string()),
-                ]
-            ),
-            flavor="hive",
-        ),
-    )
-
-    dataset_hook.write(dataset=data, destination_path=adls_destination_path, handler=AzureDatasetWriteArrowHandler)
-
-    return adls_destination_path.to_dict()
+    return f"{sink_path.path.scheme}://{sink_path.path.container}/{sink_path.path.dirs}"
 
 
-transform = DuckDbTransformationOperator(
-    task_id="transform",
-    adls_conn_id="azure_data_lake",
-    destination_path=AdlsPath.create_temp_dir_path(),
-    query="sql/quote_historical/transform.sql",
-    write_handler=DatasetHandlers.Write.Azure.Arrow,
-    data={
-        "quotes_raw": DataBindingCustomHandler(
-            path=XComGetter.pull_with_template(task_id="merge"),
-            handler=AzureDatasetArrowHandler,
-            dataset_converter=converters.PyArrowDataset,
+@task_group
+def ingest_security_group(security_groups: list[dict]):
+    """
+    Ingest quotes for a list of securities from a specific exchange and with a specific type.
+    """
+
+    @task
+    def map_url_sink_path(securities: list[dict]):
+        """
+        Take list of securities and add endpoint and blob path to each record.
+        """
+
+        from airflow.exceptions import AirflowException
+        from airflow.models.taskinstance import TaskInstance
+        from airflow.operators.python import get_current_context
+        from shared.path import ADLSRawZonePath
+
+        context = get_current_context()
+
+        ti = context.get("task_instance")
+
+        if not isinstance(ti, TaskInstance):
+            raise AirflowException("No task instance found.")
+
+        path = ADLSRawZonePath.parse(path=ti.xcom_pull(task_ids="set_sink_path"), extension="csv")
+
+        return list(
+            map(
+                lambda exchange: {
+                    "endpoint": f"{exchange['code']}.{exchange['api_exchange_code']}",
+                    "blob": path.add_partition(
+                        {"exchange": exchange["exchange_code"], "security": exchange["code"]}
+                    ).blob,
+                },
+                securities,
+            )
         )
-    },
-)
 
-sink = WriteDeltaTableFromDatasetOperator(
-    task_id="sink",
-    adls_conn_id="azure_data_lake",
-    dataset_path=XComGetter.pull_with_template(task_id="transform"),
-    destination_path=SecurityQuotePath.curated(),
-    pyarrow_options={
-        "schema": schema.SecurityQuote,
+    @task(max_active_tis_per_dag=1)
+    def ingest(securities):
+        """
+        Ingest quotes for a list of securities from a specific exchange and with a specific type.
+        Calls EodHistoricalData API and uploads the data to Azure Data Lake Storage using async upload.
+        """
+
+        import logging
+
+        from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageBulkHook, UrlUploadRecord
+        from custom.providers.eod_historical_data.hooks.api import EodHistoricalDataApiHook
+
+        logging.info(
+            f"Ingestion of {len(securities):,} securities of type '{securities[0].get('type', '')}'"
+            f"""for exchange '{securities[0].get("exchange_code", "")}'."""
+        )
+
+        hook = AzureDataLakeStorageBulkHook(conn_id="azure_data_lake")
+        api_hook = EodHistoricalDataApiHook()
+
+        url_endpoints = [UrlUploadRecord(**sec) for sec in securities]
+
+        uploaded_blobs = hook.upload_from_url(
+            container="raw",
+            base_url="https://eodhistoricaldata.com/api/eod",
+            base_params=api_hook._base_params,
+            url_endpoints=url_endpoints,
+        )
+
+        return uploaded_blobs
+
+    map_task = map_url_sink_path(security_groups)
+    ingest(map_task)
+
+
+sink = SparkSubmitSHHOperator(
+    task_id="sink_to_iceberg",
+    app_file_name="sink_security_quote.py",
+    ssh_conn_id="ssh_test",
+    spark_conf={
+        **spark_config.adls,
+        **spark_config.iceberg_jdbc_catalog,
     },
-    delta_table_options={
-        "mode": "{{ dag_run.conf.get('delta_table_mode', 'overwrite') }}",  # type: ignore
-        "schema": schema.SecurityQuote,
-        "partition_by": ["exchange_code", "year"],
+    spark_packages=[*spark_packages.adls, *spark_packages.iceberg],
+    connections=[AWS_DATA_LAKE_CONN_ID, AZURE_DATA_LAKE_CONN_ID],
+    dataset=XComGetter.pull_with_template(task_id="set_sink_path"),
+    conn_env_mapping={
+        "AWS_ACCESS_KEY_ID": "AWS__LOGIN",
+        "AWS_SECRET_ACCESS_KEY": "AWS__PASSWORD",
+        "AWS_REGION": "AWS__EXTRA__REGION_NAME",
+        "ADLS_STORAGE_ACCOUNT_NAME": "AZURE_DATA_LAKE__HOST",
+        "ADLS_CLIENT_ID": "AZURE_DATA_LAKE__LOGIN",
+        "ADLS_CLIENT_SECRET": "AZURE_DATA_LAKE__PASSWORD",
+        "ADLS_TENANT_ID": "AZURE_DATA_LAKE__EXTRA__TENANT_ID",
     },
-    # outlets=[airflow_dataset.SecurityQuote],
 )
 
 
@@ -230,7 +183,7 @@ sink = WriteDeltaTableFromDatasetOperator(
     catchup=False,
     render_template_as_native_obj=True,
     tags=["quote", "security"],
-    default_args=default_args,
+    # default_args=default_args,
     params={
         "exchanges": Param(
             type="array",
@@ -449,14 +402,14 @@ sink = WriteDeltaTableFromDatasetOperator(
                 "fund",
             ],
         ),
-        "delta_table_mode": Param(default="overwrite", type="string", enum=["overwrite", "append"]),
     },
 )
 def quote_historical():
-    extract_security_task = extract_security()
-    ingest_task = ingest.expand(securities=extract_security_task)
+    extract_task = extract_security()
+    set_sink_task = set_sink_path()
 
-    merge(ingest_task) >> transform >> sink
+    ingest_task = ingest_security_group.expand(security_groups=extract_task)
+    extract_task >> set_sink_task >> ingest_task >> sink  # type: ignore
 
 
 dag_object = quote_historical()

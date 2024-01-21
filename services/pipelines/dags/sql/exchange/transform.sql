@@ -2,7 +2,7 @@ SELECT
     Name AS name,
     Code AS code,
     OperatingMIC AS operating_mic,
-    Currency AS currency,
-    CountryISO2 AS country,
+    IF(Currency='Unknown', NULL, Currency) AS currency,
+    IF(CountryISO2='', NULL, CountryISO2) AS country
 FROM
-    $exchange
+    read_json('${exchange}', auto_detect=True)

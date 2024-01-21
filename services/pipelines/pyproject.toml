@@ -1,3 +1,44 @@
+
+
+[tool.poetry]
+name = "uniquestocks-pipelines"
+version = "0.1.0"
+description = ""
+authors = ["Stefan Bauer <stefanjakob.bauer@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.12"
+apache-airflow-providers-microsoft-azure = "^8.5.1"
+apache-airflow-providers-postgres = "^5.10.0"
+apache-airflow-providers-apache-spark = "^4.7.0"
+apache-airflow-providers-amazon = "^8.16.0"
+apache-airflow-providers-ssh = "^3.10.0"
+apache-airflow-providers-sftp = "^4.8.1"
+celery = "^5.3.6"
+crypto = "^1.4.1"
+asyncio = "^3.4.3"
+aiohttp = "^3.9.1"
+aiofiles = "^23.2.1"
+pyarrow = "^14.0.2"
+polars = "^0.20.5"
+duckdb = "^0.9.2"
+pydantic-settings = "^2.1.0"
+pyiceberg = "^0.5.1"
+
+
+[tool.poetry.group.dev.dependencies]
+apache-airflow = "2.8.1"
+black = "^23.12.1"
+ruff = "^0.1.13"
+mypy = "^1.8.0"
+ipykernel = "^6.29.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+
 [tool.black]
 line-length = 120
 # Assume Python 3.11.
