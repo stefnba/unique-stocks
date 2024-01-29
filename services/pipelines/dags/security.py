@@ -9,38 +9,35 @@ from conf.spark import packages as spark_packages
 from custom.providers.duckdb.operators.transform import DuckDbTransformOperator
 from custom.providers.spark.operators.submit import SparkSubmitSHHOperator
 from shared import airflow_dataset
+from shared import connections as conn
 from shared.path import ADLSRawZonePath, ADLSTempPath
 from utils.dag.xcom import XComGetter
-
-AWS_DATA_LAKE_CONN_ID = "aws"
-AZURE_DATA_LAKE_CONN_ID = "azure_data_lake"
 
 
 @task
 def extract_exchange_codes():
     import polars as pl
-    from custom.providers.iceberg.hooks.pyiceberg import IcebergHook
+    from custom.providers.iceberg.hooks.pyiceberg import IcebergStaticTableHook
 
-    exchanges = IcebergHook(
-        io_conn_id="aws",
-        catalog_conn_id="iceberg_postgres_catalog",
+    exchanges = IcebergStaticTableHook(
+        io_conn_id=conn.AWS_DATA_LAKE,
+        catalog_conn_id=conn.ICEBERG_CATALOG,
         catalog_name="uniquestocks",
-        table_name="curated.exchange",
+        table_name=("curated", "exchange"),
     ).to_polars()
 
-    if isinstance(exchanges, pl.DataFrame):
-        return [
-            *exchanges.select(
-                [
-                    pl.col("code").alias("exchange_code"),
-                ]
-            ).to_dicts(),
-            {"exchange_code": "INDX"},  # add virtual exchange INDEX to get all index
-        ]
+    return [
+        *exchanges.select(
+            [
+                pl.col("code").alias("exchange_code"),
+            ]
+        ).to_dicts(),
+        {"exchange_code": "INDX"},  # add virtual exchange INDEX to get all index
+    ]
 
 
 @task
-def map_url_sink_path(exchanges: list[dict]):
+def map_url_sink_path(exchanges):
     """
     Map url and destination path to each record.
 
@@ -69,7 +66,7 @@ def map_url_sink_path(exchanges: list[dict]):
 
 
 @task
-def ingest(exchanges: list):
+def ingest(exchanges):
     import logging
 
     from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageBulkHook, UrlUploadRecord
@@ -77,7 +74,7 @@ def ingest(exchanges: list):
 
     logging.info(f"""Ingest of securities of {len(exchanges)} exchanges.""")
 
-    hook = AzureDataLakeStorageBulkHook(conn_id=AZURE_DATA_LAKE_CONN_ID)
+    hook = AzureDataLakeStorageBulkHook(conn_id=conn.AZURE_DATA_LAKE)
     api_hook = EodHistoricalDataApiHook()
 
     url_endpoints = [UrlUploadRecord(**exchange) for exchange in exchanges]
@@ -94,7 +91,7 @@ def ingest(exchanges: list):
 
 transform = DuckDbTransformOperator(
     task_id="transform",
-    conn_id=AZURE_DATA_LAKE_CONN_ID,
+    conn_id=conn.AZURE_DATA_LAKE,
     destination_path=ADLSTempPath.create_file().uri,
     query="sql/security/transform.sql",
     query_params={"securities": XComGetter.pull_with_template(task_id="map_url_sink_path", key="sink_path")},
@@ -110,7 +107,7 @@ sink = SparkSubmitSHHOperator(
         **spark_config.iceberg_jdbc_catalog,
     },
     spark_packages=[*spark_packages.adls, *spark_packages.iceberg],
-    connections=[AWS_DATA_LAKE_CONN_ID, AZURE_DATA_LAKE_CONN_ID],
+    connections=[conn.AWS_DATA_LAKE, conn.AZURE_DATA_LAKE],
     dataset=XComGetter.pull_with_template("transform"),
     conn_env_mapping={
         "AWS_ACCESS_KEY_ID": "AWS__LOGIN",

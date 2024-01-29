@@ -7,12 +7,9 @@ from airflow.utils.dates import days_ago
 from conf.spark import config as spark_config
 from conf.spark import packages as spark_packages
 from custom.providers.spark.operators.submit import SparkSubmitSHHOperator
+from shared import connections as CONN
 from shared.path import ADLSRawZonePath
 from utils.dag.xcom import XComGetter
-
-AWS_DATA_LAKE_CONN_ID = "aws"
-AZURE_DATA_LAKE_CONN_ID = "azure_data_lake"
-
 
 DEFAULT_ARGS = {
     "owner": "airflow",
@@ -32,7 +29,7 @@ def extract_security():
     Get all securities and map their exchange composite_code.
     """
     import polars as pl
-    from custom.providers.iceberg.hooks.pyiceberg import IcebergHook, filter_expressions
+    from custom.providers.iceberg.hooks.pyiceberg import IcebergStaticTableHook, filter_expressions
     from utils.dag.conf import get_dag_conf
 
     conf = get_dag_conf()
@@ -40,19 +37,26 @@ def extract_security():
     exchanges = conf.get("exchanges", [])
     security_types = conf.get("security_types", [])
 
-    # exchanges = ["XETRA", "NASDAQ", "INDX"]
-    # security_types = ["common_stock", "index", "preferred_stock"]
-
     logging.info(
         f"""Getting security quotes for exchanges: '{", ".join(exchanges)}' """
         f"""and security types: '{", ".join(security_types)}'."""
     )
 
-    mapping = IcebergHook(conn_id="aws", catalog_name="uniquestocks", table_name="mapping.mapping").to_polars(
+    mapping = IcebergStaticTableHook(
+        catalog_conn_id=CONN.ICEBERG_CATALOG,
+        io_conn_id=CONN.AWS_DATA_LAKE,
+        catalog_name="uniquestocks",
+        table_name=("mapping", "mapping"),
+    ).to_polars(
         selected_fields=("source_value", "mapping_value"),
         row_filter="field = 'composite_code' AND product = 'exchange' AND source = 'EodHistoricalData'",
     )
-    security = IcebergHook(conn_id="aws", catalog_name="uniquestocks", table_name="curated.security").to_polars(
+    security = IcebergStaticTableHook(
+        catalog_conn_id=CONN.ICEBERG_CATALOG,
+        io_conn_id=CONN.AWS_DATA_LAKE,
+        catalog_name="uniquestocks",
+        table_name=("curated", "security"),
+    ).to_polars(
         selected_fields=("exchange_code", "code", "type"),
         row_filter=filter_expressions.In("exchange_code", exchanges),
     )
@@ -163,7 +167,7 @@ sink = SparkSubmitSHHOperator(
         **spark_config.iceberg_jdbc_catalog,
     },
     spark_packages=[*spark_packages.adls, *spark_packages.iceberg],
-    connections=[AWS_DATA_LAKE_CONN_ID, AZURE_DATA_LAKE_CONN_ID],
+    connections=[CONN.AWS_DATA_LAKE, CONN.AZURE_DATA_LAKE],
     dataset=XComGetter.pull_with_template(task_id="set_sink_path"),
     conn_env_mapping={
         "AWS_ACCESS_KEY_ID": "AWS__LOGIN",

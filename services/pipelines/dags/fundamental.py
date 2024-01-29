@@ -10,12 +10,10 @@ from airflow.utils.dates import days_ago
 from conf.spark import config as spark_config
 from conf.spark import packages as spark_packages
 from custom.providers.spark.operators.submit import SparkSubmitSHHOperator
+from shared import connections as CONN
 from shared.path import ADLSRawZonePath
 from utils.dag.xcom import XComGetter
 from utils.filesystem.directory import DirFile
-
-AWS_DATA_LAKE_CONN_ID = "aws"
-AZURE_DATA_LAKE_CONN_ID = "azure_data_lake"
 
 default_args = {
     "owner": "airflow",
@@ -40,7 +38,7 @@ def extract_security():
     Get all securities and map their exchange composite_code.
     """
     import polars as pl
-    from custom.providers.iceberg.hooks.pyiceberg import IcebergHook, filter_expressions
+    from custom.providers.iceberg.hooks.pyiceberg import IcebergStaticTableHook, filter_expressions
     from utils.dag.conf import get_dag_conf
 
     conf = get_dag_conf()
@@ -56,11 +54,21 @@ def extract_security():
         f"""security types: '{", ".join(security_types)}'."""
     )
 
-    mapping = IcebergHook(conn_id="aws", catalog_name="uniquestocks", table_name="mapping.mapping").to_polars(
+    mapping = IcebergStaticTableHook(
+        catalog_conn_id=CONN.ICEBERG_CATALOG,
+        io_conn_id=CONN.AWS_DATA_LAKE,
+        catalog_name="uniquestocks",
+        table_name=("mapping", "mapping"),
+    ).to_polars(
         selected_fields=("source_value", "mapping_value"),
         row_filter="field = 'composite_code' AND product = 'exchange' AND source = 'EodHistoricalData'",
     )
-    security = IcebergHook(conn_id="aws", catalog_name="uniquestocks", table_name="curated.security").to_polars(
+    security = IcebergStaticTableHook(
+        catalog_conn_id=CONN.ICEBERG_CATALOG,
+        io_conn_id=CONN.AWS_DATA_LAKE,
+        catalog_name="uniquestocks",
+        table_name=("curated", "security"),
+    ).to_polars(
         selected_fields=("exchange_code", "code", "type"),
         row_filter=filter_expressions.In("exchange_code", exchanges),
     )
@@ -107,13 +115,13 @@ def set_post_transform_sink_path():
 
 
 @task_group
-def ingest_security_group(security_groups: list[dict]):
+def ingest_security_group(security_groups):
     """
     Ingest quotes for a list of securities from a specific exchange and with a specific type.
     """
 
     @task
-    def map_url_sink_path(securities: list[dict]):
+    def map_url_sink_path(securities):
         """
         Take list of securities and add endpoint and blob path to each record.
         """
@@ -145,7 +153,7 @@ def ingest_security_group(security_groups: list[dict]):
         )
 
     @task(max_active_tis_per_dag=1)
-    def ingest(securities: list):
+    def ingest(securities):
         from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageBulkHook, UrlUploadRecord
         from custom.providers.eod_historical_data.hooks.api import EodHistoricalDataApiHook
 
@@ -166,7 +174,7 @@ def ingest_security_group(security_groups: list[dict]):
         return uploaded_blobs
 
     @task
-    def download_transform(blobs: list):
+    def download_transform(blobs):
         from uuid import uuid4
 
         from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageBulkHook
@@ -246,7 +254,7 @@ sink = SparkSubmitSHHOperator(
         **spark_config.iceberg_jdbc_catalog,
     },
     spark_packages=[*spark_packages.aws, *spark_packages.iceberg],
-    connections=[AWS_DATA_LAKE_CONN_ID],
+    connections=[CONN.AWS_DATA_LAKE],
     dataset=XComGetter.pull_with_template(task_id="set_post_transform_sink_path"),
     conn_env_mapping={
         "AWS_ACCESS_KEY_ID": "AWS__LOGIN",
