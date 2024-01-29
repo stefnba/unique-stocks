@@ -4,6 +4,7 @@ x-airflow-common: &airflow-common
     build:
         context: .
         dockerfile: docker/Dockerfile
+        target: dev # build stage
         args:
             AIRFLOW_HOME: ${AIRFLOW_HOME}
             AIRFLOW_PROJ_DIR: ${AIRFLOW_PROJ_DIR}
@@ -21,7 +22,7 @@ x-airflow-common: &airflow-common
         AIRFLOW__CORE__MAX_MAP_LENGTH: 100000
         AIRFLOW__CORE__EXECUTOR: LocalExecutor
         # AIRFLOW__LOGGING__LOGGING_CONFIG_CLASS: log_config.LOGGING_CONFIG
-        LOGGING_REMOTE_HOST: http://unique-stocks-log
+        # LOGGING_REMOTE_HOST: http://unique-stocks-log
     user: '${AIRFLOW_UID:-50000}:0'
     volumes:
         - ${AIRFLOW_PROJ_DIR}/dags:${AIRFLOW_HOME}/dags
