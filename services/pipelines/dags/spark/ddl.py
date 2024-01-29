@@ -145,7 +145,9 @@ spark.sql(
         expiration_date STRING,
         expiration_reason STRING,
         registration_date STRING,
-        registration_status STRING
+        registration_status STRING,
+        created_at TIMESTAMP,
+        updated_at TIMESTAMP
     )
     USING iceberg
     PARTITIONED BY (legal_address_country);

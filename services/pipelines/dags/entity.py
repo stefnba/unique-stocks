@@ -5,14 +5,14 @@ from datetime import datetime
 
 import polars as pl
 from airflow.decorators import dag, task
-from custom.operators.data.delta_table import WriteDeltaTableFromDatasetOperator
-from custom.providers.azure.hooks.handlers.read.azure import AzureDatasetArrowHandler
-from shared import airflow_dataset, schema
-from shared.path import AdlsPath, EntityPath, LocalPath, Path
+from conf.spark import config as spark_config
+from conf.spark import packages as spark_packages
+from custom.providers.spark.operators.submit import SparkSubmitSHHOperator
+from shared import connections as CONN
 from utils.dag.xcom import XComGetter
 
 
-def transform_entity_job(data: pl.LazyFrame) -> pl.LazyFrame:
+def transform_entity(data: pl.LazyFrame) -> pl.LazyFrame:
     data = data.select(
         [
             "LEI",
@@ -37,8 +37,6 @@ def transform_entity_job(data: pl.LazyFrame) -> pl.LazyFrame:
             "Registration.RegistrationStatus",
         ]
     )
-
-    # data = data.head(500_000)
 
     data = data.rename(
         {
@@ -73,75 +71,42 @@ URL = "https://leidata-preview.gleif.org/storage/golden-copy-files/2023/07/17/80
 
 @task
 def ingest():
-    from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageHook
-
-    destination = EntityPath.raw(source="Gleif", format="zip")
-
-    hook = AzureDataLakeStorageHook(conn_id="azure_data_lake")
-    hook.upload_from_url(url=URL, **destination.afls_path)
-
-    return destination.to_dict()
-
-
-@task
-def unizp_transform(path):
-    from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageHook
-    from utils.file.unzip import unzip_file
-
-    hook = AzureDataLakeStorageHook(conn_id="azure_data_lake")
-
-    path = Path.create(path=path)
-    file_path = LocalPath.create_temp_file_path(format="zip")
+    from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+    from custom.hooks.http.hook import HttpHook
+    from shared.path import S3RawZonePath
+    from utils.file.unzip import compress_with_gzip, unzip_file
 
     # download to file
-    hook.stream_to_local_file(**path.afls_path, file_path=file_path)
+    local_file = HttpHook().stream_to_local_file(url=URL, file_type="zip")
 
-    # unzip
-    unzipped_file_path = unzip_file(file_path)
+    # rezip
+    unzipped_file_path = unzip_file(local_file)
+    rezipped_path = compress_with_gzip(unzipped_file_path.uri)
 
-    lf = pl.scan_csv(unzipped_file_path.uri)
+    # ingest to data lake raw zone
+    ingest_path = S3RawZonePath(source="Gleif", type="zip", product="entity")
+    hook = S3Hook(aws_conn_id=CONN.AWS_DATA_LAKE)
+    hook.load_file(filename=rezipped_path, key=ingest_path.key, bucket_name=ingest_path.bucket)
 
-    transformed = transform_entity_job(lf)
-
-    file_path_parquet = Path.create_temp_file_path()
-    transformed.sink_parquet(file_path_parquet.uri)
-
-    # pl.scan_csv(unzipped_file_path).sink_parquet(file_path_parquet)
-
-    destination = AdlsPath.create_temp_file_path().to_dict()
-
-    # upload unzip file to azure
-    hook.upload_file(**destination, file_path=file_path_parquet, stream=True)
-
-    return destination
+    return ingest_path.uri
 
 
-# transform = LazyFrameTransformationOperator(
-#     task_id="transform",
-#     adls_conn_id="azure_data_lake",
-#     destination_path=TempFilePath.create(),
-#     dataset_format="csv",
-#     dataset_path=get_xcom_template(task_id="unizp"),
-#     dataset_handler=AzureDatasetStreamHandler,
-#     write_handler=AzureDatasetWriteUploadHandler,
-#     transformation=transform_entity_job,
-# )
-
-
-sink = WriteDeltaTableFromDatasetOperator(
-    task_id="sink",
-    adls_conn_id="azure_data_lake",
-    dataset_path=XComGetter.pull_with_template(task_id="unizp_transform"),
-    dataset_handler=AzureDatasetArrowHandler,
-    destination_path=EntityPath.curated(),
-    pyarrow_options={
-        "schema": schema.Entity,
+sink = SparkSubmitSHHOperator(
+    task_id="sink_to_iceberg",
+    app_file_name="sink_entity.py",
+    ssh_conn_id="ssh_test",
+    spark_conf={
+        **spark_config.aws,
+        **spark_config.iceberg_jdbc_catalog,
     },
-    delta_table_options={
-        "mode": "overwrite",
-        # "partition_by": ["headquarter_address_country"],
+    spark_packages=[*spark_packages.aws, *spark_packages.iceberg],
+    connections=[CONN.AWS_DATA_LAKE, CONN.ICEBERG_CATALOG],
+    dataset=XComGetter.pull_with_template("ingest"),
+    conn_env_mapping={
+        "AWS_ACCESS_KEY_ID": "AWS__LOGIN",
+        "AWS_SECRET_ACCESS_KEY": "AWS__PASSWORD",
+        "AWS_REGION": "AWS__EXTRA__REGION_NAME",
     },
-    outlets=[airflow_dataset.Entity],
 )
 
 
@@ -154,7 +119,7 @@ sink = WriteDeltaTableFromDatasetOperator(
 )
 def entity():
     ingest_task = ingest()
-    unizp_transform(ingest_task) >> sink
+    ingest_task >> sink
 
 
 dag_object = entity()
