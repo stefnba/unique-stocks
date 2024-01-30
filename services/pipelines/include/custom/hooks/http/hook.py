@@ -25,6 +25,8 @@ class HttpHook(BaseHook):
             str: Local file path.
         """
 
+        self.log.info(f"Downloading from '{url}' to '{file_path}' in steaming mode ...")
+
         if not file_path:
             if not file_type:
                 raise ValueError("File type must be specified if file path is empty.")
@@ -39,5 +41,7 @@ class HttpHook(BaseHook):
             for chunk in r.iter_content(chunk_size=chunk_size):
                 if chunk:
                     f.write(chunk)
+
+        self.log.info(f"Finished downloading from '{url}' to '{file_path}'.")
 
         return p

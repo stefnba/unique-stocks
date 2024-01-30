@@ -1,4 +1,5 @@
 import gzip
+import logging
 import os
 import zipfile
 from pathlib import Path as P
@@ -45,6 +46,8 @@ def compress_with_gzip(path: str, chunk_size=8192, delete_source_file=True) -> s
 
     zip_path = P(path).parent / f"{filename}.{ext}.gz"
 
+    logging.info(f"Compressing '{path}' to '{zip_path}' ...")
+
     with open(path, "rb") as f_in, gzip.open(zip_path, "wb") as f_out:
         while True:
             content = f_in.read(chunk_size)
@@ -52,7 +55,10 @@ def compress_with_gzip(path: str, chunk_size=8192, delete_source_file=True) -> s
                 break
             f_out.write(content)
 
+    logging.info(f"Finished compressing '{path}' to '{zip_path}'.")
+
     if delete_source_file:
+        logging.info(f"Deleting source file '{path}' ...")
         os.remove(path)
 
     return zip_path.absolute().as_posix()
