@@ -18,12 +18,7 @@ class SparkSubmitSHHOperator(SSHOperator):
     The Spark job file is transfered to the remote cluster.
     """
 
-    template_fields = (
-        "ssh_conn_id",
-        "app_file_name",
-        "app_dir_path",
-        "dataset",
-    )
+    template_fields = ("ssh_conn_id", "app_file_name", "app_dir_path", "dataset", "spark_conf")
 
     ssh_conn_id: str
     app_file_name: str
@@ -41,7 +36,7 @@ class SparkSubmitSHHOperator(SSHOperator):
         app_file_name: str,
         dataset: t.Optional[str] = None,
         connections: list[str] = [],
-        app_dir_path: str = "/app/airflow/dags/spark/",
+        app_dir_path: str = "dags/spark/",
         spark_app_dir_path: str = "/opt/spark/apps/",
         spark_conf: dict = {},
         spark_packages: list[str] = [],
