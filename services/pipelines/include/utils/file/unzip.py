@@ -1,6 +1,7 @@
 import gzip
 import logging
 import os
+import typing as t
 import zipfile
 from pathlib import Path as P
 from uuid import uuid4
@@ -62,3 +63,28 @@ def compress_with_gzip(path: str, chunk_size=8192, delete_source_file=True) -> s
         os.remove(path)
 
     return zip_path.absolute().as_posix()
+
+
+def compress_file(files: str | list[str], base_dir: str, sink_path: t.Optional[str] = None) -> str:
+    """
+    Compress files or entire directories.
+    """
+
+    _sink_path = sink_path or LocalPath.create_temp_file_path("zip").uri
+
+    base_path = P(base_dir).resolve()
+
+    with zipfile.ZipFile(_sink_path, mode="w", compression=zipfile.ZIP_DEFLATED) as zip:
+        for file in files:
+            file_path = (base_path / file).resolve()
+
+            if not file_path.exists():
+                raise FileNotFoundError(f"'{file_path.as_posix()}' not found")
+
+            if file_path.is_file():
+                zip.write(file_path, arcname=file)
+
+            if file_path.is_dir():
+                print("not yet implemtned")
+
+    return _sink_path
