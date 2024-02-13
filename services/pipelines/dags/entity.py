@@ -8,6 +8,7 @@ from airflow.decorators import dag, task
 from conf.spark import config as spark_config
 from conf.spark import packages as spark_packages
 from custom.providers.spark.operators.submit import SparkSubmitSHHOperator
+from shared import airflow_dataset
 from shared import connections as CONN
 from utils.dag.xcom import XComGetter
 
@@ -84,9 +85,11 @@ def ingest():
     rezipped_path = compress_with_gzip(unzipped_file_path.uri)
 
     # ingest to data lake raw zone
-    ingest_path = S3RawZonePath(source="Gleif", type="zip", product="entity")
+    ingest_path = S3RawZonePath(source="Gleif", type="csv.gz", product="entity")
     hook = S3Hook(aws_conn_id=CONN.AWS_DATA_LAKE)
     hook.load_file(filename=rezipped_path, key=ingest_path.key, bucket_name=ingest_path.bucket)
+
+    # todo remove file rezipped_path
 
     return ingest_path.uri
 
@@ -107,6 +110,7 @@ sink = SparkSubmitSHHOperator(
         "AWS_SECRET_ACCESS_KEY": "AWS__PASSWORD",
         "AWS_REGION": "AWS__EXTRA__REGION_NAME",
     },
+    outlets=[airflow_dataset.Entity],
 )
 
 

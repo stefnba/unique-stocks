@@ -178,6 +178,7 @@ sink = SparkSubmitSHHOperator(
         "ADLS_CLIENT_SECRET": "AZURE_DATA_LAKE__PASSWORD",
         "ADLS_TENANT_ID": "AZURE_DATA_LAKE__EXTRA__TENANT_ID",
     },
+    py_files=["path.py"],
 )
 
 

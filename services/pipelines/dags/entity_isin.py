@@ -31,7 +31,7 @@ def ingest():
     # ingest to data lake
     ingest_path = S3RawZonePath(source="Gleif", type="csv.gz", product="entity_isin")
     hook = S3Hook(aws_conn_id=CONN.AWS_DATA_LAKE)
-    hook.load_file(key=ingest_path.key, filename=rezipped_path, bucket_name=ingest_path.bucket)
+    hook.load_file(filename=rezipped_path, key=ingest_path.key, bucket_name=ingest_path.bucket)
 
     # todo remove file rezipped_path
 
