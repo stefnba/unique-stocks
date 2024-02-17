@@ -22,10 +22,10 @@ class SparkSSHSubmitHook(BaseHook):
     ssh_hook: SSHHook
     sftp_hook: SFTPHook
 
-    def __init__(self, ssh_conn_id: str):
+    def __init__(self, ssh_conn_id: str, cmd_timeout=60 * 10):
         self.ssh_conn_id = ssh_conn_id
 
-        self.ssh_hook = SSHHook(ssh_conn_id)
+        self.ssh_hook = SSHHook(ssh_conn_id, cmd_timeout=cmd_timeout)
         self.sftp_hook = SFTPHook(ssh_conn_id)
 
     def submit(
