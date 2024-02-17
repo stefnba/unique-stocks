@@ -24,7 +24,7 @@ pyarrow = "^14.0.2"
 polars = "^0.20.5"
 duckdb = "^0.9.2"
 pydantic-settings = "^2.1.0"
-pyiceberg = "^0.5.1"
+pyiceberg = {extras = ["hive"], version = "^0.5.1"}
 pandas = "^2.2.0"
 
 

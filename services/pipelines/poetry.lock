@@ -4892,6 +4892,7 @@ requests = ">=2.20.0,<3.0.0"
 rich = ">=10.11.0,<14.0.0"
 sortedcontainers = "2.4.0"
 strictyaml = ">=1.7.0,<2.0.0"
+thrift = {version = ">=0.13.0,<1.0.0", optional = true, markers = "extra == \"hive\""}
 
 [package.extras]
 adlfs = ["adlfs (>=2023.1.0,<2024.1.0)"]
@@ -6009,6 +6010,24 @@ files = [
 ]
 
 [[package]]
+name = "thrift"
+version = "0.16.0"
+description = "Python bindings for the Apache Thrift RPC system"
+optional = false
+python-versions = "*"
+files = [
+    {file = "thrift-0.16.0.tar.gz", hash = "sha256:2b5b6488fcded21f9d312aa23c9ff6a0195d0f6ae26ddbd5ad9e3e25dfc14408"},
+]
+
+[package.dependencies]
+six = ">=1.7.2"
+
+[package.extras]
+all = ["tornado (>=4.0)", "twisted"]
+tornado = ["tornado (>=4.0)"]
+twisted = ["twisted"]
+
+[[package]]
 name = "tornado"
 version = "6.4"
 description = "Tornado is a Python web framework and asynchronous networking library, originally developed at FriendFeed."
@@ -6397,4 +6416,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.11,<3.12"
-content-hash = "56b032739cb7de56853d70606f6ec6dbcd999394704aebf42f6d8a1d6abbd734"
+content-hash = "94d484aa1672058bd311d5e5c9845e5f73c2b20ea0d13132689b785571982682"
