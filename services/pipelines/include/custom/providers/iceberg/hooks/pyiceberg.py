@@ -4,6 +4,13 @@ import polars as pl
 from airflow.exceptions import AirflowException
 from airflow.hooks.base import BaseHook
 from airflow.models.connection import Connection
+from custom.providers.iceberg.hooks.types import (
+    CatalogConnectionProps,
+    CatalogType,
+    FileIOConnectionProps,
+    is_aws_file_io_connection,
+    is_sql_catalog_connection,
+)
 from pyiceberg import expressions
 from pyiceberg.catalog import Catalog, load_catalog
 from pyiceberg.expressions import AlwaysTrue, BooleanExpression
@@ -12,80 +19,9 @@ from pyiceberg.table import Table as IcebergTable
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-CatalogType = t.Literal["glue", "sql"]
-
 ALWAYS_TRUE = AlwaysTrue()
 
 filter_expressions = expressions
-
-
-"""
-
-- set io connection pros
-    - aws
-    - azure
-- set catalog connection props
-    - glue
-    - sql (postgres)
-
-
-
-"""
-
-AWSFileIOProps = t.TypedDict(
-    "AWSFileIOProps",
-    {
-        "s3.access-key-id": str,
-        "s3.secret-access-key": str,
-        "s3.region": str,
-    },
-)
-
-
-def is_aws_file_io_connection(connection: t.Mapping) -> t.TypeGuard[AWSFileIOProps]:
-    if "s3.access-key-id" in connection and "s3.secret-access-key" in connection and "s3.region" in connection:
-        return True
-    return False
-
-
-AzureFileIOProps = t.TypedDict(
-    "AzureFileIOProps",
-    {
-        "adlfs.account-name": str,
-        "adlfs.tenant-id": str,
-        "adlfs.client-id": str,
-        "adlfs.client-secret": str,
-    },
-)
-
-FileIOConnectionProps = AWSFileIOProps | AzureFileIOProps
-
-
-class GlueCatalogConnectionProps(t.TypedDict):
-    aws_access_key_id: str
-    aws_secret_access_key: str
-    region_name: str
-    type: CatalogType
-
-
-def is_glue_catalog_connection(connection: dict) -> t.TypeGuard[GlueCatalogConnectionProps]:
-    if "aws_access_key_id" in connection and "aws_secret_access_key" in connection and "region_name" in connection:
-        return True
-    return False
-
-
-class SQLCatalogConnectionProps(t.TypedDict):
-    uri: str
-    type: CatalogType
-
-
-def is_sql_catalog_connection(connection: t.Mapping) -> t.TypeGuard[SQLCatalogConnectionProps]:
-    if "uri" in connection:
-        return True
-    return False
-
-
-CatalogConnectionProps = GlueCatalogConnectionProps | SQLCatalogConnectionProps
 
 
 class IcebergHook(BaseHook):
@@ -112,7 +48,7 @@ class IcebergHook(BaseHook):
         io_conn_id: str,
         catalog_name: str,
         table_name: str | tuple[str, str],
-        type: CatalogType = "sql",
+        type: CatalogType = "hive",
         catalog_conn_id: str = "iceberg_catalog_default",
     ):
         self.type = type
@@ -138,7 +74,7 @@ class IcebergHook(BaseHook):
 
     def _load(self):
         self.load_catalog(self.catalog_name)
-        self.load_table(self.table_name)
+        self.load_table((self.table_namespace_name, self.table_name))
 
     def _init_file_io_conn(self):
         io_conn = self.get_connection(self.io_conn_id)
@@ -155,8 +91,43 @@ class IcebergHook(BaseHook):
             self._set_glue_catalog_conn_props(catalog_conn)
         elif self.type == "sql":
             self.set_sql_catalog_connection(catalog_conn)
+        elif self.type == "hive":
+            self.set_hive_catalog_connection(catalog_conn)
         else:
             raise AirflowException(f"Connection type '{catalog_conn.conn_type}' is not supported for catalog.")
+
+    def set_hive_catalog_connection(self, connection: Connection):
+        """
+        Specify Hive connection required for PyIceberg catalog if provided catalog connection type is `hive`
+        and assign them to `catalog_connection` property.
+
+        Args:
+            connection (Connection): Catalog connection for specific arg `catalog_conn_id`.
+
+        Raises:
+            AirflowException: if `conn_type` is not `hive_metastore`.
+            AirflowException: if `host` or `port` is not specified.
+        """
+
+        if not str(connection.conn_type) == "hive_metastore":
+            raise AirflowException(f"Connection type {connection.conn_type} is not supported.")
+
+        host = connection.host
+        port = connection.port
+
+        if not host:
+            raise AirflowException(f"Host is not set in extra for connection '{self.catalog_conn_id}'.")
+
+        if not port:
+            raise AirflowException(f"Port is not set in extra for connection '{self.catalog_conn_id}'.")
+
+        if "thrift://" in host:
+            host = host.replace("thrift://", "")
+
+        self.catalog_connection = {
+            "uri": f"thrift://{host}:{port}",
+            "type": "hive",
+        }
 
     def set_sql_catalog_connection(self, connection: Connection):
         """
@@ -242,7 +213,7 @@ class IcebergHook(BaseHook):
 
         return self.catalog
 
-    def load_table(self, table_name: str) -> IcebergTable:
+    def load_table(self, table_name: str | tuple[str, str]) -> IcebergTable:
         """
         Load the table's metadata and returns the table instance.
         """
