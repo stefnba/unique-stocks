@@ -17,9 +17,9 @@ from utils.dag.xcom import XComGetter
 @task
 def extract_exchange_codes():
     import polars as pl
-    from custom.providers.iceberg.hooks.pyiceberg import IcebergStaticTableHook
+    from custom.providers.iceberg.hooks.pyiceberg import IcebergHook
 
-    exchanges = IcebergStaticTableHook(
+    exchanges = IcebergHook(
         io_conn_id=conn.AWS_DATA_LAKE,
         catalog_conn_id=conn.ICEBERG_CATALOG,
         catalog_name="uniquestocks",
@@ -104,7 +104,7 @@ sink = SparkSubmitSHHOperator(
     ssh_conn_id="ssh_test",
     spark_conf={
         **spark_config.adls,
-        **spark_config.iceberg_jdbc_catalog,
+        **spark_config.iceberg_hive_catalog,
     },
     spark_packages=[*spark_packages.adls, *spark_packages.iceberg],
     connections=[conn.AWS_DATA_LAKE, conn.AZURE_DATA_LAKE],

@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from airflow.decorators import dag, task, task_group
 from airflow.models.param import Param
 from airflow.utils.dates import days_ago
+from airflow.utils.trigger_rule import TriggerRule
 from conf.spark import config as spark_config
 from conf.spark import packages as spark_packages
 from custom.providers.spark.operators.submit import SparkSubmitSHHOperator
@@ -29,7 +30,7 @@ def extract_security():
     Get all securities and map their exchange composite_code.
     """
     import polars as pl
-    from custom.providers.iceberg.hooks.pyiceberg import IcebergStaticTableHook, filter_expressions
+    from custom.providers.iceberg.hooks.pyiceberg import IcebergHook, filter_expressions
     from utils.dag.conf import get_dag_conf
 
     conf = get_dag_conf()
@@ -42,7 +43,7 @@ def extract_security():
         f"""and security types: '{", ".join(security_types)}'."""
     )
 
-    mapping = IcebergStaticTableHook(
+    mapping = IcebergHook(
         catalog_conn_id=CONN.ICEBERG_CATALOG,
         io_conn_id=CONN.AWS_DATA_LAKE,
         catalog_name="uniquestocks",
@@ -51,7 +52,7 @@ def extract_security():
         selected_fields=("source_value", "mapping_value"),
         row_filter="field = 'composite_code' AND product = 'exchange' AND source = 'EodHistoricalData'",
     )
-    security = IcebergStaticTableHook(
+    security = IcebergHook(
         catalog_conn_id=CONN.ICEBERG_CATALOG,
         io_conn_id=CONN.AWS_DATA_LAKE,
         catalog_name="uniquestocks",
@@ -164,7 +165,7 @@ sink = SparkSubmitSHHOperator(
     ssh_conn_id="ssh_test",
     spark_conf={
         **spark_config.adls,
-        **spark_config.iceberg_jdbc_catalog,
+        **spark_config.iceberg_hive_catalog,
     },
     spark_packages=[*spark_packages.adls, *spark_packages.iceberg],
     connections=[CONN.AWS_DATA_LAKE, CONN.AZURE_DATA_LAKE],
@@ -179,6 +180,7 @@ sink = SparkSubmitSHHOperator(
         "ADLS_TENANT_ID": "AZURE_DATA_LAKE__EXTRA__TENANT_ID",
     },
     py_files=["path.py"],
+    trigger_rule=TriggerRule.ALL_DONE,
 )
 
 
