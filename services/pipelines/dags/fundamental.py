@@ -3,10 +3,10 @@
 # pyright: reportUnusedExpression=false
 import logging
 from datetime import datetime, timedelta
-from typing import TypedDict
 
 from airflow.decorators import dag, task, task_group
 from airflow.utils.dates import days_ago
+from airflow.utils.trigger_rule import TriggerRule
 from conf.spark import config as spark_config
 from conf.spark import packages as spark_packages
 from custom.providers.spark.operators.submit import SparkSubmitSHHOperator
@@ -27,23 +27,18 @@ default_args = {
 }
 
 
-class FundamentalSecurity(TypedDict):
-    exchange_code: str
-    security_code: str
-
-
 @task
 def extract_security():
     """
     Get all securities and map their exchange composite_code.
     """
     import polars as pl
-    from custom.providers.iceberg.hooks.pyiceberg import IcebergStaticTableHook, filter_expressions
+    from custom.providers.iceberg.hooks.pyiceberg import IcebergHook, filter_expressions
     from utils.dag.conf import get_dag_conf
 
     conf = get_dag_conf()
     exchanges = conf.get("exchanges", ["XETRA", "NASDAQ", "NYSE"])
-    security_types = conf.get("security_types", ["common_stock"])
+    security_types = conf.get("security_types", ["common_stock", "preferred_stock"])
 
     # Filter out indexes since we get their fundamentals, i.e. members, with different DAG
     exchanges = [e for e in exchanges if e != "INDX"]
@@ -54,7 +49,7 @@ def extract_security():
         f"""security types: '{", ".join(security_types)}'."""
     )
 
-    mapping = IcebergStaticTableHook(
+    mapping = IcebergHook(
         catalog_conn_id=CONN.ICEBERG_CATALOG,
         io_conn_id=CONN.AWS_DATA_LAKE,
         catalog_name="uniquestocks",
@@ -63,7 +58,7 @@ def extract_security():
         selected_fields=("source_value", "mapping_value"),
         row_filter="field = 'composite_code' AND product = 'exchange' AND source = 'EodHistoricalData'",
     )
-    security = IcebergStaticTableHook(
+    security = IcebergHook(
         catalog_conn_id=CONN.ICEBERG_CATALOG,
         io_conn_id=CONN.AWS_DATA_LAKE,
         catalog_name="uniquestocks",
@@ -162,7 +157,7 @@ def ingest_security_group(security_groups):
         hook = AzureDataLakeStorageBulkHook(conn_id="azure_data_lake")
         api_hook = EodHistoricalDataApiHook()
 
-        url_endpoints = [UrlUploadRecord(**sec) for sec in securities[:10]]
+        url_endpoints = [UrlUploadRecord(**sec) for sec in securities]
 
         uploaded_blobs = hook.upload_from_url(
             container="raw",
@@ -224,6 +219,7 @@ def transform(file: DirFile, sink_dir: str):
     import uuid
     from pathlib import Path
 
+    from airflow.exceptions import AirflowException
     from custom.providers.eod_historical_data.transformers.fundamental.common_stock import (
         EoDCommonStockFundamentalTransformer,
     )
@@ -236,9 +232,11 @@ def transform(file: DirFile, sink_dir: str):
 
     transformed_data = None
 
-    if sec_type == "Common Stock":
+    if sec_type == "Common Stock" or sec_type == "Preferred Stock":
         transformer = EoDCommonStockFundamentalTransformer(data=data)
         transformed_data = transformer.transform()
+    else:
+        raise AirflowException(f"Unsupported security type '{sec_type}'.")
 
     if transformed_data is not None:
         sink_path = Path(sink_dir) / f"{uuid.uuid4().hex}.parquet"
@@ -251,7 +249,7 @@ sink = SparkSubmitSHHOperator(
     ssh_conn_id="ssh_test",
     spark_conf={
         **spark_config.aws,
-        **spark_config.iceberg_jdbc_catalog,
+        **spark_config.iceberg_hive_catalog,
     },
     spark_packages=[*spark_packages.aws, *spark_packages.iceberg],
     connections=[CONN.AWS_DATA_LAKE],
@@ -261,6 +259,7 @@ sink = SparkSubmitSHHOperator(
         "AWS_SECRET_ACCESS_KEY": "AWS__PASSWORD",
         "AWS_REGION": "AWS__EXTRA__REGION_NAME",
     },
+    trigger_rule=TriggerRule.ALL_DONE,
 )
 
 
@@ -290,10 +289,7 @@ if __name__ == "__main__":
     dag_object.test(
         conn_file_path=connections,
         run_conf={
-            "delta_table_mode": "overwrite",
             "exchanges": ["XETRA", "NASDAQ", "NYSE"],
-            "security_types": [
-                "common_stock",
-            ],
+            "security_types": ["common_stock", "preferred_stock"],
         },
     )

@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import Literal, Optional
 
 import polars as pl
@@ -40,6 +41,8 @@ class EoDFundamentalTransformer:
 
         if security is None:
             raise ValueError("Security must be specified.")
+
+        logging.info(f"Transforming security '{self.security}' for exchange '{self.exchange}'.")
 
     def transform(self) -> pl.DataFrame | None:
         """Entry method to start transform. Chain fundamental frames into one DataFrame and return it."""

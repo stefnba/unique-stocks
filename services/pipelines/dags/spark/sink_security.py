@@ -22,7 +22,7 @@ if not PATH:
 PATH = PATH.replace(f"abfs://{CONTAINER}", "")
 
 
-data = spark.read.parquet(
+spark.read.parquet(
     f"abfs://{CONTAINER}@{ADLS_STORAGE_ACCOUNT_NAME}.dfs.core.windows.net/{PATH}"
 ).createOrReplaceTempView("data")
 

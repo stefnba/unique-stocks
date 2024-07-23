@@ -427,7 +427,6 @@ if __name__ == "__main__":
     dag_object.test(
         conn_file_path=connections,
         run_conf={
-            "delta_table_mode": "overwrite",
             "exchanges": ["XETRA", "NASDAQ", "INDX"],
             "security_types": ["common_stock", "index", "preferred_stock"],
         },

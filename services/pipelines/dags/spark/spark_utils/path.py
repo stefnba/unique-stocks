@@ -31,7 +31,7 @@ def convert_to_adls_uri(uri: str | None, account_name: str | None) -> str:
     return f"abfs://{container}@{account_name}.dfs.core.windows.net/{path}"
 
 
-def convert_to_s3_uri(uri: str) -> str:
+def convert_to_s3_uri(uri: str | None) -> str:
     if not uri:
         raise Exception("URI is missing.")
     if not is_s3_uri(uri):

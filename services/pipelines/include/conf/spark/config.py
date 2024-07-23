@@ -21,9 +21,6 @@ iceberg_hive_catalog = {
     f"spark.sql.catalog.{CATALOG_NAME}.io-impl": "org.apache.iceberg.aws.s3.S3FileIO",
     "spark.sql.defaultCatalog": CATALOG_NAME,
     f"spark.sql.catalog.{CATALOG_NAME}.warehouse": WAREHOUSE_PATH,
-    "spark.hadoop.fs.s3a.access.key": "$AWS_ACCESS_KEY_ID",
-    "spark.hadoop.fs.s3a.secret.key": "$AWS_SECRET_ACCESS_KEY",
-    "spark.hadoop.fs.s3a.endoint.region": "$AWS_REGION",
 }
 
 
