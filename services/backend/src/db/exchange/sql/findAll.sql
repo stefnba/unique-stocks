@@ -1,9 +1,0 @@
-SELECT
-    id,
-    operating_exchange_id,
-    mic,
-    name,
-    website,
-    source
-FROM
-    "data"."exchange"
