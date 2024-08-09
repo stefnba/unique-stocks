@@ -1,0 +1,94 @@
+
+
+[tool.black]
+line-length = 120
+# Assume Python 3.12.
+target-version = ['py312']
+include = '\.pyi?$'
+
+[tool.ruff]
+# Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
+select = ["E", "F", "I",]
+ignore = []
+
+# Allow autofix for all enabled rules (when `--fix`) is provided.
+fixable = ["A", "B", "C", "D", "E", "F", "I"]
+unfixable = []
+
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+]
+include = ["*.py", "*.pyi", "**/pyproject.toml", "*.ipynb"]
+
+# Same as Black.
+line-length = 120
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+# Assume Python 3.12.
+target-version = "py312"
+
+[tool.ruff.mccabe]
+# Unlike Flake8, default to a complexity level of 10.
+max-complexity = 10
+
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = false
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.poetry]
+name = "orchestration"
+version = "0.1.0"
+description = ""
+authors = ["Stefan Bauer <stefanjakob.bauer@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+prefect = "3.0.0rc13"
+prefect-aws = "0.5.0rc2"
+pydantic = "^2.8.2"
+dbt-core = "^1.8.4"
+dbt-trino = "^1.8.1"
+polars = "^1.3.0"
+pandas = "^2.2.2"
+duckdb = "^1.0.0"
+prefect-sqlalchemy = "0.5.0rc2"
+psycopg = {extras = ["binary"], version = "^3.2.1"}
+trino = {extras = ["sqlalchemy"], version = "^0.329.0"}
+
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.4.2"
+ruff = "^0.5.5"
+mypy = "^1.11.0"
+types-requests = "^2.32.0.20240712"
+ipykernel = "^6.29.5"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
