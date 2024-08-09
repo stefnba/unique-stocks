@@ -1,0 +1,15 @@
+version: 2
+
+models:
+  - name: anlytcs_exchange
+    description: "A starter dbt model"
+    columns:
+      - name: name
+        description: "Name of the exchange"
+        data_tests:
+          - not_null
+      - name: code
+        description: "Code of the exchange as assigned by EOD Historical Data"
+        data_tests:
+          - unique
+          - not_null

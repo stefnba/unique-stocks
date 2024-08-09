@@ -1,0 +1,23 @@
+unique_stocks:
+  target: dev
+  outputs:
+    dev:
+      type: trino
+      method: none
+      user: admin
+      password:
+      catalog: iceberg_warehouse
+      schema: tiny
+      host: localhost
+      port: 8080
+      http_scheme: http
+    docker-dev:
+      type: trino
+      method: none
+      user: admin
+      password:
+      catalog: iceberg_warehouse
+      schema: tiny
+      host: trino
+      port: 8080
+      http_scheme: http

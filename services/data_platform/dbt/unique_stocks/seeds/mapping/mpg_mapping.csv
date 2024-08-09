@@ -1,0 +1,13 @@
+﻿product,source,field,source_value,source_description,mapping_value,uid_description,active_from,active_until,is_active
+exchange,EodHistoricalData,composite_code,NASDAQ,,US,,1/1/23,,TRUE
+exchange,EodHistoricalData,composite_code,NYSE,,US,,1/1/23,,TRUE
+exchange,EodHistoricalData,is_virtual,BOND,,1,,1/1/23,,TRUE
+exchange,EodHistoricalData,is_virtual,CC,,1,,1/1/23,,TRUE
+exchange,EodHistoricalData,is_virtual,FOREX,,1,,1/1/23,,TRUE
+exchange,EodHistoricalData,is_virtual,MONEY,,1,,1/1/23,,TRUE
+exchange,EodHistoricalData,is_virtual,EUFUND,,1,,1/1/23,,TRUE
+exchange,EodHistoricalData,is_virtual,GBOND,,1,,1/1/23,,TRUE
+exchange,EodHistoricalData,is_virtual,EUBOND,,1,,1/1/23,,TRUE
+exchange,EodHistoricalData,is_virtual,MCX,,1,,1/1/23,,TRUE
+exchange,EodHistoricalData,code_to_mic,NASDAQ,,XNAS,,1/1/23,,TRUE
+exchange,EodHistoricalData,code_to_mic,NYSE,,XNYS,,1/1/23,,TRUE

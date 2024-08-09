@@ -1,0 +1,9 @@
+version: 2
+
+sources:
+  - name: ingestion
+    database: hive_warehouse
+    schema: ingestion
+    tables:
+      - name: exchange
+        description: "Raw exchange table as ingested from EOD API."
