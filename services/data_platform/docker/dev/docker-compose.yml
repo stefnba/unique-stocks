@@ -1,0 +1,174 @@
+# Docker compose for local development
+
+version: "3.9"
+
+services:
+    orchestration-server:
+        build:
+            context: ./orchestration
+            dockerfile: docker/Dockerfile
+            target: server
+        restart: always
+        volumes:
+            - prefect:/root/.prefect
+        entrypoint: [ "prefect", "server", "start" ]
+        env_file:
+            - ./orchestration/.env
+        environment:
+            - PREFECT_SERVER_API_HOST=0.0.0.0
+            - PREFECT_API_URL=http://host:4200/api
+        ports:
+            - 4200:4200
+
+    orchestration-flows:
+        build:
+            context: ./orchestration
+            dockerfile: docker/Dockerfile
+            target: flows
+        entrypoint: [ "python", "/app/prefect_orchestration/main.py" ]
+        env_file:
+            - ./orchestration/.env
+        volumes:
+            - ./orchestration/prefect_orchestration:/app/prefect_orchestration
+            - ./dbt:/app/dbt
+        restart: always
+        depends_on:
+            - orchestration-server
+        environment:
+            - PREFECT_API_URL=http://orchestration-server:4200/api
+            - PYTHONPATH=/app/prefect_orchestration
+            - DBT_PROJECT_DIR=/app/dbt/unique_stocks
+            - DBT_PROFILES_DIR=/app/dbt/unique_stocks
+
+    minio:
+        image: minio/minio
+        container_name: minio
+        environment:
+            - MINIO_ROOT_USER=${AWS_ACCESS_KEY_ID}
+            - MINIO_ROOT_PASSWORD=${AWS_SECRET_ACCESS_KEY}
+            - MINIO_DOMAIN=minio
+        ports:
+            - 9001:9001
+            - 9000:9000
+        command: [ "server", "/data", "--console-address", ":9001" ]
+        volumes:
+            - minio-data:/data
+        networks:
+            default:
+                aliases:
+                    - ${S3_BUCKET}.minio # must be name of iceberg warehouse bucket on minio, otherwise host is not found
+
+    mc:
+        depends_on:
+            - minio
+        image: minio/mc
+        container_name: mc
+        environment:
+            - MINIO_ROOT_USER=${AWS_ACCESS_KEY_ID}
+            - MINIO_ROOT_PASSWORD=${AWS_SECRET_ACCESS_KEY}
+            - S3_BUCKET
+        entrypoint: >
+            /bin/sh -c " until (/usr/bin/mc config host add minio http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD}) do echo '...waiting...' && sleep 1; done; /usr/bin/mc mb --ignore-existing --region "us-east-1" minio/$${S3_BUCKET}; exit 0; "
+
+    trino:
+        ports:
+            - "8080:8080"
+        image: "trinodb/trino:452"
+        volumes:
+            - ./trino/config:/etc/trino
+        environment:
+            - AWS_SECRET_ACCESS_KEY
+            - AWS_ACCESS_KEY_ID
+            - AWS_S3_ENDPOINT=http://minio:9000
+
+    hive-metastore-pg:
+        image: postgres:16.2-alpine
+        environment:
+            - POSTGRES_USER=${METASTORE_DB_USER}
+            - POSTGRES_PASSWORD=${METASTORE_DB_PASSWORD}
+            - POSTGRES_DB=${METASTORE_DB_NAME}
+        healthcheck:
+            test:
+                [
+                    "CMD",
+                    "psql",
+                    "-U",
+                    "${METASTORE_DB_USER}",
+                    "${METASTORE_DB_NAME}"
+                ]
+        volumes:
+            - hive-metastore-pg:/var/lib/postgresql/data/
+        ports:
+            - "5411:5432"
+        env_file:
+            - ./hive_metastore/.env
+
+    iceberg-metastore-pg:
+        image: postgres:16.2-alpine
+        environment:
+            - POSTGRES_USER=${METASTORE_DB_USER}
+            - POSTGRES_PASSWORD=${METASTORE_DB_PASSWORD}
+            - POSTGRES_DB=${METASTORE_DB_NAME}
+        healthcheck:
+            test:
+                [
+                    "CMD",
+                    "psql",
+                    "-U",
+                    "${METASTORE_DB_USER}",
+                    "${METASTORE_DB_NAME}"
+                ]
+        volumes:
+            - iceberg-metastore-pg:/var/lib/postgresql/data/
+        ports:
+            - "5412:5432"
+        env_file:
+            - ./hive_metastore/.env
+
+    hive-metastore:
+        build:
+            context: ./hive_metastore
+            dockerfile: docker/Dockerfile
+        depends_on:
+            - hive-metastore-pg
+        environment:
+            - DATABASE_HOST=hive-metastore-pg
+            - DATABASE_USER=${METASTORE_DB_USER}
+            - DATABASE_DB=${METASTORE_DB_NAME}
+            - DATABASE_PASSWORD=${METASTORE_DB_PASSWORD}
+            - AWS_ACCESS_KEY_ID
+            - AWS_SECRET_ACCESS_KEY
+            - S3_ENDPOINT_URL=http://minio:9000
+            - S3_BUCKET
+            - WAREHOUSE_DIR=s3a://${S3_BUCKET}/hive_warehouse
+        ports:
+            - "9083:9083"
+        env_file:
+            - ./hive_metastore/.env
+
+    iceberg-metastore:
+        build:
+            context: ./hive_metastore
+            dockerfile: docker/Dockerfile
+        depends_on:
+            - iceberg-metastore-pg
+        environment:
+            - DATABASE_HOST=iceberg-metastore-pg
+            - DATABASE_USER=${METASTORE_DB_USER}
+            - DATABASE_DB=${METASTORE_DB_NAME}
+            - DATABASE_PASSWORD=${METASTORE_DB_PASSWORD}
+            - AWS_ACCESS_KEY_ID
+            - AWS_SECRET_ACCESS_KEY
+            - S3_ENDPOINT_URL=http://minio:9000
+            - S3_BUCKET
+            - WAREHOUSE_DIR=s3a://${S3_BUCKET}/iceberg_warehouse
+        ports:
+            - "9084:9083"
+        env_file:
+            - ./hive_metastore/.env
+
+volumes:
+    hive-metastore-pg:
+    iceberg-metastore-pg:
+    prefect:
+    minio-data:
