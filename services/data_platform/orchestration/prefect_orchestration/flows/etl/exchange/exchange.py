@@ -7,8 +7,6 @@ from lib.hooks.sql.hook import SQLHook
 from prefect import flow, task
 from prefect_aws.s3 import S3Bucket
 
-bucket_block = S3Bucket(bucket_name="data-bucket")
-
 
 @task(log_prints=True)
 def ingest():
@@ -40,12 +38,23 @@ def update_hive_partition():
     hook.execute("CALL system.sync_partition_metadata('ingestion', 'exchange', 'FULL')")
 
 
+@task
+def trigger_dbt():
+    from lib.hooks.dbt.hook import DbtCoreHook
+
+    DbtCoreHook(
+        project_dir="../dbt/unique_stocks",
+        profiles_dir="../dbt/unique_stocks",
+    ).run(models="+anlytcs_exchange")
+
+
 @flow(log_prints=True)
 def exchange_flow():
 
     exchanges = ingest()
 
     update_hive_partition()
+    trigger_dbt()
     return exchanges
 
 
