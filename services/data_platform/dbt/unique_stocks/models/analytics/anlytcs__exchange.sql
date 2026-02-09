@@ -7,7 +7,7 @@ WITH exchange AS (
     SELECT
         *
     FROM
-        {{ ref('stg_exchange') }}
+        {{ ref('stg__exchange') }}
 ),
 FINAL AS (
     SELECT

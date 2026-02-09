@@ -1,6 +1,7 @@
 from flows.arte import my_flow
 from flows.base_async import async_flow
 from flows.etl.exchange.exchange import exchange_flow
+from flows.etl.exchange.exchange_security import exchange_security_flow
 from flows.historical import historical_quotes
 from flows.progress import etl
 from flows.test import test_flow
@@ -14,5 +15,7 @@ if __name__ == "__main__":
         historical_quotes.to_deployment("historical_quotes"),
         my_flow.to_deployment("arte"),
         etl.to_deployment("progress"),
+        # elt flows
+        exchange_security_flow.to_deployment("exchange_security"),
         exchange_flow.to_deployment("exchange"),
     )

@@ -9,7 +9,26 @@ FILE_TYPE = Literal["parquet", "json", "csv"]
 
 
 def exchange_ingest_path():
-    return BASE_INGEST_PATH / "exchanges" / ingest_ts() / filename()
+    return BASE_INGEST_PATH / "exchange" / ingest_ts() / filename()
+
+
+def exchange_security_ingest_path(exchange_code: str, ingest_ts: str):
+    return BASE_INGEST_PATH / "exchange_security" / ingest_ts / f"exchange_code={exchange_code}" / filename()
+
+
+def exchange_index_member_ingest_path(ingest_ts: str):
+    return BASE_INGEST_PATH / "index_member" / ingest_ts / filename()
+
+
+def security_quote_ingest_path(exchange_code: str, security_code: str, ingest_ts: str):
+    return (
+        BASE_INGEST_PATH
+        / "security_quote"
+        / ingest_ts
+        / f"exchange_code={exchange_code}"
+        / f"security_code={security_code}"
+        / filename()
+    )
 
 
 def ingest_ts():

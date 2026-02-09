@@ -1,7 +1,7 @@
 version: 2
 
 models:
-  - name: stg_exchange
+  - name: stg__exchange
     description: "A starter dbt model"
     columns:
       - name: name

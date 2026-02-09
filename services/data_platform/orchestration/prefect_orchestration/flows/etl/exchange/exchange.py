@@ -2,8 +2,8 @@ import io
 
 import assets.blocks as block
 import assets.path as cloud_path
+from custom.tasks.hive import update_hive_partitions
 from hooks.http.eod import EodHistoricalDataHook
-from lib.hooks.sql.hook import SQLHook
 from prefect import flow, task
 from prefect_aws.s3 import S3Bucket
 
@@ -18,6 +18,7 @@ def ingest():
     exchanges = hook.exchanges()
 
     aws_credentials = block.aws_s3_lakehouse()
+
     s3_bucket = S3Bucket(bucket_name="lakehouse", credentials=aws_credentials)
 
     # Write exchanges to Parquet
@@ -32,20 +33,13 @@ def ingest():
 
 
 @task
-def update_hive_partition():
-
-    hook = SQLHook(block.trino_hive_warehouse())
-    hook.execute("CALL system.sync_partition_metadata('ingestion', 'exchange', 'FULL')")
-
-
-@task
 def trigger_dbt():
     from lib.hooks.dbt.hook import DbtCoreHook
 
     DbtCoreHook(
         project_dir="../dbt/unique_stocks",
         profiles_dir="../dbt/unique_stocks",
-    ).run(models="+anlytcs_exchange")
+    ).run(models="+anlytcs__exchange")
 
 
 @flow(log_prints=True)
@@ -53,7 +47,7 @@ def exchange_flow():
 
     exchanges = ingest()
 
-    update_hive_partition()
+    update_hive_partitions(block_name=block.TRINO__HIVE_WAREHOUSE, table_name="exchange")
     trigger_dbt()
     return exchanges
 

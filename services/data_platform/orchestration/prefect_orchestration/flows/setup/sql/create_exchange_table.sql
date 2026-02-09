@@ -7,9 +7,8 @@ CREATE TABLE IF NOT EXISTS ingestion.exchange (
     "CountryISO2" VARCHAR,
     "CountryISO3" VARCHAR,
     "ingested_at" TIMESTAMP
-)
-WITH (
-  format = 'PARQUET',
-  external_location = 's3a://lakehouse/ingest/exchanges/',
-  partitioned_by = ARRAY['ingested_at']
+) WITH (
+    format = 'PARQUET',
+    external_location = 's3a://lakehouse/ingest/exchange/',
+    partitioned_by = ARRAY ['ingested_at']
 )

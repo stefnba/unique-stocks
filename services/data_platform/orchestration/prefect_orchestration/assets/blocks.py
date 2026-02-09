@@ -2,11 +2,16 @@ from prefect.blocks.system import Secret
 from prefect_aws.s3 import AwsCredentials
 from prefect_sqlalchemy import SqlAlchemyConnector
 
+TRINO__HIVE_WAREHOUSE = "trino-hive"
+TRINO__ICEBERG_WAREHOUSE = "trino-iceberg"
+AWS__S3_LAKEHOUSE = "aws-credentials"
+EOD__API_KEY = "eod-api-key"
+
 
 def trino_hive_warehouse():
     """Load Trino Hive Warehouse from Prefect Secret."""
 
-    database_block = SqlAlchemyConnector.load("trino-hive")
+    database_block = SqlAlchemyConnector.load(TRINO__HIVE_WAREHOUSE)
     with database_block:
         return database_block.get_engine()
 
@@ -14,7 +19,7 @@ def trino_hive_warehouse():
 def trino_iceberg_warehouse():
     """Load Trino Iceberg Warehouse from Prefect Secret."""
 
-    database_block = SqlAlchemyConnector.load("trino-iceberg")
+    database_block = SqlAlchemyConnector.load(TRINO__ICEBERG_WAREHOUSE)
     with database_block:
         return database_block.get_engine()
 

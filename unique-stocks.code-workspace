@@ -1,49 +1,39 @@
 {
-	"folders": [
-        {
-            "path": ".",
-            "name": "Root"
-        },
-        {
-            "path": "./services/database",
-            "name": "Database"
-        },
-        {
-            "path": "./services/lakehouse",
-            "name": "Lakehouse"
-        },
-        {
-            "path": "./services/spark",
-            "name": "Spark Cluster"
-        },
-        {
-            "path": "./services/pipelines",
-            "name": "Pipelines"
-        },
-        {
-            "path": "./services/backend",
-            "name": "Backend"
-        },
-        {
-            "path": "./services/frontend",
-            "name": "Frontend"
-        },
-        {
-            "path": "./services/log",
-            "name": "Log"
-        },
-        
-    ],
-    "settings": {
-        "files.associations": {
-            "*.sql": "postgres"
-        },
-        "vscode-postgres.prettyPrintJSONfields": true,
-        "[postgres]": {
-            "editor.defaultFormatter": "bradymholt.pgformatter"
-        },
-        "pgFormatter.placeholder": "\\%\\([a-zA-Z]+\\)[a-zA-Z]|\\$[a-zA-Z]+|\\$\\<[a-zA-Z]+>|\\$\\<[a-zA-Z]+\\:[a-zA-Z]+>",
-        "python.languageServer": "Pylance",
-        "notebook.formatOnSave.enabled": true,
+  "folders": [
+    {
+      "path": ".",
+      "name": "Root"
+    },
+    {
+      "path": "./services/data_platform",
+      "name": "Data Platform"
+    },
+    {
+      "path": "./services/data_platform/orchestration",
+      "name": "Data Orchestration"
+    },
+    {
+      "path": "./services/spark",
+      "name": "Spark Cluster"
+    },
+    {
+      "path": "./services/pipelines",
+      "name": "Pipelines"
     }
+  ],
+  "settings": {
+    "files.associations": {
+      "*.sql": "jinja-sql"
+    },
+    "vscode-postgres.prettyPrintJSONfields": true,
+    "[postgres]": {
+      "editor.defaultFormatter": "bradymholt.pgformatter"
+    },
+    "pgFormatter.placeholder": "\\%\\([a-zA-Z]+\\)[a-zA-Z]|\\$[a-zA-Z]+|\\$\\<[a-zA-Z]+>|\\$\\<[a-zA-Z]+\\:[a-zA-Z]+>",
+    "python.languageServer": "Pylance",
+    "notebook.formatOnSave.enabled": true,
+    "mypy-type-checker.importStrategy": "fromEnvironment",
+    "mypy-type-checker.path": ["mypy"],
+    "mypy-type-checker.args": ["--enable-incomplete-feature=NewGenericSyntax"]
+  }
 }

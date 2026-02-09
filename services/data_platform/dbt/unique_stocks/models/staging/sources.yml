@@ -7,3 +7,7 @@ sources:
     tables:
       - name: exchange
         description: "Raw exchange table as ingested from EOD API."
+      - name: exchange_security
+        description: "Raw exchange security table as ingested from EOD API."
+      - name: security_quote
+        description: "Raw security quote table as ingested from EOD API."
