@@ -1,3 +1,59 @@
-
-
+# General
 .DS_Store
+.vscode/
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+*.log
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+.mypy_cache/
+.pytest_cache/
+
+# Node.js
+node_modules/
+dist/
+build/
+.npm/
+.next/
+coverage/
+
+# Airflow
+airflow.db
+airflow.cfg
+webserver_config.py
+standalone_admin_password.txt
+services/pipelines/testing/airflow/logs/
+services/pipelines/testing/airflow/temp/
+
+# dbt
+dbt_packages/
+target/
+dbt_modules/
+
+# Spark / Jupyter
+.ipynb_checkpoints/
+spark-warehouse/
+metastore_db/
+derby.log
+**/.ipynb_checkpoints/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+
+# OS Generated
+Thumbs.db
