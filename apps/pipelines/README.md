@@ -16,9 +16,9 @@ cp .env.example .env
 
 Required vars in `.env`:
 
-| Variable | Description |
-|---|---|
-| `EODHD_API_KEY` | Your EODHD API key |
+| Variable           | Description                                       |
+| ------------------ | ------------------------------------------------- |
+| `EODHD_API_KEY`    | Your EODHD API key                                |
 | `MOTHERDUCK_TOKEN` | Leave blank for local DuckDB (`unique_stocks.db`) |
 
 ## Initialise the database
