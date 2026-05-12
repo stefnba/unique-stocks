@@ -48,7 +48,7 @@ asyncio.run(eod_prices_flow(trade_date=date(2026, 5, 9)))
 
 ## Project structure
 
-```
+```text
 pipelines/
   prices/       flows.py  tasks.py  transforms.py
   metadata/     (next)
