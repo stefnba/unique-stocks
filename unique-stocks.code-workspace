@@ -1,7 +1,70 @@
 {
     "folders": [
         {
-            "path": "."
+            "path": ".",
+            "name": "unique-stocks (root)"
+        },
+        {
+            "path": "apps/pipelines",
+            "name": "pipelines"
         }
-    ]
+    ],
+    "settings": {
+        // --- Core Editor ---
+        "editor.tabSize": 4,
+        "editor.indentSize": 4,
+        "editor.insertSpaces": true,
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.fixAll.ruff": "explicit",
+            "source.organizeImports.ruff": "explicit"
+        },
+        // --- Ruff ---
+        "ruff.enable": true,
+        "ruff.lint.enable": true,
+        "ruff.organizeImports": true,
+        // --- Python ---
+        // Resolved relative to the "pipelines" workspace folder (apps/pipelines/)
+        // where the .venv and .env live.
+        "python.languageServer": "None",
+        "cursorpyright.analysis.diagnosticMode": "workspace",
+        "editor.inlayHints.enabled": "off",
+        "python.defaultInterpreterPath": "${workspaceFolder:pipelines}/.venv/bin/python",
+        "[python]": {
+            "editor.defaultFormatter": "charliermarsh.ruff"
+        },
+        "python.envFile": "${workspaceFolder:pipelines}/.env",
+        // --- SQLFluff ---
+        "sqlfluff.executablePath": "${workspaceFolder:pipelines}/.venv/bin/sqlfluff",
+        // .sqlfluff lives at repo root so sqlfluff picks it up when linting infra/scripts/
+        "sqlfluff.config": "${workspaceFolder:unique-stocks (root)}/.sqlfluff",
+        "[sql]": {
+            "editor.defaultFormatter": "sqlfluff.vscode-sqlfluff",
+            "editor.formatOnSave": true
+        },
+        // --- YAML ---
+        "[yaml]": {
+            "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        // --- Markdown ---
+        "[markdown]": {
+            "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        // --- JSON ---
+        "[json]": {
+            "editor.defaultFormatter": "vscode.json-language-features",
+            "editor.tabSize": 2
+        },
+        "[jsonc]": {
+            "editor.defaultFormatter": "vscode.json-language-features",
+            "editor.tabSize": 2
+        },
+        // --- Cleanup ---
+        "files.exclude": {
+            "**/__pycache__": true,
+            "**/.venv": true,
+            "**/.ruff_cache": true,
+            "**/.pytest_cache": true
+        }
+    }
 }
