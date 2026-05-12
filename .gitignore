@@ -30,7 +30,6 @@ env/
 
 # uv
 .uv/
-uv.lock          # commit this if you want reproducible installs; ignore if not
 
 # Jupyter
 .ipynb_checkpoints/
