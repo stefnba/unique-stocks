@@ -4,15 +4,13 @@ from datetime import datetime, timedelta
 from airflow.decorators import dag, task, task_group
 from airflow.models.param import Param
 from airflow.utils.dates import days_ago
+from airflow.utils.trigger_rule import TriggerRule
 from conf.spark import config as spark_config
 from conf.spark import packages as spark_packages
 from custom.providers.spark.operators.submit import SparkSubmitSHHOperator
+from shared import connections as CONN
 from shared.path import ADLSRawZonePath
 from utils.dag.xcom import XComGetter
-
-AWS_DATA_LAKE_CONN_ID = "aws"
-AZURE_DATA_LAKE_CONN_ID = "azure_data_lake"
-
 
 DEFAULT_ARGS = {
     "owner": "airflow",
@@ -40,19 +38,26 @@ def extract_security():
     exchanges = conf.get("exchanges", [])
     security_types = conf.get("security_types", [])
 
-    # exchanges = ["XETRA", "NASDAQ", "INDX"]
-    # security_types = ["common_stock", "index", "preferred_stock"]
-
     logging.info(
         f"""Getting security quotes for exchanges: '{", ".join(exchanges)}' """
         f"""and security types: '{", ".join(security_types)}'."""
     )
 
-    mapping = IcebergHook(conn_id="aws", catalog_name="uniquestocks", table_name="mapping.mapping").to_polars(
+    mapping = IcebergHook(
+        catalog_conn_id=CONN.ICEBERG_CATALOG,
+        io_conn_id=CONN.AWS_DATA_LAKE,
+        catalog_name="uniquestocks",
+        table_name=("mapping", "mapping"),
+    ).to_polars(
         selected_fields=("source_value", "mapping_value"),
         row_filter="field = 'composite_code' AND product = 'exchange' AND source = 'EodHistoricalData'",
     )
-    security = IcebergHook(conn_id="aws", catalog_name="uniquestocks", table_name="curated.security").to_polars(
+    security = IcebergHook(
+        catalog_conn_id=CONN.ICEBERG_CATALOG,
+        io_conn_id=CONN.AWS_DATA_LAKE,
+        catalog_name="uniquestocks",
+        table_name=("curated", "security"),
+    ).to_polars(
         selected_fields=("exchange_code", "code", "type"),
         row_filter=filter_expressions.In("exchange_code", exchanges),
     )
@@ -160,10 +165,10 @@ sink = SparkSubmitSHHOperator(
     ssh_conn_id="ssh_test",
     spark_conf={
         **spark_config.adls,
-        **spark_config.iceberg_jdbc_catalog,
+        **spark_config.iceberg_hive_catalog,
     },
     spark_packages=[*spark_packages.adls, *spark_packages.iceberg],
-    connections=[AWS_DATA_LAKE_CONN_ID, AZURE_DATA_LAKE_CONN_ID],
+    connections=[CONN.AWS_DATA_LAKE, CONN.AZURE_DATA_LAKE],
     dataset=XComGetter.pull_with_template(task_id="set_sink_path"),
     conn_env_mapping={
         "AWS_ACCESS_KEY_ID": "AWS__LOGIN",
@@ -174,6 +179,8 @@ sink = SparkSubmitSHHOperator(
         "ADLS_CLIENT_SECRET": "AZURE_DATA_LAKE__PASSWORD",
         "ADLS_TENANT_ID": "AZURE_DATA_LAKE__EXTRA__TENANT_ID",
     },
+    py_files=["path.py"],
+    trigger_rule=TriggerRule.ALL_DONE,
 )
 
 
@@ -420,7 +427,6 @@ if __name__ == "__main__":
     dag_object.test(
         conn_file_path=connections,
         run_conf={
-            "delta_table_mode": "overwrite",
             "exchanges": ["XETRA", "NASDAQ", "INDX"],
             "security_types": ["common_stock", "index", "preferred_stock"],
         },

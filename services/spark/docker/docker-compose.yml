@@ -30,6 +30,7 @@ services:
             - '9090:8080' # web ui
             - '7077:7077' # master
             - '8888:8888' # notebook server
+            - '2222:22' # ssh
         expose:
             - 22 # ssh
 

@@ -1,7 +1,7 @@
 ARG AIRFLOW_VERSION
 ARG PY_MAJOR_VERSION
 
-FROM apache/airflow:${AIRFLOW_VERSION}-python${PY_MAJOR_VERSION}
+FROM apache/airflow:${AIRFLOW_VERSION}-python${PY_MAJOR_VERSION} as base
 
 ARG AIRFLOW_HOME
 ARG AIRFLOW_PROJ_DIR
@@ -27,17 +27,24 @@ RUN sudo apt update -y && \
 
 USER airflow
 
-RUN python -m pip install --upgrade pip
+WORKDIR $AIRFLOW_HOME
 
-# install pipenv
-# RUN pip install pipenv
+# Install python dependencies
+RUN python -m pip install --upgrade pip
+COPY requirements.txt .
+RUN pip install "apache-airflow==${AIRFLOW_VERSION}" -r requirements.txt --no-cache-dir
 
 # Fix psycopg2 bug
 RUN pip uninstall psycopg2-binary -y
 RUN pip install psycopg2 --no-cache-dir --user
+# fix flask-session bug https://github.com/apache/airflow/pull/36895
+RUN pip install "flask-session>=0.4.0,<0.6" --no-cache-dir 
 
-WORKDIR $AIRFLOW_HOME
+# Copy init script
+COPY scripts/airflow_init.sh .
 
+
+FROM base as dev
 # duckdb
 # we need to compile duckdb ourselves because duckdb doesnt provide
 # binary extensions for 'httpfs' in platform: linux_arm64_gcc4
@@ -49,12 +56,10 @@ WORKDIR $AIRFLOW_HOME
 RUN git clone --depth 1 --branch v0.9.2 https://github.com/duckdb/duckdb && \
     cd duckdb/tools/pythonpkg && BUILD_HTTPFS=1 python -m pip install . ;
 
-# Install python dependencies
-COPY requirements.txt .
-RUN pip install "apache-airflow==${AIRFLOW_VERSION}" -r requirements.txt --no-cache-dir
 
-# fix flask-session bug https://github.com/apache/airflow/pull/36895
-RUN pip install "flask-session>=0.4.0,<0.6"  --no-cache-dir 
+FROM base as prod
 
-# Copy init script
-COPY scripts/airflow_init.sh .
+COPY dags/ ./dags
+COPY include/ ./include
+COPY config/ ./config
+COPY plugins/ ./plugins

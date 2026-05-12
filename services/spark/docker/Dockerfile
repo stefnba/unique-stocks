@@ -9,6 +9,8 @@ RUN apt-get update && \
       curl \
       vim \
       unzip \
+      zip \
+      nano \
       openjdk-11-jdk \
       build-essential \
       rsync \

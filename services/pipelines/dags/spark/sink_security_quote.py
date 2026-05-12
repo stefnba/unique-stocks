@@ -3,21 +3,12 @@ import typing
 
 from pyspark.sql import SparkSession
 from pyspark.sql import types as t
+from spark_utils.path import convert_to_adls_uri
 
 spark = SparkSession.builder.appName("Sink security_quote").getOrCreate()
 
-ADLS_STORAGE_ACCOUNT_NAME = os.getenv("ADLS_STORAGE_ACCOUNT_NAME")
-CONTAINER = "raw"
-PATH = spark.conf.get("spark.datasetPath")
 
-
-if not ADLS_STORAGE_ACCOUNT_NAME:
-    raise Exception("Missing environment variables for ADLS")
-
-if not PATH:
-    raise Exception("Missing spark.datasetPath configuration")
-
-PATH = PATH.replace(f"abfs://{CONTAINER}", "")
+path = convert_to_adls_uri(spark.conf.get("spark.datasetPath"), os.getenv("ADLS_STORAGE_ACCOUNT_NAME"))
 
 
 schema = t.StructType(
@@ -35,11 +26,7 @@ schema = t.StructType(
 )
 
 
-data = (
-    spark.read.schema(schema)
-    .option("header", True)
-    .csv(f"abfs://{CONTAINER}@{ADLS_STORAGE_ACCOUNT_NAME}.dfs.core.windows.net/{PATH}")
-).createOrReplaceTempView("data")
+spark.read.schema(schema).option("header", True).csv(path).createOrReplaceTempView("data")
 
 spark.sql(
     """

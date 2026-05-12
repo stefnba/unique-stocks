@@ -1,0 +1,33 @@
+﻿product,source,field,source_value,source_description,mapping_value,uid_description,active_from,active_until,is_active
+exchange,EodHistoricalData,composite_code,NASDAQ,,US,,1/1/23,,TRUE
+exchange,EodHistoricalData,composite_code,NYSE,,US,,1/1/23,,TRUE
+exchange,EodHistoricalData,is_virtual,BOND,,1,,1/1/23,,TRUE
+exchange,EodHistoricalData,is_virtual,CC,,1,,1/1/23,,TRUE
+exchange,EodHistoricalData,is_virtual,FOREX,,1,,1/1/23,,TRUE
+exchange,EodHistoricalData,is_virtual,MONEY,,1,,1/1/23,,TRUE
+exchange,EodHistoricalData,is_virtual,EUFUND,,1,,1/1/23,,TRUE
+exchange,EodHistoricalData,is_virtual,GBOND,,1,,1/1/23,,TRUE
+exchange,EodHistoricalData,is_virtual,EUBOND,,1,,1/1/23,,TRUE
+exchange,EodHistoricalData,is_virtual,MCX,,1,,1/1/23,,TRUE
+exchange,EodHistoricalData,code_to_mic,NASDAQ,,XNAS,,1/1/23,,TRUE
+exchange,EodHistoricalData,code_to_mic,NYSE,,XNYS,,1/1/23,,TRUE
+security,EodHistoricalData,type,Common Stock,,Common Stock,,1/1/23,,TRUE
+security,EodHistoricalData,type,EUFUND,,,,1/1/23,,TRUE
+security,EodHistoricalData,type,Mutual Fund,,Mutual Fund,,1/1/23,,TRUE
+security,EodHistoricalData,type,CommonStock,,Common Stock,,1/1/23,,TRUE
+security,EodHistoricalData,type,INDEX,,Index,,1/1/23,,TRUE
+security,EodHistoricalData,type,Note,,Note,,1/1/23,,TRUE
+security,EodHistoricalData,type,ETC,,ETC,,1/1/23,,TRUE
+security,EodHistoricalData,type,Bond,,Bond,,1/1/23,,TRUE
+security,EodHistoricalData,type,Unit,,Unit,,1/1/23,,TRUE
+security,EodHistoricalData,type,etf,,ETF,,1/1/23,,TRUE
+security,EodHistoricalData,type,Preferred Stock,,Preferred Stock,,1/1/23,,TRUE
+security,EodHistoricalData,type,Capital Notes,,Capital Notes,,1/1/23,,TRUE
+security,EodHistoricalData,type,Notes,,Note,,1/1/23,,TRUE
+security,EodHistoricalData,type,CEF,,CEF,,1/1/23,,TRUE
+security,EodHistoricalData,type,BOND,,Bond,,1/1/23,,TRUE
+security,EodHistoricalData,type,ETF,,ETF,,1/1/23,,TRUE
+security,EodHistoricalData,type,FUND,,Fund,,1/1/23,,TRUE
+security,EodHistoricalData,type,Currency,,Currency,,1/1/23,,TRUE
+security,EodHistoricalData,type,Rate,,Rate,,1/1/23,,TRUE
+security,EodHistoricalData,type,MONEY,,Money,,1/1/23,,TRUE

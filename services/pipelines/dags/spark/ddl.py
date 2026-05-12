@@ -71,6 +71,23 @@ spark.sql(
 
 spark.sql(
     """
+    CREATE TABLE IF NOT EXISTS curated.security_quote_performance (
+        security_code STRING,
+        exchange_code STRING,
+        current_date DATE,
+        reference_date DATE,
+        period STRING,
+        current_quote FLOAT,
+        reference_quote FLOAT,
+        performance FLOAT,
+        created_at TIMESTAMP,
+        updated_at TIMESTAMP
+    ) USING iceberg;
+    """
+)
+
+spark.sql(
+    """
     CREATE TABLE IF NOT EXISTS mapping.mapping (
         product STRING,
         source STRING,
@@ -92,6 +109,8 @@ spark.sql(
 spark.sql(
     """
     CREATE TABLE IF NOT EXISTS curated.fundamental (
+        security_code STRING,
+        exchange_code STRING,
         category STRING,
         metric STRING,
         value STRING,
@@ -99,8 +118,6 @@ spark.sql(
         period DATE,
         period_type STRING,
         published_at TIMESTAMP,
-        exchange_code STRING,
-        security_code STRING,
         created_at TIMESTAMP,
         updated_at TIMESTAMP
     )
@@ -145,7 +162,9 @@ spark.sql(
         expiration_date STRING,
         expiration_reason STRING,
         registration_date STRING,
-        registration_status STRING
+        registration_status STRING,
+        created_at TIMESTAMP,
+        updated_at TIMESTAMP
     )
     USING iceberg
     PARTITIONED BY (legal_address_country);

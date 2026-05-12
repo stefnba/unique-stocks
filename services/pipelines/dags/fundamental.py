@@ -3,19 +3,17 @@
 # pyright: reportUnusedExpression=false
 import logging
 from datetime import datetime, timedelta
-from typing import TypedDict
 
 from airflow.decorators import dag, task, task_group
 from airflow.utils.dates import days_ago
+from airflow.utils.trigger_rule import TriggerRule
 from conf.spark import config as spark_config
 from conf.spark import packages as spark_packages
 from custom.providers.spark.operators.submit import SparkSubmitSHHOperator
+from shared import connections as CONN
 from shared.path import ADLSRawZonePath
 from utils.dag.xcom import XComGetter
 from utils.filesystem.directory import DirFile
-
-AWS_DATA_LAKE_CONN_ID = "aws"
-AZURE_DATA_LAKE_CONN_ID = "azure_data_lake"
 
 default_args = {
     "owner": "airflow",
@@ -29,11 +27,6 @@ default_args = {
 }
 
 
-class FundamentalSecurity(TypedDict):
-    exchange_code: str
-    security_code: str
-
-
 @task
 def extract_security():
     """
@@ -45,7 +38,7 @@ def extract_security():
 
     conf = get_dag_conf()
     exchanges = conf.get("exchanges", ["XETRA", "NASDAQ", "NYSE"])
-    security_types = conf.get("security_types", ["common_stock"])
+    security_types = conf.get("security_types", ["common_stock", "preferred_stock"])
 
     # Filter out indexes since we get their fundamentals, i.e. members, with different DAG
     exchanges = [e for e in exchanges if e != "INDX"]
@@ -56,11 +49,21 @@ def extract_security():
         f"""security types: '{", ".join(security_types)}'."""
     )
 
-    mapping = IcebergHook(conn_id="aws", catalog_name="uniquestocks", table_name="mapping.mapping").to_polars(
+    mapping = IcebergHook(
+        catalog_conn_id=CONN.ICEBERG_CATALOG,
+        io_conn_id=CONN.AWS_DATA_LAKE,
+        catalog_name="uniquestocks",
+        table_name=("mapping", "mapping"),
+    ).to_polars(
         selected_fields=("source_value", "mapping_value"),
         row_filter="field = 'composite_code' AND product = 'exchange' AND source = 'EodHistoricalData'",
     )
-    security = IcebergHook(conn_id="aws", catalog_name="uniquestocks", table_name="curated.security").to_polars(
+    security = IcebergHook(
+        catalog_conn_id=CONN.ICEBERG_CATALOG,
+        io_conn_id=CONN.AWS_DATA_LAKE,
+        catalog_name="uniquestocks",
+        table_name=("curated", "security"),
+    ).to_polars(
         selected_fields=("exchange_code", "code", "type"),
         row_filter=filter_expressions.In("exchange_code", exchanges),
     )
@@ -107,13 +110,13 @@ def set_post_transform_sink_path():
 
 
 @task_group
-def ingest_security_group(security_groups: list[dict]):
+def ingest_security_group(security_groups):
     """
     Ingest quotes for a list of securities from a specific exchange and with a specific type.
     """
 
     @task
-    def map_url_sink_path(securities: list[dict]):
+    def map_url_sink_path(securities):
         """
         Take list of securities and add endpoint and blob path to each record.
         """
@@ -145,7 +148,7 @@ def ingest_security_group(security_groups: list[dict]):
         )
 
     @task(max_active_tis_per_dag=1)
-    def ingest(securities: list):
+    def ingest(securities):
         from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageBulkHook, UrlUploadRecord
         from custom.providers.eod_historical_data.hooks.api import EodHistoricalDataApiHook
 
@@ -154,7 +157,7 @@ def ingest_security_group(security_groups: list[dict]):
         hook = AzureDataLakeStorageBulkHook(conn_id="azure_data_lake")
         api_hook = EodHistoricalDataApiHook()
 
-        url_endpoints = [UrlUploadRecord(**sec) for sec in securities[:10]]
+        url_endpoints = [UrlUploadRecord(**sec) for sec in securities]
 
         uploaded_blobs = hook.upload_from_url(
             container="raw",
@@ -166,7 +169,7 @@ def ingest_security_group(security_groups: list[dict]):
         return uploaded_blobs
 
     @task
-    def download_transform(blobs: list):
+    def download_transform(blobs):
         from uuid import uuid4
 
         from custom.providers.azure.hooks.data_lake_storage import AzureDataLakeStorageBulkHook
@@ -216,6 +219,7 @@ def transform(file: DirFile, sink_dir: str):
     import uuid
     from pathlib import Path
 
+    from airflow.exceptions import AirflowException
     from custom.providers.eod_historical_data.transformers.fundamental.common_stock import (
         EoDCommonStockFundamentalTransformer,
     )
@@ -228,9 +232,11 @@ def transform(file: DirFile, sink_dir: str):
 
     transformed_data = None
 
-    if sec_type == "Common Stock":
+    if sec_type == "Common Stock" or sec_type == "Preferred Stock":
         transformer = EoDCommonStockFundamentalTransformer(data=data)
         transformed_data = transformer.transform()
+    else:
+        raise AirflowException(f"Unsupported security type '{sec_type}'.")
 
     if transformed_data is not None:
         sink_path = Path(sink_dir) / f"{uuid.uuid4().hex}.parquet"
@@ -243,16 +249,17 @@ sink = SparkSubmitSHHOperator(
     ssh_conn_id="ssh_test",
     spark_conf={
         **spark_config.aws,
-        **spark_config.iceberg_jdbc_catalog,
+        **spark_config.iceberg_hive_catalog,
     },
     spark_packages=[*spark_packages.aws, *spark_packages.iceberg],
-    connections=[AWS_DATA_LAKE_CONN_ID],
+    connections=[CONN.AWS_DATA_LAKE],
     dataset=XComGetter.pull_with_template(task_id="set_post_transform_sink_path"),
     conn_env_mapping={
         "AWS_ACCESS_KEY_ID": "AWS__LOGIN",
         "AWS_SECRET_ACCESS_KEY": "AWS__PASSWORD",
         "AWS_REGION": "AWS__EXTRA__REGION_NAME",
     },
+    trigger_rule=TriggerRule.ALL_DONE,
 )
 
 
@@ -282,10 +289,7 @@ if __name__ == "__main__":
     dag_object.test(
         conn_file_path=connections,
         run_conf={
-            "delta_table_mode": "overwrite",
             "exchanges": ["XETRA", "NASDAQ", "NYSE"],
-            "security_types": [
-                "common_stock",
-            ],
+            "security_types": ["common_stock", "preferred_stock"],
         },
     )

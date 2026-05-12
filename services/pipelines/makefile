@@ -27,19 +27,21 @@ install:
 packages-export:
 	poetry export -f requirements.txt --without-hashes  --output requirements.txt --without dev
 
-# Airflow local for testing
+# Airflow local
 install-airflow-local:
 	poetry env use ${PY_VERSION}
 	source .venv/bin/activate && \
 	pip install --upgrade pip && \
-	pip install "apache-airflow==${AIRFLOW_VERSION}" --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PY_VERSION}.txt" && \
+	pip install "apache-airflow==${AIRFLOW_VERSION}" --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-${AIRFLOW_VERSION}/constraints-${PY_MAJOR_VERSION}.txt" && \
 	poetry add -D apache-airflow==${AIRFLOW_VERSION} && \
 	poetry install && \
 	pip uninstall -y pyiceberg && \
 	arch -arm64 python -m pip install pyiceberg --no-cache && \
+	pip install "flask-session>=0.4.0,<0.6"  --no-cache-dir && \
 	make setup-airflow-local
 
 setup-airflow-local:
+	rm -rf ${CURDIR}/${AIRFLOW_HOME} && \
 	export AIRFLOW_HOME=${CURDIR}/${AIRFLOW_HOME} && \
 	airflow db init && \
 	airflow info

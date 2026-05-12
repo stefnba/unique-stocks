@@ -12,7 +12,7 @@ if not PATH:
 PATH = PATH.replace("s3://", "s3a://")
 
 
-data = spark.read.parquet(PATH).createOrReplaceTempView("data")
+spark.read.parquet(PATH).createOrReplaceTempView("data")
 
 spark.sql(
     """

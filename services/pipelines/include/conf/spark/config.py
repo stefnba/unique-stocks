@@ -13,6 +13,17 @@ iceberg_glue_catalog = {
 }
 
 
+iceberg_hive_catalog = {
+    "spark.sql.extensions": "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions",
+    f"spark.sql.catalog.{CATALOG_NAME}": "org.apache.iceberg.spark.SparkCatalog",
+    f"spark.sql.catalog.{CATALOG_NAME}.type": "hive",
+    f"spark.sql.catalog.{CATALOG_NAME}.uri": "thrift://metastore:9083",
+    f"spark.sql.catalog.{CATALOG_NAME}.io-impl": "org.apache.iceberg.aws.s3.S3FileIO",
+    "spark.sql.defaultCatalog": CATALOG_NAME,
+    f"spark.sql.catalog.{CATALOG_NAME}.warehouse": WAREHOUSE_PATH,
+}
+
+
 iceberg_jdbc_catalog = {
     "spark.sql.extensions": "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions",
     f"spark.sql.catalog.{CATALOG_NAME}": "org.apache.iceberg.spark.SparkCatalog",

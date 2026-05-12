@@ -15,6 +15,7 @@ apache-airflow-providers-apache-spark = "^4.7.0"
 apache-airflow-providers-amazon = "^8.16.0"
 apache-airflow-providers-ssh = "^3.10.0"
 apache-airflow-providers-sftp = "^4.8.1"
+apache-airflow-providers-apache-hive = "^7.0.0"
 celery = "^5.3.6"
 crypto = "^1.4.1"
 asyncio = "^3.4.3"
@@ -24,7 +25,9 @@ pyarrow = "^14.0.2"
 polars = "^0.20.5"
 duckdb = "^0.9.2"
 pydantic-settings = "^2.1.0"
-pyiceberg = "^0.5.1"
+pyiceberg = {extras = ["hive"], version = "^0.5.1"}
+pandas = "^2.2.0"
+trino = "^0.329.0"
 
 
 [tool.poetry.group.dev.dependencies]

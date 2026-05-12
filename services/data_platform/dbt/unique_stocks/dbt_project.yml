@@ -1,0 +1,34 @@
+name: "unique_stocks"
+version: "1.0.0"
+
+# This setting configures which "profile" dbt uses for this project.
+profile: "unique_stocks"
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+# directories to be removed by `dbt clean`
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+# Configuring models
+# Full documentation: https://docs.getdbt.com/docs/configuring-models
+models:
+  unique_stocks:
+    staging:
+      +schema: staging
+      +materialized: view
+    analytics:
+      +materialized: incremental
+      +incremental_strategy: "merge"
+      +schema: analytics
+
+seeds:
+  unique_stocks:
+    mapping:
+      +schema: mapping

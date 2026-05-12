@@ -169,7 +169,9 @@ class StoragePath:
         last_element = elements[-1]
         if "." in last_element:
             # set filename and extension
-            filename, extension = last_element.split(".")
+            file_elements = last_element.split(".")
+            filename = file_elements[0]
+            extension = ".".join(file_elements[1:])
             if not is_valid_file_type(extension):
                 raise ValueError(f"File type {extension} is not supported.")
 

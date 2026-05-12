@@ -1,0 +1,41 @@
+# Docker compose for local development
+
+version: "3.9"
+
+services:
+    server:
+        build:
+            context: .
+            dockerfile: docker/Dockerfile
+            target: server
+        restart: always
+        volumes:
+            - prefect:/root/.prefect
+        entrypoint: [ "prefect", "server", "start" ]
+        env_file:
+            - .env
+        environment:
+            - PREFECT_SERVER_API_HOST=0.0.0.0
+            - PREFECT_API_URL=http://host:4200/api
+        ports:
+            - 4200:4200
+
+    flows:
+        build:
+            context: .
+            dockerfile: docker/Dockerfile
+            target: flows
+        entrypoint: [ "python", "/app/prefect_orchestration/main.py" ]
+        env_file:
+            - .env
+        volumes:
+            - ./prefect_orchestration:/app/prefect_orchestration
+        restart: always
+        depends_on:
+            - server
+        environment:
+            - PREFECT_API_URL=http://server:4200/api
+            - PYTHONPATH=/app/prefect_orchestration
+
+volumes:
+    prefect:

@@ -1,0 +1,21 @@
+<!-- Metastore database connection information -->
+<configuration>
+    <property>
+        <name>javax.jdo.option.ConnectionDriverName</name>
+        <value>${DATABASE_DRIVER}</value>
+        <description>Driver class name for a JDBC metastore</description>
+    </property>
+    <property>
+        <name>javax.jdo.option.ConnectionURL</name>
+        <value>jdbc:${DATABASE_TYPE_JDBC}://${DATABASE_HOST}:${DATABASE_PORT}/${DATABASE_DB}</value>
+        <description>JDBC connect string for a JDBC metastore</description>
+    </property>
+    <property>
+        <name>javax.jdo.option.ConnectionUserName</name>
+        <value>${DATABASE_USER}</value>
+    </property>
+    <property>
+        <name>javax.jdo.option.ConnectionPassword</name>
+        <value>${DATABASE_PASSWORD}</value>
+    </property>
+</configuration>
