@@ -1,0 +1,82 @@
+# ── macOS ────────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V8
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ── Secrets / environment ─────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+.Python
+
+# uv
+.uv/
+uv.lock          # commit this if you want reproducible installs; ignore if not
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# mypy / ruff / pyright caches
+.mypy_cache/
+.ruff_cache/
+.pyright/
+pyrightconfig.json
+
+# pytest
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# ── Node / TypeScript ─────────────────────────────────────────────────────────
+node_modules/
+dist/
+.next/
+.nuxt/
+.output/
+*.tsbuildinfo
+
+# ── dbt ───────────────────────────────────────────────────────────────────────
+dbt_project/target/
+dbt_project/dbt_packages/
+dbt_project/logs/
+dbt_project/profiles.yml     # contains DB credentials — use env vars or ~/.dbt/profiles.yml
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+# (compose files are committed; ignore generated artefacts)
+
+# ── Editors / IDEs ────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── OS / misc ─────────────────────────────────────────────────────────────────
+*.bak
+*.tmp
+*.orig
