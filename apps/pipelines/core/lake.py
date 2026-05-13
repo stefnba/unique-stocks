@@ -13,7 +13,6 @@ from multiple threads on the same connection, but Prefect tasks in a single
 worker process are sequential by default, so this is fine.
 """
 
-from __future__ import annotations
 
 import json
 from contextlib import contextmanager
@@ -31,7 +30,7 @@ _conn: duckdb.DuckDBPyConnection | None = None
 def _get_connection() -> duckdb.DuckDBPyConnection:
     global _conn
     if _conn is None:
-        from shared.config import settings
+        from core.config import settings
 
         conn_str = settings.duckdb_connection_string
         log.info("lake.connecting", connection=conn_str.split("?")[0])

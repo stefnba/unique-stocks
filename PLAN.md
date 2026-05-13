@@ -20,7 +20,7 @@ The goal is lean, reliable, and cheap — not enterprise-scale. The entire stack
 
 ## 2. Architecture Overview
 
-```
+```text
 External APIs (EODHD)
         │
         ▼
@@ -56,58 +56,69 @@ External APIs (EODHD)
 These decisions are final for v1. Do not re-litigate them.
 
 ### 3.1 MotherDuck over S3 + Trino
+
 MotherDuck (managed DuckDB cloud) is the query engine and primary store.
+
 - Zero ops — no cluster to manage
 - DuckDB SQL is fast enough for our scale (<100GB)
 - Parquet files on S3 are used for cold archival only, not active querying
 - Upgrade path exists: swap MotherDuck for S3 + Trino at 10TB+ scale
 
 ### 3.2 Medallion Architecture (Bronze / Silver / Gold)
+
 Three schemas in one MotherDuck database, mirrored as Parquet on S3.
 
-| Layer | Schema | Purpose |
-|---|---|---|
-| Bronze | `bronze` | Raw API responses, immutable, append-only |
-| Silver | `silver` | Typed, deduplicated, normalized — no business logic |
-| Gold | `gold` | Analytics-ready: indicators, adjusted prices, aggregations |
+| Layer  | Schema   | Purpose                                                    |
+| ------ | -------- | ---------------------------------------------------------- |
+| Bronze | `bronze` | Raw API responses, immutable, append-only                  |
+| Silver | `silver` | Typed, deduplicated, normalized — no business logic        |
+| Gold   | `gold`   | Analytics-ready: indicators, adjusted prices, aggregations |
 
 ### 3.3 Prefect over Airflow
+
 Prefect 3.x is Python-native and requires zero infrastructure for orchestration.
 Airflow is too heavy for this scale. Prefect Cloud free tier is sufficient.
 
 ### 3.4 dbt Core for Transformations
+
 All Bronze → Silver → Gold logic lives in dbt SQL models.
 dbt runs are triggered by Prefect after each successful ingestion.
 Never transform data inside Python ingestion code — land raw first, always.
 
 ### 3.5 Plain Parquet over Apache Iceberg
+
 No Iceberg for v1. Our data is append-only daily bars.
 Iceberg adds complexity (catalog, table format) without benefit at this scale.
 Revisit when: upserts are needed at scale, or a second compute engine is added.
 
 ### 3.6 EODHD as Primary Data Provider
+
 EODHD (eodhd.com) provides a single API for:
+
 - EOD prices, exchanges, securities lists, fundamentals, dividends, splits
-All in one API key. Simpler than managing Polygon + Alpha Vantage + yfinance.
-The provider abstraction allows adding more sources later without restructuring.
+  All in one API key. Simpler than managing Polygon + Alpha Vantage + yfinance.
+  The provider abstraction allows adding more sources later without restructuring.
 
 ### 3.7 Studio Stack — Decision Pending ⚠️
 
 The `apps/studio` tech stack has not been decided yet. Two options are on the table:
 
 **Option A — Streamlit (Python)**
+
 - Pro: no context switch from Python, fast to prototype, built-in charting
 - Pro: directly queries MotherDuck with the same DuckDB connection used by pipelines
 - Con: limited UI customisation, not suitable if studio becomes a public-facing product
 - Best if: studio is an internal analytics tool / personal dashboard
 
 **Option B — Hono (TypeScript) backend + React + TanStack Router frontend**
+
 - Pro: full control over UI, production-grade web app, TypeScript end-to-end
 - Pro: TanStack Router gives type-safe routing; React ecosystem for charts (TradingView Lightweight Charts)
 - Con: separate runtime from pipelines, no shared Python code, more initial setup
 - Best if: studio is a user-facing product with custom UX requirements
 
 **Until the decision is made:**
+
 - Do not build anything in `apps/studio/`
 - Do not add studio-specific dependencies anywhere
 - Design all gold layer dbt models to be queryable by either option without changes — the data layer is identical regardless of frontend choice
@@ -116,34 +127,41 @@ The `apps/studio` tech stack has not been decided yet. Two options are on the ta
 
 ## 4. Monorepo Structure
 
-```
+```text
 my-stock-stack/
 ├── apps/
 │   ├── pipelines/               # Python — Prefect ingestion app
-│   │   ├── pipelines/
-│   │   │   ├── metadata/        # Exchanges + securities lists (weekly)
+│   │   ├── domains/
+│   │   │   ├── exchanges/       # List of stock exchanges (manual/monthly)
+│   │   │   │   ├── models.py    # Pydantic v2 models for this domain
 │   │   │   │   ├── flows.py
 │   │   │   │   ├── tasks.py
 │   │   │   │   └── transforms.py
-│   │   │   ├── prices/          # EOD prices (daily, trading days only)
+│   │   │   ├── securities/      # Securities listed per exchange (weekly)
+│   │   │   │   ├── models.py
+│   │   │   │   ├── flows.py
+│   │   │   │   ├── tasks.py
+│   │   │   │   └── transforms.py
+│   │   │   ├── eod_prices/      # EOD OHLCV (daily, trading days only)
+│   │   │   │   ├── models.py
 │   │   │   │   ├── flows.py
 │   │   │   │   ├── tasks.py
 │   │   │   │   └── transforms.py
 │   │   │   └── fundamentals/    # Financials, dividends (quarterly)
+│   │   │       ├── models.py
 │   │   │       ├── flows.py
 │   │   │       ├── tasks.py
 │   │   │       └── transforms.py
-│   │   ├── shared/
+│   │   ├── core/                # Shared infrastructure only
 │   │   │   ├── config.py        # Pydantic Settings — reads .env
 │   │   │   ├── lake.py          # MotherDuck read/write helpers
 │   │   │   ├── scheduler.py     # NYSE calendar, is_trading_day()
 │   │   │   ├── clients/
 │   │   │   │   ├── base.py      # Abstract BaseClient (ABC)
 │   │   │   │   └── eodhd.py     # EODHD API wrapper (httpx + retry)
-│   │   │   └── schemas/
-│   │   │       ├── prices.py    # Pydantic v2 models for EOD bars
-│   │   │       ├── metadata.py  # Exchange / security models
-│   │   │       └── fundamentals.py
+│   │   │   └── utils/
+│   │   │       ├── logging.py
+│   │   │       └── rate_limiter.py
 │   │   ├── tests/
 │   │   │   ├── unit/
 │   │   │   └── integration/
@@ -185,10 +203,13 @@ my-stock-stack/
 ```
 
 ### Why This Structure
+
 - `apps/` follows the monorepo convention (Turborepo, Nx) — each subfolder is a deployable application
 - `dbt_project/` sits at root because it is a standalone dbt project, not a Python package or web app
 - `apps/pipelines/` and `apps/studio/` have their own dependency files — they are independent deploys
 - `studio/` tech stack is TBD — decided separately from pipelines, which are always Python
+- `core/` contains only infrastructure (config, lake, clients, scheduler) — no domain models
+- Domain models (`models.py`) live next to their `flows.py`/`tasks.py`/`transforms.py` — locality over centralisation
 
 ---
 
@@ -196,14 +217,14 @@ my-stock-stack/
 
 Each domain has a different change frequency. This drives pipeline scheduling.
 
-| Domain | Data | Schedule | Partition Key |
-|---|---|---|---|
-| `metadata/exchanges` | List of stock exchanges | Manual / monthly | `snapshot_date` |
-| `metadata/securities` | Securities listed per exchange | Weekly (Monday 8am) | `exchange`, `snapshot_date` |
-| `prices/eod` | OHLCV end-of-day bars | Daily (4:30pm ET, Mon–Fri) | `year`, `month` |
-| `fundamentals` | Income stmt, balance sheet, ratios | Quarterly (earnings season) | `fiscal_year`, `fiscal_period` |
-| `fundamentals/dividends` | Dividend events | Daily check (no-op if none) | `ex_date` |
-| `fundamentals/splits` | Stock split events | Daily check (no-op if none) | `split_date` |
+| Domain                   | Data                               | Schedule                    | Partition Key                  |
+| ------------------------ | ---------------------------------- | --------------------------- | ------------------------------ |
+| `metadata/exchanges`     | List of stock exchanges            | Manual / monthly            | `snapshot_date`                |
+| `metadata/securities`    | Securities listed per exchange     | Weekly (Monday 8am)         | `exchange`, `snapshot_date`    |
+| `prices/eod`             | OHLCV end-of-day bars              | Daily (4:30pm ET, Mon–Fri)  | `year`, `month`                |
+| `fundamentals`           | Income stmt, balance sheet, ratios | Quarterly (earnings season) | `fiscal_year`, `fiscal_period` |
+| `fundamentals/dividends` | Dividend events                    | Daily check (no-op if none) | `ex_date`                      |
+| `fundamentals/splits`    | Stock split events                 | Daily check (no-op if none) | `split_date`                   |
 
 ---
 
@@ -295,7 +316,7 @@ CREATE TABLE pipeline.runs (
 
 ### S3 Parquet Layout (mirrors MotherDuck schemas)
 
-```
+```text
 s3://my-stock-stack/
 ├── bronze/
 │   ├── exchanges/snapshot_date=2025-01-01/
@@ -342,21 +363,22 @@ async def eod_prices_flow(trade_date: date | None = None):
 ### Flow Schedule Reference
 
 ```python
-# apps/pipelines/pipelines/prices/flows.py
+# apps/pipelines/domains/eod_prices/flows.py
 @flow
 async def eod_prices_flow(): ...
 # Schedule: CronSchedule("30 16 * * 1-5")  — 4:30pm ET Mon–Fri
 
-# apps/pipelines/pipelines/metadata/flows.py
+# apps/pipelines/domains/securities/flows.py
 @flow
 async def securities_flow(): ...
 # Schedule: CronSchedule("0 8 * * 1")  — Monday 8am
 
+# apps/pipelines/domains/exchanges/flows.py
 @flow
 async def exchanges_flow(): ...
 # Schedule: Manual only
 
-# apps/pipelines/pipelines/fundamentals/flows.py
+# apps/pipelines/domains/fundamentals/flows.py
 @flow
 async def fundamentals_flow(): ...
 # Schedule: Manual trigger, or quarterly CronSchedule
@@ -385,9 +407,9 @@ Re-running any flow must produce the same result. No duplicates. No errors on re
 
 ---
 
-## 8. Shared Module Contracts
+## 8. Core Module Contracts
 
-### `shared/config.py`
+### `core/config.py`
 
 ```python
 from pydantic_settings import BaseSettings
@@ -404,7 +426,7 @@ class Settings(BaseSettings):
 settings = Settings()
 ```
 
-### `shared/clients/base.py`
+### `core/clients/base.py`
 
 ```python
 from abc import ABC, abstractmethod
@@ -423,9 +445,12 @@ class BaseClient(ABC):
     async def get_fundamentals(self, ticker: str) -> dict: ...
 ```
 
-### `shared/schemas/prices.py`
+### `pipelines/<domain>/models.py`
+
+Pydantic models live alongside the domain that owns them, not in a central `schemas/` folder.
 
 ```python
+# pipelines/prices/models.py
 from pydantic import BaseModel, model_validator
 from decimal import Decimal
 
@@ -450,7 +475,7 @@ class EODBar(BaseModel):
         return self
 ```
 
-### `shared/lake.py`
+### `core/lake.py`
 
 ```python
 # Wraps MotherDuck connection. All reads/writes go through here.
@@ -467,7 +492,7 @@ async def table_exists(schema: str, table: str) -> bool: ...
 
 ### Model Naming
 
-```
+```text
 staging/prices/stg_prices__eod.sql          # staging: stg_{domain}__{entity}
 marts/prices/prices_daily.sql               # mart: no prefix, descriptive name
 marts/search/search_index.sql
@@ -475,11 +500,11 @@ marts/search/search_index.sql
 
 ### Materialization Strategy
 
-| Layer | Materialization | Reason |
-|---|---|---|
-| Staging (silver) | `incremental` | Process only new bronze records |
-| Marts (gold) | `incremental` | Process only new silver records |
-| Reference (exchanges, securities_current) | `table` | Small, always full refresh |
+| Layer                                     | Materialization | Reason                          |
+| ----------------------------------------- | --------------- | ------------------------------- |
+| Staging (silver)                          | `incremental`   | Process only new bronze records |
+| Marts (gold)                              | `incremental`   | Process only new silver records |
+| Reference (exchanges, securities_current) | `table`         | Small, always full refresh      |
 
 ### Incremental Pattern
 
@@ -508,20 +533,20 @@ WHERE bar_date >= (
 
 ## 10. Tech Stack Reference
 
-| Layer | Technology | Version |
-|---|---|---|
-| Python runtime | Python | 3.12+ |
-| Dependency management | uv | latest |
-| Orchestration | Prefect | 3.x |
-| HTTP client | httpx | latest |
-| Data validation | Pydantic | v2 |
-| Data lake query | DuckDB / MotherDuck | latest |
-| Transformation | dbt Core + dbt-duckdb | 1.8+ |
-| Studio backend | Streamlit **or** Hono — TBD | — |
-| Studio frontend | React + TanStack Router (if Hono) — TBD | — |
-| Charts | TradingView Lightweight Charts (if React) — TBD | v5 |
-| Containerisation | Docker + Docker Compose | latest |
-| Monitoring | Prometheus + Grafana | latest |
+| Layer                 | Technology                                      | Version |
+| --------------------- | ----------------------------------------------- | ------- |
+| Python runtime        | Python                                          | 3.12+   |
+| Dependency management | uv                                              | latest  |
+| Orchestration         | Prefect                                         | 3.x     |
+| HTTP client           | httpx                                           | latest  |
+| Data validation       | Pydantic                                        | v2      |
+| Data lake query       | DuckDB / MotherDuck                             | latest  |
+| Transformation        | dbt Core + dbt-duckdb                           | 1.8+    |
+| Studio backend        | Streamlit **or** Hono — TBD                     | —       |
+| Studio frontend       | React + TanStack Router (if Hono) — TBD         | —       |
+| Charts                | TradingView Lightweight Charts (if React) — TBD | v5      |
+| Containerisation      | Docker + Docker Compose                         | latest  |
+| Monitoring            | Prometheus + Grafana                            | latest  |
 
 ---
 
@@ -568,7 +593,7 @@ uv sync                    # install deps
 uv run prefect server start  # local Prefect server (or use Prefect Cloud)
 
 # Run a flow manually to test
-uv run python -m pipelines.prices.flows
+uv run python -m domains.eod_prices.flows
 
 # dbt
 cd ../../dbt_project
@@ -584,6 +609,7 @@ dbt test
 ## 13. Coding Conventions
 
 ### Python
+
 - Type hints on every function signature — no exceptions
 - Pydantic v2 models for all external data, `extra="forbid"` to catch API drift early
 - `async/await` throughout — httpx async client, async MotherDuck queries
@@ -592,14 +618,16 @@ dbt test
 - One `@flow` per domain per schedule — no mega-flows
 
 ### dbt
+
 - Never put business logic in staging models — staging is type-casting and renaming only
 - Every model gets a `.yml` description file with column descriptions
 - Test files mirror model structure exactly
 - `ref()` over hardcoded table names always
 
 ### General
+
 - No secrets in code or git — `.env` only
-- Every new pipeline domain follows the same pattern: `flows.py` + `tasks.py` + `transforms.py`
+- Every new domain under `domains/` follows the same pattern: `models.py` + `flows.py` + `tasks.py` + `transforms.py`
 - README in every app folder explaining how to run it standalone
 
 ---
@@ -628,4 +656,4 @@ These are out of scope for the initial build. Do not add them.
 
 ---
 
-*Built to be lean. Add complexity only when you have a concrete reason.*
+_Built to be lean. Add complexity only when you have a concrete reason._

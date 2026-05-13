@@ -10,12 +10,12 @@ from typing import Any
 
 import structlog
 
-from shared.schemas.prices import EODBar
+from .models import EODBar
 
 log = structlog.get_logger(__name__)
 
 
-def parse_eod_bars(raw_rows: list[dict], expected_date: date) -> tuple[list[EODBar], list[dict]]:
+def parse_eod_bars(raw_rows: list[dict[str, Any]], expected_date: date) -> tuple[list[EODBar], list[dict[str, Any]]]:
     """
     Validate and parse raw API rows into EODBar models.
 
@@ -26,7 +26,7 @@ def parse_eod_bars(raw_rows: list[dict], expected_date: date) -> tuple[list[EODB
     an entire exchange's worth of data.
     """
     valid: list[EODBar] = []
-    rejected: list[dict] = []
+    rejected: list[dict[str, Any]] = []
 
     for row in raw_rows:
         try:
@@ -61,7 +61,7 @@ def parse_eod_bars(raw_rows: list[dict], expected_date: date) -> tuple[list[EODB
     return valid, rejected
 
 
-def bars_to_bronze_records(bars: list[EODBar], provider: str = "eodhd") -> list[dict]:
+def bars_to_bronze_records(bars: list[EODBar], provider: str = "eodhd") -> list[dict[str, Any]]:
     """Convert validated EODBar objects to dicts ready for bronze.eod_prices insert."""
     return [bar.to_bronze_record(provider=provider) for bar in bars]
 

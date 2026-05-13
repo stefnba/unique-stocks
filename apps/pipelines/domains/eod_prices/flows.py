@@ -13,8 +13,8 @@ from datetime import date
 import structlog
 from prefect import flow
 
-from shared import lake
-from shared.scheduler import is_trading_day, last_completed_trading_day
+from core import lake
+from core.scheduler import is_trading_day, last_completed_trading_day
 
 from .tasks import fetch_eod_prices_bulk, parse_eod_prices, write_bronze_eod_prices
 

@@ -11,9 +11,10 @@ import structlog
 from prefect import task
 from prefect.tasks import exponential_backoff
 
-from shared.clients.eodhd import EODHDClient
-from shared.config import settings
-from shared.schemas.prices import EODBar
+from core.clients.eodhd import EODHDClient
+from core.config import settings
+
+from .models import EODBar
 
 from .transforms import bars_to_bronze_records, parse_eod_bars
 
@@ -60,7 +61,7 @@ def write_bronze_eod_prices(bars: list[EODBar], exchange: str, bar_date: date) -
     Write validated bars to bronze.eod_prices. Skips already-ingested tickers
     for this exchange+date to ensure idempotency on re-run.
     """
-    from shared import lake
+    from core import lake
 
     if not bars:
         log.info("prices.write_skipped", reason="no_bars", exchange=exchange, bar_date=bar_date)

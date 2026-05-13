@@ -12,7 +12,7 @@ from datetime import date
 import httpx
 import structlog
 
-from shared.clients.base import BaseClient
+from core.clients.base import BaseClient
 
 log = structlog.get_logger(__name__)
 

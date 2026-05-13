@@ -1,13 +1,12 @@
 from datetime import date
 from decimal import Decimal
+from typing import Any
 
-import pytest
-
-from pipelines.prices.transforms import parse_eod_bars
-from shared.schemas.prices import EODBar
+from domains.eod_prices.transforms import parse_eod_bars
+from domains.eod_prices.models import EODBar
 
 
-def _row(**kwargs) -> dict:
+def _row(**kwargs: Any) -> dict[str, Any]:
     base = {
         "ticker": "AAPL.US",
         "bar_date": "2026-05-09",
