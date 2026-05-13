@@ -30,9 +30,9 @@ _conn: duckdb.DuckDBPyConnection | None = None
 def _get_connection() -> duckdb.DuckDBPyConnection:
     global _conn
     if _conn is None:
-        from core.config import settings
+        from core.config import get_settings
 
-        conn_str = settings.duckdb_connection_string
+        conn_str = get_settings().duckdb_connection_string
         log.info("lake.connecting", connection=conn_str.split("?")[0])
         _conn = duckdb.connect(conn_str)
         _ensure_schemas(_conn)

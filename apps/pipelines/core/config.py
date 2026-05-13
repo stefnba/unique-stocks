@@ -1,3 +1,5 @@
+from functools import lru_cache
+
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -37,4 +39,7 @@ class Settings(BaseSettings):
         return "unique_stocks.db"
 
 
-settings = Settings()
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    """Return the singleton Settings instance, loaded on first call."""
+    return Settings()  # type: ignore[call-arg]

@@ -155,6 +155,7 @@ my-stock-stack/
 │   │   ├── core/                # Shared infrastructure only
 │   │   │   ├── config.py        # Pydantic Settings — reads .env
 │   │   │   ├── lake.py          # MotherDuck read/write helpers
+│   │   │   ├── models.py        # BronzeModel base class for all domain models
 │   │   │   ├── scheduler.py     # NYSE calendar, is_trading_day()
 │   │   │   ├── clients/
 │   │   │   │   ├── base.py      # Abstract BaseClient (ABC)
@@ -165,7 +166,9 @@ my-stock-stack/
 │   │   ├── tests/
 │   │   │   ├── unit/
 │   │   │   └── integration/
+│   │   ├── prefect.yaml         # Deployment config — all flows, schedules, work pool
 │   │   ├── pyproject.toml       # Python deps for pipelines only
+│   │   ├── Makefile             # Dev + deploy commands
 │   │   └── Dockerfile
 │   │
 │   └── studio/                  # Web app — stack TBD (Python or TypeScript)
@@ -182,23 +185,24 @@ my-stock-stack/
 │   ├── profiles.yml
 │   ├── models/
 │   │   ├── staging/             # Bronze → Silver (one subfolder per domain)
-│   │   │   ├── prices/
-│   │   │   ├── metadata/
+│   │   │   ├── eod_prices/
+│   │   │   ├── exchanges/
+│   │   │   ├── securities/
 │   │   │   └── fundamentals/
 │   │   └── marts/               # Silver → Gold
-│   │       ├── prices/
+│   │       ├── eod_prices/
 │   │       ├── search/
 │   │       └── fundamentals/
 │   ├── tests/
 │   └── macros/
 │
 ├── infra/
-│   ├── docker-compose.yml       # Local dev — all services
-│   ├── docker-compose.prod.yml
+│   ├── docker-compose.yml       # Local dev — Prefect server + Postgres + worker
 │   └── scripts/
 │       ├── init_motherduck.sql  # Create schemas and tables
 │       └── setup_s3.sh
 │
+├── Makefile                     # Monorepo-level commands (delegates to sub-makefiles)
 └── README.md
 ```
 
@@ -217,14 +221,12 @@ my-stock-stack/
 
 Each domain has a different change frequency. This drives pipeline scheduling.
 
-| Domain                   | Data                               | Schedule                    | Partition Key                  |
-| ------------------------ | ---------------------------------- | --------------------------- | ------------------------------ |
-| `metadata/exchanges`     | List of stock exchanges            | Manual / monthly            | `snapshot_date`                |
-| `metadata/securities`    | Securities listed per exchange     | Weekly (Monday 8am)         | `exchange`, `snapshot_date`    |
-| `prices/eod`             | OHLCV end-of-day bars              | Daily (4:30pm ET, Mon–Fri)  | `year`, `month`                |
-| `fundamentals`           | Income stmt, balance sheet, ratios | Quarterly (earnings season) | `fiscal_year`, `fiscal_period` |
-| `fundamentals/dividends` | Dividend events                    | Daily check (no-op if none) | `ex_date`                      |
-| `fundamentals/splits`    | Stock split events                 | Daily check (no-op if none) | `split_date`                   |
+| Domain          | Data                               | Schedule                    | Partition Key                  |
+| --------------- | ---------------------------------- | --------------------------- | ------------------------------ |
+| `exchanges`     | List of stock exchanges            | Manual / monthly            | `snapshot_date`                |
+| `securities`    | Securities listed per exchange     | Weekly (Monday 8am ET)      | `exchange`, `snapshot_date`    |
+| `eod_prices`    | OHLCV end-of-day bars              | Daily (4:30pm ET, Mon–Fri)  | `year`, `month`                |
+| `fundamentals`  | Income stmt, balance sheet, ratios | Quarterly (earnings season) | `fiscal_year`, `fiscal_period` |
 
 ---
 
@@ -412,19 +414,22 @@ Re-running any flow must produce the same result. No duplicates. No errors on re
 ### `core/config.py`
 
 ```python
-from pydantic_settings import BaseSettings
+from functools import lru_cache
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
-    eodhd_api_key: str
-    motherduck_token: str
-    s3_bucket: str | None = None
-    prefect_api_url: str
-    environment: str = "development"   # development | production
-
     model_config = SettingsConfigDict(env_file=".env")
 
-settings = Settings()
+    eodhd_api_key: str
+    motherduck_token: str = ""
+    environment: str = "development"
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    return Settings()  # type: ignore[call-arg]
 ```
+
+`Settings()` is never instantiated at import time. `get_settings()` is called only when a task actually executes, so `prefect deploy` and test imports work without secrets present.
 
 ### `core/clients/base.py`
 
@@ -445,16 +450,28 @@ class BaseClient(ABC):
     async def get_fundamentals(self, ticker: str) -> dict: ...
 ```
 
-### `pipelines/<domain>/models.py`
+### `core/models.py`
 
-Pydantic models live alongside the domain that owns them, not in a central `schemas/` folder.
+All domain models inherit from `BronzeModel`. `to_bronze_record()` is implemented once here — never repeated in domain models.
 
 ```python
-# pipelines/prices/models.py
-from pydantic import BaseModel, model_validator
-from decimal import Decimal
+class BronzeModel(BaseModel):
+    def to_bronze_record(self, provider: str = "eodhd") -> dict[str, Any]:
+        payload = self.model_dump(mode="json")   # Decimal→str, date→ISO handled by Pydantic
+        raw_json = json.dumps(payload, sort_keys=True)
+        row_hash = hashlib.sha256(raw_json.encode()).hexdigest()
+        return {**payload, "provider": provider, "raw_json": raw_json, "row_hash": row_hash}
+```
 
-class EODBar(BaseModel):
+### `domains/<domain>/models.py`
+
+Pydantic models live alongside the domain that owns them. Each inherits `BronzeModel`.
+
+```python
+# domains/eod_prices/models.py
+from core.models import BronzeModel
+
+class EODBar(BronzeModel):
     model_config = ConfigDict(strict=True, extra="forbid")
 
     ticker: str
@@ -467,12 +484,7 @@ class EODBar(BaseModel):
     adjusted_close: Decimal | None = None
 
     @model_validator(mode="after")
-    def validate_ohlc(self) -> "EODBar":
-        if not (self.low <= self.open <= self.high):
-            raise ValueError(f"OHLC invariant violated for {self.ticker} on {self.bar_date}")
-        if not (self.low <= self.close <= self.high):
-            raise ValueError(f"Close outside high/low for {self.ticker} on {self.bar_date}")
-        return self
+    def validate_ohlc(self) -> "EODBar": ...
 ```
 
 ### `core/lake.py`
@@ -535,9 +547,9 @@ WHERE bar_date >= (
 
 | Layer                 | Technology                                      | Version |
 | --------------------- | ----------------------------------------------- | ------- |
-| Python runtime        | Python                                          | 3.12+   |
+| Python runtime        | Python                                          | 3.14+   |
 | Dependency management | uv                                              | latest  |
-| Orchestration         | Prefect                                         | 3.x     |
+| Orchestration         | Prefect                                         | 3.7+    |
 | HTTP client           | httpx                                           | latest  |
 | Data validation       | Pydantic                                        | v2      |
 | Data lake query       | DuckDB / MotherDuck                             | latest  |
@@ -560,48 +572,72 @@ All secrets live in `.env` at the app root (never committed). Copy `.env.example
 # Data provider
 EODHD_API_KEY=your_key_here
 
-# MotherDuck
-MOTHERDUCK_TOKEN=your_token_here
+# MotherDuck — leave blank to use local DuckDB (unique_stocks.db) in dev
+MOTHERDUCK_TOKEN=
 
-# S3 (optional for v1, required for cold archival)
-S3_BUCKET=my-stock-stack
+# S3 (optional for v1 — cold archival only)
+S3_BUCKET=
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
 AWS_REGION=ap-southeast-2
 
-# Prefect
-PREFECT_API_URL=https://api.prefect.cloud/api/accounts/.../workspaces/...
-PREFECT_API_KEY=
+# Prefect — self-hosted server (see infra/docker-compose.yml)
+# Local dev without Docker:
+PREFECT_API_URL=http://localhost:4200/api
+# Inside docker-compose: PREFECT_API_URL=http://prefect-server:4200/api
+# Coolify production:     PREFECT_API_URL=https://prefect.yourdomain.com/api
+
+# Working directory for prefect.yaml pull step (local dev: . / Docker: /app)
+PREFECT_WORK_DIR=.
 
 # App
-ENVIRONMENT=development   # development | production
+ENVIRONMENT=development
 ```
 
 ---
 
 ## 12. Local Development Setup
 
+### Option A — Docker (recommended, mirrors production)
+
 ```bash
-# Clone and set up
-git clone https://github.com/you/my-stock-stack
-cd my-stock-stack
+git clone https://github.com/you/unique-stocks
+cd unique-stocks
 
-# Pipelines app
+cp apps/pipelines/.env.example apps/pipelines/.env
+# fill in EODHD_API_KEY — leave MOTHERDUCK_TOKEN blank for local DuckDB
+
+make infra-up          # start Prefect server + Postgres + worker
+make pipelines-setup   # create work pool + register all deployments (once)
+# Prefect UI: http://localhost:4200
+
+make infra-logs-pipelines   # tail worker output
+make infra-down             # stop everything
+```
+
+### Option B — No Docker (lighter, faster feedback)
+
+```bash
 cd apps/pipelines
-cp .env.example .env       # fill in EODHD_API_KEY and MOTHERDUCK_TOKEN
-uv sync                    # install deps
-uv run prefect server start  # local Prefect server (or use Prefect Cloud)
+cp .env.example .env   # fill in EODHD_API_KEY
 
-# Run a flow manually to test
-uv run python -m domains.eod_prices.flows
+uv sync                         # install deps
+make prefect-server             # terminal 1 — starts server at http://localhost:4200
+make prefect-setup              # terminal 2 — register work pool + deployments
+make worker                     # terminal 2 — start worker
 
-# dbt
-cd ../../dbt_project
+# Trigger a run from the UI or CLI:
+uv run prefect deployment run 'eod-prices-daily/daily'
+uv run prefect deployment run 'eod-prices-daily/backfill' -p trade_date=2026-05-09
+```
+
+### dbt
+
+```bash
+cd dbt_project
 dbt deps
 dbt run --select staging
 dbt test
-
-# Studio — not yet started, stack TBD (see section 3.7)
 ```
 
 ---

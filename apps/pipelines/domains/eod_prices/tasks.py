@@ -12,7 +12,7 @@ from prefect import task
 from prefect.tasks import exponential_backoff
 
 from core.clients.eodhd import EODHDClient
-from core.config import settings
+from core.config import get_settings
 
 from .models import EODBar
 
@@ -33,7 +33,7 @@ async def fetch_eod_prices_bulk(exchange: str, bar_date: date) -> list[dict]:
     Returns raw dicts — parsing/validation happens in a separate task.
     """
     log.info("prices.fetch_start", exchange=exchange, bar_date=bar_date)
-    async with EODHDClient(api_key=settings.eodhd_api_key) as client:
+    async with EODHDClient(api_key=get_settings().eodhd_api_key) as client:
         rows = await client.get_eod_prices_bulk(exchange=exchange, bar_date=bar_date)
     log.info("prices.fetch_done", exchange=exchange, bar_date=bar_date, rows=len(rows))
     return rows

@@ -1,0 +1,64 @@
+# Local development stack.
+#
+# Usage:
+#   make infra-up              — start all services
+#   make infra-down            — stop all services
+#   make infra-logs-pipelines  — tail worker logs
+#
+# Prefect UI: http://localhost:4200
+# Copy apps/pipelines/.env.example → apps/pipelines/.env and fill in secrets before starting.
+
+name: unique-stocks
+
+services:
+
+  # ── Prefect server (API + UI) ──────────────────────────────────────────────
+  prefect-server:
+    image: prefecthq/prefect:3-latest
+    command: prefect server start --host 0.0.0.0
+    ports:
+      - "4200:4200"
+    environment:
+      PREFECT_SERVER_DATABASE_CONNECTION_URL: postgresql+asyncpg://prefect:prefect@postgres:5432/prefect
+      # Browser-facing URL — must match what you open in the browser
+      PREFECT_UI_API_URL: http://localhost:4200/api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Postgres (Prefect persistence) ────────────────────────────────────────
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: prefect
+      POSTGRES_PASSWORD: prefect
+      POSTGRES_DB: prefect
+    volumes:
+      - prefect-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prefect"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # ── Pipelines worker ───────────────────────────────────────────────────────
+  pipelines:
+    build:
+      context: ../apps/pipelines
+      dockerfile: Dockerfile
+    environment:
+      # Internal container-to-container address
+      PREFECT_API_URL: http://prefect-server:4200/api
+      PREFECT_WORK_DIR: /app
+    env_file:
+      - path: ../apps/pipelines/.env
+        required: false   # won't fail if .env doesn't exist yet; cp .env.example .env to start
+    depends_on:
+      - prefect-server
+    command: uv run prefect worker start --pool default-process-pool
+    restart: unless-stopped
+
+volumes:
+  prefect-db:
