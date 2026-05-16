@@ -57,7 +57,7 @@ async def eod_prices_flow(trade_date: date | None = None) -> dict:
     try:
         for exchange in V1_EXCHANGES:
             raw_rows = await fetch_eod_prices_bulk(exchange=exchange, bar_date=trade_date)
-            bars = parse_eod_prices(raw_rows, bar_date=trade_date)
+            bars = parse_eod_prices(raw_rows, bar_date=trade_date, exchange=exchange)
             written = write_bronze_eod_prices(bars, exchange=exchange, bar_date=trade_date)
 
             summary["exchanges"][exchange] = {"rows_written": written}

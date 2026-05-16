@@ -1,5 +1,4 @@
-"""
-Pure transform functions for EOD price data.
+"""Pure parsing functions for EOD price data.
 
 No Prefect decorators, no I/O. Fully unit-testable.
 """
@@ -10,37 +9,45 @@ from typing import Any
 
 import structlog
 
+from providers.eodhd.models import EODBulkPriceRaw
+
 from .models import EODBar
 
 log = structlog.get_logger(__name__)
 
 
-def parse_eod_bars(raw_rows: list[dict[str, Any]], expected_date: date) -> tuple[list[EODBar], list[dict[str, Any]]]:
-    """
-    Validate and parse raw API rows into EODBar models.
+def parse_eod_bars(
+    raw_rows: list[EODBulkPriceRaw],
+    expected_date: date,
+    exchange: str,
+) -> tuple[list[EODBar], list[EODBulkPriceRaw]]:
+    """Validate and parse raw API rows into EODBar domain models.
+
+    The exchange is required to construct the fully-qualified ticker symbol
+    (e.g. EODHD returns ``code="AAPL"`` on the US exchange → ``ticker="AAPL.US"``).
 
     Returns:
-        (valid_bars, rejected_rows) — rejected rows include an 'error' key.
+        (valid_bars, rejected_rows) — rejected rows are the original raw objects.
 
     We log rejections but never raise — a few bad tickers should not abort
     an entire exchange's worth of data.
     """
     valid: list[EODBar] = []
-    rejected: list[dict[str, Any]] = []
+    rejected: list[EODBulkPriceRaw] = []
 
     for row in raw_rows:
         try:
             bar = EODBar.model_validate(
                 {
-                    "ticker": row["ticker"],
+                    "ticker": f"{row.code}.{exchange}",
                     # EODBar is strict=True — must pass a date object, not a string
-                    "bar_date": _to_date(row["bar_date"]),
-                    "open": _to_decimal(row.get("open")),
-                    "high": _to_decimal(row.get("high")),
-                    "low": _to_decimal(row.get("low")),
-                    "close": _to_decimal(row.get("close")),
-                    "volume": int(row.get("volume") or 0),
-                    "adjusted_close": _to_decimal_optional(row.get("adjusted_close")),
+                    "bar_date": _to_date(row.date),
+                    "open": _to_decimal(row.open),
+                    "high": _to_decimal(row.high),
+                    "low": _to_decimal(row.low),
+                    "close": _to_decimal(row.close),
+                    "volume": row.volume,
+                    "adjusted_close": _to_decimal_optional(row.adjusted_close),
                 }
             )
             # Silently drop rows where the API returned data for a different date
@@ -55,8 +62,8 @@ def parse_eod_bars(raw_rows: list[dict[str, Any]], expected_date: date) -> tuple
                 continue
             valid.append(bar)
         except Exception as exc:
-            rejected.append({**row, "error": str(exc)})
-            log.warning("prices.parse_rejected", ticker=row.get("ticker"), error=str(exc))
+            rejected.append(row)
+            log.warning("prices.parse_rejected", ticker=row.code, exchange=exchange, error=str(exc))
 
     return valid, rejected
 

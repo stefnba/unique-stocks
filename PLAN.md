@@ -136,22 +136,22 @@ my-stock-stack/
 │   │   │   │   ├── models.py    # Pydantic v2 models for this domain
 │   │   │   │   ├── flows.py
 │   │   │   │   ├── tasks.py
-│   │   │   │   └── transforms.py
+│   │   │   │   └── parsers.py
 │   │   │   ├── securities/      # Securities listed per exchange (weekly)
 │   │   │   │   ├── models.py
 │   │   │   │   ├── flows.py
 │   │   │   │   ├── tasks.py
-│   │   │   │   └── transforms.py
+│   │   │   │   └── parsers.py
 │   │   │   ├── eod_prices/      # EOD OHLCV (daily, trading days only)
 │   │   │   │   ├── models.py
 │   │   │   │   ├── flows.py
 │   │   │   │   ├── tasks.py
-│   │   │   │   └── transforms.py
+│   │   │   │   └── parsers.py
 │   │   │   └── fundamentals/    # Financials, dividends (quarterly)
 │   │   │       ├── models.py
 │   │   │       ├── flows.py
 │   │   │       ├── tasks.py
-│   │   │       └── transforms.py
+│   │   │       └── parsers.py
 │   │   ├── core/                # Shared infrastructure only
 │   │   │   ├── config.py        # Pydantic Settings — reads .env
 │   │   │   ├── lake.py          # MotherDuck read/write helpers
@@ -213,7 +213,7 @@ my-stock-stack/
 - `apps/pipelines/` and `apps/studio/` have their own dependency files — they are independent deploys
 - `studio/` tech stack is TBD — decided separately from pipelines, which are always Python
 - `core/` contains only infrastructure (config, lake, clients, scheduler) — no domain models
-- Domain models (`models.py`) live next to their `flows.py`/`tasks.py`/`transforms.py` — locality over centralisation
+- Domain models (`models.py`) live next to their `flows.py`/`tasks.py`/`parsers.py` — locality over centralisation
 
 ---
 
@@ -341,7 +341,7 @@ s3://my-stock-stack/
 
 **Tasks** (`tasks.py`) — atomic, retryable, independently testable units of work.
 **Flows** (`flows.py`) — thin orchestrators that wire tasks together. No business logic.
-**Transforms** (`transforms.py`) — pure functions, no Prefect decorators, fully unit-testable.
+**Parsers** (`parsers.py`) — pure parsing/normalisation functions, no Prefect decorators, fully unit-testable.
 
 ```python
 # tasks.py — has @task decorator, handles retry/logging
@@ -663,7 +663,7 @@ dbt test
 ### General
 
 - No secrets in code or git — `.env` only
-- Every new domain under `domains/` follows the same pattern: `models.py` + `flows.py` + `tasks.py` + `transforms.py`
+- Every new domain under `domains/` follows the same pattern: `models.py` + `flows.py` + `tasks.py` + `parsers.py`
 - README in every app folder explaining how to run it standalone
 
 ---

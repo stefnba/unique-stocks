@@ -1,5 +1,4 @@
-"""
-Prefect tasks for EOD price ingestion.
+"""Prefect tasks for EOD price ingestion.
 
 Tasks are atomic, retryable units. Each task does exactly one thing:
 fetch, validate, or write. No business logic.
@@ -11,12 +10,12 @@ import structlog
 from prefect import task
 from prefect.tasks import exponential_backoff
 
-from core.clients.eodhd import EODHDClient
 from core.config import get_settings
+from providers.eodhd.client import EODHDClient
+from providers.eodhd.models import EODBulkPriceRaw
 
 from .models import EODBar
-
-from .transforms import bars_to_bronze_records, parse_eod_bars
+from .parsers import bars_to_bronze_records, parse_eod_bars
 
 log = structlog.get_logger(__name__)
 
@@ -27,10 +26,11 @@ log = structlog.get_logger(__name__)
     retry_delay_seconds=exponential_backoff(10),
     log_prints=True,
 )
-async def fetch_eod_prices_bulk(exchange: str, bar_date: date) -> list[dict]:
-    """
-    Fetch raw EOD price rows for an entire exchange via the EODHD bulk endpoint.
-    Returns raw dicts — parsing/validation happens in a separate task.
+async def fetch_eod_prices_bulk(exchange: str, bar_date: date) -> list[EODBulkPriceRaw]:
+    """Fetch and schema-validate raw EOD price rows for an entire exchange.
+
+    Uses the EODHD bulk endpoint (one API call per exchange).
+    Raises ValidationError if EODHD's response shape doesn't match EODBulkPriceRaw.
     """
     log.info("prices.fetch_start", exchange=exchange, bar_date=bar_date)
     async with EODHDClient(api_key=get_settings().eodhd_api_key) as client:
@@ -40,16 +40,23 @@ async def fetch_eod_prices_bulk(exchange: str, bar_date: date) -> list[dict]:
 
 
 @task(name="parse-eod-prices")
-def parse_eod_prices(raw_rows: list[dict], bar_date: date) -> list[EODBar]:
+def parse_eod_prices(
+    raw_rows: list[EODBulkPriceRaw],
+    bar_date: date,
+    exchange: str,
+) -> list[EODBar]:
+    """Apply business validation and convert raw rows to EODBar domain models.
+
+    Logs and drops invalid rows — a few bad tickers should not abort an
+    entire exchange's worth of data. Warns if the rejection count is high.
     """
-    Validate raw rows into EODBar models. Logs and drops invalid rows.
-    """
-    valid, rejected = parse_eod_bars(raw_rows, expected_date=bar_date)
+    valid, rejected = parse_eod_bars(raw_rows, expected_date=bar_date, exchange=exchange)
     if rejected:
         log.warning(
             "prices.parse_rejections",
             count=len(rejected),
             bar_date=bar_date,
+            exchange=exchange,
         )
     log.info("prices.parsed", valid=len(valid), rejected=len(rejected), bar_date=bar_date)
     return valid
@@ -57,9 +64,9 @@ def parse_eod_prices(raw_rows: list[dict], bar_date: date) -> list[EODBar]:
 
 @task(name="write-bronze-eod-prices")
 def write_bronze_eod_prices(bars: list[EODBar], exchange: str, bar_date: date) -> int:
-    """
-    Write validated bars to bronze.eod_prices. Skips already-ingested tickers
-    for this exchange+date to ensure idempotency on re-run.
+    """Write validated bars to bronze.eod_prices.
+
+    Skips already-ingested tickers for this exchange+date to ensure idempotency on re-run.
     """
     from core import lake
 
@@ -67,8 +74,6 @@ def write_bronze_eod_prices(bars: list[EODBar], exchange: str, bar_date: date) -
         log.info("prices.write_skipped", reason="no_bars", exchange=exchange, bar_date=bar_date)
         return 0
 
-    # Idempotency: if we already have any rows for this exchange+date, skip entirely.
-    # This is a coarse check — good enough for daily bulk ingestion.
     if lake.already_ingested_exchange_date("eod_prices", exchange, bar_date):
         log.info(
             "prices.write_skipped",

@@ -25,7 +25,7 @@ apps/pipelines/
     └── unit/
 ```
 
-Each domain follows the same pattern: `models.py` → `transforms.py` → `tasks.py` → `flows.py`
+Each domain follows the same pattern: `models.py` → `parsers.py` → `tasks.py` → `flows.py`
 
 ---
 
