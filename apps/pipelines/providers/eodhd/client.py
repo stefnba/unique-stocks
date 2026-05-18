@@ -10,7 +10,7 @@ from datetime import date
 import httpx
 import structlog
 
-from core.client.base import BaseClient
+from core.clients.http.base import HttpClientBase
 
 from .models import EODBulkPriceRaw, bulk_price_adapter
 
@@ -30,7 +30,7 @@ class _EodhdAuth(httpx.Auth):
         yield request
 
 
-class EODHDClient(BaseClient):
+class EODHDClient(HttpClientBase):
     """HTTP client for the EODHD financial data API."""
 
     BASE_URL = "https://eodhd.com/api"

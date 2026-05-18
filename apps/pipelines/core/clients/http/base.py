@@ -19,7 +19,7 @@ import structlog
 log = structlog.get_logger(__name__)
 
 
-class BaseClient(ABC):
+class HttpClientBase(ABC):
     """Abstract async HTTP client backed by httpx."""
 
     BASE_URL: ClassVar[str]
