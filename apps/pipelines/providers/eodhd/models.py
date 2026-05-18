@@ -1,9 +1,3 @@
-"""Raw response models for the EODHD API.
-
-Field names mirror the API response verbatim. Normalisation to domain model
-field names (e.g. code → ticker, date → bar_date) happens in the domain
-transform layer, where exchange context is also available.
-"""
 
 from pydantic import BaseModel
 
@@ -19,3 +13,26 @@ class EODBulkPriceRaw(BaseModel):
     close: float
     volume: int
     adjusted_close: float | None = None
+
+
+class ExchangeList(BaseModel):
+    """
+    Model representing an exchange available via EODHD.
+
+    Attributes:
+        Name: Full name of the exchange
+        Code: Exchange code used in EODHD APIs
+        OperatingMIC: MIC codes for operating venues
+        Country: Country where the exchange operates
+        Currency: Default trading currency
+        CountryISO2: ISO2 country code
+        CountryISO3: ISO3 country code
+    """
+
+    Name: str
+    Code: str
+    OperatingMIC: str | None 
+    Country: str
+    Currency: str
+    CountryISO2: str
+    CountryISO3: str

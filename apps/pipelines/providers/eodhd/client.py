@@ -12,7 +12,7 @@ import structlog
 
 from core.clients.http.base import HttpClientBase
 
-from .models import EODBulkPriceRaw
+from .models import EODBulkPriceRaw, ExchangeList
 
 log = structlog.get_logger(__name__)
 
@@ -61,3 +61,12 @@ class EODHDClient(HttpClientBase):
         )
         log.info("eodhd.bulk_prices_fetched", exchange=exchange, bar_date=bar_date, row_count=len(rows))
         return rows
+
+
+    async def get_exchanges(self):
+        """Get all exchanges available via EODHD."""
+
+        return await self._get_list(
+            "/exchanges-list",
+            model=ExchangeList,
+        )
