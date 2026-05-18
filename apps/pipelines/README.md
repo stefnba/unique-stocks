@@ -2,6 +2,11 @@
 
 Prefect 3 ingestion flows for the unique-stocks data platform.
 
+Each flow follows a two-phase pattern:
+
+1. **Fetch → S3 landing zone** — raw API response written as JSON, exact bytes, no parsing.
+2. **S3 → bronze** — a separate task reads from S3, coerces types, enforces the schema, and writes typed rows to MotherDuck. dbt then handles bronze → silver → gold.
+
 ---
 
 ## Project structure
@@ -19,8 +24,16 @@ apps/pipelines/
 │   ├── models.py        BronzeModel base class
 │   ├── scheduler.py     NYSE calendar helpers
 │   └── clients/
-│       ├── base.py      BaseClient ABC
-│       └── eodhd.py     EODHD API wrapper
+│       ├── http/
+│       │   └── base.py      BaseClient ABC for HTTP providers
+│       └── storage/
+│           └── base.py      BaseStorageClient ABC
+├── providers/
+│   ├── eodhd/               EODHD HTTP data provider
+│   │   ├── client.py        Concrete HTTP client
+│   │   └── models.py        Raw API response models
+│   └── s3/                  AWS S3 storage provider
+│       └── client.py        Concrete S3 client
 └── tests/
     └── unit/
 ```
@@ -155,13 +168,17 @@ make deploy-dry     # preview what prefect.yaml would register (no server needed
 
 ## Environment variables
 
-| Variable           | Required | Description                                            |
-| ------------------ | -------- | ------------------------------------------------------ |
-| `EODHD_API_KEY`    | Yes      | EODHD API key — [eodhd.com](https://eodhd.com)         |
-| `MOTHERDUCK_TOKEN` | No       | Leave blank → local `unique_stocks.db`                 |
-| `PREFECT_API_URL`  | Yes      | Prefect server API URL                                 |
-| `PREFECT_WORK_DIR` | Yes      | `.` (local) or `/app` (Docker)                         |
-| `ENVIRONMENT`      | No       | `development` or `production` (default: `development`) |
+| Variable                | Required | Description                                            |
+| ----------------------- | -------- | ------------------------------------------------------ |
+| `EODHD_API_KEY`         | Yes      | EODHD API key — [eodhd.com](https://eodhd.com)         |
+| `MOTHERDUCK_TOKEN`      | No       | Leave blank → local `unique_stocks.db`                 |
+| `S3_BUCKET`             | Yes      | S3 bucket for landing zone and Parquet archive         |
+| `AWS_ACCESS_KEY_ID`     | Yes      | AWS credentials with S3 read/write access              |
+| `AWS_SECRET_ACCESS_KEY` | Yes      | AWS credentials with S3 read/write access              |
+| `AWS_REGION`            | Yes      | AWS region (e.g. `ap-southeast-2`)                     |
+| `PREFECT_API_URL`       | Yes      | Prefect server API URL                                 |
+| `PREFECT_WORK_DIR`      | Yes      | `.` (local) or `/app` (Docker)                         |
+| `ENVIRONMENT`           | No       | `development` or `production` (default: `development`) |
 
 ---
 

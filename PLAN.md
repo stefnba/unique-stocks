@@ -24,11 +24,14 @@ The goal is lean, reliable, and cheap — not enterprise-scale. The entire stack
 External APIs (EODHD)
         │
         ▼
-┌───────────────────┐
-│  apps/pipelines   │  Prefect flows — scheduled ingestion
-│  (Python)         │  Writes raw data to Bronze layer
-└────────┬──────────┘
-         │ triggers
+┌───────────────────┐       ┌─────────────────────────────┐
+│  apps/pipelines   │──①───▶│  S3 (landing zone)          │
+│  (Python)         │       │  Raw API responses, exact   │
+│  Prefect flows    │       │  bytes, immutable, JSON      │
+│                   │◀──②───│  partitioned by date         │
+└────────┬──────────┘       └─────────────────────────────┘
+         │ ② parse S3 → write typed rows to bronze
+         │ ③ trigger dbt after successful bronze write
          ▼
 ┌───────────────────┐
 │   dbt_project/    │  dbt Core — SQL transformations
@@ -39,7 +42,6 @@ External APIs (EODHD)
 ┌───────────────────┐
 │  MotherDuck       │  Primary data store (DuckDB cloud)
 │  (3 schemas)      │  bronze / silver / gold
-│                   │  Parquet files on S3 as backup/archive
 └────────┬──────────┘
          │ queried by
          ▼
@@ -61,18 +63,23 @@ MotherDuck (managed DuckDB cloud) is the query engine and primary store.
 
 - Zero ops — no cluster to manage
 - DuckDB SQL is fast enough for our scale (<100GB)
-- Parquet files on S3 are used for cold archival only, not active querying
+- S3 serves two distinct roles:
+  - **Landing zone** — raw API responses written as JSON by ingestion pipelines, before any parsing. This is the canonical replayable source.
+  - **Parquet archive** — cold mirror of MotherDuck bronze/silver/gold schemas for backup and potential future query offload.
 - Upgrade path exists: swap MotherDuck for S3 + Trino at 10TB+ scale
 
-### 3.2 Medallion Architecture (Bronze / Silver / Gold)
+### 3.2 Medallion Architecture (Landing / Bronze / Silver / Gold)
 
-Three schemas in one MotherDuck database, mirrored as Parquet on S3.
+S3 is the landing zone. MotherDuck holds three schemas.
 
-| Layer  | Schema   | Purpose                                                    |
-| ------ | -------- | ---------------------------------------------------------- |
-| Bronze | `bronze` | Raw API responses, immutable, append-only                  |
-| Silver | `silver` | Typed, deduplicated, normalized — no business logic        |
-| Gold   | `gold`   | Analytics-ready: indicators, adjusted prices, aggregations |
+| Layer   | Where               | Purpose                                                                 |
+| ------- | ------------------- | ----------------------------------------------------------------------- |
+| Landing | S3 `landing/`       | Raw API responses, exact bytes, immutable — written by Python pipelines |
+| Bronze  | MotherDuck `bronze` | Typed, schema-enforced — parsed from S3 landing, append-only            |
+| Silver  | MotherDuck `silver` | Deduplicated, normalized — no business logic (managed by dbt)           |
+| Gold    | MotherDuck `gold`   | Analytics-ready: indicators, adjusted prices, aggregations (dbt)        |
+
+Reprocessing bronze from scratch requires only S3 — no API re-fetch needed.
 
 ### 3.3 Prefect over Airflow
 
@@ -82,8 +89,12 @@ Airflow is too heavy for this scale. Prefect Cloud free tier is sufficient.
 ### 3.4 dbt Core for Transformations
 
 All Bronze → Silver → Gold logic lives in dbt SQL models.
-dbt runs are triggered by Prefect after each successful ingestion.
-Never transform data inside Python ingestion code — land raw first, always.
+dbt runs are triggered by Prefect after each successful bronze write.
+
+Two strict rules for Python ingestion code:
+
+1. **Always write raw to S3 first.** The Prefect task that calls the API writes the exact JSON response to `s3://landing/`. No parsing yet.
+2. **Parse S3 → bronze in a separate task.** A second task reads from S3, coerces types, enforces the schema, and writes typed rows to `bronze.*` in MotherDuck. No business logic — type safety only.
 
 ### 3.5 Plain Parquet over Apache Iceberg
 
@@ -158,11 +169,19 @@ my-stock-stack/
 │   │   │   ├── models.py        # BronzeModel base class for all domain models
 │   │   │   ├── scheduler.py     # NYSE calendar, is_trading_day()
 │   │   │   ├── clients/
-│   │   │   │   ├── base.py      # Abstract BaseClient (ABC)
-│   │   │   │   └── eodhd.py     # EODHD API wrapper (httpx + retry)
+│   │   │   │   ├── http/
+│   │   │   │   │   └── base.py      # Abstract BaseClient (ABC) for HTTP providers
+│   │   │   │   └── storage/
+│   │   │   │       └── base.py      # Abstract BaseStorageClient (ABC)
 │   │   │   └── utils/
 │   │   │       ├── logging.py
 │   │   │       └── rate_limiter.py
+│   │   ├── providers/           # Vendor-specific implementations
+│   │   │   ├── eodhd/           # EODHD HTTP data provider
+│   │   │   │   ├── client.py    # Concrete HTTP client (implements core/clients/http/base.py)
+│   │   │   │   └── models.py    # Raw API response models
+│   │   │   └── s3/              # AWS S3 storage provider
+│   │   │       └── client.py    # Concrete S3 client (implements core/clients/storage/base.py)
 │   │   ├── tests/
 │   │   │   ├── unit/
 │   │   │   └── integration/
@@ -221,12 +240,12 @@ my-stock-stack/
 
 Each domain has a different change frequency. This drives pipeline scheduling.
 
-| Domain          | Data                               | Schedule                    | Partition Key                  |
-| --------------- | ---------------------------------- | --------------------------- | ------------------------------ |
-| `exchanges`     | List of stock exchanges            | Manual / monthly            | `snapshot_date`                |
-| `securities`    | Securities listed per exchange     | Weekly (Monday 8am ET)      | `exchange`, `snapshot_date`    |
-| `eod_prices`    | OHLCV end-of-day bars              | Daily (4:30pm ET, Mon–Fri)  | `year`, `month`                |
-| `fundamentals`  | Income stmt, balance sheet, ratios | Quarterly (earnings season) | `fiscal_year`, `fiscal_period` |
+| Domain         | Data                               | Schedule                    | Partition Key                  |
+| -------------- | ---------------------------------- | --------------------------- | ------------------------------ |
+| `exchanges`    | List of stock exchanges            | Manual / monthly            | `snapshot_date`                |
+| `securities`   | Securities listed per exchange     | Weekly (Monday 8am ET)      | `exchange`, `snapshot_date`    |
+| `eod_prices`   | OHLCV end-of-day bars              | Daily (4:30pm ET, Mon–Fri)  | `year`, `month`                |
+| `fundamentals` | Income stmt, balance sheet, ratios | Quarterly (earnings season) | `fiscal_year`, `fiscal_period` |
 
 ---
 
@@ -234,34 +253,45 @@ Each domain has a different change frequency. This drives pipeline scheduling.
 
 One database: `unique_stocks`. Three schemas.
 
-### Bronze — Raw Ingestion
+### Bronze — Typed & Schema-Enforced (parsed from S3 landing)
 
 ```sql
--- Never modified after write. Source of truth for replay.
+-- Append-only. Populated by reading from S3 landing zone — never written directly
+-- from API responses. s3_key provides lineage back to the exact raw file.
 CREATE TABLE bronze.eod_prices (
     ingestion_id     UUID DEFAULT gen_random_uuid(),
-    ticker           VARCHAR,
+    ticker           VARCHAR,        -- fully-qualified: 'AAPL.US'
     bar_date         DATE,
+    open             DECIMAL,
+    high             DECIMAL,
+    low              DECIMAL,
+    close            DECIMAL,
+    volume           BIGINT,
+    adjusted_close   DECIMAL,
     provider         VARCHAR,        -- 'eodhd'
-    raw_json         JSON,           -- verbatim API response
+    s3_key           VARCHAR,        -- source: 'landing/eodhd/eod_prices/date=2025-01-15/US.json'
     ingested_at      TIMESTAMPTZ DEFAULT now(),
-    row_hash         VARCHAR         -- SHA-256 for dedup
+    row_hash         VARCHAR         -- SHA-256 of (ticker, bar_date, provider) for dedup
 );
 
 CREATE TABLE bronze.securities (
     ingestion_id     UUID DEFAULT gen_random_uuid(),
     exchange         VARCHAR,
+    code             VARCHAR,
+    name             VARCHAR,
     snapshot_date    DATE,
     provider         VARCHAR,
-    raw_json         JSON,
+    s3_key           VARCHAR,
     ingested_at      TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE TABLE bronze.exchanges (
     ingestion_id     UUID DEFAULT gen_random_uuid(),
+    code             VARCHAR,
+    name             VARCHAR,
     snapshot_date    DATE,
     provider         VARCHAR,
-    raw_json         JSON,
+    s3_key           VARCHAR,
     ingested_at      TIMESTAMPTZ DEFAULT now()
 );
 
@@ -272,7 +302,7 @@ CREATE TABLE bronze.fundamentals (
     fiscal_period    VARCHAR,        -- 'Q1', 'Q2', 'Q3', 'Q4', 'TTM'
     report_type      VARCHAR,        -- 'income_statement', 'balance_sheet', 'cash_flow'
     provider         VARCHAR,
-    raw_json         JSON,
+    s3_key           VARCHAR,
     ingested_at      TIMESTAMPTZ DEFAULT now()
 );
 ```
@@ -316,20 +346,35 @@ CREATE TABLE pipeline.runs (
 );
 ```
 
-### S3 Parquet Layout (mirrors MotherDuck schemas)
+### S3 Layout
 
 ```text
 s3://my-stock-stack/
-├── bronze/
+│
+├── landing/                                    ← Raw API responses, exact bytes, immutable
+│   └── eodhd/
+│       ├── eod_prices/date=2025-01-15/
+│       │   ├── US.json                         -- bulk response for one exchange+date
+│       │   └── LSE.json
+│       ├── securities/date=2025-01-01/
+│       │   └── NASDAQ.json
+│       ├── exchanges/date=2025-01-01/
+│       │   └── all.json
+│       └── fundamentals/ticker=AAPL/date=2025-01-01/
+│           └── AAPL.json
+│
+├── bronze/                                     ← Parquet mirror of MotherDuck bronze
 │   ├── exchanges/snapshot_date=2025-01-01/
 │   ├── securities/exchange=NASDAQ/snapshot_date=2025-01-01/
-│   ├── prices/eod/year=2025/month=01/
+│   ├── eod_prices/year=2025/month=01/
 │   └── fundamentals/fiscal_year=2024/fiscal_period=Q4/
+│
 ├── silver/
 │   └── ... (mirrors bronze partition structure)
+│
 └── gold/
     ├── prices_daily/year=2025/month=01/
-    ├── securities_current/             # No date partition — always latest
+    ├── securities_current/
     └── fundamentals_ttm/
 ```
 
@@ -343,23 +388,41 @@ s3://my-stock-stack/
 **Flows** (`flows.py`) — thin orchestrators that wire tasks together. No business logic.
 **Parsers** (`parsers.py`) — pure parsing/normalisation functions, no Prefect decorators, fully unit-testable.
 
+Every domain flow follows the same two-phase pattern:
+
 ```python
-# tasks.py — has @task decorator, handles retry/logging
+# tasks.py — three tasks, strict separation of concerns
+
 @task(retries=3, retry_delay_seconds=exponential_backoff(10))
-async def fetch_eod_prices(ticker: str, bar_date: date) -> list[EODBar]: ...
+async def fetch_and_land(exchange: str, bar_date: date) -> str:
+    """Call API → write raw JSON to S3 landing zone → return s3_key."""
+    raw = await eodhd_client.get_eod_prices_bulk(exchange, bar_date)
+    s3_key = S3Client.landing_key("eodhd", "eod_prices", date=str(bar_date), exchange=exchange)
+    await s3.write_json(s3_key, raw)
+    return s3_key
 
 @task
-async def write_bronze(bars: list[EODBar], bar_date: date) -> None: ...
+async def parse_and_write_bronze(s3_key: str, exchange: str, bar_date: date) -> int:
+    """Read S3 landing → parse → write typed rows to bronze. Returns row count."""
+    raw = await s3.read_json(s3_key)
+    bars, rejected = parse_eod_bars(raw, expected_date=bar_date, exchange=exchange)
+    return await lake.insert_rows("bronze", "eod_prices", bars_to_bronze_records(bars, s3_key))
 
-# flows.py — has @flow decorator, wires tasks, handles schedule logic
+@task
+async def trigger_dbt(domain: str) -> None:
+    """Trigger dbt run for the affected models after a successful bronze write."""
+    ...
+
+# flows.py — wires tasks, handles schedule/idempotency logic
 @flow(name="eod-prices-daily")
 async def eod_prices_flow(trade_date: date | None = None):
     trade_date = trade_date or date.today()
     if not is_trading_day(trade_date):
-        return  # clean skip, not a failure
-    tickers = await get_ticker_universe()
-    bars = await fetch_eod_prices.map(tickers, unmapped(trade_date))
-    await write_bronze(bars, trade_date)
+        return
+    for exchange in EXCHANGES:
+        s3_key = await fetch_and_land(exchange, trade_date)
+        await parse_and_write_bronze(s3_key, exchange, trade_date)
+    await trigger_dbt("eod_prices")
 ```
 
 ### Flow Schedule Reference
@@ -493,9 +556,35 @@ class EODBar(BronzeModel):
 # Wraps MotherDuck connection. All reads/writes go through here.
 # Never import duckdb directly in pipeline code — use this module.
 
-async def write_bronze(table: str, records: list[dict], partition: dict) -> None: ...
+async def insert_rows(schema: str, table: str, records: list[dict]) -> int: ...
+async def already_ingested(table: str, partition: dict) -> bool: ...
 async def query(sql: str, *params) -> list[dict]: ...
-async def table_exists(schema: str, table: str) -> bool: ...
+```
+
+### `providers/s3/client.py`
+
+```python
+# Concrete S3 implementation of BaseStorageClient.
+# Never import boto3 directly in domain/pipeline code — use this client.
+
+class S3Client(BaseStorageClient):
+    async def write_json(self, key: str, payload: Any) -> str:
+        """Write payload as JSON to s3://{BUCKET}/{key}. Returns the full s3_key."""
+        ...
+
+    async def read_json(self, key: str) -> Any:
+        """Read and parse JSON from s3://{BUCKET}/{key}."""
+        ...
+
+    @staticmethod
+    def landing_key(provider: str, domain: str, **partition: str) -> str:
+        """Build a consistent S3 key for the landing zone.
+
+        Example:
+            S3Client.landing_key("eodhd", "eod_prices", date="2025-01-15", exchange="US")
+            → "landing/eodhd/eod_prices/date=2025-01-15/US.json"
+        """
+        ...
 ```
 
 ---
@@ -575,8 +664,8 @@ EODHD_API_KEY=your_key_here
 # MotherDuck — leave blank to use local DuckDB (unique_stocks.db) in dev
 MOTHERDUCK_TOKEN=
 
-# S3 (optional for v1 — cold archival only)
-S3_BUCKET=
+# S3 — required. Used as both landing zone (raw JSON) and Parquet archive.
+S3_BUCKET=my-stock-stack
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
 AWS_REGION=ap-southeast-2
@@ -649,9 +738,11 @@ dbt test
 - Type hints on every function signature — no exceptions
 - Pydantic v2 models for all external data, `extra="forbid"` to catch API drift early
 - `async/await` throughout — httpx async client, async MotherDuck queries
-- Never transform data inside a `@task` that also does I/O — separate fetch/transform/write into distinct tasks
+- **S3 first, always.** Every ingestion task writes the raw API response to the S3 landing zone before any parsing. Never write directly to bronze from a fetch task.
+- **Separate fetch / land / parse / write.** A task that calls an API must not also parse or write to the database. Three tasks minimum per domain: `fetch_and_land` → `parse_and_write_bronze` → `trigger_dbt`.
 - Log with structlog, not print() — every log line gets `ticker` and `bar_date` as structured fields
 - One `@flow` per domain per schedule — no mega-flows
+- Use `providers.s3.client.S3Client` for all S3 access. Never import boto3 directly in domain code.
 
 ### dbt
 
