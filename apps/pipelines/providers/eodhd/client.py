@@ -12,7 +12,7 @@ import structlog
 
 from core.clients.http.base import HttpClientBase
 
-from .models import EODBulkPriceRaw, bulk_price_adapter
+from .models import EODBulkPriceRaw
 
 log = structlog.get_logger(__name__)
 
@@ -54,10 +54,10 @@ class EODHDClient(HttpClientBase):
         Response is validated against EODBulkPriceRaw — raises ValidationError
         if EODHD changes their schema.
         """
-        data = await self._request(
+        rows = await self._get_list(
             f"/eod-bulk-last-day/{exchange}",
+            model=EODBulkPriceRaw,
             params={"date": bar_date.isoformat()},
         )
-        rows = bulk_price_adapter.validate_python(data)
         log.info("eodhd.bulk_prices_fetched", exchange=exchange, bar_date=bar_date, row_count=len(rows))
         return rows

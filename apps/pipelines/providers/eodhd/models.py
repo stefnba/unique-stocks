@@ -5,7 +5,7 @@ field names (e.g. code → ticker, date → bar_date) happens in the domain
 transform layer, where exchange context is also available.
 """
 
-from pydantic import BaseModel, TypeAdapter
+from pydantic import BaseModel
 
 
 class EODBulkPriceRaw(BaseModel):
@@ -19,6 +19,3 @@ class EODBulkPriceRaw(BaseModel):
     close: float
     volume: int
     adjusted_close: float | None = None
-
-
-bulk_price_adapter: TypeAdapter[list[EODBulkPriceRaw]] = TypeAdapter(list[EODBulkPriceRaw])
