@@ -27,6 +27,7 @@ T = TypeVar("T", bound=BaseModel)
 class HttpClientBase(ABC):
     """Abstract async HTTP client backed by httpx."""
 
+    PROVIDER: ClassVar[str]
     BASE_URL: ClassVar[str]
 
     _timeout: float = 30.0
@@ -88,21 +89,21 @@ class HttpClientBase(ABC):
         if self._http is None:
             raise RuntimeError(f"{type(self).__name__} must be used as an async context manager")
 
-        log.debug("http.client.request", method=method, path=path)
+        log.debug(f"http.client.{self.PROVIDER}.request", method=method, path=path)
 
         try:
             response = await self._http.request(method, path, params=params, json=json)
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
             log.error(
-                "http.client.http_error",
+                f"http.client.{self.PROVIDER}.http_error",
                 path=path,
                 status=exc.response.status_code,
                 body=exc.response.text[:300],
             )
             raise
         except httpx.TimeoutException:
-            log.error("http.client.timeout", path=path, method=method)
+            log.error(f"http.client.{self.PROVIDER}.timeout", path=path, method=method)
             raise
 
         return response.json()

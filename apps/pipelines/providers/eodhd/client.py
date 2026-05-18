@@ -33,6 +33,7 @@ class _EodhdAuth(httpx.Auth):
 class EODHDClient(HttpClientBase):
     """HTTP client for the EODHD financial data API."""
 
+    PROVIDER = "eodhd"
     BASE_URL = "https://eodhd.com/api"
 
     def __init__(self, api_key: str, timeout: float = 30.0) -> None:
@@ -40,9 +41,9 @@ class EODHDClient(HttpClientBase):
         self._api_key = api_key
         self._timeout = timeout
 
-    @property
-    def _auth(self) -> httpx.Auth:
-        return _EodhdAuth(self._api_key)
+    # @property
+    # def _auth(self) -> httpx.Auth:
+    #     return _EodhdAuth(self._api_key)
 
     @property
     def _default_params(self) -> dict[str, str]:
