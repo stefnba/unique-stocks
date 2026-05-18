@@ -41,9 +41,9 @@ class EODHDClient(HttpClientBase):
         self._api_key = api_key
         self._timeout = timeout
 
-    # @property
-    # def _auth(self) -> httpx.Auth:
-    #     return _EodhdAuth(self._api_key)
+    @property
+    def _auth(self) -> httpx.Auth:
+        return _EodhdAuth(self._api_key)
 
     @property
     def _default_params(self) -> dict[str, str]:
