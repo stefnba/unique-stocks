@@ -5,20 +5,40 @@ from dataclasses import dataclass, field
 from pydantic import BaseModel, Field
 from prefect.blocks.system import Secret
 from prefect_aws import AwsCredentials
-from typing import TypedDict, TypeVar, Type, Generic
+from typing import TypedDict, TypeVar, Type, Generic, Literal, cast
 from pydantic import SecretStr
 
 
 T = TypeVar('T', bound=Block)
 
+type ExistsMode = Literal["skip", "throw", "overwrite"]
+"""
+Controls behaviour when a block with the same name already exists in the registry.
+
+- ``"skip"``       leave the existing block untouched and return without error.
+- ``"throw"``      raise a ``ValueError`` so the caller is aware of the conflict.
+- ``"overwrite"``  replace the existing block with the new value.
+"""
+
+
 @dataclass
 class BlockEntry(Generic[T]):
     """
-    A block entry is a named block that can be loaded from the Prefect block registry.
+    A typed handle for a named Prefect block.
+
+    Pairs a registry name with a concrete block instance so that the block can
+    be saved, loaded, and existence-checked without losing static type
+    information about the underlying ``Block`` subclass.
+
+    Type parameter ``T`` is inferred from the ``block`` argument, giving callers
+    full IDE completion on the returned value of ``load`` / ``load_async``.
     """
 
     name: str
+    """Registry name used to identify the block inside Prefect."""
+
     block: T
+    """The concrete block instance (e.g. ``Secret``, ``AwsCredentials``)."""
 
     def __repr__(self) -> str:
         return self.name
@@ -26,63 +46,127 @@ class BlockEntry(Generic[T]):
     def __str__(self) -> str:
         return self.name
 
-    async def load_async(self) -> T:
-        """ 
-        Load the block asynchronously from the Prefect block registry.
-        """
-        return await self.block.aload(name=self.name)
+    def __hash__(self) -> int:
+        return hash(self.name)
 
-    
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, BlockEntry):
+            return False
+        return self.name == other.name
 
-
-
-    
-        
-
-def define_block(name: str, block: T, overwrite: bool = False) -> BlockEntry[T]:
-    """
-    Define a block and save it to the Prefect block registry.
-    """
+    # ------------------------------------------------------------------
+    # Existence checks
+    # ------------------------------------------------------------------
 
     def exists(self) -> bool:
-        """
-        Check if a block exists in the Prefect block registry.
-        """
+        """Return ``True`` if a block named ``self.name`` exists in the registry."""
         try:
-            block.load(name=name)
+            type(self.block).load(name=self.name)
             return True
-        except Exception as e:
+        except Exception:
             return False
 
-    try:
-        block.save(name=name, overwrite=overwrite)
-        print(f"Block '{name}' of type '{type(block).__name__}' saved successfully")
-    except Exception as e:
-        print(f"Error saving block '{name}': {e}")
-        raise e
-    return BlockEntry(name=name, block=block)
+    async def exists_async(self) -> bool:
+        """Async variant of :meth:`exists`."""
+        try:
+            await self.block.aload(name=self.name)
+            return True
+        except Exception:
+            return False
+
+    # ------------------------------------------------------------------
+    # Load
+    # ------------------------------------------------------------------
+
+    def load(self) -> T:
+        """Load and return the block from the Prefect registry (sync)."""
+        return cast(T, type(self.block).load(name=self.name))
+
+    async def load_async(self) -> T:
+        """Load and return the block from the Prefect registry (async)."""
+        return cast(T, await self.block.aload(name=self.name))
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _handle_exists(self, if_exists: ExistsMode) -> bool:
+        """
+        Evaluate the ``if_exists`` policy synchronously.
+
+        Returns ``True`` when the caller should abort the save (block already
+        exists and mode is ``"skip"``).  Raises ``ValueError`` for
+        ``"throw"``.  Returns ``False`` when the save should proceed.
+        """
+        if if_exists == "overwrite" or not self.exists():
+            return False
+        if if_exists == "throw":
+            raise ValueError(f"Block '{self.name}' already exists")
+        print(f"Block '{self.name}' already exists, skipping...")
+        return True
+
+    async def _handle_exists_async(self, if_exists: ExistsMode) -> bool:
+        """Async variant of :meth:`_handle_exists`."""
+        if if_exists == "overwrite" or not await self.exists_async():
+            return False
+        if if_exists == "throw":
+            raise ValueError(f"Block '{self.name}' already exists")
+        print(f"Block '{self.name}' already exists, skipping...")
+        return True
+
+    # ------------------------------------------------------------------
+    # Save
+    # ------------------------------------------------------------------
+
+    def save(self, if_exists: ExistsMode = "skip") -> None:
+        """
+        Persist the block to the Prefect registry (sync).
+
+        Args:
+            if_exists: How to handle a name collision. Defaults to ``"skip"``.
+        """
+        if self._handle_exists(if_exists):
+            return
+        self.block.save(name=self.name, overwrite=(if_exists == "overwrite"))
+        print(f"Block '{self.name}' of type '{type(self.block).__name__}' saved successfully")
+
+    async def save_async(self, if_exists: ExistsMode = "skip") -> None:
+        """
+        Persist the block to the Prefect registry (async).
+
+        Uses :meth:`exists_async` to probe for an existing block, then falls
+        back to the synchronous ``Block.save`` call (Prefect does not expose an
+        async save).
+
+        Args:
+            if_exists: How to handle a name collision. Defaults to ``"skip"``.
+        """
+        if await self._handle_exists_async(if_exists):
+            return
+        self.block.save(name=self.name, overwrite=(if_exists == "overwrite"))
+        print(f"Block '{self.name}' of type '{type(self.block).__name__}' saved successfully")
+
+
+
+    
+
+def define_block(name: str, block: T, if_exists: ExistsMode = "skip") -> BlockEntry[T]:
+    """
+    Create a BlockEntry and immediately save it to the Prefect block registry.
+
+    if_exists:
+        "skip"      - do nothing if a block with this name already exists
+        "throw"     - raise if a block with this name already exists
+        "overwrite" - save and overwrite any existing block with this name
+    """
+    entry = BlockEntry(name=name, block=block)
+    entry.save(if_exists=if_exists)
+    return entry
 
 
 
 class BlockRegistry:
-    EODHD_API_KEY = define_block("eodhd-api-key", Secret(value=SecretStr("eodhd-api-key")), overwrite=True)
-    AWS_CREDENTIALS = define_block("aws-credentials", AwsCredentials(aws_access_key_id="aws-access-key-id", aws_secret_access_key=SecretStr("aws-secret-access-key")), overwrite=True)
+    EODHD_API_KEY = define_block("eodhd-api-key", Secret(value=SecretStr("eodhd-api-key")))
+    AWS_CREDENTIALS = define_block("aws-credentials", AwsCredentials(aws_access_key_id="aws-access-key-id", aws_secret_access_key=SecretStr("aws-secret-access-key")))
 
 
-test = BlockRegistry.AWS_CREDENTIALS
-print(test)
-
-BlockRegistry.AWS_CREDENTIALS.block.load(BlockRegistry.AWS_CREDENTIALS.name)
-
-print(BlockRegistry.AWS_CREDENTIALS.block.aws_access_key_id)
-print(BlockRegistry.AWS_CREDENTIALS.block.aws_secret_access_key)
-
-
-async def main():
-    const = await BlockRegistry.AWS_CREDENTIALS.load_async()
-    print(const)
-    
-
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
