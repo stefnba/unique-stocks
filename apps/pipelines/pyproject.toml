@@ -12,7 +12,7 @@ dependencies = [
     "exchange-calendars>=4.5",
     "tenacity>=8.3",
     "boto3>=1.43.9",
-    "prefect>=3.7.1",
+    "prefect[aws]>=3.7.1",
     "importlib-metadata>=9.0.0",
 ]
 
