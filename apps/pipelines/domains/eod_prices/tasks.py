@@ -10,7 +10,7 @@ import structlog
 from prefect import task
 from prefect.tasks import exponential_backoff
 
-from core.config import get_settings
+from config.blocks import BlockRegistry
 from providers.eodhd.client import EODHDClient
 from providers.eodhd.models import EODBulkPriceRaw
 
@@ -33,7 +33,8 @@ async def fetch_eod_prices_bulk(exchange: str, bar_date: date) -> list[EODBulkPr
     Raises ValidationError if EODHD's response shape doesn't match EODBulkPriceRaw.
     """
     log.info("prices.fetch_start", exchange=exchange, bar_date=bar_date)
-    async with EODHDClient(api_key=get_settings().eodhd_api_key) as client:
+    api_key = (await BlockRegistry.EODHD_API_KEY.load_async()).get()
+    async with EODHDClient(api_key=api_key) as client:
         rows = await client.get_eod_prices_bulk(exchange=exchange, bar_date=bar_date)
     log.info("prices.fetch_done", exchange=exchange, bar_date=bar_date, rows=len(rows))
     return rows

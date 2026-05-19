@@ -2,7 +2,7 @@
 
 from prefect import task
 
-from core.config import get_settings
+from config.blocks import BlockRegistry
 from providers.eodhd.models import SupportedExchanges
 
 @task(
@@ -18,7 +18,8 @@ async def fetch_supported_exchanges() -> list[SupportedExchanges]   :
     """
     from providers.eodhd.client import EODHDClient
 
-    async with EODHDClient(api_key=get_settings().eodhd_api_key) as client:
+    api_key = await BlockRegistry.EODHD_API_KEY.load_async()
+    async with EODHDClient(api_key=api_key.get()) as client:
         exchanges = await client.get_exchanges()
 
     return exchanges
