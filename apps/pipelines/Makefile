@@ -56,7 +56,7 @@ check: format-check lint typecheck test ## Run full quality gate (CI equivalent)
 prefect-server: ## Start a local Prefect server (no Docker)
 	uv run prefect server start
 
-worker: ## Start a Prefect worker connected to PREFECT_API_URL
+prefect-worker: ## Start a Prefect worker connected to PREFECT_API_URL
 	uv run prefect worker start --pool default-process-pool
 
 # ── Prefect — deployments ──────────────────────────────────────────────────
