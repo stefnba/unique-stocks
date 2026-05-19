@@ -1,53 +1,84 @@
-# Agent guidelines
+# Agent Guidelines
 
-- Built to be lean. Add complexity only when you have a concrete reason.
+This file is for AI and coding agents working in this repository. Human onboarding and run commands belong in `README.md` files. Product and architecture planning belongs in `PLAN.md`.
 
-## Coding Conventions
+## Operating principles
 
-### Python
+- Keep the project lean. Add complexity only when there is a concrete reason.
+- Prefer existing patterns in the repo over new abstractions.
+- Keep edits scoped to the requested behavior.
+- Do not commit secrets. Local secrets belong in `.env` files only.
+- Preserve unrelated user changes in the worktree.
 
-- Type hints on every function signature — no exceptions
-- Pydantic v2 models for all external data, `extra="forbid"` to catch API drift early
-- `async/await` throughout — httpx async client, async MotherDuck queries
-- Keep provider fetches, parsing, and bronze writes in separate tasks.
-- Domain flows should stay thin: schedule/date handling, idempotency, task orchestration, and run-state tracking.
-- Log with structlog, not print() — every log line gets `ticker` and `bar_date` as structured fields
-- One `@flow` per domain per schedule — no mega-flows
-- S3 storage code belongs under `core/clients/storage/s3/`. Never import boto3 directly in domain code.
+## Python conventions
 
-### dbt
+- Use type hints on every function signature.
+- Use Pydantic v2 models for all external data.
+- Set `extra="forbid"` on external API models to catch provider drift early.
+- Use `async` / `await` throughout provider and orchestration paths.
+- Use `httpx` async clients for HTTP.
+- Keep provider fetches, parsing, and Bronze writes in separate tasks.
+- Keep domain flows thin: schedule handling, idempotency, task orchestration, and run-state tracking only.
+- Log with `structlog`, not `print`.
+- Include useful structured fields in logs, especially domain identifiers such as `ticker`, `bar_date`, `exchange`, and `provider`.
+- Use one `@flow` per domain per schedule. Do not create mega-flows.
 
-- Never put business logic in staging models — staging is type-casting and renaming only
-- Every model gets a `.yml` description file with column descriptions
-- Test files mirror model structure exactly
-- `ref()` over hardcoded table names always
+## Pipeline structure
 
-### General
+- Every new domain under `apps/pipelines/domains/` follows the same pattern: `models.py`, `flows.py`, `tasks.py`, and `parsers.py`.
+- Domain models live with the domain that owns them.
+- Shared infrastructure belongs under `apps/pipelines/core/`.
+- Provider-specific clients and raw provider models belong under `apps/pipelines/providers/`.
+- S3 storage code belongs under `apps/pipelines/core/clients/storage/s3/`.
+- Lake access code belongs under `apps/pipelines/core/clients/lake/` and the compatibility wrapper in `apps/pipelines/core/lake.py`.
+- Do not import `boto3` directly in domain code.
+- Do not import `duckdb` directly in domain code.
 
-- No secrets in code or git — `.env` only
-- Every new domain under `domains/` follows the same pattern: `models.py` + `flows.py` + `tasks.py` + `parsers.py`
-- README in every app folder under `/apps` explaining how to run it standalone
+## Data flow guardrails
 
-### Git
+- Always capture raw provider data before parsing when S3 landing support is part of the flow.
+- Parse landing data into typed Bronze records in a separate step.
+- Keep business logic out of ingestion tasks.
+- Re-running a flow for the same logical partition should be idempotent.
+- Bronze is the handoff from Python ingestion to dbt.
 
-- `main` — production-ready code only
-- `archive/v1` — old codebase, preserved for reference, do not merge back
-- Feature branches: `feat/eod-pipeline`, `feat/dbt-prices-mart`
-- Commit style: `feat:`, `fix:`, `chore:`, `docs:` prefixes
+## dbt conventions
 
-## Tech Stack Reference
+- Never put business logic in staging models. Staging is for type casting, renaming, normalization, and deduplication.
+- Put analytics logic in marts.
+- Use `ref()` instead of hardcoded table names.
+- Every model gets a `.yml` description file with column descriptions.
+- Test files mirror model structure.
+- Add tests for primary keys, important not-null columns, accepted enum values, and domain-specific sanity checks.
 
-| Layer                 | Technology              | Version |
-| --------------------- | ----------------------- | ------- |
-| Python runtime        | Python                  | 3.14+   |
-| Dependency management | uv                      | latest  |
-| Orchestration         | Prefect                 | latest  |
-| HTTP client           | httpx                   | latest  |
-| Data validation       | Pydantic                | latest  |
-| Data lake query       | DuckDB / MotherDuck     | latest  |
-| Transformation        | dbt Core + dbt-duckdb   | latest  |
-| Studio backend        | TBD                     | —       |
-| Studio frontend       | TBD                     | —       |
-| Charts                | TBD                     | -       |
-| Containerisation      | Docker + Docker Compose | latest  |
-| Monitoring            | TBD                     | -       |
+## App boundaries
+
+- Every folder under `apps/` must have a README explaining its status and how to run it standalone.
+- `apps/pipelines` is the active Python ingestion app.
+- `apps/api` is reserved for a future API surface. Do not add dependencies or implementation until the API boundary is decided.
+- `apps/studio` is reserved for the future research UI. Do not add dependencies or implementation until the studio stack is decided.
+- Keep root-level setup and app runbooks out of `AGENTS.md`.
+
+## Git workflow
+
+- `main` is production-ready only.
+- `archive/v1` preserves the old codebase and should not be merged back.
+- Use feature branches such as `feat/eod-pipeline` or `feat/dbt-prices-mart`.
+- Use commit prefixes: `feat:`, `fix:`, `chore:`, and `docs:`.
+
+## Tech stack reference
+
+| Layer | Technology |
+| --- | --- |
+| Python runtime | Python 3.14+ |
+| Dependency management | uv |
+| Orchestration | Prefect |
+| HTTP client | httpx |
+| Data validation | Pydantic v2 |
+| Data lake query | DuckDB / MotherDuck |
+| Transformation | dbt Core + dbt-duckdb |
+| Containerization | Docker + Docker Compose |
+| Studio backend | TBD |
+| Studio frontend | TBD |
+| Charts | TBD |
+| Monitoring | TBD |
