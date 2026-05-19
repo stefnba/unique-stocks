@@ -57,6 +57,7 @@ These are the default decisions for v1.
 | dbt Core for transformations | SQL transformations stay explicit, testable, and separate from ingestion code. |
 | Plain Parquet archive over Iceberg | v1 data is mostly append-oriented; Iceberg adds catalog and table-format complexity too early. |
 | EODHD first | One provider covers the first required domains and keeps integration complexity low. |
+| Prefect blocks as the runtime credential source | Tasks and flows load credentials from named Prefect blocks at runtime. This decouples secret values from the deployed codebase and allows updates in the Prefect UI without a redeploy. Environment variables seed the block registry at startup; the block registry is the single credential boundary that domain code crosses. |
 
 ## System shape
 

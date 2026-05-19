@@ -28,11 +28,15 @@ This file is for AI and coding agents working in this repository. Human onboardi
 - Every new domain under `apps/pipelines/domains/` follows the same pattern: `models.py`, `flows.py`, `tasks.py`, and `parsers.py`.
 - Domain models live with the domain that owns them.
 - Shared infrastructure belongs under `apps/pipelines/core/`.
+- App-level configuration belongs under `apps/pipelines/config/`: `settings.py` for environment-variable-backed settings, `blocks.py` for the Prefect block registry.
 - Provider-specific clients and raw provider models belong under `apps/pipelines/providers/`.
 - S3 storage code belongs under `apps/pipelines/core/clients/storage/s3/`.
 - Lake access code belongs under `apps/pipelines/core/clients/lake/` and the compatibility wrapper in `apps/pipelines/core/lake.py`.
 - Do not import `boto3` directly in domain code.
 - Do not import `duckdb` directly in domain code.
+- Do not read credentials from `SETTINGS` in tasks or flows. Load credentials from `BlockRegistry` at runtime.
+- Use `SETTINGS` only in `config/blocks.py` to construct the initial block instances at registry definition time.
+- Use `get_settings()` only inside core client internals (`_settings()` methods) where a lazy import is needed to avoid circular imports, and in tests that need to override settings between cases.
 
 ## Data flow guardrails
 

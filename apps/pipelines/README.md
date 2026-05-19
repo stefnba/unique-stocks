@@ -17,8 +17,9 @@ The active path is EODHD end-of-day prices. Exchanges, securities, and fundament
 
 ```text
 apps/pipelines/
+├── config/        App-level configuration: settings and Prefect block registry
 ├── domains/       Domain models, parsers, tasks, and flows
-├── core/          Shared config, scheduler, logging, lake, and storage clients
+├── core/          Shared infrastructure: scheduler, logging, lake, and storage clients
 ├── providers/     Provider-specific clients and raw response models
 ├── tests/         Unit and integration tests
 ├── prefect.yaml   Prefect deployment definitions
@@ -28,6 +29,8 @@ apps/pipelines/
 ```
 
 Domain code is organized under `domains/<domain>/`. Add `models.py`, `parsers.py`, `tasks.py`, and `flows.py` as the domain needs them.
+
+`config/settings.py` holds all environment-variable-backed settings. `config/blocks.py` defines the Prefect block registry, which wires settings into named Prefect blocks at startup. Tasks and flows always load credentials from the block registry at runtime, not from settings directly.
 
 ## Prerequisites
 
