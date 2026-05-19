@@ -1,3 +1,115 @@
 # Unique Stocks
 
-Identify attractive investment opportunities across all security classes and markets powered by Machine Learning and Data Mining.
+Unique Stocks is a self-hosted financial data platform for finding attractive investment opportunities across markets. The project ingests market data, transforms it into analytics-ready tables, and will serve it through a lightweight studio for search, charts, and watchlists.
+
+The goal is a lean, reliable stack that can run cheaply on a single VPS while still keeping the data model clean enough to grow.
+
+## Current status
+
+| Area             | Status               | Notes                                                          |
+| ---------------- | -------------------- | -------------------------------------------------------------- |
+| `apps/pipelines` | Active               | Prefect 3 ingestion app for EODHD market data.                 |
+| `dbt_project`    | Planned / scaffolded | dbt Core project for Bronze -> Silver -> Gold transformations. |
+| `apps/api`       | Not implemented      | API boundary is still an open decision.                        |
+| `apps/studio`    | Not implemented      | Studio stack is still an open decision.                        |
+| `infra`          | Active               | Docker Compose support for local Prefect infrastructure.       |
+
+## Architecture
+
+The v1 platform has three responsibilities:
+
+1. Ingest raw provider data through scheduled Python / Prefect flows.
+2. Transform typed lake data through dbt models.
+3. Serve clean gold-layer data through a future app surface.
+
+Data flow:
+
+```text
+External APIs
+  -> apps/pipelines
+  -> S3 landing zone
+  -> MotherDuck bronze
+  -> dbt silver/gold
+  -> apps/api and/or apps/studio
+```
+
+S3 is the replayable landing zone for raw provider responses. MotherDuck is the primary query store for Bronze, Silver, and Gold schemas. dbt owns transformation logic after Bronze.
+
+## Repository layout
+
+```text
+unique-stocks/
+├── apps/
+│   ├── pipelines/      Prefect ingestion app
+│   ├── api/            Planned API app
+│   └── studio/         Planned user-facing studio
+├── dbt_project/        dbt Core transformations
+├── infra/              Local infrastructure and database init scripts
+├── AGENTS.md           Coding-agent instructions
+├── PLAN.md             Product and architecture plan
+├── Makefile            Monorepo command entrypoint
+└── README.md           Project overview
+```
+
+Every folder under `apps/` has its own README with standalone app status and run guidance.
+
+## Quick start
+
+For the active pipelines app:
+
+```bash
+cp apps/pipelines/.env.example apps/pipelines/.env
+make infra-up
+make pipelines-setup
+```
+
+Prefect UI runs at <http://localhost:4200>.
+
+For local Python development without Docker:
+
+```bash
+cd apps/pipelines
+uv sync
+make prefect-server
+make prefect-setup
+make worker
+```
+
+See [apps/pipelines/README.md](apps/pipelines/README.md) for the full pipelines runbook.
+
+## Common commands
+
+From the repository root:
+
+```bash
+make help
+make pipelines-check
+make pipelines-test
+make infra-up
+make infra-logs-pipelines
+make infra-down
+make dbt-compile
+make dbt-test
+```
+
+From `apps/pipelines/`:
+
+```bash
+make check
+make test
+make lint
+make typecheck
+make deploy-dry
+```
+
+## Documentation map
+
+- [PLAN.md](PLAN.md): v1 product scope, architecture decisions, roadmap, and open decisions.
+- [AGENTS.md](AGENTS.md): coding conventions and guardrails for AI/coding agents.
+- [apps/pipelines/README.md](apps/pipelines/README.md): pipelines setup, configuration, Prefect usage, testing, and deployment notes.
+- [apps/api/README.md](apps/api/README.md): API placeholder and ownership notes.
+- [apps/studio/README.md](apps/studio/README.md): studio placeholder and stack decision notes.
+
+## Secrets
+
+Do not commit secrets. Local configuration belongs in `.env` files copied from `.env.example`.
