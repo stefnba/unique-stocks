@@ -199,7 +199,13 @@ class DataLakeClient:
         return self.save(table, rows, schema=schema, format="rows", mode="append")
 
     def _connect(self) -> duckdb.DuckDBPyConnection:
-        conn_str = self.connection_string or self._settings().duckdb_connection_string
+        settings = self._settings()
+        if self.connection_string:
+            conn_str = self.connection_string
+        elif settings.motherduck_token.get_secret_value():
+            conn_str = f"md:unique_stocks?motherduck_token={settings.motherduck_token.get_secret_value()}"
+        else:
+            conn_str = "unique_stocks.db"
         log.info("lake.connecting", connection=conn_str.split("?")[0])
         if self.config:
             conn = duckdb.connect(conn_str, self.read_only, self.config)
@@ -212,7 +218,7 @@ class DataLakeClient:
         return conn
 
     def _settings(self) -> Any:
-        from core.config import get_settings
+        from config.settings import get_settings
 
         return get_settings()
 

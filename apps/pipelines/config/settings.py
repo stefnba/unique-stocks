@@ -43,13 +43,6 @@ class Settings(BaseSettings):
         """Return ``True`` when running in the production environment."""
         return self.environment == "prod"
 
-    @property
-    def duckdb_connection_string(self) -> str:
-        """Return the DuckDB/MotherDuck connection string for this environment."""
-        if self.motherduck_token:
-            return f"md:unique_stocks?motherduck_token={self.motherduck_token}"
-        return "unique_stocks.db"
-
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
