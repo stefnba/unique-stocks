@@ -2,10 +2,7 @@
 
 Prefect 3 ingestion flows for the unique-stocks data platform.
 
-Each flow follows a two-phase pattern:
-
-1. **Fetch → S3 landing zone** — raw API response written as JSON, exact bytes, no parsing.
-2. **S3 → bronze** — a separate task reads from S3, coerces types, enforces the schema, and writes typed rows to MotherDuck. dbt then handles bronze → silver → gold.
+The EOD prices flow fetches bulk EODHD rows, parses raw provider models into validated domain models, and writes bronze records through the DuckDB / MotherDuck lake helpers.
 
 ---
 
@@ -14,10 +11,10 @@ Each flow follows a two-phase pattern:
 ```text
 apps/pipelines/
 ├── domains/
-│   ├── eod_prices/      EOD OHLCV — daily (implemented)
-│   ├── exchanges/       Exchange list — manual (stub)
-│   ├── securities/      Securities per exchange — weekly (stub)
-│   └── fundamentals/    Financials — quarterly (stub)
+│   ├── eod_prices/      EOD OHLCV — daily
+│   ├── exchanges/       Exchange list — manual
+│   ├── securities/      Securities per exchange — weekly
+│   └── fundamentals/    Financials — quarterly
 ├── core/
 │   ├── config.py        Pydantic Settings (reads .env)
 │   ├── lake.py          DuckDB / MotherDuck helpers
@@ -25,20 +22,22 @@ apps/pipelines/
 │   ├── scheduler.py     NYSE calendar helpers
 │   └── clients/
 │       ├── http/
-│       │   └── base.py      BaseClient ABC for HTTP providers
+│       │   └── base.py      HttpClientBase shared httpx client
+│       ├── lake/
+│       │   └── client.py    DataLakeClient
 │       └── storage/
-│           └── base.py      BaseStorageClient ABC
+│           └── s3/
+│               └── base.py  S3StorageClient
 ├── providers/
-│   ├── eodhd/               EODHD HTTP data provider
-│   │   ├── client.py        Concrete HTTP client
-│   │   └── models.py        Raw API response models
-│   └── s3/                  AWS S3 storage provider
-│       └── client.py        Concrete S3 client
+│   └── eodhd/               EODHD HTTP data provider
+│       ├── client.py        Concrete HTTP client
+│       └── models.py        Raw API response models
 └── tests/
+    ├── integration/
     └── unit/
 ```
 
-Each domain follows the same pattern: `models.py` → `parsers.py` → `tasks.py` → `flows.py`
+Domain code is organized under `domains/<domain>/`; modules add `models.py`, `parsers.py`, `tasks.py`, and `flows.py` as needed.
 
 ---
 
@@ -172,10 +171,10 @@ make deploy-dry     # preview what prefect.yaml would register (no server needed
 | ----------------------- | -------- | ------------------------------------------------------ |
 | `EODHD_API_KEY`         | Yes      | EODHD API key — [eodhd.com](https://eodhd.com)         |
 | `MOTHERDUCK_TOKEN`      | No       | Leave blank → local `unique_stocks.db`                 |
-| `S3_BUCKET`             | Yes      | S3 bucket for landing zone and Parquet archive         |
-| `AWS_ACCESS_KEY_ID`     | Yes      | AWS credentials with S3 read/write access              |
-| `AWS_SECRET_ACCESS_KEY` | Yes      | AWS credentials with S3 read/write access              |
-| `AWS_REGION`            | Yes      | AWS region (e.g. `ap-southeast-2`)                     |
+| `S3_BUCKET`             | No       | S3 bucket for cold archival                            |
+| `AWS_ACCESS_KEY_ID`     | No       | AWS credentials for S3 access                          |
+| `AWS_SECRET_ACCESS_KEY` | No       | AWS credentials for S3 access                          |
+| `AWS_REGION`            | No       | AWS region, default `ap-southeast-2`                   |
 | `PREFECT_API_URL`       | Yes      | Prefect server API URL                                 |
 | `PREFECT_WORK_DIR`      | Yes      | `.` (local) or `/app` (Docker)                         |
 | `ENVIRONMENT`           | No       | `development` or `production` (default: `development`) |
@@ -186,8 +185,8 @@ make deploy-dry     # preview what prefect.yaml would register (no server needed
 
 ```bash
 # Local DuckDB
-duckdb unique_stocks.db < ../../infra/scripts/init_motherduck.sql
+duckdb unique_stocks.db < ../../infra/scripts/init_db.sql
 
 # MotherDuck
-MOTHERDUCK_TOKEN=<token> duckdb "md:unique_stocks" < ../../infra/scripts/init_motherduck.sql
+MOTHERDUCK_TOKEN=<token> duckdb "md:unique_stocks" < ../../infra/scripts/init_db.sql
 ```

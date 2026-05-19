@@ -1,8 +1,6 @@
 # unique-stocks — Architecture & Build Guide
 
-> This document is the single source of truth for building this project.
-> It covers the purpose, architecture decisions, tooling, repo structure,
-> data design, and conventions. Read it fully before writing any code.
+This document is the single source of truth for building this project. It covers the purpose, architecture decisions, tooling, repo structure, data design, and conventions. Read it fully before writing any code.
 
 ---
 
@@ -10,11 +8,11 @@
 
 A self-hosted financial data platform with three responsibilities:
 
-1. **Ingest** market data from external APIs on a schedule (EOD prices, securities lists, fundamentals, etc.) to our landing zone in S3
+1. **Ingest** market data from external APIs on a schedule with prefect (EOD prices, securities lists, fundamentals, etc.) to our landing zone in S3
 2. **Transform** raw data through a medallion lake (Bronze → Silver → Gold) using dbt
 3. **Serve** the clean data through a web app with charts, search, and watchlists
 
-The goal is lean, reliable, and cheap — not enterprise-scale. The entire stack should run on a single VPS for under $50/month at 5,000-ticker scale.
+The goal is lean, reliable, and cheap — not enterprise-scale. The entire stack should run on a single VPS on coolify with a budget of only a few $ per month.
 
 ---
 
@@ -114,21 +112,21 @@ EODHD (eodhd.com) provides a single API for:
 
 The `apps/studio` tech stack has not been decided yet. Two options are on the table:
 
-**Option A — Streamlit (Python)**
+Option A — Streamlit (Python)
 
 - Pro: no context switch from Python, fast to prototype, built-in charting
 - Pro: directly queries MotherDuck with the same DuckDB connection used by pipelines
 - Con: limited UI customisation, not suitable if studio becomes a public-facing product
 - Best if: studio is an internal analytics tool / personal dashboard
 
-**Option B — Hono (TypeScript) backend + React + TanStack Router frontend**
+Option B — Hono (TypeScript) backend + React + TanStack Router frontend
 
 - Pro: full control over UI, production-grade web app, TypeScript end-to-end
 - Pro: TanStack Router gives type-safe routing; React ecosystem for charts (TradingView Lightweight Charts)
 - Con: separate runtime from pipelines, no shared Python code, more initial setup
 - Best if: studio is a user-facing product with custom UX requirements
 
-**Until the decision is made:**
+Until the decision is made:
 
 - Do not build anything in `apps/studio/`
 - Do not add studio-specific dependencies anywhere
@@ -136,7 +134,7 @@ The `apps/studio` tech stack has not been decided yet. Two options are on the ta
 
 ---
 
-## 4. Monorepo Structure
+## 4. Structure
 
 ```text
 unique-stocks/
@@ -357,41 +355,39 @@ s3://my-stock-stack/
 **Flows** (`flows.py`) — thin orchestrators that wire tasks together. No business logic.
 **Parsers** (`parsers.py`) — pure parsing/normalisation functions, no Prefect decorators, fully unit-testable.
 
-Every domain flow follows the same two-phase pattern:
+Domain flows keep provider fetches, parsing, and bronze writes in separate units:
 
 ```python
 # tasks.py — three tasks, strict separation of concerns
 
 @task(retries=3, retry_delay_seconds=exponential_backoff(10))
-async def fetch_and_land(exchange: str, bar_date: date) -> str:
-    """Call API → write raw JSON to S3 landing zone → return s3_key."""
-    raw = await eodhd_client.get_eod_prices_bulk(exchange, bar_date)
-    s3_key = S3Client.landing_key("eodhd", "eod_prices", date=str(bar_date), exchange=exchange)
-    await s3.write_json(s3_key, raw)
-    return s3_key
+async def fetch_eod_prices_bulk(exchange: str, bar_date: date) -> list[EODBulkPriceRaw]:
+    """Fetch and schema-validate raw EODHD rows for an exchange/date."""
+    async with EODHDClient(api_key=get_settings().eodhd_api_key) as client:
+        return await client.get_eod_prices_bulk(exchange=exchange, bar_date=bar_date)
 
 @task
-async def parse_and_write_bronze(s3_key: str, exchange: str, bar_date: date) -> int:
-    """Read S3 landing → parse → write typed rows to bronze. Returns row count."""
-    raw = await s3.read_json(s3_key)
-    bars, rejected = parse_eod_bars(raw, expected_date=bar_date, exchange=exchange)
-    return await lake.insert_rows("bronze", "eod_prices", bars_to_bronze_records(bars, s3_key))
+def parse_eod_prices(raw_rows: list[EODBulkPriceRaw], bar_date: date, exchange: str) -> list[EODBar]:
+    """Convert raw provider rows into validated EODBar domain models."""
+    valid, rejected = parse_eod_bars(raw_rows, expected_date=bar_date, exchange=exchange)
+    return valid
 
 @task
-async def trigger_dbt(domain: str) -> None:
-    """Trigger dbt run for the affected models after a successful bronze write."""
-    ...
+def write_bronze_eod_prices(bars: list[EODBar], exchange: str, bar_date: date) -> int:
+    """Write validated bars to bronze.eod_prices."""
+    records = bars_to_bronze_records(bars)
+    return lake.insert_rows("bronze", "eod_prices", records)
 
 # flows.py — wires tasks, handles schedule/idempotency logic
 @flow(name="eod-prices-daily")
 async def eod_prices_flow(trade_date: date | None = None):
-    trade_date = trade_date or date.today()
+    trade_date = trade_date or last_completed_trading_day()
     if not is_trading_day(trade_date):
         return
-    for exchange in EXCHANGES:
-        s3_key = await fetch_and_land(exchange, trade_date)
-        await parse_and_write_bronze(s3_key, exchange, trade_date)
-    await trigger_dbt("eod_prices")
+    for exchange in V1_EXCHANGES:
+        raw_rows = await fetch_eod_prices_bulk(exchange=exchange, bar_date=trade_date)
+        bars = parse_eod_prices(raw_rows, bar_date=trade_date, exchange=exchange)
+        write_bronze_eod_prices(bars, exchange=exchange, bar_date=trade_date)
 ```
 
 ### Flow Schedule Reference
@@ -417,24 +413,16 @@ async def exchanges_flow(): ...
 async def fundamentals_flow(): ...
 # Schedule: Manual trigger, or quarterly CronSchedule
 
-# Backfill — parameterized, manual trigger always
-@flow
-async def backfill_flow(domain: str, start_date: date, end_date: date): ...
+# Backfill — manual deployment of eod_prices_flow with explicit trade_date
 ```
 
 ### Idempotency Rule
 
-Before fetching any data, every flow checks what already exists in bronze:
+Before writing data, flows check what already exists in bronze:
 
 ```python
-# Check bronze table before fetching
-already_ingested = lake.query("""
-    SELECT DISTINCT bar_date FROM bronze.eod_prices
-    WHERE ticker = ? AND bar_date BETWEEN ? AND ?
-""", ticker, start, end)
-
-missing = [d for d in trading_days(start, end) if d not in already_ingested]
-# Only fetch missing dates
+if lake.already_ingested_exchange_date("eod_prices", exchange, bar_date):
+    return 0
 ```
 
 Re-running any flow must produce the same result. No duplicates. No errors on re-run.
@@ -447,14 +435,41 @@ Re-running any flow must produce the same result. No duplicates. No errors on re
 
 ```python
 from functools import lru_cache
+from typing import Literal
+
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+type Environment = Literal["development", "production"]
+
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     eodhd_api_key: str
     motherduck_token: str = ""
-    environment: str = "development"
+    s3_bucket: str | None = None
+    aws_access_key_id: str | None = None
+    aws_secret_access_key: str | None = None
+    aws_region: str = "ap-southeast-2"
+    prefect_api_url: str = "http://127.0.0.1:4200/api"
+    prefect_api_key: str = ""
+    environment: Environment = "development"
+
+    @field_validator("environment")
+    @classmethod
+    def validate_environment(cls, v: str) -> str: ...
+
+    @property
+    def is_production(self) -> bool: ...
+
+    @property
+    def is_development(self) -> bool: ...
+
+    @property
+    def duckdb_connection_string(self) -> str:
+        if self.motherduck_token:
+            return f"md:unique_stocks?motherduck_token={self.motherduck_token}"
+        return "unique_stocks.db"
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
@@ -463,24 +478,21 @@ def get_settings() -> Settings:
 
 `Settings()` is never instantiated at import time. `get_settings()` is called only when a task actually executes, so `prefect deploy` and test imports work without secrets present.
 
-### `core/clients/base.py`
+### `core/clients/http/base.py`
 
 ```python
-from abc import ABC, abstractmethod
+class HttpClientBase(ABC):
+    PROVIDER: ClassVar[str]
+    BASE_URL: ClassVar[str]
 
-class BaseClient(ABC):
-    @abstractmethod
-    async def get_eod_prices(self, ticker: str, date: date) -> list[dict]: ...
-
-    @abstractmethod
-    async def get_securities(self, exchange: str) -> list[dict]: ...
-
-    @abstractmethod
-    async def get_exchanges(self) -> list[dict]: ...
-
-    @abstractmethod
-    async def get_fundamentals(self, ticker: str) -> dict: ...
+    async def __aenter__(self) -> Self: ...
+    async def __aexit__(self, *_: object) -> None: ...
+    async def _request(self, path: str, *, method: HttpMethod = "GET", params: dict[str, Any] | None = None, json: dict[str, Any] | None = None) -> Any: ...
+    async def _get(self, path: str, *, model: type[T], params: dict[str, Any] | None = None) -> T: ...
+    async def _get_list(self, path: str, *, model: type[T], params: dict[str, Any] | None = None) -> list[T]: ...
 ```
+
+Provider clients such as `providers/eodhd/client.py` inherit this shared httpx session, auth, logging, timeout, and Pydantic validation behavior. Provider-specific API methods live in the provider client, not in the base class.
 
 ### `core/models.py`
 
@@ -525,35 +537,30 @@ class EODBar(BronzeModel):
 # Wraps MotherDuck connection. All reads/writes go through here.
 # Never import duckdb directly in pipeline code — use this module.
 
-async def insert_rows(schema: str, table: str, records: list[dict]) -> int: ...
-async def already_ingested(table: str, partition: dict) -> bool: ...
-async def query(sql: str, *params) -> list[dict]: ...
+def execute(sql: str, params: list[Any] | None = None) -> None: ...
+def query(sql: str, params: list[Any] | None = None) -> list[dict]: ...
+def query_one(sql: str, params: list[Any] | None = None) -> dict | None: ...
+def table_exists(schema: str, table: str) -> bool: ...
+def insert_rows(schema: str, table: str, rows: list[dict]) -> int: ...
+def already_ingested_dates(table: str, ticker: str, start: date, end: date) -> set[date]: ...
+def already_ingested_exchange_date(table: str, exchange: str, bar_date: date) -> bool: ...
+def record_run_start(flow_name: str) -> str: ...
+def record_run_complete(run_id: str, rows_written: int) -> None: ...
+def record_run_failed(run_id: str, error: str) -> None: ...
 ```
 
-### `providers/s3/client.py`
+### `core/clients/lake/client.py`
 
 ```python
-# Concrete S3 implementation of BaseStorageClient.
-# Never import boto3 directly in domain/pipeline code — use this client.
+class DataLakeClient:
+    """Client to save and retrieve data from the data lake (MotherDuck)."""
+```
 
-class S3Client(BaseStorageClient):
-    async def write_json(self, key: str, payload: Any) -> str:
-        """Write payload as JSON to s3://{BUCKET}/{key}. Returns the full s3_key."""
-        ...
+### `core/clients/storage/s3/base.py`
 
-    async def read_json(self, key: str) -> Any:
-        """Read and parse JSON from s3://{BUCKET}/{key}."""
-        ...
-
-    @staticmethod
-    def landing_key(provider: str, domain: str, **partition: str) -> str:
-        """Build a consistent S3 key for the landing zone.
-
-        Example:
-            S3Client.landing_key("eodhd", "eod_prices", date="2025-01-15", exchange="US")
-            → "landing/eodhd/eod_prices/date=2025-01-15/US.json"
-        """
-        ...
+```python
+class S3StorageClient:
+    """Client to save and retrieve data from S3."""
 ```
 
 ---
@@ -601,59 +608,6 @@ WHERE bar_date >= (
 
 ---
 
-## 10. Tech Stack Reference
-
-| Layer                 | Technology                                      | Version |
-| --------------------- | ----------------------------------------------- | ------- |
-| Python runtime        | Python                                          | 3.14+   |
-| Dependency management | uv                                              | latest  |
-| Orchestration         | Prefect                                         | 3.7+    |
-| HTTP client           | httpx                                           | latest  |
-| Data validation       | Pydantic                                        | v2      |
-| Data lake query       | DuckDB / MotherDuck                             | latest  |
-| Transformation        | dbt Core + dbt-duckdb                           | 1.8+    |
-| Studio backend        | Streamlit **or** Hono — TBD                     | —       |
-| Studio frontend       | React + TanStack Router (if Hono) — TBD         | —       |
-| Charts                | TradingView Lightweight Charts (if React) — TBD | v5      |
-| Containerisation      | Docker + Docker Compose                         | latest  |
-| Monitoring            | Prometheus + Grafana                            | latest  |
-
----
-
-## 11. Environment Variables
-
-All secrets live in `.env` at the app root (never committed). Copy `.env.example` to get started.
-
-```bash
-# .env.example — apps/pipelines/.env
-
-# Data provider
-EODHD_API_KEY=your_key_here
-
-# MotherDuck — leave blank to use local DuckDB (unique_stocks.db) in dev
-MOTHERDUCK_TOKEN=
-
-# S3 — required. Used as both landing zone (raw JSON) and Parquet archive.
-S3_BUCKET=my-stock-stack
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
-AWS_REGION=ap-southeast-2
-
-# Prefect — self-hosted server (see infra/docker-compose.yml)
-# Local dev without Docker:
-PREFECT_API_URL=http://localhost:4200/api
-# Inside docker-compose: PREFECT_API_URL=http://prefect-server:4200/api
-# Coolify production:     PREFECT_API_URL=https://prefect.yourdomain.com/api
-
-# Working directory for prefect.yaml pull step (local dev: . / Docker: /app)
-PREFECT_WORK_DIR=.
-
-# App
-ENVIRONMENT=development
-```
-
----
-
 ## 12. Local Development Setup
 
 ### Option A — Docker (recommended, mirrors production)
@@ -698,36 +652,6 @@ dbt run --select staging
 dbt test
 ```
 
----
-
-## 13. Coding Conventions
-
-### Python
-
-- Type hints on every function signature — no exceptions
-- Pydantic v2 models for all external data, `extra="forbid"` to catch API drift early
-- `async/await` throughout — httpx async client, async MotherDuck queries
-- **S3 first, always.** Every ingestion task writes the raw API response to the S3 landing zone before any parsing. Never write directly to bronze from a fetch task.
-- **Separate fetch / land / parse / write.** A task that calls an API must not also parse or write to the database. Three tasks minimum per domain: `fetch_and_land` → `parse_and_write_bronze` → `trigger_dbt`.
-- Log with structlog, not print() — every log line gets `ticker` and `bar_date` as structured fields
-- One `@flow` per domain per schedule — no mega-flows
-- Use `providers.s3.client.S3Client` for all S3 access. Never import boto3 directly in domain code.
-
-### dbt
-
-- Never put business logic in staging models — staging is type-casting and renaming only
-- Every model gets a `.yml` description file with column descriptions
-- Test files mirror model structure exactly
-- `ref()` over hardcoded table names always
-
-### General
-
-- No secrets in code or git — `.env` only
-- Every new domain under `domains/` follows the same pattern: `models.py` + `flows.py` + `tasks.py` + `parsers.py`
-- README in every app folder explaining how to run it standalone
-
----
-
 ## 14. What v1 Excludes (Intentionally)
 
 These are out of scope for the initial build. Do not add them.
@@ -740,16 +664,3 @@ These are out of scope for the initial build. Do not add them.
 - Trino query engine
 - User authentication in studio (read-only, public for now)
 - Alerting / notifications
-
----
-
-## 15. Git Conventions
-
-- `main` — production-ready code only
-- `archive/v1` — old codebase, preserved for reference, do not merge back
-- Feature branches: `feat/eod-pipeline`, `feat/dbt-prices-mart`
-- Commit style: `feat:`, `fix:`, `chore:`, `docs:` prefixes
-
----
-
-_Built to be lean. Add complexity only when you have a concrete reason._
