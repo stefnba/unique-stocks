@@ -1,4 +1,4 @@
-# my-stock-stack — Architecture & Build Guide
+# unique-stocks — Architecture & Build Guide
 
 > This document is the single source of truth for building this project.
 > It covers the purpose, architecture decisions, tooling, repo structure,
@@ -10,7 +10,7 @@
 
 A self-hosted financial data platform with three responsibilities:
 
-1. **Ingest** market data from external APIs on a schedule (EOD prices, securities lists, fundamentals, etc.)
+1. **Ingest** market data from external APIs on a schedule (EOD prices, securities lists, fundamentals, etc.) to our landing zone in S3
 2. **Transform** raw data through a medallion lake (Bronze → Silver → Gold) using dbt
 3. **Serve** the clean data through a web app with charts, search, and watchlists
 
@@ -139,87 +139,56 @@ The `apps/studio` tech stack has not been decided yet. Two options are on the ta
 ## 4. Monorepo Structure
 
 ```text
-my-stock-stack/
+unique-stocks/
 ├── apps/
-│   ├── pipelines/               # Python — Prefect ingestion app
-│   │   ├── domains/
-│   │   │   ├── exchanges/       # List of stock exchanges (manual/monthly)
-│   │   │   │   ├── models.py    # Pydantic v2 models for this domain
-│   │   │   │   ├── flows.py
-│   │   │   │   ├── tasks.py
-│   │   │   │   └── parsers.py
-│   │   │   ├── securities/      # Securities listed per exchange (weekly)
-│   │   │   │   ├── models.py
-│   │   │   │   ├── flows.py
-│   │   │   │   ├── tasks.py
-│   │   │   │   └── parsers.py
-│   │   │   ├── eod_prices/      # EOD OHLCV (daily, trading days only)
-│   │   │   │   ├── models.py
-│   │   │   │   ├── flows.py
-│   │   │   │   ├── tasks.py
-│   │   │   │   └── parsers.py
-│   │   │   └── fundamentals/    # Financials, dividends (quarterly)
-│   │   │       ├── models.py
-│   │   │       ├── flows.py
-│   │   │       ├── tasks.py
-│   │   │       └── parsers.py
-│   │   ├── core/                # Shared infrastructure only
-│   │   │   ├── config.py        # Pydantic Settings — reads .env
-│   │   │   ├── lake.py          # MotherDuck read/write helpers
-│   │   │   ├── models.py        # BronzeModel base class for all domain models
-│   │   │   ├── scheduler.py     # NYSE calendar, is_trading_day()
-│   │   │   ├── clients/
-│   │   │   │   ├── http/
-│   │   │   │   │   └── base.py      # Abstract BaseClient (ABC) for HTTP providers
-│   │   │   │   └── storage/
-│   │   │   │       └── base.py      # Abstract BaseStorageClient (ABC)
-│   │   │   └── utils/
-│   │   │       ├── logging.py
-│   │   │       └── rate_limiter.py
-│   │   ├── providers/           # Vendor-specific implementations
-│   │   │   ├── eodhd/           # EODHD HTTP data provider
-│   │   │   │   ├── client.py    # Concrete HTTP client (implements core/clients/http/base.py)
-│   │   │   │   └── models.py    # Raw API response models
-│   │   │   └── s3/              # AWS S3 storage provider
-│   │   │       └── client.py    # Concrete S3 client (implements core/clients/storage/base.py)
-│   │   ├── tests/
-│   │   │   ├── unit/
-│   │   │   └── integration/
-│   │   ├── prefect.yaml         # Deployment config — all flows, schedules, work pool
-│   │   ├── pyproject.toml       # Python deps for pipelines only
-│   │   ├── Makefile             # Dev + deploy commands
-│   │   └── Dockerfile
-│   │
-│   └── studio/                  # Web app — stack TBD (Python or TypeScript)
-│       ├── backend/             # TBD: Streamlit (Python) or Hono (TypeScript)
-│       │   ├── main.py
-│       │   ├── routers/
-│       │   └── schemas/
-│       └── frontend/            # TBD: React + TanStack Router (if Hono chosen)
-│           ├── app/
-│           └── components/
-│
-├── dbt_project/                 # dbt Core — all transformation logic
-│   ├── dbt_project.yml
-│   ├── profiles.yml
+│   └── pipelines/               # Python — Prefect ingestion app
+│       ├── domains/
+│       │   ├── eod_prices/      # EOD OHLCV (daily, trading days only)
+│       │   │   ├── models.py
+│       │   │   ├── flows.py
+│       │   │   ├── tasks.py
+│       │   │   └── parsers.py
+│       │   ├── exchanges/       # List of stock exchanges (manual/monthly)
+│       │   │   └── flows.py
+│       │   ├── securities/      # Securities listed per exchange (weekly)
+│       │   │   └── flows.py
+│       │   └── fundamentals/    # Financials, dividends (quarterly)
+│       │       └── flows.py
+│       ├── core/                # Shared infrastructure only
+│       │   ├── config.py        # Pydantic Settings — reads .env
+│       │   ├── lake.py          # DuckDB / MotherDuck helpers
+│       │   ├── models.py        # BronzeModel base class for domain models
+│       │   ├── scheduler.py     # NYSE calendar helpers
+│       │   ├── clients/
+│       │   │   ├── http/
+│       │   │   │   └── base.py      # HttpClientBase shared httpx client
+│       │   │   ├── lake/
+│       │   │   │   └── client.py    # DataLakeClient
+│       │   │   └── storage/
+│       │   │       └── s3/
+│       │   │           └── base.py  # S3StorageClient
+│       │   └── utils/
+│       │       └── logging.py
+│       ├── providers/           # Vendor-specific implementations
+│       │   └── eodhd/           # EODHD HTTP data provider
+│       │       ├── client.py
+│       │       └── models.py
+│       ├── tests/
+│       │   ├── unit/
+│       │   └── integration/
+│       ├── prefect.yaml         # Deployment config — flows, schedules, work pool
+│       ├── pyproject.toml       # Python deps for pipelines only
+│       ├── Makefile             # Dev + deploy commands
+│       └── Dockerfile
+├── dbt_project/                 # dbt Core — transformation project
 │   ├── models/
-│   │   ├── staging/             # Bronze → Silver (one subfolder per domain)
-│   │   │   ├── eod_prices/
-│   │   │   ├── exchanges/
-│   │   │   ├── securities/
-│   │   │   └── fundamentals/
-│   │   └── marts/               # Silver → Gold
-│   │       ├── eod_prices/
-│   │       ├── search/
-│   │       └── fundamentals/
-│   ├── tests/
-│   └── macros/
+│   │   ├── staging/prices/
+│   │   └── marts/prices/
 │
 ├── infra/
 │   ├── docker-compose.yml       # Local dev — Prefect server + Postgres + worker
 │   └── scripts/
-│       ├── init_motherduck.sql  # Create schemas and tables
-│       └── setup_s3.sh
+│       └── init_db.sql          # Create schemas and tables
 │
 ├── Makefile                     # Monorepo-level commands (delegates to sub-makefiles)
 └── README.md
@@ -229,7 +198,7 @@ my-stock-stack/
 
 - `apps/` follows the monorepo convention (Turborepo, Nx) — each subfolder is a deployable application
 - `dbt_project/` sits at root because it is a standalone dbt project, not a Python package or web app
-- `apps/pipelines/` and `apps/studio/` have their own dependency files — they are independent deploys
+- `apps/pipelines/` has its own dependency file because it is independently deployable
 - `studio/` tech stack is TBD — decided separately from pipelines, which are always Python
 - `core/` contains only infrastructure (config, lake, clients, scheduler) — no domain models
 - Domain models (`models.py`) live next to their `flows.py`/`tasks.py`/`parsers.py` — locality over centralisation
