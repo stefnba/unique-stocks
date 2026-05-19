@@ -12,6 +12,7 @@ dependencies = [
     "structlog>=24.2",
     "exchange-calendars>=4.5",
     "tenacity>=8.3",
+    "boto3>=1.43.9",
 ]
 
 [dependency-groups]
