@@ -1,12 +1,16 @@
+"""Generic infrastructure for typed Prefect block handles.
 
+This module is app-agnostic.  It provides ``BlockEntry``, ``define_block``,
+and ``ExistsMode`` — the building blocks used by ``config/blocks.py`` to
+define the project's concrete block registry.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Generic, Literal, TypeVar, cast
 
 from prefect.blocks.core import Block
-from dataclasses import dataclass, field
-from pydantic import BaseModel, Field
-from prefect.blocks.system import Secret
-from prefect_aws import AwsCredentials
-from typing import TypedDict, TypeVar, Type, Generic, Literal, cast
-from pydantic import SecretStr
 
 
 T = TypeVar('T', bound=Block)
@@ -162,11 +166,5 @@ def define_block(name: str, block: T, if_exists: ExistsMode = "skip") -> BlockEn
     entry = BlockEntry(name=name, block=block)
     entry.save(if_exists=if_exists)
     return entry
-
-
-
-class BlockRegistry:
-    EODHD_API_KEY = define_block("eodhd-api-key", Secret(value=SecretStr("eodhd-api-key")))
-    AWS_CREDENTIALS = define_block("aws-credentials", AwsCredentials(aws_access_key_id="aws-access-key-id", aws_secret_access_key=SecretStr("aws-secret-access-key")))
 
 
