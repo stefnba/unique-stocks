@@ -1,42 +1,36 @@
 from functools import lru_cache
 from typing import Literal
-
-from pydantic import field_validator
+from prefect.blocks.system import Secret
+from pydantic import field_validator, model_validator, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-type Environment = Literal["development", "production", "docker_dev"]
+type Environment = Literal["dev", "prod", "docker_dev"]
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    eodhd_api_key: str
     
-    motherduck_token: str = "" # When blank, lake.py falls back to local DuckDB file (unique_stocks.db)
+    # Data provider
+    eodhd_api_key: SecretStr = Field(default=SecretStr(""), description="API key for EODHD.")
+    motherduck_token: SecretStr = Field(default=SecretStr(""), description="MotherDuck token. When blank, lake.py falls back to local DuckDB file (unique_stocks.db).")
+    
+    # Storage provider (S3)
+    aws_access_key_id: str = ""
+    aws_secret_access_key: SecretStr = Field(default=SecretStr(""), description="Secret access key for AWS.")
     s3_bucket: str | None = None
-    aws_access_key_id: str | None = None
-    aws_secret_access_key: str | None = None
     aws_region: str = "ap-southeast-2"
 
+    # Prefect
     prefect_api_url: str = "http://127.0.0.1:4200/api"
-    prefect_api_key: str = ""
+    prefect_api_key: SecretStr = Field(default=SecretStr(""), description="API key for Prefect.")
+    
+    # Environment
+    environment: Environment = "dev"
 
-    environment: Environment = "development"
-
-    @field_validator("environment")
-    @classmethod
-    def validate_environment(cls, v: str) -> str:
-        allowed = {"development", "production"}
-        if v not in allowed:
-            raise ValueError(f"environment must be one of {allowed}, got {v!r}")
-        return v
 
     @property
     def is_production(self) -> bool:
-        return self.environment == "production"
-
-    @property
-    def is_development(self) -> bool:
-        return self.environment == "development"
+        return self.environment == "prod"
 
     @property
     def duckdb_connection_string(self) -> str:
@@ -48,4 +42,6 @@ class Settings(BaseSettings):
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """Return the singleton Settings instance, loaded on first call."""
-    return Settings()  # type: ignore[call-arg]
+    return Settings()  
+
+SETTINGS = get_settings()
