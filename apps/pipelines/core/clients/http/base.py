@@ -106,6 +106,15 @@ class HttpClientBase(ABC):
             log.error(f"http.client.{self.PROVIDER}.timeout", path=path, method=method)
             raise
 
+
+        log.info(
+            f"http.client.{self.PROVIDER}.response",
+            path=path,
+            method=method,
+            status=response.status_code,
+            elapsed_seconds=response.elapsed.total_seconds(),
+        )
+   
         return response.json()
 
     async def _get(
@@ -115,7 +124,17 @@ class HttpClientBase(ABC):
         model: type[T],
         params: dict[str, Any] | None = None,
     ) -> T:
-        """GET a single resource and validate the response against a Pydantic model."""
+        """GET a single resource and validate the response against a Pydantic model.
+        
+        
+        Args:
+            path:   URL path relative to BASE_URL.
+            model:  Pydantic model to validate the response against.
+            params: Per-request query params, merged with _default_params by httpx.
+
+        Returns:
+            Validated response.
+        """
         data = await self._request(path, params=params)
         return model.model_validate(data)
 
@@ -126,6 +145,16 @@ class HttpClientBase(ABC):
         model: type[T],
         params: dict[str, Any] | None = None,
     ) -> list[T]:
-        """GET a list resource and validate each item against a Pydantic model."""
+        """GET a list resource and validate each item against a Pydantic model.
+        
+        
+        Args:
+            path:   URL path relative to BASE_URL.
+            model:  Pydantic model to validate each item against.
+            params: Per-request query params, merged with _default_params by httpx.
+
+        Returns:
+            List of validated items.
+        """
         data = await self._request(path, params=params)
         return TypeAdapter(list[model]).validate_python(data)

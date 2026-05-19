@@ -4,7 +4,7 @@ from typing import Literal
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-type Environment = Literal["development", "production"]
+type Environment = Literal["development", "production", "docker_dev"]
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")

@@ -27,9 +27,9 @@ class EODBulkPriceRaw(BaseModel):
     adjusted_close: float | None = None
 
 
-class ExchangeList(BaseModel):
+class SupportedExchanges(BaseModel):
     """
-    Model representing an exchange available via EODHD.
+    Model representing a supported exchange by EODHD.
 
     Attributes:
         Name: Full name of the exchange
