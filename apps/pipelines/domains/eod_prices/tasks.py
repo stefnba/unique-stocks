@@ -68,13 +68,19 @@ def write_bronze_eod_prices(bars: list[EODBar], exchange: str, bar_date: date) -
 
     Skips already-ingested tickers for this exchange+date to ensure idempotency on re-run.
     """
-    from core import lake
+    from core.clients.lake import get_lake_client
 
     if not bars:
         log.info("prices.write_skipped", reason="no_bars", exchange=exchange, bar_date=bar_date)
         return 0
 
-    if lake.already_ingested_exchange_date("eod_prices", exchange, bar_date):
+    lake = get_lake_client()
+    qualified = lake.qualified_name("bronze", "eod_prices")
+    already_ingested = lake.query_one(
+        f"SELECT COUNT(*) AS cnt FROM {qualified} WHERE ticker LIKE ? AND bar_date = ?",
+        [f"%.{exchange}", bar_date.isoformat()],
+    )
+    if already_ingested and already_ingested["cnt"] > 0:
         log.info(
             "prices.write_skipped",
             reason="already_ingested",

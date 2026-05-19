@@ -8,12 +8,13 @@ The flow uses the EODHD bulk endpoint — one API call per exchange, not one
 per ticker. For v1 we start with US (exchange="US") only.
 """
 
+import uuid
 from datetime import date
 
 import structlog
 from prefect import flow
 
-from core import lake
+from core.clients.lake import DataLakeClient, get_lake_client
 from core.scheduler import is_trading_day, last_completed_trading_day
 
 from .tasks import fetch_eod_prices_bulk, parse_eod_prices, write_bronze_eod_prices
@@ -48,7 +49,8 @@ async def eod_prices_flow(trade_date: date | None = None) -> dict:
         log.info("prices.skipped", reason="not_trading_day", trade_date=trade_date)
         return {"skipped": True, "trade_date": trade_date.isoformat()}
 
-    run_id = lake.record_run_start("eod-prices-daily")
+    lake = get_lake_client()
+    run_id = _record_run_start(lake, "eod-prices-daily")
     log.info("prices.flow_start", trade_date=trade_date, run_id=run_id)
 
     total_written = 0
@@ -63,14 +65,42 @@ async def eod_prices_flow(trade_date: date | None = None) -> dict:
             summary["exchanges"][exchange] = {"rows_written": written}
             total_written += written
 
-        lake.record_run_complete(run_id, total_written)
+        _record_run_complete(lake, run_id, total_written)
         log.info("prices.flow_done", trade_date=trade_date, total_written=total_written)
 
     except Exception as exc:
-        lake.record_run_failed(run_id, str(exc))
+        _record_run_failed(lake, run_id, str(exc))
         raise
 
     return summary
+
+
+# ---------------------------------------------------------------------------
+# Pipeline run tracking helpers
+# ---------------------------------------------------------------------------
+
+
+def _record_run_start(lake: DataLakeClient, flow_name: str) -> str:
+    run_id = str(uuid.uuid4())
+    lake.execute(
+        "INSERT INTO pipeline.runs (run_id, flow_name, status, started_at) VALUES (?, ?, 'running', now())",
+        [run_id, flow_name],
+    )
+    return run_id
+
+
+def _record_run_complete(lake: DataLakeClient, run_id: str, rows_written: int) -> None:
+    lake.execute(
+        "UPDATE pipeline.runs SET status = 'completed', completed_at = now(), rows_written = ? WHERE run_id = ?",
+        [rows_written, run_id],
+    )
+
+
+def _record_run_failed(lake: DataLakeClient, run_id: str, error: str) -> None:
+    lake.execute(
+        "UPDATE pipeline.runs SET status = 'failed', completed_at = now(), error_message = ? WHERE run_id = ?",
+        [error[:2000], run_id],
+    )
 
 
 # ---------------------------------------------------------------------------
