@@ -57,6 +57,9 @@ check: format-check lint typecheck test ## Run full quality gate (CI equivalent)
 
 # ── Prefect — local dev ────────────────────────────────────────────────────
 prefect-server: ## Start a local Prefect server (no Docker)
+	@while lsof -ti :4200 > /dev/null 2>&1; do \
+		echo "Port 4200 still in use, waiting..."; sleep 2; \
+	done
 	uv run prefect server start
 
 prefect-worker: ## Start a Prefect worker connected to PREFECT_API_URL
