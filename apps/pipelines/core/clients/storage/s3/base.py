@@ -223,9 +223,11 @@ class S3StorageClient:
                 raise ValueError(f"Invalid S3 URI: {key!r}")
             return parsed.netloc, parsed.path.lstrip("/")
 
-        resolved_bucket = bucket or self.bucket or self._settings().s3_bucket
+        resolved_bucket = bucket or self.bucket
         if not resolved_bucket:
-            raise ValueError("S3 bucket is required; pass bucket=... or configure S3_BUCKET")
+            raise ValueError(
+                "S3 bucket is required; pass bucket=... or set S3StorageClient(bucket=...)"
+            )
         return resolved_bucket, key.lstrip("/")
 
     def _extra_args(
@@ -341,7 +343,7 @@ class S3StorageClient:
 
     @staticmethod
     def _settings() -> Any:
-        from core.config import get_settings
+        from config.settings import get_settings
 
         return get_settings()
 

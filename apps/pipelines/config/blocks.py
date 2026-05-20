@@ -27,16 +27,15 @@ class BlockRegistry(BlockRegistryBase):
     S3_BUCKET = define_block(
         "s3-bucket",
         S3Bucket(
-            bucket_name=SETTINGS.s3_bucket or "",
+            bucket_name="unique-stocks-dev",
             credentials=AwsCredentials(
                 aws_access_key_id=SETTINGS.aws_access_key_id,
                 aws_secret_access_key=SETTINGS.aws_secret_access_key,
-                region_name=SETTINGS.aws_region,
+                region_name="ap-southeast-2",
             ),
         ),
     )
 
 
 if __name__ == "__main__":
-    """Run this file directly to register (or overwrite) all blocks on the Prefect server."""
     BlockRegistry.save_all(if_exists="overwrite")

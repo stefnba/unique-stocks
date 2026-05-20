@@ -25,11 +25,9 @@ class Settings(BaseSettings):
         description="MotherDuck token. When blank, lake.py falls back to local DuckDB file (unique_stocks.db).",
     )
 
-    # Storage provider (S3)
+    # AWS credentials (used only in config/blocks.py to bootstrap the S3_BUCKET block)
     aws_access_key_id: str = ""
     aws_secret_access_key: SecretStr = Field(default=SecretStr(""), description="Secret access key for AWS.")
-    s3_bucket: str | None = None
-    aws_region: str = "ap-southeast-2"
 
     # Prefect
     prefect_api_url: str = "http://127.0.0.1:4200/api"
