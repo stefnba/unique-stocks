@@ -1,0 +1,24 @@
+# Production overrides.
+# Secrets are injected by the deployment platform (Coolify) — never commit real values here.
+
+services:
+
+  prefect-server:
+    ports:
+      - "4200:4200"
+    environment:
+      # Set to the public-facing URL of your Prefect deployment
+      PREFECT_UI_API_URL: ${PREFECT_UI_API_URL}
+    restart: always
+
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    restart: always
+
+  pipelines:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 512m

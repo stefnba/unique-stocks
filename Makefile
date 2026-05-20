@@ -2,7 +2,7 @@
 .PHONY: help \
         pipelines-install pipelines-test pipelines-check pipelines-lint pipelines-typecheck \
         pipelines-worker pipelines-deploy \
-        infra-up infra-down infra-logs infra-ps \
+        infra-up infra-up-prod infra-down infra-down-volumes infra-logs infra-logs-pipelines infra-ps \
         dbt-run dbt-test dbt-compile
 
 # ── Colours ────────────────────────────────────────────────────────────────
@@ -12,9 +12,15 @@ GREEN := \033[32m
 CYAN  := \033[36m
 DIM   := \033[2m
 
-PIPELINES_DIR := apps/pipelines
-INFRA_DIR     := infra
+# ── Directories ────────────────────────────────────────────────────────────
+PIPELINES_DIR  := apps/pipelines
+DEPLOY_DIR     := $(PIPELINES_DIR)/deploy
+COMPOSE_BASE   := docker compose -f $(DEPLOY_DIR)/docker-compose.yml
+COMPOSE_DEV    := $(COMPOSE_BASE) -f $(DEPLOY_DIR)/docker-compose.dev.yml
+COMPOSE_PROD   := $(COMPOSE_BASE) -f $(DEPLOY_DIR)/docker-compose.prod.yml
 
+
+# ── Help ────────────────────────────────────────────────────────────────────
 help: ## Show this help
 	@echo ""
 	@echo "  $(BOLD)unique-stocks monorepo$(RESET)"
@@ -57,23 +63,26 @@ pipelines-deploy: ## Register all Prefect deployments
 	$(MAKE) -C $(PIPELINES_DIR) deploy
 
 # ── Infrastructure ─────────────────────────────────────────────────────────
-infra-up: ## Start all services (Prefect server + Postgres + pipelines worker)
-	docker compose -f $(INFRA_DIR)/docker-compose.yml up -d
+infra-up: ## Start dev stack (Docker) — Prefect server + Postgres + pipelines worker
+	$(COMPOSE_DEV) up -d
+
+infra-up-prod: ## Start production stack
+	$(COMPOSE_PROD) up -d
 
 infra-down: ## Stop all services
-	docker compose -f $(INFRA_DIR)/docker-compose.yml down
+	$(COMPOSE_DEV) down
 
 infra-down-volumes: ## Stop all services AND delete persistent data (⚠ destructive)
-	docker compose -f $(INFRA_DIR)/docker-compose.yml down -v
+	$(COMPOSE_DEV) down -v
 
 infra-logs: ## Tail logs for all services (Ctrl-C to stop)
-	docker compose -f $(INFRA_DIR)/docker-compose.yml logs -f
+	$(COMPOSE_DEV) logs -f
 
 infra-logs-pipelines: ## Tail pipeline worker logs only
-	docker compose -f $(INFRA_DIR)/docker-compose.yml logs -f pipelines
+	$(COMPOSE_DEV) logs -f pipelines
 
 infra-ps: ## Show running service status
-	docker compose -f $(INFRA_DIR)/docker-compose.yml ps
+	$(COMPOSE_DEV) ps
 
 # ── dbt ────────────────────────────────────────────────────────────────────
 dbt-compile: ## Compile dbt models (no DB writes)

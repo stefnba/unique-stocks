@@ -1,0 +1,22 @@
+# Docker-based local development overrides.
+# Prefect UI: http://localhost:4200
+# Copy apps/pipelines/.env.example → apps/pipelines/.env and fill in secrets before starting.
+
+services:
+
+  prefect-server:
+    ports:
+      - "4200:4200"
+    environment:
+      # Browser-facing URL — must match what you open in the browser
+      PREFECT_UI_API_URL: http://localhost:4200/api
+    restart: unless-stopped
+
+  postgres:
+    restart: unless-stopped
+
+  pipelines:
+    env_file:
+      - path: ../.env
+        required: false   # cp .env.example .env to start
+    restart: unless-stopped

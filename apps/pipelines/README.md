@@ -17,15 +17,17 @@ The active path is EODHD end-of-day prices. Exchanges, securities, and fundament
 
 ```text
 apps/pipelines/
-├── config/        App-level configuration: settings and Prefect block registry
-├── domains/       Domain models, parsers, tasks, and flows
-├── core/          Shared infrastructure: scheduler, logging, lake, and storage clients
-├── providers/     Provider-specific clients and raw response models
-├── tests/         Unit and integration tests
-├── prefect.yaml   Prefect deployment definitions
-├── pyproject.toml Python dependencies
-├── Makefile       App-level commands
-└── Dockerfile     Worker image
+├── config/             App-level configuration: settings and Prefect block registry
+├── domains/            Domain models, parsers, tasks, and flows
+├── core/               Shared infrastructure: scheduler, logging, lake, and storage clients
+├── providers/          Provider-specific clients and raw response models
+├── scripts/            SQL scripts (init_db.sql — DuckDB/MotherDuck schema setup)
+├── tests/              Unit and integration tests
+├── deploy/             Deployment config (docker-compose.yml for local dev stack)
+├── prefect.yaml        Prefect deployment definitions
+├── pyproject.toml      Python dependencies
+├── Makefile            App-level commands
+└── Dockerfile          Worker image
 ```
 
 Domain code is organized under `domains/<domain>/`. Add `models.py`, `parsers.py`, `tasks.py`, and `flows.py` as the domain needs them.
@@ -116,14 +118,14 @@ Initialize local DuckDB:
 
 ```bash
 cd apps/pipelines
-duckdb unique_stocks.db < ../../infra/scripts/init_db.sql
+duckdb unique_stocks.db < scripts/init_db.sql
 ```
 
 Initialize MotherDuck:
 
 ```bash
 cd apps/pipelines
-MOTHERDUCK_TOKEN=<token> duckdb "md:unique_stocks" < ../../infra/scripts/init_db.sql
+MOTHERDUCK_TOKEN=<token> duckdb "md:unique_stocks" < scripts/init_db.sql
 ```
 
 ## Quality checks
