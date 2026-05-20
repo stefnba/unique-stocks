@@ -20,7 +20,7 @@ from core.blocks import BlockRegistryBase, define_block
 aws_credentials = AwsCredentials(
     aws_access_key_id=SETTINGS.aws_access_key_id,
     aws_secret_access_key=SETTINGS.aws_secret_access_key,
-    region_name="ap-southeast-2",
+    region_name="eu-central-1",
 )
 
 
