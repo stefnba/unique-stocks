@@ -9,7 +9,7 @@ services:
 
   # ── Prefect server (API + UI) ──────────────────────────────────────────────
   prefect-server:
-    image: prefecthq/prefect:3.7.1
+    image: prefecthq/prefect:3.7.0-python3.14
     command: prefect server start --host 0.0.0.0
     environment:
       PREFECT_SERVER_DATABASE_CONNECTION_URL: postgresql+asyncpg://prefect:prefect@postgres:5432/prefect

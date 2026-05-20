@@ -4,10 +4,9 @@ Import ``BlockRegistry`` in tasks and flows to load blocks at runtime::
 
     api_key = await BlockRegistry.EODHD_API_KEY.load_async()
 
-Run this file directly to register (or overwrite) all blocks on the Prefect
-server::
+Run via make to register (or overwrite) all blocks on the Prefect server::
 
-    uv run python -m config.blocks
+    make blocks-save
 """
 
 from prefect.blocks.system import Secret

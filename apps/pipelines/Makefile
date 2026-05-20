@@ -1,6 +1,9 @@
 .DEFAULT_GOAL := help
 .PHONY: help install test test-unit test-integration lint lint-fix format format-check typecheck check \
-        worker deploy deploy-dry prefect-server prefect-setup
+        prefect-server prefect-worker \
+        docker-up docker-down docker-down-volumes docker-logs docker-logs-worker docker-ps \
+        db-init blocks-save setup \
+        deploy deploy-dry
 
 # Load .env if it exists so PREFECT_API_URL etc. are available to Make targets
 -include .env
@@ -59,15 +62,57 @@ prefect-server: ## Start a local Prefect server (no Docker)
 prefect-worker: ## Start a Prefect worker connected to PREFECT_API_URL
 	uv run prefect worker start --pool default-process-pool
 
-# ── Prefect — deployments ──────────────────────────────────────────────────
-prefect-setup: ## Create work pool + register all deployments (run once after first infra-up)
-	@echo "Waiting for Prefect server to be ready..."
+# ── Docker (docker-dev only) ───────────────────────────────────────────────
+DEPLOY_DIR   := deploy
+COMPOSE_BASE := docker compose -f $(DEPLOY_DIR)/docker-compose.yml
+COMPOSE_DEV  := $(COMPOSE_BASE) -f $(DEPLOY_DIR)/docker-compose.dev.yml
+
+docker-up: ## Start the docker-dev stack (Prefect server + Postgres + worker)
+	$(COMPOSE_DEV) up -d
+
+docker-down: ## Stop the docker-dev stack
+	$(COMPOSE_DEV) down
+
+docker-down-volumes: ## Stop the docker-dev stack and delete persistent data (⚠ destructive)
+	$(COMPOSE_DEV) down -v
+
+docker-logs: ## Tail logs for all services
+	$(COMPOSE_DEV) logs -f
+
+docker-logs-worker: ## Tail pipelines worker logs only
+	$(COMPOSE_DEV) logs -f pipelines
+
+docker-ps: ## Show docker-dev service status
+	$(COMPOSE_DEV) ps
+
+# ── One-time setup ─────────────────────────────────────────────────────────
+# dev:        make prefect-server  (terminal 1)
+#             make setup           (terminal 2)
+# docker-dev: make docker-up, then make setup
+# prod:       PREFECT_API_URL=... MOTHERDUCK_TOKEN=... make setup
+db-init: ## Initialise DuckDB/MotherDuck schemas from scripts/init_db.sql (idempotent)
+	@if [ -n "$(MOTHERDUCK_TOKEN)" ]; then \
+		echo "Initialising MotherDuck (md:unique_stocks)..."; \
+		uv run python -c "import duckdb; conn = duckdb.connect('md:unique_stocks'); conn.execute(open('scripts/init_db.sql').read())"; \
+	else \
+		echo "Initialising local DuckDB (unique_stocks.db)..."; \
+		uv run python -c "import duckdb; conn = duckdb.connect('unique_stocks.db'); conn.execute(open('scripts/init_db.sql').read())"; \
+	fi
+
+blocks-save: ## Register Prefect blocks on the server defined in config/blocks.py (idempotent)
+	uv run python -c "from config.blocks import BlockRegistry; BlockRegistry.save_all(if_exists='overwrite')"
+
+setup: ## Full one-time setup: wait for server, init DB, save blocks, create pool, deploy
+	@echo "Waiting for Prefect server at $(PREFECT_API_URL)..."
 	@until curl -sf "$(PREFECT_API_URL)/health" > /dev/null 2>&1; do \
 		printf "."; sleep 2; \
 	done; echo " ready."
+	$(MAKE) db-init
+	$(MAKE) blocks-save
 	uv run prefect work-pool create default-process-pool --type process --overwrite
 	uv run prefect --no-prompt deploy --all
 
+# ── Prefect — deployments ──────────────────────────────────────────────────
 deploy: ## Register all deployments with the Prefect server
 	uv run prefect --no-prompt deploy --all
 

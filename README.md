@@ -6,13 +6,13 @@ The goal is a lean, reliable stack that can run cheaply on a single VPS while st
 
 ## Current status
 
-| Area             | Status               | Notes                                                          |
-| ---------------- | -------------------- | -------------------------------------------------------------- |
-| `apps/pipelines` | Active               | Prefect 3 ingestion app for EODHD market data.                 |
-| `dbt_project`    | Planned / scaffolded | dbt Core project for Bronze -> Silver -> Gold transformations. |
-| `apps/api`       | Not implemented      | API boundary is still an open decision.                        |
-| `apps/studio`    | Not implemented      | Studio stack is still an open decision.                        |
-| `infra`          | Active               | Docker Compose support for local Prefect infrastructure.       |
+| Area                 | Status               | Notes                                                          |
+| -------------------- | -------------------- | -------------------------------------------------------------- |
+| `apps/pipelines`     | Active               | Prefect 3 ingestion app for EODHD market data.                 |
+| `dbt_project`        | Planned / scaffolded | dbt Core project for Bronze -> Silver -> Gold transformations. |
+| `apps/api`           | Not implemented      | API boundary is still an open decision.                        |
+| `apps/studio`        | Not implemented      | Studio stack is still an open decision.                        |
+| `docker-compose.yml` | Active               | Root compose entrypoint — includes per-app stacks.             |
 
 ## Architecture
 
@@ -44,7 +44,7 @@ unique-stocks/
 │   ├── api/            Planned API app
 │   └── studio/         Planned user-facing studio
 ├── dbt_project/        dbt Core transformations
-├── infra/              Local infrastructure and database init scripts
+├── docker-compose.yml  Root compose entrypoint (includes per-app stacks)
 ├── AGENTS.md           Coding-agent instructions
 ├── PLAN.md             Product and architecture plan
 ├── Makefile            Monorepo command entrypoint
@@ -55,12 +55,13 @@ Every folder under `apps/` has its own README with standalone app status and run
 
 ## Quick start
 
-For the active pipelines app:
+For the active pipelines app (docker-dev):
 
 ```bash
 cp apps/pipelines/.env.example apps/pipelines/.env
-make infra-up
-make pipelines-setup
+# edit .env: set ENVIRONMENT=docker_dev and provider keys
+make infra-up          # start Prefect server, Postgres, and worker
+make pipelines-setup   # init DB, save blocks, create work pool, register deployments
 ```
 
 Prefect UI runs at <http://localhost:4200>.
@@ -70,9 +71,9 @@ For local Python development without Docker:
 ```bash
 cd apps/pipelines
 uv sync
-make prefect-server
-make prefect-setup
-make worker
+make prefect-server   # terminal 1
+make setup            # terminal 2 — init DB, save blocks, create pool, deploy
+make prefect-worker   # terminal 2 — start the worker
 ```
 
 See [apps/pipelines/README.md](apps/pipelines/README.md) for the full pipelines runbook.

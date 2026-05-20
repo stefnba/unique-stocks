@@ -6,12 +6,12 @@ The active path is EODHD end-of-day prices. Exchanges, securities, and fundament
 
 ## Status
 
-| Domain | Status | Schedule |
-| --- | --- | --- |
-| `eod_prices` | Active | Weekdays after market close, plus manual backfill. |
-| `exchanges` | Planned stub | Manual or monthly. |
-| `securities` | Planned stub | Weekly. |
-| `fundamentals` | Planned stub | Manual or quarterly. |
+| Domain         | Status       | Schedule                                           |
+| -------------- | ------------ | -------------------------------------------------- |
+| `eod_prices`   | Active       | Weekdays after market close, plus manual backfill. |
+| `exchanges`    | Planned stub | Manual or monthly.                                 |
+| `securities`   | Planned stub | Weekly.                                            |
+| `fundamentals` | Planned stub | Manual or quarterly.                               |
 
 ## Project structure
 
@@ -23,7 +23,7 @@ apps/pipelines/
 ├── providers/          Provider-specific clients and raw response models
 ├── scripts/            SQL scripts (init_db.sql — DuckDB/MotherDuck schema setup)
 ├── tests/              Unit and integration tests
-├── deploy/             Deployment config (docker-compose.yml for local dev stack)
+├── deploy/             Docker Compose files: base, dev override, prod override
 ├── prefect.yaml        Prefect deployment definitions
 ├── pyproject.toml      Python dependencies
 ├── Makefile            App-level commands
@@ -52,81 +52,88 @@ cp .env.example .env
 
 Set at least `EODHD_API_KEY` for live provider runs. Leave `MOTHERDUCK_TOKEN` blank to use local DuckDB.
 
-| Variable | Required | Description |
-| --- | --- | --- |
-| `EODHD_API_KEY` | Yes for live runs | EODHD API key. |
-| `MOTHERDUCK_TOKEN` | No | Blank uses local `unique_stocks.db`; set for MotherDuck. |
-| `S3_BUCKET` | No | S3 bucket for landing or archival storage. |
-| `AWS_ACCESS_KEY_ID` | No | AWS access key when S3 is enabled. |
-| `AWS_SECRET_ACCESS_KEY` | No | AWS secret key when S3 is enabled. |
-| `AWS_REGION` | No | AWS region, default `ap-southeast-2`. |
-| `PREFECT_API_URL` | Yes | Prefect API URL for workers and deploy commands. |
-| `PREFECT_WORK_DIR` | Yes | `.` locally, `/app` in Docker. |
-| `ENVIRONMENT` | No | `development` or `production`. |
+| Variable                | Required          | Description                                              |
+| ----------------------- | ----------------- | -------------------------------------------------------- |
+| `EODHD_API_KEY`         | Yes for live runs | EODHD API key.                                           |
+| `MOTHERDUCK_TOKEN`      | No                | Blank uses local `unique_stocks.db`; set for MotherDuck. |
+| `S3_BUCKET`             | No                | S3 bucket for landing or archival storage.               |
+| `AWS_ACCESS_KEY_ID`     | No                | AWS access key when S3 is enabled.                       |
+| `AWS_SECRET_ACCESS_KEY` | No                | AWS secret key when S3 is enabled.                       |
+| `AWS_REGION`            | No                | AWS region, default `ap-southeast-2`.                    |
+| `PREFECT_API_URL`       | Yes               | Prefect API URL for workers and deploy commands.         |
+| `PREFECT_WORK_DIR`      | Yes               | `.` locally, `/app` in Docker.                           |
+| `ENVIRONMENT`           | No                | `dev` (default), `docker_dev`, or `prod`.                |
 
-## Local development without Docker
+## Environments
 
-Use this path for fast Python feedback when you do not need the Docker Compose stack.
+| Environment     | `ENVIRONMENT` value | Prefect backend    | Database                 | When to use                                        |
+| --------------- | ------------------- | ------------------ | ------------------------ | -------------------------------------------------- |
+| dev (no Docker) | `dev`               | SQLite, in-process | Local `unique_stocks.db` | Fast Python iteration, no containers needed        |
+| docker-dev      | `docker_dev`        | Postgres in Docker | Local `unique_stocks.db` | Full stack validation, mirrors production topology |
+| prod            | `prod`              | Postgres on VPS    | MotherDuck               | Live production deployment                         |
+
+All three environments use the same `make setup` command — env vars drive which backend is targeted.
+
+## Local development without Docker (`dev`)
+
+Fastest feedback loop. Prefect runs in-process with a local SQLite backend; no containers required.
 
 ```bash
 cd apps/pipelines
 uv sync
-make prefect-server
+make prefect-server        # terminal 1 — starts Prefect at http://localhost:4200
 ```
 
-In another terminal:
+In a second terminal:
 
 ```bash
 cd apps/pipelines
-make prefect-setup
-make worker
+make setup                 # init DB, save blocks, create work pool, register deployments
+make prefect-worker        # start the worker
 ```
 
-Trigger a deployment manually:
+Trigger a flow run manually:
 
 ```bash
 uv run prefect deployment run 'eod-prices-daily/daily'
 uv run prefect deployment run 'eod-prices-daily/backfill' -p trade_date=2026-05-09
 ```
 
-## Local development with Docker
+## Local development with Docker (`docker_dev`)
 
-Use this path when you want the local stack to mirror production more closely.
+Full stack in containers — Prefect server backed by Postgres, pipelines worker as a Docker service. Use this to validate env-var wiring and Docker image builds before deploying.
 
-From the repository root:
+Set `ENVIRONMENT=docker_dev` in `.env`, then from `apps/pipelines/`:
 
 ```bash
-cp apps/pipelines/.env.example apps/pipelines/.env
-make infra-up
-make pipelines-setup
+cp .env.example .env
+# edit .env: set ENVIRONMENT=docker_dev and any provider keys
+make docker-up             # start Prefect server, Postgres, and pipelines worker
+make setup                 # init DB, save blocks, create work pool, register deployments
 ```
 
-Useful root commands:
+Useful commands:
 
 ```bash
-make infra-ps
-make infra-logs-pipelines
-make infra-down
-make infra-down-volumes
+make docker-ps
+make docker-logs-worker
+make docker-down
+make docker-down-volumes   # ⚠ also deletes the Postgres volume
 ```
 
 Prefect UI runs at <http://localhost:4200>.
 
 ## Database initialization
 
-Initialize local DuckDB:
+`make setup` handles this automatically. To run it standalone:
 
 ```bash
 cd apps/pipelines
-duckdb unique_stocks.db < scripts/init_db.sql
+make db-init                              # local DuckDB
+MOTHERDUCK_TOKEN=<token> make db-init     # MotherDuck
 ```
 
-Initialize MotherDuck:
-
-```bash
-cd apps/pipelines
-MOTHERDUCK_TOKEN=<token> duckdb "md:unique_stocks" < scripts/init_db.sql
-```
+The SQL script (`scripts/init_db.sql`) is idempotent — safe to re-run.
 
 ## Quality checks
 
@@ -159,28 +166,34 @@ make deploy-dry
 make deploy
 ```
 
-`make prefect-setup` creates the default work pool and registers all deployments. Run it once per new Prefect environment, then use `make deploy` after changing deployment definitions.
+`make setup` runs this once per new environment. Use `make deploy` for subsequent deployment definition changes.
 
-## Production notes
+## Production (`prod`)
 
-Production is expected to run through Docker Compose on a small VPS, with Coolify handling builds, deployment, domains, and SSL.
+Production runs through Docker Compose on a VPS, with Coolify handling builds, deployments, domains, and SSL. The compose file is `apps/pipelines/deploy/docker-compose.prod.yml`, included via the root `docker-compose.yml`.
 
-Keep these addresses distinct:
+Keep these two addresses distinct — they serve different clients:
 
-- `PREFECT_UI_API_URL`: browser-facing public API URL used by the Prefect UI.
-- `PREFECT_API_URL`: worker-facing API URL used by the pipelines container.
+- `PREFECT_UI_API_URL`: browser-facing public URL used by the Prefect UI JavaScript app.
+- `PREFECT_API_URL`: internal worker-facing URL used by the pipelines container.
 
-Set production secrets in the deployment platform, not in git:
+Set all secrets in the deployment platform (Coolify environment variables), never in git:
 
 - `POSTGRES_PASSWORD`
 - `EODHD_API_KEY`
 - `MOTHERDUCK_TOKEN`
-- S3 credentials when S3 landing or archival storage is enabled
+- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` (when S3 is enabled)
+- `PREFECT_UI_API_URL`, `PREFECT_API_URL`
+- `ENVIRONMENT=prod`
 
-After the first production deploy, register deployments against the production Prefect API:
+After the first production deploy, SSH into the VPS and run one-time setup:
 
 ```bash
-export PREFECT_API_URL=https://prefect.yourdomain.com/api
-cd apps/pipelines
-make prefect-setup
+cd /path/to/unique-stocks/apps/pipelines
+PREFECT_API_URL=https://prefect.yourdomain.com/api \
+MOTHERDUCK_TOKEN=<token> \
+ENVIRONMENT=prod \
+make setup
 ```
+
+Re-run `make deploy` (not `make setup`) after changing deployment definitions — `setup` is only needed once per new environment.
