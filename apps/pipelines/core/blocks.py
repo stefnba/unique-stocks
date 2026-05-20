@@ -154,17 +154,38 @@ class BlockEntry(Generic[T]):
 
     
 
-def define_block(name: str, block: T, if_exists: ExistsMode = "skip") -> BlockEntry[T]:
-    """
-    Create a BlockEntry and immediately save it to the Prefect block registry.
+def define_block(name: str, block: T) -> BlockEntry[T]:
+    """Create a typed ``BlockEntry`` without saving to the Prefect registry.
 
-    if_exists:
-        "skip"      - do nothing if a block with this name already exists
-        "throw"     - raise if a block with this name already exists
-        "overwrite" - save and overwrite any existing block with this name
+    Call ``BlockRegistry.save_all()`` explicitly (or run ``config/blocks.py``
+    directly) to persist blocks to the Prefect server.
     """
-    entry = BlockEntry(name=name, block=block)
-    entry.save(if_exists=if_exists)
-    return entry
+    return BlockEntry(name=name, block=block)
+
+
+class BlockRegistryBase:
+    """Base class for Prefect block registries.
+
+    Subclass this in ``config/blocks.py`` and declare block entries as class
+    attributes using :func:`define_block`.  Call :meth:`save_all` once during
+    environment setup to persist all entries to the Prefect server.
+    """
+
+    @classmethod
+    def _entries(cls) -> list[BlockEntry]: 
+        """Return a list of all block entries in the registry."""
+        return [v for v in vars(cls).values() if isinstance(v, BlockEntry)]
+
+    @classmethod
+    def save_all(cls, if_exists: ExistsMode = "skip") -> None:
+        """Persist all block entries to the Prefect server (sync)."""
+        for entry in cls._entries():
+            entry.save(if_exists=if_exists)
+
+    @classmethod
+    async def save_all_async(cls, if_exists: ExistsMode = "skip") -> None:
+        """Persist all block entries to the Prefect server (async)."""
+        for entry in cls._entries():
+            await entry.save_async(if_exists=if_exists)
 
 
