@@ -64,7 +64,8 @@
             "**/__pycache__": true,
             "**/.venv": true,
             "**/.ruff_cache": true,
-            "**/.pytest_cache": true
+            "**/.pytest_cache": true,
+            "**/.uv-cache": true
         }
     }
 }
