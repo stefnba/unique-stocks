@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     )
 
     # AWS credentials (used only in config/blocks.py to bootstrap the S3_BUCKET block)
-    aws_access_key_id: str = ""
+    aws_access_key_id: str = Field(default="", description="Access key ID for AWS.")
     aws_secret_access_key: SecretStr = Field(default=SecretStr(""), description="Secret access key for AWS.")
 
     # Prefect

@@ -16,6 +16,14 @@ from config.settings import SETTINGS
 from core.blocks import BlockRegistryBase, define_block
 
 
+
+aws_credentials = AwsCredentials(
+    aws_access_key_id=SETTINGS.aws_access_key_id,
+    aws_secret_access_key=SETTINGS.aws_secret_access_key,
+    region_name="ap-southeast-2",
+)
+
+
 class BlockRegistry(BlockRegistryBase):
     """Central registry of all named Prefect blocks used by this app."""
 
@@ -23,17 +31,18 @@ class BlockRegistry(BlockRegistryBase):
         "eodhd-api-key",
         Secret(value=SETTINGS.eodhd_api_key),
     )
+
+    AWS_CREDENTIALS = define_block("aws-credentials", aws_credentials)
+
     S3_BUCKET = define_block(
         "s3-bucket",
         S3Bucket(
             bucket_name="unique-stocks-dev",
-            credentials=AwsCredentials(
-                aws_access_key_id=SETTINGS.aws_access_key_id,
-                aws_secret_access_key=SETTINGS.aws_secret_access_key,
-                region_name="ap-southeast-2",
-            ),
+            credentials=aws_credentials,
         ),
     )
+
+__all__ = ["BlockRegistry"]
 
 
 if __name__ == "__main__":
