@@ -12,7 +12,10 @@ from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
 from threading import Lock
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
+
+if TYPE_CHECKING:
+    from core.blocks import BlockEntry
 from urllib.parse import urlparse
 
 import boto3
@@ -20,6 +23,7 @@ import structlog
 from boto3.s3.transfer import TransferConfig
 from botocore.config import Config
 from botocore.exceptions import ClientError
+from prefect_aws.s3 import S3Bucket
 
 log = structlog.get_logger(__name__)
 
@@ -341,6 +345,49 @@ class S3StorageClient:
             return sorted(value)
         raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
 
+    @classmethod
+    def from_s3_bucket_block(
+        cls,
+        block: "S3Bucket",
+        **kwargs: Any,
+    ) -> "S3StorageClient":
+        """Build a client from a loaded ``S3Bucket`` Prefect block.
+
+        Credentials and bucket name are taken from the block so that tasks
+        never read AWS secrets directly from settings.
+        """
+        max_concurrency: int = kwargs.get("max_concurrency", 16)
+        session = block.credentials.get_boto3_session()
+        boto_client = session.client(
+            "s3",
+            config=Config(
+                max_pool_connections=max(10, max_concurrency * 4),
+                retries={"max_attempts": 10, "mode": "adaptive"},
+                tcp_keepalive=True,
+            ),
+        )
+        return cls(bucket=block.bucket_name, client=boto_client, **kwargs)
+
+    @classmethod
+    async def from_block_entry(
+        cls,
+        entry: "BlockEntry[S3Bucket]",
+        **kwargs: Any,
+    ) -> "S3StorageClient":
+        """Load an ``S3Bucket`` block entry and build a client from it.
+
+        Combines the ``BlockEntry.load_async`` and :meth:`from_s3_bucket_block`
+        steps so callers can go straight from a registry entry to a ready client::
+
+            s3 = await S3StorageClient.from_block_entry(BlockRegistry.S3_BUCKET)
+        """
+        if not isinstance(entry.block, S3Bucket):
+            raise TypeError(
+                f"Expected a BlockEntry[S3Bucket], got BlockEntry[{type(entry.block).__name__}]"
+            )
+        block = await entry.load_async()
+        return cls.from_s3_bucket_block(block, **kwargs)
+
     @staticmethod
     def _settings() -> Any:
         from config.settings import get_settings
@@ -350,7 +397,7 @@ class S3StorageClient:
 
 @lru_cache(maxsize=1)
 def get_s3_client() -> S3StorageClient:
-    """Return the process-wide S3 storage client."""
+    """Return the process-wide S3 storage client (local dev / tests only)."""
     return S3StorageClient()
 
 
