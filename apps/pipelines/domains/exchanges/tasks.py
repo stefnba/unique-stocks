@@ -27,7 +27,10 @@ async def fetch_supported_exchanges() -> list[SupportedExchanges]   :
 
 
 @task(name="write-bronze-exchanges")
-def write_to_landing_zone(exchanges: list[SupportedExchanges]):
-    """Write supported exchanges to the landing zone."""
-    
-    pass
+async def write_to_landing_zone(exchanges: list[SupportedExchanges]) -> str:
+    """Write supported exchanges to the S3 landing zone as JSONL."""
+    from core.clients.storage.s3 import S3StorageClient
+
+    s3 = await S3StorageClient.from_block_entry(BlockRegistry.S3_BUCKET)
+    ref = s3.save("landing/eodhd/exchanges/exchanges.jsonl", exchanges)
+    return ref.uri

@@ -7,7 +7,7 @@ from domains.exchanges.tasks import fetch_supported_exchanges, write_to_landing_
 @flow(name="exchanges-refresh", description="Ingest the list of supported stock exchanges from EODHD.")
 async def exchanges_flow():
     exchanges = await fetch_supported_exchanges()
-    write_to_landing_zone(exchanges)
+    await write_to_landing_zone(exchanges)
 
 
 
