@@ -21,6 +21,7 @@ apps/pipelines/
 ├── domains/            Domain models, parsers, tasks, and flows
 ├── core/               Shared infrastructure: scheduler, logging, lake, and storage clients
 ├── providers/          Provider-specific clients and raw response models
+├── docs/               Pipeline runbooks, including AWS/S3 setup
 ├── scripts/            SQL scripts (init_db.sql — DuckDB/MotherDuck schema setup)
 ├── tests/              Unit and integration tests
 ├── deploy/             Docker Compose files: base, dev override, prod override
@@ -32,7 +33,7 @@ apps/pipelines/
 
 Domain code is organized under `domains/<domain>/`. Add `models.py`, `parsers.py`, `tasks.py`, and `flows.py` as the domain needs them.
 
-`config/settings.py` holds all environment-variable-backed settings. `config/blocks.py` defines the Prefect block registry, which wires settings into named Prefect blocks at startup. Tasks and flows always load credentials from the block registry at runtime, not from settings directly.
+`config/settings.py` holds environment-variable-backed settings. `config/blocks.py` defines the Prefect block registry, which wires secrets plus non-secret infrastructure values into named Prefect blocks at startup. Tasks and flows always load credentials from the block registry at runtime, not from settings directly.
 
 ## Prerequisites
 
@@ -56,13 +57,17 @@ Set at least `EODHD_API_KEY` for live provider runs. Leave `MOTHERDUCK_TOKEN` bl
 | ----------------------- | ----------------- | -------------------------------------------------------- |
 | `EODHD_API_KEY`         | Yes for live runs | EODHD API key.                                           |
 | `MOTHERDUCK_TOKEN`      | No                | Blank uses local `unique_stocks.db`; set for MotherDuck. |
-| `S3_BUCKET`             | No                | S3 bucket for landing or archival storage.               |
 | `AWS_ACCESS_KEY_ID`     | No                | AWS access key when S3 is enabled.                       |
 | `AWS_SECRET_ACCESS_KEY` | No                | AWS secret key when S3 is enabled.                       |
-| `AWS_REGION`            | No                | AWS region, default `ap-southeast-2`.                    |
 | `PREFECT_API_URL`       | Yes               | Prefect API URL for workers and deploy commands.         |
 | `PREFECT_WORK_DIR`      | Yes               | `.` locally, `/app` in Docker.                           |
 | `ENVIRONMENT`           | No                | `dev` (default), `docker_dev`, or `prod`.                |
+
+## S3 landing zone
+
+S3 is the landing-zone target for raw provider payloads before they are parsed into typed Bronze records. Bucket names and regions are non-secret infrastructure configuration and are defined in `config/blocks.py` as Prefect blocks. AWS access keys are secrets and must stay in local `.env` files or the production deployment platform.
+
+You do not need to create the S3 bucket and IAM user manually in the AWS Console each time. The setup is scriptable with `scripts/setup_s3_landing_zone.py`, including bucket creation, encryption, ownership controls, public-access blocking, IAM policy creation, and optional access-key generation. See [docs/s3-landing-zone.md](docs/s3-landing-zone.md) for the runbook.
 
 ## Environments
 
