@@ -293,6 +293,8 @@ To enforce MFA via policy (prevents any action if MFA not used), attach this inl
 }
 ```
 
+Important: this MFA-deny policy also affects CLI/API calls made with the user's long-lived access key, because those requests do not carry MFA context. Use it for a human provisioner only if you are prepared to obtain MFA-backed session credentials with `aws sts get-session-token`, or prefer IAM Identity Center for the provisioner path. Do not attach this kind of MFA enforcement policy to non-human app users such as `unique-stocks-pipelines`.
+
 **4. Store credentials locally**
 
 ```bash
@@ -360,8 +362,6 @@ export AWS_PROFILE=provisioner  # set as default
 - [ ] If using access keys, rotate them regularly (every 90 days)
 - [ ] Enable CloudTrail to audit all API calls
 - [ ] Set a billing alert so unexpected activity is caught early
-
----
 
 ---
 
@@ -454,7 +454,7 @@ aws iam create-user --user-name my-app-s3-user
 
 **2. Create an inline policy (save as `my-app-s3-policy.json`)**
 
-This example allows the app to list, read, and write objects in `my-app-bucket` only — nothing else:
+This example allows the app to list, read, write, and delete objects in `my-app-bucket` only — nothing else. Omit `s3:DeleteObject` unless the app has a real cleanup or overwrite workflow that needs it.
 
 ```json
 {
