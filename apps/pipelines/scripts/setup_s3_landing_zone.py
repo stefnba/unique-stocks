@@ -57,6 +57,14 @@ class AccessKeySecret(BaseModel):
     status: str = Field(alias="Status")
 
 
+class BucketPolicyResponse(BaseModel):
+    """Typed subset of the S3 GetBucketPolicy response."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    policy: str = Field(alias="Policy")
+
+
 @dataclass(frozen=True, slots=True)
 class LandingZoneConfig:
     """Resolved provisioning configuration."""
@@ -199,24 +207,79 @@ def landing_policy(config: LandingZoneConfig) -> dict[str, Any]:
     }
 
 
+def tls_bucket_policy_statement(bucket_name: str) -> dict[str, Any]:
+    """Build a bucket policy statement that denies all non-TLS (HTTP) requests."""
+    return {
+        "Sid": TLS_POLICY_SID,
+        "Effect": "Deny",
+        "Principal": "*",
+        "Action": "s3:*",
+        "Resource": [
+            f"arn:aws:s3:::{bucket_name}",
+            f"arn:aws:s3:::{bucket_name}/*",
+        ],
+        "Condition": {"Bool": {"aws:SecureTransport": "false"}},
+    }
+
+
 def tls_bucket_policy(bucket_name: str) -> dict[str, Any]:
-    """Build a bucket policy that denies all non-TLS (HTTP) requests."""
+    """Build a bucket policy that only contains the non-TLS deny statement."""
     return {
         "Version": "2012-10-17",
-        "Statement": [
-            {
-                "Sid": "DenyNonTLS",
-                "Effect": "Deny",
-                "Principal": "*",
-                "Action": "s3:*",
-                "Resource": [
-                    f"arn:aws:s3:::{bucket_name}",
-                    f"arn:aws:s3:::{bucket_name}/*",
-                ],
-                "Condition": {"Bool": {"aws:SecureTransport": "false"}},
-            }
-        ],
+        "Statement": [tls_bucket_policy_statement(bucket_name)],
     }
+
+
+def bucket_policy_statements(policy: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Return bucket policy statements in list form."""
+    statements = policy.get("Statement", [])
+    if isinstance(statements, Mapping):
+        statements = [statements]
+    if not isinstance(statements, list):
+        raise ProvisioningError("Unexpected S3 bucket policy shape: Statement must be an object or list.")
+
+    normalized: list[dict[str, Any]] = []
+    for statement in statements:
+        if not isinstance(statement, Mapping):
+            raise ProvisioningError("Unexpected S3 bucket policy shape: every Statement item must be an object.")
+        normalized.append(dict(statement))
+    return normalized
+
+
+def get_bucket_policy(s3_client: Any, bucket_name: str) -> dict[str, Any] | None:
+    """Fetch the current bucket policy, if one exists."""
+    try:
+        response = s3_client.get_bucket_policy(Bucket=bucket_name)
+    except ClientError as exc:
+        error = exc.response.get("Error", {})
+        if error.get("Code") == "NoSuchBucketPolicy":
+            return None
+        raise
+
+    bucket_policy_response = BucketPolicyResponse.model_validate(selected(response, ["Policy"]))
+
+    try:
+        policy = json.loads(bucket_policy_response.policy)
+    except json.JSONDecodeError as exc:
+        raise ProvisioningError("Unexpected AWS response shape: S3 bucket policy was not valid JSON.") from exc
+
+    if not isinstance(policy, dict):
+        raise ProvisioningError("Unexpected S3 bucket policy shape: policy root must be an object.")
+    return policy
+
+
+def merge_tls_bucket_policy(existing_policy: Mapping[str, Any] | None, bucket_name: str) -> dict[str, Any]:
+    """Return a bucket policy with the non-TLS deny statement upserted."""
+    if existing_policy is None:
+        return tls_bucket_policy(bucket_name)
+
+    merged_policy = dict(existing_policy)
+    merged_policy["Version"] = existing_policy.get("Version", "2012-10-17")
+    merged_policy["Statement"] = [
+        statement for statement in bucket_policy_statements(existing_policy) if statement.get("Sid") != TLS_POLICY_SID
+    ]
+    merged_policy["Statement"].append(tls_bucket_policy_statement(bucket_name))
+    return merged_policy
 
 
 def bucket_exists(s3_client: Any, bucket_name: str) -> bool:
@@ -294,18 +357,17 @@ def apply_bucket_security(s3_client: Any, config: LandingZoneConfig) -> None:
 
 
 def apply_tls_bucket_policy(s3_client: Any, config: LandingZoneConfig) -> None:
-    """Enforce HTTPS-only access by attaching a Deny-non-TLS bucket policy."""
-    policy = tls_bucket_policy(config.bucket_name)
-
+    """Enforce HTTPS-only access by upserting a Deny-non-TLS bucket policy statement."""
     if config.dry_run:
-        planned(config, "put TLS-enforce bucket policy", policy)
+        planned(config, "upsert TLS-enforce bucket policy statement", tls_bucket_policy(config.bucket_name))
         return
 
+    policy = merge_tls_bucket_policy(get_bucket_policy(s3_client, config.bucket_name), config.bucket_name)
     s3_client.put_bucket_policy(
         Bucket=config.bucket_name,
         Policy=json.dumps(policy, separators=(",", ":")),
     )
-    emit("Applied TLS-enforce bucket policy.")
+    emit("Applied TLS-enforce bucket policy statement.")
 
 
 def iam_user_exists(iam_client: Any, user_name: str) -> bool:
