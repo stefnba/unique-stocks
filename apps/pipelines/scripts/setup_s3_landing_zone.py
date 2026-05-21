@@ -1,4 +1,40 @@
-"""Provision the AWS S3 landing zone used by the ingestion pipeline."""
+"""Provision the AWS S3 landing zone used by the ingestion pipeline.
+
+Run from ``apps/pipelines/``.  All commands below assume that working directory.
+
+Preview the provisioning plan without calling AWS::
+
+    uv run python scripts/setup_s3_landing_zone.py --profile provisioner --dry-run
+
+Create or update the bucket, security controls, IAM user, and inline policy::
+
+    uv run python scripts/setup_s3_landing_zone.py --profile provisioner
+
+Create an access key when ready to store it in the app's secret store::
+
+    uv run python scripts/setup_s3_landing_zone.py --profile provisioner --create-access-key
+
+Grant ``s3:DeleteObject`` only when a cleanup workflow explicitly requires it::
+
+    uv run python scripts/setup_s3_landing_zone.py --profile provisioner --allow-delete
+
+Target a different bucket, region, or IAM user (e.g. for the prod environment)::
+
+    uv run python scripts/setup_s3_landing_zone.py \\
+        --profile provisioner \\
+        --bucket unique-stocks-prod \\
+        --region eu-central-1 \\
+        --user unique-stocks-prod-pipelines
+
+The same targets are available through Make::
+
+    make s3-landing-zone ARGS="--profile provisioner --dry-run"
+
+After a successful run, store the returned ``AccessKeyId`` and ``SecretAccessKey``
+in ``.env`` or the production secret store, then persist the Prefect blocks::
+
+    make blocks-save
+"""
 
 import argparse
 import json
