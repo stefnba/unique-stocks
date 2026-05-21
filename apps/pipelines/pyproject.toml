@@ -67,7 +67,7 @@ quote-style = "double"
 indent-style = "space"
 
 [tool.basedpyright]
-include = ["domains", "core", "tests", "providers", "config"]
+include = ["domains", "core", "tests", "providers", "config", "scripts"]
 extraPaths = ["."]
 venvPath = "."
 venv = ".venv"

@@ -2,7 +2,7 @@
 .PHONY: help install test test-unit test-integration lint lint-fix format format-check typecheck check \
         prefect-server prefect-worker \
         docker-up docker-down docker-down-volumes docker-logs docker-logs-worker docker-ps \
-        db-init blocks-save setup \
+        db-init blocks-save setup s3-landing-zone \
         deploy deploy-dry
 
 # Load .env if it exists so PREFECT_API_URL etc. are available to Make targets
@@ -19,7 +19,7 @@ help: ## Show this help
 	@echo ""
 	@echo "  $(BOLD)unique-stocks / apps/pipelines$(RESET)"
 	@echo ""
-	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*?##/ { printf "  $(CYAN)%-22s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z0-9_-]+:.*?##/ { printf "  $(CYAN)%-22s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 	@echo ""
 
 # ── Dependencies ───────────────────────────────────────────────────────────
@@ -104,6 +104,9 @@ db-init: ## Initialise DuckDB/MotherDuck schemas from scripts/init_db.sql (idemp
 
 blocks-save: ## Register Prefect blocks on the server defined in config/blocks.py (idempotent)
 	uv run python -c "from config.blocks import BlockRegistry; BlockRegistry.save_all(if_exists='overwrite')"
+
+s3-landing-zone: ## Create/update AWS S3 landing-zone resources (pass ARGS="--dry-run")
+	uv run python scripts/setup_s3_landing_zone.py $(ARGS)
 
 setup: ## Full one-time setup: wait for server, init DB, save blocks, create pool, deploy
 	@echo "Waiting for Prefect server at $(PREFECT_API_URL)..."
