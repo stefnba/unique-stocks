@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import boto3
-from botocore.exceptions import ( 
+from botocore.exceptions import (
     BotoCoreError,
     ClientError,
     NoCredentialsError,
@@ -24,6 +24,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 DEFAULT_IAM_USER = "unique-stocks-pipelines"
 DEFAULT_POLICY_NAME = "unique-stocks-pipelines-s3-landing"
+TLS_POLICY_SID = "DenyNonTLS"
 
 
 class AwsCallerIdentity(BaseModel):
@@ -94,7 +95,7 @@ def bool_label(value: bool) -> str:
 
 def block_defaults() -> tuple[str, str]:
     """Load the default S3 bucket and AWS region from the Prefect block registry."""
-    from config.blocks import DEFAULT_BUCKET_NAME, DEFAULT_REGION  
+    from config.blocks import DEFAULT_BUCKET_NAME, DEFAULT_REGION
 
     return DEFAULT_BUCKET_NAME, DEFAULT_REGION
 

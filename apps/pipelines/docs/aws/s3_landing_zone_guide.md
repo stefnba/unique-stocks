@@ -98,7 +98,7 @@ By default, it imports the bucket and region from `config/blocks.py` and applies
 - S3 Object Ownership `BucketOwnerEnforced`, which disables ACLs.
 - Default server-side encryption with SSE-S3.
 - Bucket versioning.
-- A bucket policy that denies non-TLS requests.
+- A bucket policy statement that denies non-TLS requests.
 - Bucket-scoped IAM permissions for list, read, write, and multipart uploads.
 - No `s3:DeleteObject` permission unless `--allow-delete` is passed.
 
@@ -134,7 +134,7 @@ Prefer the Python script for ongoing use because it reads the project defaults d
 
 ## Dedicated Bucket Assumption
 
-Use a dedicated bucket for this app. The setup script writes the bucket policy used to deny non-TLS access, so do not run it against a shared bucket that already has custom bucket-policy statements unless you are comfortable replacing that policy or merging the statements manually.
+Use a dedicated bucket for this app. The setup script preserves existing bucket-policy statements while upserting the `DenyNonTLS` statement, but a shared bucket still increases the chance of policy, lifecycle, and retention coupling between apps.
 
 If AWS returns `AccessDenied` from `HeadBucket`, the bucket name may already exist in another account or be inaccessible to your provisioner. Choose a globally unique bucket name or verify ownership before continuing.
 
@@ -185,7 +185,7 @@ The same resources can be created manually in the AWS Console:
 - Create a dedicated S3 bucket in the region from `config/blocks.py`.
 - Block all public access.
 - Enforce bucket ownership, then enable default encryption and versioning.
-- Add a bucket policy that denies non-TLS requests.
+- Add a bucket policy statement that denies non-TLS requests.
 - Create an IAM user for the pipeline with no console access.
 - Attach an inline policy scoped to the bucket for list, read, write, and multipart uploads.
 - Create an access key and store it only in `.env` or production secrets.
