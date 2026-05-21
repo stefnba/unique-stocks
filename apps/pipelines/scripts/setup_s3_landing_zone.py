@@ -22,8 +22,6 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-DEFAULT_IAM_USER = "unique-stocks-pipelines"
-DEFAULT_POLICY_NAME = "unique-stocks-pipelines-s3-landing"
 TLS_POLICY_SID = "DenyNonTLS"
 
 
@@ -79,6 +77,16 @@ class LandingZoneConfig:
     dry_run: bool
 
 
+@dataclass(frozen=True, slots=True)
+class AwsResourceDefaults:
+    """Non-secret AWS resource defaults used by the provisioning script."""
+
+    bucket_name: str
+    region: str
+    iam_user: str
+    inline_policy_name: str
+
+
 class ProvisioningError(RuntimeError):
     """Raised when provisioning cannot safely continue."""
 
@@ -101,26 +109,40 @@ def bool_label(value: bool) -> str:
     return "true" if value else "false"
 
 
-def block_defaults() -> tuple[str, str]:
-    """Load the default S3 bucket and AWS region from the Prefect block registry."""
-    from config.blocks import DEFAULT_BUCKET_NAME, DEFAULT_REGION
+def aws_resource_defaults() -> AwsResourceDefaults:
+    """Load non-secret AWS resource defaults without importing Prefect block wiring."""
+    from config.aws_resources import (
+        DEFAULT_BUCKET_NAME,
+        DEFAULT_IAM_USER,
+        DEFAULT_INLINE_POLICY_NAME,
+        DEFAULT_REGION,
+    )
 
-    return DEFAULT_BUCKET_NAME, DEFAULT_REGION
+    return AwsResourceDefaults(
+        bucket_name=DEFAULT_BUCKET_NAME,
+        region=DEFAULT_REGION,
+        iam_user=DEFAULT_IAM_USER,
+        inline_policy_name=DEFAULT_INLINE_POLICY_NAME,
+    )
 
 
 def parse_args(argv: Sequence[str] | None = None) -> LandingZoneConfig:
     """Parse command-line arguments into a provisioning config."""
-    default_bucket_name, default_region = block_defaults()
+    defaults = aws_resource_defaults()
     parser = argparse.ArgumentParser(
         description="Set up the S3 landing-zone bucket and IAM user for the pipelines app.",
     )
-    parser.add_argument("--bucket", default=default_bucket_name, help=f"S3 bucket name. Default: {default_bucket_name}")
-    parser.add_argument("--region", default=default_region, help=f"AWS region. Default: {default_region}")
-    parser.add_argument("--user", default=DEFAULT_IAM_USER, help=f"IAM user name. Default: {DEFAULT_IAM_USER}")
+    parser.add_argument(
+        "--bucket",
+        default=defaults.bucket_name,
+        help=f"S3 bucket name. Default: {defaults.bucket_name}",
+    )
+    parser.add_argument("--region", default=defaults.region, help=f"AWS region. Default: {defaults.region}")
+    parser.add_argument("--user", default=defaults.iam_user, help=f"IAM user name. Default: {defaults.iam_user}")
     parser.add_argument(
         "--policy-name",
-        default=DEFAULT_POLICY_NAME,
-        help=f"Inline IAM policy name. Default: {DEFAULT_POLICY_NAME}",
+        default=defaults.inline_policy_name,
+        help=f"Inline IAM policy name. Default: {defaults.inline_policy_name}",
     )
     parser.add_argument("--profile", default=None, help="AWS profile name to use.")
     parser.add_argument(

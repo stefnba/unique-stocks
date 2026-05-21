@@ -12,12 +12,9 @@ Run via make to register (or overwrite) all blocks on the Prefect server::
 from prefect.blocks.system import Secret
 from prefect_aws import AwsCredentials, S3Bucket
 
+from config.aws_resources import DEFAULT_BUCKET_NAME, DEFAULT_REGION
 from config.settings import SETTINGS
 from core.blocks import BlockRegistryBase, define_block
-
-DEFAULT_REGION = "eu-central-1"
-DEFAULT_BUCKET_NAME = "unique-stocks-dev"
-
 
 aws_credentials = AwsCredentials(
     aws_access_key_id=SETTINGS.aws_access_key_id,

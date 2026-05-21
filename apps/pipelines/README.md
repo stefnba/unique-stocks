@@ -65,7 +65,7 @@ Set at least `EODHD_API_KEY` for live provider runs. Leave `MOTHERDUCK_TOKEN` bl
 
 ## S3 landing zone
 
-S3 is the landing-zone target for raw provider payloads before they are parsed into typed Bronze records. Bucket names and regions are non-secret infrastructure configuration and are defined in `config/blocks.py` as Prefect blocks. AWS access keys are secrets and must stay in local `.env` files or the production deployment platform.
+S3 is the landing-zone target for raw provider payloads before they are parsed into typed Bronze records. Bucket names and regions are non-secret infrastructure configuration and are defined in `config/aws_resources.py`, then wired into Prefect blocks by `config/blocks.py`. AWS access keys are secrets and must stay in local `.env` files or the production deployment platform.
 
 You do not need to create the S3 bucket and IAM user manually in the AWS Console each time. The setup is scriptable with `scripts/setup_s3_landing_zone.py`, including bucket creation, encryption, ownership controls, public-access blocking, IAM policy creation, and optional access-key generation. See [docs/aws/s3_landing_zone_guide.md](docs/aws/s3_landing_zone_guide.md) for the runbook, and [docs/aws/iam_guide.md](docs/aws/iam_guide.md) for AWS account and provisioner setup.
 
