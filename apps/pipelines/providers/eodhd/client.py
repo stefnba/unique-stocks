@@ -11,6 +11,7 @@ import httpx
 import structlog
 
 from core.clients.http.base import HttpClientBase
+from providers.registry import Provider
 
 from .models import EODBulkPriceRaw, SupportedExchanges
 
@@ -33,7 +34,7 @@ class _EodhdAuth(httpx.Auth):
 class EODHDClient(HttpClientBase):
     """HTTP client for the EODHD financial data API."""
 
-    PROVIDER = "eodhd"
+    PROVIDER = Provider.EODHD
     BASE_URL = "https://eodhd.com/api"
 
     def __init__(self, api_key: str, timeout: float = 30.0) -> None:

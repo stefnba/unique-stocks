@@ -3,6 +3,7 @@
 from prefect import task
 
 from config.blocks import BlockRegistry
+from core.clients.storage.s3 import S3Key
 from providers.eodhd.models import SupportedExchanges
 
 @task(
@@ -32,5 +33,6 @@ async def write_to_landing_zone(exchanges: list[SupportedExchanges]) -> str:
     from core.clients.storage.s3 import S3StorageClient
 
     s3 = await S3StorageClient.from_block_entry(BlockRegistry.S3_BUCKET)
-    ref = s3.save("landing/eodhd/exchanges/exchanges.jsonl", exchanges)
+    key = S3Key.snapshot(S3Key.Provider.EODHD, S3Key.Domain.EXCHANGES).jsonl()
+    ref = s3.save(key, exchanges)
     return ref.uri
