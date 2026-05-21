@@ -70,9 +70,13 @@ Create or update the bucket, bucket controls, IAM user, and inline policy:
 uv run python scripts/setup_s3_landing_zone.py --profile provisioner
 ```
 
-Create an access key only when you are ready to store it in the app's secret store:
+Access key creation is a separate, deliberate step. Run without `--create-access-key` first to provision the bucket and IAM user, verify the output, then re-run with the flag only when you are ready to immediately store the secret — AWS shows `SecretAccessKey` only once:
 
 ```bash
+# Step 1 — provision everything except the access key (idempotent, safe to re-run)
+uv run python scripts/setup_s3_landing_zone.py --profile provisioner
+
+# Step 2 — create the access key only when ready to store it
 uv run python scripts/setup_s3_landing_zone.py --profile provisioner --create-access-key
 ```
 
