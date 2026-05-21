@@ -5,9 +5,9 @@ Single-import ergonomics — enums are accessible via ``S3Key.Provider`` and
 
     from core.clients.storage.s3 import S3Key
 
-    # Snapshot — no partition (exchanges, securities)
+    # Snapshot — timestamped by UTC minute (exchanges, securities)
     S3Key.snapshot(S3Key.Provider.EODHD, S3Key.Domain.EXCHANGES).jsonl()
-    # → "landing/eodhd/exchanges/exchanges.jsonl"
+    # → "landing/eodhd/exchanges/ingested_at=2026-05-21T09-47Z/exchanges.jsonl"
 
     # Partitioned (eod_prices by exchange + date)
     S3Key.partitioned(S3Key.Provider.EODHD, S3Key.Domain.EOD_PRICES, exchange="US", bar_date=date(2026, 5, 21)).jsonl()
@@ -15,13 +15,11 @@ Single-import ergonomics — enums are accessible via ``S3Key.Provider`` and
 
     # Bronze layer
     S3Key.snapshot(S3Key.Provider.EODHD, S3Key.Domain.EXCHANGES, layer="bronze").jsonl()
-    # → "bronze/eodhd/exchanges/exchanges.jsonl"
+    # → "bronze/eodhd/exchanges/ingested_at=2026-05-21T09-47Z/exchanges.jsonl"
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime, timezone
 from enum import StrEnum
 from typing import ClassVar, Literal, Self
 
@@ -41,6 +39,12 @@ class Domain(StrEnum):
 # Aliases to avoid name shadowing inside the S3Key class body.
 _DomainCls = Domain
 _ProviderCls = _Provider
+
+
+def _utc_minute_stamp() -> str:
+    """Return current UTC datetime as a path-safe string, e.g. ``2026-05-21T09-47Z``."""
+    now = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+    return now.strftime("%Y-%m-%dT%H-%MZ")
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,10 +71,33 @@ class S3Key:
         provider: str,
         domain: _DomainCls,
         *,
+        ingested_at: datetime | date | str | None = None,
         layer: LandingLayer = "landing",
     ) -> Self:
-        """Full-replacement snapshot — no partition (e.g. exchanges, securities)."""
-        return cls(provider=provider, domain=domain, layer=layer)
+        """Full-replacement snapshot (e.g. exchanges, securities).
+
+        Always includes an ``ingested_at`` partition for audit trail and
+        idempotent re-runs. Defaults to the current UTC minute
+        (e.g. ``2026-05-21T09-47Z``). Pass an explicit value for backfills:
+
+        - ``datetime`` → formatted as ``YYYY-MM-DDTHH-MMZ``
+        - ``date`` → formatted as ``YYYY-MM-DD``
+        - ``str`` → used as-is
+        """
+        if ingested_at is None:
+            stamp = _utc_minute_stamp()
+        elif isinstance(ingested_at, datetime):
+            stamp = ingested_at.strftime("%Y-%m-%dT%H-%MZ")
+        elif isinstance(ingested_at, date):
+            stamp = ingested_at.isoformat()
+        else:
+            stamp = ingested_at
+        return cls(
+            provider=provider,
+            domain=domain,
+            partitions={"ingested_at": stamp},
+            layer=layer,
+        )
 
     @classmethod
     def partitioned(
@@ -91,10 +118,6 @@ class S3Key:
             for k, v in partition_kwargs.items()
         }
         return cls(provider=provider, domain=domain, partitions=partitions, layer=layer)
-
-    # ------------------------------------------------------------------
-    # Key construction
-    # ------------------------------------------------------------------
 
     def key(self, suffix: str) -> str:
         """Return the full S3 key with *suffix* as the file extension.
