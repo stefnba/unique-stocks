@@ -7,7 +7,7 @@ Single-import ergonomics — enums are accessible via ``S3Key.Provider`` and
 
     # Snapshot — timestamped by UTC minute (exchanges, securities)
     S3Key.snapshot(S3Key.Provider.EODHD, S3Key.Domain.EXCHANGES).jsonl()
-    # → "landing/eodhd/exchanges/ingested_at=2026-05-21T09-47Z/exchanges.jsonl"
+    # → "landing/eodhd/exchanges/ingested_at=2026-05-21T09-47-32Z/exchanges.jsonl"
 
     # Partitioned (eod_prices by exchange + date)
     S3Key.partitioned(S3Key.Provider.EODHD, S3Key.Domain.EOD_PRICES, exchange="US", bar_date=date(2026, 5, 21)).jsonl()
@@ -15,7 +15,7 @@ Single-import ergonomics — enums are accessible via ``S3Key.Provider`` and
 
     # Bronze layer
     S3Key.snapshot(S3Key.Provider.EODHD, S3Key.Domain.EXCHANGES, layer="bronze").jsonl()
-    # → "bronze/eodhd/exchanges/ingested_at=2026-05-21T09-47Z/exchanges.jsonl"
+    # → "bronze/eodhd/exchanges/ingested_at=2026-05-21T09-47-32Z/exchanges.jsonl"
 """
 
 from dataclasses import dataclass, field
@@ -41,10 +41,10 @@ _DomainCls = Domain
 _ProviderCls = _Provider
 
 
-def _utc_minute_stamp() -> str:
-    """Return current UTC datetime as a path-safe string, e.g. ``2026-05-21T09-47Z``."""
-    now = datetime.now(timezone.utc).replace(second=0, microsecond=0)
-    return now.strftime("%Y-%m-%dT%H-%MZ")
+def _utc_now_stamp() -> str:
+    """Return current UTC datetime as a path-safe string, e.g. ``2026-05-21T09-47-32Z``."""
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    return now.strftime("%Y-%m-%dT%H-%M-%SZ")
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,16 +78,16 @@ class S3Key:
 
         Always includes an ``ingested_at`` partition for audit trail and
         idempotent re-runs. Defaults to the current UTC minute
-        (e.g. ``2026-05-21T09-47Z``). Pass an explicit value for backfills:
+        (e.g. ``2026-05-21T09-47-32Z``). Pass an explicit value for backfills:
 
-        - ``datetime`` → formatted as ``YYYY-MM-DDTHH-MMZ``
+        - ``datetime`` → formatted as ``YYYY-MM-DDTHH-MM-SSZ``
         - ``date`` → formatted as ``YYYY-MM-DD``
         - ``str`` → used as-is
         """
         if ingested_at is None:
-            stamp = _utc_minute_stamp()
+            stamp = _utc_now_stamp()
         elif isinstance(ingested_at, datetime):
-            stamp = ingested_at.strftime("%Y-%m-%dT%H-%MZ")
+            stamp = ingested_at.strftime("%Y-%m-%dT%H-%M-%SZ")
         elif isinstance(ingested_at, date):
             stamp = ingested_at.isoformat()
         else:
