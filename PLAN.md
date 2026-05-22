@@ -58,6 +58,7 @@ These are the default decisions for v1.
 | Plain Parquet archive over Iceberg | v1 data is mostly append-oriented; Iceberg adds catalog and table-format complexity too early. |
 | EODHD first | One provider covers the first required domains and keeps integration complexity low. |
 | Prefect blocks as the runtime credential source | Tasks and flows load credentials from named Prefect blocks at runtime. This decouples secret values from the deployed codebase and allows updates in the Prefect UI without a redeploy. Environment variables seed the block registry at startup; the block registry is the single credential boundary that domain code crosses. |
+| Bronze reference data as daily snapshots | Reference domains (exchanges, securities) store one row per record per ingestion day, even when the underlying data has not changed. This makes Bronze a faithful audit log of what each pipeline run produced. Deduplication and change tracking (SCD2 or latest-only) are Silver responsibilities handled in dbt. |
 
 ## System shape
 
@@ -99,7 +100,7 @@ Bronze is the handoff point between Python ingestion and dbt. Python should not 
 | Domain | Data | Schedule | Status |
 | --- | --- | --- | --- |
 | `eod_prices` | Daily OHLCV bars | Weekdays after market close | Active first path. |
-| `exchanges` | Exchange reference list | Manual or monthly | Stubbed / planned. |
+| `exchanges` | Exchange reference list | Manual or monthly | Landing + Bronze ingestion complete. |
 | `securities` | Listed securities per exchange | Weekly | Stubbed / planned. |
 | `fundamentals` | Financial statements, ratios, dividends, splits | Quarterly or manual | Stubbed / planned. |
 
