@@ -7,7 +7,6 @@ from core.clients.storage.s3 import S3Key
 from providers.eodhd.models import SupportedExchanges
 
 @task(
-    name="fetch-supported-exchanges",
     retries=3,
     log_prints=True,
 )
@@ -27,7 +26,7 @@ async def fetch_supported_exchanges() -> list[SupportedExchanges]   :
 
 
 
-@task(name="write-bronze-exchanges")
+@task()
 async def write_to_landing_zone(exchanges: list[SupportedExchanges]) -> str:
     """Write supported exchanges to the S3 landing zone as JSONL."""
     from core.clients.storage.s3 import S3StorageClient
