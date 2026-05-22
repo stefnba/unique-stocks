@@ -13,7 +13,13 @@ import structlog
 from core.clients.http.base import HttpClientBase
 from providers.registry import Provider
 
-from .models import EODBulkPriceRaw, SupportedExchange
+from .models import (
+    EODBulkPriceRaw,
+    ExchangeDetailsCode,
+    ExchangeDetails,
+    ExchangeDetailsData,
+    SupportedExchange,
+)
 
 log = structlog.get_logger(__name__)
 
@@ -24,9 +30,7 @@ class _EodhdAuth(httpx.Auth):
     def __init__(self, api_key: str) -> None:
         self._api_key = api_key
 
-    def auth_flow(
-        self, request: httpx.Request
-    ) -> Generator[httpx.Request, httpx.Response]:
+    def auth_flow(self, request: httpx.Request) -> Generator[httpx.Request, httpx.Response]:
         request.url = request.url.copy_merge_params({"api_token": self._api_key})
         yield request
 
@@ -63,10 +67,31 @@ class EODHDClient(HttpClientBase):
         )
         return rows
 
-
     async def get_exchanges(self) -> list[SupportedExchange]:
         """Get all exchanges available via EODHD."""
         return await self._get_list(
             "/exchanges-list",
             model=SupportedExchange,
         )
+
+    async def get_exchange_details_v2(self, exchange_code: str) -> ExchangeDetailsData:
+        """Trading hours and holidays for one exchange (v2 endpoint).
+
+        Raises httpx.HTTPStatusError when the exchange is not supported by v2.
+        """
+        response = await self._get(
+            f"/v2/exchange-details/{exchange_code}",
+            model=ExchangeDetails,
+        )
+        return response.data
+
+    async def get_exchange_details_codes(self) -> list[str]:
+        """Exchange codes supported by the v2 trading-hours/holidays endpoint.
+
+        These codes differ from ``/exchanges-list`` (e.g. ``XETR`` vs ``XETRA``).
+        """
+        response = await self._get(
+            "/v2/exchange-details",
+            model=ExchangeDetailsCode,
+        )
+        return response.data
