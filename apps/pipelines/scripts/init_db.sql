@@ -32,11 +32,20 @@ CREATE TABLE IF NOT EXISTS bronze.securities (
 );
 
 CREATE TABLE IF NOT EXISTS bronze.exchanges (
-    ingestion_id UUID DEFAULT GEN_RANDOM_UUID(),
+    ingestion_id  UUID DEFAULT GEN_RANDOM_UUID(),
     snapshot_date DATE NOT NULL,
-    provider VARCHAR NOT NULL,
-    raw_json JSON NOT NULL,
-    ingested_at TIMESTAMPTZ DEFAULT NOW()
+    exchange_code VARCHAR NOT NULL,
+    name          VARCHAR NOT NULL,
+    operating_mic VARCHAR,
+    country       VARCHAR NOT NULL,
+    currency      VARCHAR NOT NULL,
+    country_iso2  VARCHAR NOT NULL,
+    country_iso3  VARCHAR NOT NULL,
+    provider      VARCHAR NOT NULL,
+    raw_json      JSON NOT NULL,
+    row_hash      VARCHAR NOT NULL,
+    ingested_at   TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (snapshot_date, exchange_code, provider)
 );
 
 CREATE TABLE IF NOT EXISTS bronze.fundamentals (

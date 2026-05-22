@@ -2,9 +2,45 @@
 
 import hashlib
 import json
-from typing import Any
+from typing import Any, ClassVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+
+
+class ProviderModel(BaseModel):
+    """Base class for all raw provider API response models.
+
+    Provides consistent Pydantic config and a ``to_bronze_record()`` method so
+    any provider model can be written directly to a bronze lake table without a
+    separate domain model or parser.
+
+    Subclasses must declare a ``provider`` class variable::
+
+        class MyModel(ProviderModel):
+            provider: ClassVar[str] = "my_provider"
+            some_field: str
+
+    Fields should use snake_case Python names with ``Field(alias=...)`` for
+    PascalCase or camelCase API keys. ``model_dump()`` then produces bronze
+    column names directly.
+    """
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    provider: ClassVar[str]
+
+    def to_bronze_record(self) -> dict[str, Any]:
+        """Serialise this provider response to a bronze lake row.
+
+        Returns a dict of all model fields (snake_case) plus the bronze
+        envelope columns: ``provider``, ``raw_json``, ``row_hash``.
+        Pipeline-time columns not in the API response (e.g. ``snapshot_date``)
+        should be merged in by the caller after this call.
+        """
+        payload = self.model_dump(mode="json")
+        raw_json = json.dumps(payload, sort_keys=True)
+        row_hash = hashlib.sha256(raw_json.encode()).hexdigest()
+        return {**payload, "provider": self.provider, "raw_json": raw_json, "row_hash": row_hash}
 
 
 class BronzeModel(BaseModel):

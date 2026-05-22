@@ -1,21 +1,21 @@
 """Models for the raw responses from the EODHD API."""
 
-from pydantic import BaseModel
+from typing import ClassVar
+
+from pydantic import Field
+
+from core.models import ProviderModel
+from providers.registry import Provider
+
+class EODHDProviderModel(ProviderModel):
+    """Base class for all EODHD provider models."""
+    provider = Provider.EODHD
 
 
-class EODBulkPriceRaw(BaseModel):
-    """One row from the EODHD bulk EOD endpoint.
-    
-    Attributes: 
-        code: Ticker symbol
-        date: Date of the price bar
-        open: Opening price
-        high: Highest price
-        low: Lowest price
-        close: Closing price
-        volume: Volume traded
-        adjusted_close: Adjusted closing price
-    """
+class EODBulkPriceRaw(EODHDProviderModel):
+    """One row from the EODHD bulk EOD endpoint."""
+
+
 
     code: str
     date: str
@@ -27,24 +27,17 @@ class EODBulkPriceRaw(BaseModel):
     adjusted_close: float | None = None
 
 
-class SupportedExchange(BaseModel):
-    """
-    Model representing a supported exchange by EODHD.
+class SupportedExchange(EODHDProviderModel):
+    """One exchange from the EODHD supported exchanges endpoint.
 
-    Attributes:
-        Name: Full name of the exchange
-        Code: Exchange code used in EODHD APIs
-        OperatingMIC: MIC codes for operating venues
-        Country: Country where the exchange operates
-        Currency: Default trading currency
-        CountryISO2: ISO2 country code
-        CountryISO3: ISO3 country code
+    Field names are snake_case (bronze column names); PascalCase aliases
+    match the raw API response keys.
     """
 
-    Name: str
-    Code: str
-    OperatingMIC: str | None 
-    Country: str
-    Currency: str
-    CountryISO2: str
-    CountryISO3: str
+    exchange_code: str = Field(alias="Code")
+    name: str = Field(alias="Name")
+    operating_mic: str | None = Field(alias="OperatingMIC", default=None)
+    country: str = Field(alias="Country")
+    currency: str = Field(alias="Currency")
+    country_iso2: str = Field(alias="CountryISO2")
+    country_iso3: str = Field(alias="CountryISO3")

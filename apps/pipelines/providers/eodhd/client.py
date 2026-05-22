@@ -64,9 +64,8 @@ class EODHDClient(HttpClientBase):
         return rows
 
 
-    async def get_exchanges(self):
+    async def get_exchanges(self) -> list[SupportedExchange]:
         """Get all exchanges available via EODHD."""
-
         return await self._get_list(
             "/exchanges-list",
             model=SupportedExchange,
