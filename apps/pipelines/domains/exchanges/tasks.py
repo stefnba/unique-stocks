@@ -1,4 +1,4 @@
-"""Prefect tasks for exchanges ingestion."""
+"""Prefect tasks for exchange catalog ingestion."""
 
 from datetime import date
 
@@ -12,10 +12,7 @@ from providers.eodhd.models import SupportedExchange
 log = structlog.get_logger(__name__)
 
 
-@task(
-    retries=3,
-    log_prints=True,
-)
+@task(retries=3, log_prints=True)
 async def fetch_supported_exchanges() -> list[SupportedExchange]:
     """Fetch and schema-validate the list of supported exchanges from EODHD."""
     from providers.eodhd.client import EODHDClient
