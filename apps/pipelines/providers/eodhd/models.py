@@ -1,14 +1,12 @@
 """Models for the raw responses from the EODHD API."""
 
-import hashlib
-import json
-from datetime import date
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from core.models import ProviderModel
 from providers.registry import Provider
+
 
 class EODHDProviderModel(ProviderModel):
     """Base class for all EODHD provider models."""
@@ -71,8 +69,8 @@ class ExchangeHolidayRaw(BaseModel):
     early_close_time: str | None = Field(alias="EarlyClose", default=None)
 
 
-class ExchangeDetailsData(EODHDProviderModel):
-    """Exchange trading hours and holidays from GET /v2/exchange-details/{code}."""
+class ExchangeSchedule(EODHDProviderModel):
+    """Exchange trading hours and holidays from the EODHD v2 exchange-details endpoint."""
 
     name: str = Field(alias="Name")
     exchange_code: str = Field(alias="Code")
@@ -84,12 +82,13 @@ class ExchangeDetailsData(EODHDProviderModel):
     )
 
 
+
 class ExchangeDetails(BaseModel):
     """Wrapper for the v2 exchange-details API response envelope."""
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
-    data: ExchangeDetailsData
+    data: ExchangeSchedule
     meta: list[Any] = Field(default_factory=list)
     links: list[Any] = Field(default_factory=list)
 

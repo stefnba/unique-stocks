@@ -48,6 +48,43 @@ CREATE TABLE IF NOT EXISTS bronze.exchanges (
     UNIQUE (snapshot_date, exchange_code, provider)
 );
 
+CREATE TABLE IF NOT EXISTS bronze.exchange_schedules (
+    ingestion_id       UUID DEFAULT GEN_RANDOM_UUID(),
+    snapshot_date      DATE NOT NULL,
+    exchange_code      VARCHAR NOT NULL,
+    name               VARCHAR NOT NULL,
+    timezone           VARCHAR NOT NULL,
+    session_open       VARCHAR NOT NULL,
+    session_close      VARCHAR NOT NULL,
+    working_days       VARCHAR NOT NULL,
+    pre_market_open    VARCHAR,
+    pre_market_close   VARCHAR,
+    after_hours_open   VARCHAR,
+    after_hours_close  VARCHAR,
+    lunch_break_start  VARCHAR,
+    lunch_break_end    VARCHAR,
+    provider           VARCHAR NOT NULL,
+    raw_json           JSON NOT NULL,
+    row_hash           VARCHAR NOT NULL,
+    ingested_at        TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (snapshot_date, exchange_code, provider)
+);
+
+CREATE TABLE IF NOT EXISTS bronze.exchange_holidays (
+    ingestion_id     UUID DEFAULT GEN_RANDOM_UUID(),
+    snapshot_date    DATE NOT NULL,
+    exchange_code    VARCHAR NOT NULL,
+    holiday_date     DATE NOT NULL,
+    holiday_name     VARCHAR NOT NULL,
+    holiday_type     VARCHAR NOT NULL,
+    early_close_time VARCHAR,
+    provider         VARCHAR NOT NULL,
+    raw_json         JSON NOT NULL,
+    row_hash         VARCHAR NOT NULL,
+    ingested_at      TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (snapshot_date, exchange_code, holiday_date, provider)
+);
+
 CREATE TABLE IF NOT EXISTS bronze.fundamentals (
     ingestion_id UUID DEFAULT GEN_RANDOM_UUID(),
     ticker VARCHAR NOT NULL,

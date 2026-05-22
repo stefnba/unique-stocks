@@ -15,9 +15,9 @@ from providers.registry import Provider
 
 from .models import (
     EODBulkPriceRaw,
-    ExchangeDetailsCode,
     ExchangeDetails,
-    ExchangeDetailsData,
+    ExchangeDetailsCode,
+    ExchangeSchedule,
     SupportedExchange,
 )
 
@@ -74,7 +74,7 @@ class EODHDClient(HttpClientBase):
             model=SupportedExchange,
         )
 
-    async def get_exchange_details_v2(self, exchange_code: str) -> ExchangeDetailsData:
+    async def get_exchange_details(self, exchange_code: str) -> ExchangeSchedule:
         """Trading hours and holidays for one exchange (v2 endpoint).
 
         Raises httpx.HTTPStatusError when the exchange is not supported by v2.

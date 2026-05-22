@@ -93,6 +93,22 @@ deployments:
       - stub
     <<: *stub
 
+  # ── Exchange schedules — manual / monthly refresh ───────────────────────────
+  - name: schedules-refresh
+    flow_name: exchange-schedules-refresh
+    description: >
+      Refresh trading hours and holidays for all exchanges supported by the
+      EODHD v2 exchange-details API (MIC-style codes, distinct from catalog codes).
+    entrypoint: domains.exchange_schedules.flows:exchange_schedules_flow
+    tags:
+      - exchanges
+      - schedules
+    parameters:
+      snapshot_date: null
+      exchange_codes: null
+    enforce_parameter_schema: true
+    work_pool: *default_pool
+
   # ── Securities — weekly refresh ───────────────────────────────────────────
   - name: weekly
     flow_name: securities-weekly

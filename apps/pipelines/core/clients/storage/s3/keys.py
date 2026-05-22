@@ -31,6 +31,7 @@ type LandingLayer = Literal["landing", "bronze"]
 
 class Domain(StrEnum):
     EXCHANGES = "exchanges"
+    EXCHANGE_SCHEDULES = "exchange_schedules"
     EOD_PRICES = "eod_prices"
     FUNDAMENTALS = "fundamentals"
     SECURITIES = "securities"
@@ -113,10 +114,7 @@ class S3Key:
         :class:`datetime.date` values are serialized to ISO-8601 automatically.
         Partition order in the key mirrors the order kwargs are passed.
         """
-        partitions = {
-            k: v.isoformat() if isinstance(v, date) else str(v)
-            for k, v in partition_kwargs.items()
-        }
+        partitions = {k: v.isoformat() if isinstance(v, date) else str(v) for k, v in partition_kwargs.items()}
         return cls(provider=provider, domain=domain, partitions=partitions, layer=layer)
 
     def key(self, suffix: str) -> str:
