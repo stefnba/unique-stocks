@@ -4,13 +4,13 @@ from prefect import task
 
 from config.blocks import BlockRegistry
 from core.clients.storage.s3 import S3Key
-from providers.eodhd.models import SupportedExchanges
+from providers.eodhd.models import SupportedExchange
 
 @task(
     retries=3,
     log_prints=True,
 )
-async def fetch_supported_exchanges() -> list[SupportedExchanges]   :
+async def fetch_supported_exchanges() -> list[SupportedExchange]   :
     """Fetch and schema-validate raw EOD price rows for an entire exchange.
 
     Uses the EODHD bulk endpoint (one API call per exchange).
@@ -27,7 +27,7 @@ async def fetch_supported_exchanges() -> list[SupportedExchanges]   :
 
 
 @task()
-async def write_to_landing_zone(exchanges: list[SupportedExchanges]) -> str:
+async def write_to_landing_zone(exchanges: list[SupportedExchange]) -> str:
     """Write supported exchanges to the S3 landing zone as JSONL."""
     from core.clients.storage.s3 import S3StorageClient
 

@@ -13,7 +13,7 @@ import structlog
 from core.clients.http.base import HttpClientBase
 from providers.registry import Provider
 
-from .models import EODBulkPriceRaw, SupportedExchanges
+from .models import EODBulkPriceRaw, SupportedExchange
 
 log = structlog.get_logger(__name__)
 
@@ -69,5 +69,5 @@ class EODHDClient(HttpClientBase):
 
         return await self._get_list(
             "/exchanges-list",
-            model=SupportedExchanges,
+            model=SupportedExchange,
         )
