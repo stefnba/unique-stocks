@@ -83,6 +83,25 @@ class ExchangeSchedule(EODHDProviderModel):
 
 
 
+class Instrument(EODHDProviderModel):
+    """One instrument from the EODHD exchange-symbol-list endpoint.
+
+    Covers all asset classes: equities, ETFs, forex pairs, cryptocurrencies,
+    bonds, and funds. ``exchange`` is the sub-exchange from the API response
+    (e.g. NYSE, NASDAQ). The API call code used to fetch this instrument
+    (e.g. "US", "FOREX", "CC") is added separately at the task layer as
+    ``exchange_code``.
+    """
+
+    ticker: str = Field(alias="Code")
+    name: str = Field(alias="Name")
+    country: str | None = Field(alias="Country", default=None)
+    exchange: str = Field(alias="Exchange")
+    currency: str | None = Field(alias="Currency", default=None)
+    asset_type: str | None = Field(alias="Type", default=None)
+    isin: str | None = Field(alias="Isin", default=None)
+
+
 class ExchangeDetails(BaseModel):
     """Wrapper for the v2 exchange-details API response envelope."""
 

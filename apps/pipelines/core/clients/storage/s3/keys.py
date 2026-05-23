@@ -34,7 +34,7 @@ class Domain(StrEnum):
     EXCHANGE_SCHEDULES = "exchange_schedules"
     EOD_PRICES = "eod_prices"
     FUNDAMENTALS = "fundamentals"
-    SECURITIES = "securities"
+    INSTRUMENTS = "instruments"
 
 
 # Aliases to avoid name shadowing inside the S3Key class body.

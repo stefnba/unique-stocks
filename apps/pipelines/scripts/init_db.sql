@@ -22,14 +22,6 @@ CREATE TABLE IF NOT EXISTS bronze.eod_prices (
     row_hash VARCHAR NOT NULL   -- SHA-256 of canonical payload
 );
 
-CREATE TABLE IF NOT EXISTS bronze.securities (
-    ingestion_id UUID DEFAULT GEN_RANDOM_UUID(),
-    exchange VARCHAR NOT NULL,
-    snapshot_date DATE NOT NULL,
-    provider VARCHAR NOT NULL,
-    raw_json JSON NOT NULL,
-    ingested_at TIMESTAMPTZ DEFAULT NOW()
-);
 
 CREATE TABLE IF NOT EXISTS bronze.exchanges (
     ingestion_id  UUID DEFAULT GEN_RANDOM_UUID(),
@@ -83,6 +75,24 @@ CREATE TABLE IF NOT EXISTS bronze.exchange_holidays (
     row_hash         VARCHAR NOT NULL,
     ingested_at      TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (snapshot_date, exchange_code, holiday_date, provider)
+);
+
+CREATE TABLE IF NOT EXISTS bronze.instruments (
+    ingestion_id  UUID DEFAULT GEN_RANDOM_UUID(),
+    snapshot_date DATE NOT NULL,
+    exchange_code VARCHAR NOT NULL,   -- API call code (e.g. 'US', 'LSE', 'FOREX', 'CC')
+    ticker        VARCHAR NOT NULL,
+    name          VARCHAR NOT NULL,
+    country       VARCHAR,
+    exchange      VARCHAR NOT NULL,   -- sub-exchange from response (e.g. 'NYSE', 'NASDAQ')
+    currency      VARCHAR,
+    asset_type    VARCHAR,            -- e.g. 'Common Stock', 'ETF', 'Currency', 'Cryptocurrency'
+    isin          VARCHAR,
+    provider      VARCHAR NOT NULL,
+    raw_json      JSON NOT NULL,
+    row_hash      VARCHAR NOT NULL,
+    ingested_at   TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (snapshot_date, exchange_code, ticker, provider)
 );
 
 CREATE TABLE IF NOT EXISTS bronze.fundamentals (

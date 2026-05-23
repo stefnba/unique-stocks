@@ -18,6 +18,7 @@ from .models import (
     ExchangeDetails,
     ExchangeDetailsCode,
     ExchangeSchedule,
+    Instrument,
     SupportedExchange,
 )
 
@@ -84,6 +85,28 @@ class EODHDClient(HttpClientBase):
             model=ExchangeDetails,
         )
         return response.data
+
+    async def get_instruments(
+        self,
+        exchange_code: str,
+        asset_type: str | None = None,
+    ) -> list[Instrument]:
+        """All active instruments for one exchange (GET /exchange-symbol-list/{code}).
+
+        Covers equities, ETFs, forex pairs, crypto, bonds, and funds depending
+        on the exchange code. ``asset_type`` filters by instrument type;
+        supported values: common_stock, preferred_stock, stock, etf, fund.
+        For US equities pass exchange_code="US" — it covers NYSE, NASDAQ,
+        NYSE ARCA, and OTC in a single call.
+        """
+        params: dict[str, str] = {}
+        if asset_type:
+            params["type"] = asset_type
+        return await self._get_list(
+            f"/exchange-symbol-list/{exchange_code}",
+            model=Instrument,
+            params=params,
+        )
 
     async def get_exchange_details_codes(self) -> list[str]:
         """Exchange codes supported by the v2 trading-hours/holidays endpoint. Run this before calling `get_exchange_details`.
