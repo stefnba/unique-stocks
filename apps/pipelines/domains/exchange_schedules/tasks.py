@@ -33,7 +33,7 @@ async def fetch_schedule_exchange_codes() -> list[str]:
     return codes
 
 
-@task(name="fetch-exchange-details")
+@task(name="fetch-exchange-details", retries=3, retry_delay_seconds=10)
 async def fetch_exchange_details(exchange_code: str) -> ExchangeSchedule | None:
     """Fetch v2 trading hours and holidays for one exchange.
 

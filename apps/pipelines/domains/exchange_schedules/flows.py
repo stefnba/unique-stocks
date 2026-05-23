@@ -1,5 +1,6 @@
 """Exchange schedules and holidays ingestion flow."""
 
+import asyncio
 from datetime import date
 
 import structlog
@@ -34,22 +35,38 @@ async def exchange_schedules_flow(
         "exchanges": {},
         "unsupported": [],
         "skipped": [],
+        "failed": [],
     }
 
-    for exchange_code in codes:
-        if schedule_already_ingested(exchange_code, snapshot_date):
-            summary["skipped"].append(exchange_code)
-            continue
+    # Pre-filter exchanges already in bronze for this snapshot.
+    pending = []
+    for code in codes:
+        if schedule_already_ingested(code, snapshot_date):
+            summary["skipped"].append(code)
+        else:
+            pending.append(code)
 
-        details = await fetch_exchange_details(exchange_code)
+    # Fetch all exchanges concurrently — HTTP is the bottleneck (~0.75 s each).
+    # return_exceptions=True prevents one 5xx from cancelling all other tasks.
+    results = await asyncio.gather(
+        *[fetch_exchange_details(code) for code in pending],
+        return_exceptions=True,
+    )
+
+    # Write results sequentially to avoid concurrent DuckDB write conflicts.
+    for code, details in zip(pending, results):
+        if isinstance(details, BaseException):
+            log.error("schedules.fetch_error", exchange=code, error=str(details))
+            summary["failed"].append(code)
+            continue
         if details is None:
-            summary["unsupported"].append(exchange_code)
+            summary["unsupported"].append(code)
             continue
 
-        await write_schedule_to_landing_zone(details, exchange_code)
+        await write_schedule_to_landing_zone(details, code)
         schedule_rows = write_bronze_exchange_schedule(details, snapshot_date)
         holiday_rows = write_bronze_exchange_holidays(details, snapshot_date)
-        summary["exchanges"][exchange_code] = {
+        summary["exchanges"][code] = {
             "schedule_rows": schedule_rows,
             "holiday_rows": holiday_rows,
         }
@@ -60,6 +77,7 @@ async def exchange_schedules_flow(
         ingested=len(summary["exchanges"]),
         unsupported=len(summary["unsupported"]),
         skipped=len(summary["skipped"]),
+        failed=len(summary["failed"]),
     )
     return summary
 
