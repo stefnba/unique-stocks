@@ -86,7 +86,7 @@ class EODHDClient(HttpClientBase):
         return response.data
 
     async def get_exchange_details_codes(self) -> list[str]:
-        """Exchange codes supported by the v2 trading-hours/holidays endpoint.
+        """Exchange codes supported by the v2 trading-hours/holidays endpoint. Run this before calling `get_exchange_details`.
 
         These codes differ from ``/exchanges-list`` (e.g. ``XETR`` vs ``XETRA``).
         """
