@@ -2,7 +2,7 @@
 .PHONY: help install test test-unit test-integration lint lint-fix format format-check typecheck check \
         prefect-server prefect-worker \
         docker-up docker-down docker-down-volumes docker-logs docker-logs-worker docker-ps \
-        lake-init db-init blocks-save setup s3-landing-zone \
+        lake-init lake-render-sql db-init blocks-save setup s3-landing-zone \
         deploy deploy-dry \
         dbt-install dbt-debug dbt-compile dbt-run dbt-test dbt-build dbt-clean dbt-run-staging dbt-run-marts \
         lake-ui
@@ -115,7 +115,9 @@ lake-init: ## Initialise DuckDB/MotherDuck lake schemas (idempotent)
 		LOCAL_LAKE_PATH="$(LOCAL_LAKE_PATH)" LAKE_INIT_SQL="$(LAKE_INIT_SQL)" uv run python -c "import os, duckdb; conn = duckdb.connect(os.environ['LOCAL_LAKE_PATH']); conn.execute(open(os.environ['LAKE_INIT_SQL']).read())"; \
 	fi
 
-db-init: lake-init ## Alias for lake-init
+lake-render-sql: ## Regenerate scripts/init_lake.sql from Python table specs
+	uv run python scripts/render_init_lake_sql.py > scripts/init_lake.sql
+
 
 blocks-save: ## Register Prefect blocks on the server defined in config/blocks.py (idempotent)
 	uv run python -c "from config.blocks import BlockRegistry; BlockRegistry.save_all(if_exists='overwrite')"
