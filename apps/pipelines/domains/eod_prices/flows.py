@@ -13,6 +13,7 @@ from datetime import date
 
 import structlog
 from prefect import flow
+from pydantic import ValidationError
 
 from core.clients.lake import DataLakeClient, get_lake_client
 from core.scheduler import last_completed_trading_day
@@ -76,6 +77,11 @@ async def eod_prices_flow(
                 summary["exchanges"][exchange] = {"rows_written": written}
                 total_written += written
 
+            except ValidationError:
+                # Schema drift from provider — re-raise immediately.
+                # All exchanges will fail the same way; no point continuing.
+                _record_run_failed(lake, run_id, f"ValidationError on exchange {exchange}")
+                raise
             except Exception as exc:
                 log.error("prices.exchange_failed", exchange=exchange, error=str(exc))
                 summary["failed"].append(exchange)

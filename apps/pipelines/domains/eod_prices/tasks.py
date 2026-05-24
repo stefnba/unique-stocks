@@ -8,7 +8,9 @@ from datetime import UTC, date, datetime
 
 import structlog
 from prefect import task
+from prefect.client.schemas.objects import State, TaskRun
 from prefect.tasks import exponential_backoff
+from pydantic import ValidationError
 
 from config.blocks import BlockRegistry
 from core.clients.storage.s3 import S3Key
@@ -44,10 +46,17 @@ async def fetch_eod_exchange_codes() -> list[str]:
     return codes
 
 
+def _is_retryable(task: object, task_run: TaskRun, state: State) -> bool:
+    """Retry transient errors only — never retry schema validation failures."""
+    exc = state.result(raise_on_failure=False)
+    return not isinstance(exc, ValidationError)
+
+
 @task(
     name="fetch-eod-prices-bulk",
     retries=3,
     retry_delay_seconds=exponential_backoff(10),
+    retry_condition_fn=_is_retryable,
     log_prints=True,
 )
 async def fetch_eod_prices_bulk(exchange: str, bar_date: date) -> list[EODBulkPriceRaw]:
