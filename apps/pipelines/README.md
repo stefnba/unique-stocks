@@ -138,11 +138,10 @@ Prefect UI runs at <http://localhost:4200>.
 
 ```bash
 cd apps/pipelines
-make lake-init                              # local DuckDB
-MOTHERDUCK_TOKEN=<token> make lake-init     # MotherDuck
+make lake-init                              # local DuckDB, or MotherDuck when MOTHERDUCK_TOKEN is set
 ```
 
-The SQL script (`scripts/init_lake.sql`) is idempotent — safe to re-run.
+The SQL script (`scripts/init_lake.sql`) is idempotent — safe to re-run. For MotherDuck organization, token, CLI, and security setup, see [docs/motherduck_setup_guide.md](docs/motherduck_setup_guide.md).
 
 ## dbt transformations
 
@@ -230,9 +229,10 @@ After the first production deploy, SSH into the VPS and run one-time setup:
 ```bash
 cd /path/to/unique-stocks/apps/pipelines
 PREFECT_API_URL=https://prefect.yourdomain.com/api \
-MOTHERDUCK_TOKEN=<token> \
 ENVIRONMENT=prod \
 make setup
 ```
+
+This assumes `MOTHERDUCK_TOKEN` is already present in the deployment environment.
 
 Re-run `make deploy` (not `make setup`) after changing deployment definitions — `setup` is only needed once per new environment.
