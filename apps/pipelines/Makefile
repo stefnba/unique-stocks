@@ -2,12 +2,15 @@
 .PHONY: help install test test-unit test-integration lint lint-fix format format-check typecheck check \
         prefect-server prefect-worker \
         docker-up docker-down docker-down-volumes docker-logs docker-logs-worker docker-ps \
-        db-init blocks-save setup s3-landing-zone \
+        lake-init db-init blocks-save setup s3-landing-zone \
         deploy deploy-dry
 
 # Load .env if it exists so PREFECT_API_URL etc. are available to Make targets
 -include .env
 export
+
+LOCAL_LAKE_PATH ?= unique_stocks.duckdb
+LAKE_INIT_SQL := scripts/init_lake.sql
 
 # ── Colours ────────────────────────────────────────────────────────────────
 BOLD  := \033[1m
@@ -93,14 +96,16 @@ docker-ps: ## Show docker-dev service status
 #             make setup           (terminal 2)
 # docker-dev: make docker-up, then make setup
 # prod:       PREFECT_API_URL=... MOTHERDUCK_TOKEN=... make setup
-db-init: ## Initialise DuckDB/MotherDuck schemas from scripts/init_db.sql (idempotent)
+lake-init: ## Initialise DuckDB/MotherDuck lake schemas (idempotent)
 	@if [ -n "$(MOTHERDUCK_TOKEN)" ]; then \
 		echo "Initialising MotherDuck (md:unique_stocks)..."; \
-		uv run python -c "import duckdb; conn = duckdb.connect('md:unique_stocks'); conn.execute(open('scripts/init_db.sql').read())"; \
+		LAKE_INIT_SQL="$(LAKE_INIT_SQL)" uv run python -c "import os, duckdb; conn = duckdb.connect('md:unique_stocks'); conn.execute(open(os.environ['LAKE_INIT_SQL']).read())"; \
 	else \
-		echo "Initialising local DuckDB (unique_stocks.db)..."; \
-		uv run python -c "import duckdb; conn = duckdb.connect('unique_stocks.db'); conn.execute(open('scripts/init_db.sql').read())"; \
+		echo "Initialising local DuckDB lake ($(LOCAL_LAKE_PATH))..."; \
+		LOCAL_LAKE_PATH="$(LOCAL_LAKE_PATH)" LAKE_INIT_SQL="$(LAKE_INIT_SQL)" uv run python -c "import os, duckdb; conn = duckdb.connect(os.environ['LOCAL_LAKE_PATH']); conn.execute(open(os.environ['LAKE_INIT_SQL']).read())"; \
 	fi
+
+db-init: lake-init ## Alias for lake-init
 
 blocks-save: ## Register Prefect blocks on the server defined in config/blocks.py (idempotent)
 	uv run python -c "from config.blocks import BlockRegistry; BlockRegistry.save_all(if_exists='overwrite')"
@@ -108,12 +113,12 @@ blocks-save: ## Register Prefect blocks on the server defined in config/blocks.p
 s3-landing-zone: ## Create/update AWS S3 landing-zone resources (pass ARGS="--dry-run")
 	uv run python scripts/setup_s3_landing_zone.py $(ARGS)
 
-setup: ## Full one-time setup: wait for server, init DB, save blocks, create pool, deploy
+setup: ## Full one-time setup: wait for server, init lake, save blocks, create pool, deploy
 	@echo "Waiting for Prefect server at $(PREFECT_API_URL)..."
 	@until curl -sf "$(PREFECT_API_URL)/health" > /dev/null 2>&1; do \
 		printf "."; sleep 2; \
 	done; echo " ready."
-	$(MAKE) db-init
+	$(MAKE) lake-init
 	$(MAKE) blocks-save
 	uv run prefect work-pool create default-process-pool --type process --overwrite
 	uv run prefect --no-prompt deploy --all

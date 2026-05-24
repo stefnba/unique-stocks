@@ -1,7 +1,7 @@
 -- Initialise unique_stocks schemas and tables.
 -- Safe to run multiple times (all statements are idempotent).
--- Run against local DuckDB:  duckdb unique_stocks.db < apps/pipelines/scripts/init_db.sql
--- Run against MotherDuck:    MOTHERDUCK_TOKEN=... duckdb md:unique_stocks < apps/pipelines/scripts/init_db.sql
+-- Run against local DuckDB:  duckdb "$LOCAL_LAKE_PATH" < apps/pipelines/scripts/init_lake.sql
+-- Run against MotherDuck:    MOTHERDUCK_TOKEN=... duckdb md:unique_stocks < apps/pipelines/scripts/init_lake.sql
 
 CREATE SCHEMA IF NOT EXISTS bronze;
 CREATE SCHEMA IF NOT EXISTS silver;

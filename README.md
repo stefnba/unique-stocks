@@ -61,7 +61,7 @@ For the active pipelines app (docker-dev):
 cp apps/pipelines/.env.example apps/pipelines/.env
 # edit .env: set ENVIRONMENT=docker_dev and provider keys
 make infra-up          # start Prefect server, Postgres, and worker
-make pipelines-setup   # init DB, save blocks, create work pool, register deployments
+make pipelines-setup   # init lake, save blocks, create work pool, register deployments
 ```
 
 Prefect UI runs at <http://localhost:4200>.
@@ -72,7 +72,7 @@ For local Python development without Docker:
 cd apps/pipelines
 uv sync
 make prefect-server   # terminal 1
-make setup            # terminal 2 — init DB, save blocks, create pool, deploy
+make setup            # terminal 2 — init lake, save blocks, create pool, deploy
 make prefect-worker   # terminal 2 — start the worker
 ```
 

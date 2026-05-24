@@ -22,7 +22,7 @@ apps/pipelines/
 ├── core/               Shared infrastructure: scheduler, logging, lake, and storage clients
 ├── providers/          Provider-specific clients and raw response models
 ├── docs/               Pipeline runbooks, including AWS/S3 setup
-├── scripts/            SQL scripts (init_db.sql — DuckDB/MotherDuck schema setup)
+├── scripts/            SQL scripts (init_lake.sql — DuckDB/MotherDuck lake setup)
 ├── tests/              Unit and integration tests
 ├── deploy/             Docker Compose files: base, dev override, prod override
 ├── prefect.yaml        Prefect deployment definitions
@@ -56,7 +56,8 @@ Set at least `EODHD_API_KEY` for live provider runs. Leave `MOTHERDUCK_TOKEN` bl
 | Variable                | Required          | Description                                              |
 | ----------------------- | ----------------- | -------------------------------------------------------- |
 | `EODHD_API_KEY`         | Yes for live runs | EODHD API key.                                           |
-| `MOTHERDUCK_TOKEN`      | No                | Blank uses local `unique_stocks.db`; set for MotherDuck. |
+| `MOTHERDUCK_TOKEN`      | No                | Blank uses local DuckDB; set for MotherDuck.             |
+| `LOCAL_LAKE_PATH`       | No                | Local DuckDB file path when `MOTHERDUCK_TOKEN` is blank. |
 | `AWS_ACCESS_KEY_ID`     | No                | AWS access key when S3 is enabled.                       |
 | `AWS_SECRET_ACCESS_KEY` | No                | AWS secret key when S3 is enabled.                       |
 | `PREFECT_API_URL`       | Yes               | Prefect API URL for workers and deploy commands.         |
@@ -71,11 +72,11 @@ You do not need to create the S3 bucket and IAM user manually in the AWS Console
 
 ## Environments
 
-| Environment     | `ENVIRONMENT` value | Prefect backend    | Database                 | When to use                                        |
-| --------------- | ------------------- | ------------------ | ------------------------ | -------------------------------------------------- |
-| dev (no Docker) | `dev`               | SQLite, in-process | Local `unique_stocks.db` | Fast Python iteration, no containers needed        |
-| docker-dev      | `docker_dev`        | Postgres in Docker | Local `unique_stocks.db` | Full stack validation, mirrors production topology |
-| prod            | `prod`              | Postgres on VPS    | MotherDuck               | Live production deployment                         |
+| Environment     | `ENVIRONMENT` value | Prefect backend    | Lake backend        | When to use                                        |
+| --------------- | ------------------- | ------------------ | ------------------- | -------------------------------------------------- |
+| dev (no Docker) | `dev`               | SQLite, in-process | `LOCAL_LAKE_PATH`   | Fast Python iteration, no containers needed        |
+| docker-dev      | `docker_dev`        | Postgres in Docker | `LOCAL_LAKE_PATH`   | Full stack validation, mirrors production topology |
+| prod            | `prod`              | Postgres on VPS    | MotherDuck          | Live production deployment                         |
 
 All three environments use the same `make setup` command — env vars drive which backend is targeted.
 
@@ -93,7 +94,7 @@ In a second terminal:
 
 ```bash
 cd apps/pipelines
-make setup                 # init DB, save blocks, create work pool, register deployments
+make setup                 # init lake, save blocks, create work pool, register deployments
 make prefect-worker        # start the worker
 ```
 
@@ -114,7 +115,7 @@ Set `ENVIRONMENT=docker_dev` in `.env`, then from `apps/pipelines/`:
 cp .env.example .env
 # edit .env: set ENVIRONMENT=docker_dev and any provider keys
 make docker-up             # start Prefect server, Postgres, and pipelines worker
-make setup                 # init DB, save blocks, create work pool, register deployments
+make setup                 # init lake, save blocks, create work pool, register deployments
 ```
 
 Useful commands:
@@ -128,17 +129,17 @@ make docker-down-volumes   # ⚠ also deletes the Postgres volume
 
 Prefect UI runs at <http://localhost:4200>.
 
-## Database initialization
+## Lake initialization
 
 `make setup` handles this automatically. To run it standalone:
 
 ```bash
 cd apps/pipelines
-make db-init                              # local DuckDB
-MOTHERDUCK_TOKEN=<token> make db-init     # MotherDuck
+make lake-init                              # local DuckDB
+MOTHERDUCK_TOKEN=<token> make lake-init     # MotherDuck
 ```
 
-The SQL script (`scripts/init_db.sql`) is idempotent — safe to re-run.
+The SQL script (`scripts/init_lake.sql`) is idempotent — safe to re-run.
 
 ## Quality checks
 

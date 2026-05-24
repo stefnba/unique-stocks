@@ -22,7 +22,11 @@ class Settings(BaseSettings):
     eodhd_api_key: SecretStr = Field(default=SecretStr(""), description="API key for EODHD.")
     motherduck_token: SecretStr = Field(
         default=SecretStr(""),
-        description="MotherDuck token. When blank, lake.py falls back to local DuckDB file (unique_stocks.db).",
+        description="MotherDuck token. When blank, lake.py falls back to the local DuckDB file.",
+    )
+    local_lake_path: str = Field(
+        default="unique_stocks.duckdb",
+        description="Local DuckDB file path used when MOTHERDUCK_TOKEN is blank.",
     )
 
     # AWS credentials (used only in config/blocks.py to bootstrap the S3_BUCKET block)

@@ -56,7 +56,7 @@ pipelines-typecheck: ## Type-check pipeline code
 pipelines-worker: ## Start a Prefect worker (reads PREFECT_API_URL from env)
 	$(MAKE) -C $(PIPELINES_DIR) worker
 
-pipelines-setup: ## Full one-time setup: init DB, save blocks, create pool, deploy
+pipelines-setup: ## Full one-time setup: init lake, save blocks, create pool, deploy
 	$(MAKE) -C $(PIPELINES_DIR) setup
 
 pipelines-deploy: ## Register all Prefect deployments
