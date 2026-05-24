@@ -5,7 +5,7 @@ sources:
     description: Typed Bronze tables written by the Python ingestion app.
     schema: bronze
     tables:
-      - name: eod_prices
+      - name: eod_price
         description: End-of-day OHLCV bars from market data providers.
         columns:
           - name: ingestion_id
@@ -28,7 +28,7 @@ sources:
             description: Reported trading volume for the trading date.
           - name: adjusted_close
             description: Provider-adjusted close price when available.
-          - name: provider
+          - name: data_provider
             description: Provider that supplied the record.
           - name: raw_json
             description: Raw provider payload captured for lineage and replay.
@@ -39,7 +39,7 @@ sources:
           - name: ingested_at
             description: Timestamp when the row was written to Bronze.
 
-      - name: exchanges
+      - name: exchange
         description: Exchange reference snapshots from market data providers.
         columns:
           - name: snapshot_date
@@ -58,7 +58,7 @@ sources:
             description: ISO 3166-1 alpha-2 country code.
           - name: country_iso3
             description: ISO 3166-1 alpha-3 country code.
-          - name: provider
+          - name: data_provider
             description: Provider that supplied the record.
           - name: raw_json
             description: Raw provider payload captured for lineage and replay.
@@ -69,7 +69,7 @@ sources:
           - name: ingested_at
             description: Timestamp when the row was written to Bronze.
 
-      - name: instruments
+      - name: instrument
         description: Tradable instrument reference snapshots from market data providers.
         columns:
           - name: snapshot_date
@@ -90,7 +90,7 @@ sources:
             description: Provider asset type classification.
           - name: isin
             description: International Securities Identification Number when available.
-          - name: provider
+          - name: data_provider
             description: Provider that supplied the record.
           - name: raw_json
             description: Raw provider payload captured for lineage and replay.

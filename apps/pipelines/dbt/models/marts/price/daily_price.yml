@@ -1,7 +1,7 @@
 version: 2
 
 models:
-  - name: daily_prices
+  - name: daily_price
     description: Gold daily price bars for app queries and downstream analytics.
     columns:
       - name: ticker
@@ -42,7 +42,7 @@ models:
         description: Reported trading volume for the trading date.
         data_tests:
           - not_null
-      - name: provider
+      - name: data_provider
         description: Provider that supplied the record.
         data_tests:
           - not_null

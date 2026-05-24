@@ -1,6 +1,6 @@
 WITH source AS (
     SELECT *
-    FROM {{ source('bronze', 'eod_prices') }}
+    FROM {{ source('bronze', 'eod_price') }}
 ),
 
 renamed AS (
@@ -15,7 +15,7 @@ renamed AS (
         CAST(source_data.close AS DECIMAL(18, 6)) AS close_price,
         CAST(source_data.adjusted_close AS DECIMAL(18, 6)) AS adjusted_close_price,
         CAST(source_data.volume AS BIGINT) AS volume,
-        CAST(source_data.provider AS VARCHAR) AS provider,
+        CAST(source_data.data_provider AS VARCHAR) AS data_provider,
         CAST(source_data.row_hash AS VARCHAR) AS row_hash,
         CAST(source_data.source_uri AS VARCHAR) AS source_uri,
         CAST(source_data.ingested_at AS TIMESTAMPTZ) AS ingested_at
@@ -26,7 +26,7 @@ deduplicated AS (
     SELECT
         *,
         ROW_NUMBER() OVER (
-            PARTITION BY ticker, bar_date, provider
+            PARTITION BY ticker, bar_date, data_provider
             ORDER BY ingested_at DESC, ingestion_id DESC
         ) AS row_number
     FROM renamed

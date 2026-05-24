@@ -1,8 +1,8 @@
 SELECT
     ticker,
     bar_date,
-    provider,
+    data_provider,
     COUNT(*) AS record_count
-FROM {{ ref('stg_eod_prices') }}
+FROM {{ ref('daily_price') }}
 GROUP BY 1, 2, 3
 HAVING COUNT(*) > 1

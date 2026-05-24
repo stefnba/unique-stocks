@@ -1,7 +1,7 @@
 version: 2
 
 models:
-  - name: stg_eod_prices
+  - name: stg_eod_price
     description: Cleaned and deduplicated end-of-day price bars from Bronze.
     columns:
       - name: ingestion_id
@@ -42,7 +42,7 @@ models:
         description: Reported trading volume for the trading date.
         data_tests:
           - not_null
-      - name: provider
+      - name: data_provider
         description: Provider that supplied the record.
         data_tests:
           - not_null
