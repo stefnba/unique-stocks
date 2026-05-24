@@ -100,8 +100,8 @@ domains/exchanges/tables.py
 ```
 
 The app-level registry lives in `lake/schema.py`. It imports domain table specs
-and exposes `render_lake_init_sql()`, which is used by
-`scripts/render_init_lake_sql.py` to regenerate `scripts/init_lake.sql`.
+and exposes `ALL_TABLES`, which is used by `scripts/render_init_lake_sql.py`
+to regenerate `scripts/init_lake.sql`.
 
 ## Current Tradeoff
 

@@ -1,7 +1,15 @@
-"""Base Pydantic models for the pipeline layer."""
+"""Base Pydantic model contracts for provider and domain boundaries.
 
-import hashlib
-import json
+These classes deliberately stay small. Provider-specific response models live
+under ``providers/`` and inherit from :class:`ProviderModel`. Domain-owned
+Bronze row models live under ``domains/<domain>/`` and inherit from
+:class:`BronzeModel`.
+
+Ingestion policy does not live here. Provider names, landing paths, idempotency
+rules, ``raw_json``, ``row_hash``, and ``source_uri`` are owned by dataset specs
+and helpers in ``core.ingestion``.
+"""
+
 from typing import Any, ClassVar
 
 from pydantic import BaseModel, ConfigDict
@@ -10,9 +18,14 @@ from pydantic import BaseModel, ConfigDict
 class ProviderModel(BaseModel):
     """Base class for all raw provider API response models.
 
-    Provides consistent Pydantic config and a ``to_bronze_record()`` method so
-    any provider model can be written directly to a bronze lake table without a
-    separate domain model or parser.
+    Provider models represent external API contracts only. They validate
+    provider responses before landing storage and must not know how Bronze
+    records are shaped or written.
+
+    Use aliases to describe provider field names exactly, especially when the
+    provider uses PascalCase or camelCase. Parser code should consume the
+    Python field names; landing and ``raw_json`` serialization can still emit
+    provider aliases to preserve source-payload fidelity.
 
     Subclasses must declare a ``provider`` class variable::
 
@@ -20,56 +33,28 @@ class ProviderModel(BaseModel):
             provider: ClassVar[str] = "my_provider"
             some_field: str
 
-    Fields should use snake_case Python names with ``Field(alias=...)`` for
-    PascalCase or camelCase API keys. ``model_dump()`` then produces bronze
-    column names directly.
+    ``extra="forbid"`` is set here on purpose so unexpected API fields fail
+    validation early instead of quietly drifting into storage.
     """
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
     provider: ClassVar[str]
 
-    def to_bronze_record(self) -> dict[str, Any]:
-        """Serialise this provider response to a bronze lake row.
-
-        Returns a dict of all model fields (snake_case) plus the bronze
-        envelope columns: ``provider``, ``raw_json``, ``row_hash``.
-        Pipeline-time columns not in the API response (e.g. ``snapshot_date``)
-        should be merged in by the caller after this call.
-        """
-        payload = self.model_dump(mode="json")
-        raw_json = json.dumps(payload, sort_keys=True)
-        row_hash = hashlib.sha256(raw_json.encode()).hexdigest()
-        return {**payload, "provider": self.provider, "raw_json": raw_json, "row_hash": row_hash}
-
 
 class BronzeModel(BaseModel):
     """Base class for all domain models that are written to the bronze lake layer.
 
-    Provides a standard ``to_bronze_record`` method so every domain model gets
-    the same bronze envelope (raw_json + row_hash + provider) without repeating
-    the serialisation logic.
+    Bronze models describe normalized DuckDB row shape only. Ingestion policy such as
+    provider, landing keys, idempotency columns, ``raw_json``, ``row_hash``, and
+    ``source_uri`` is handled by ``core.ingestion`` dataset specs.
 
-    Subclasses just define their fields; this class handles the rest.
+    A Bronze model should be boring: typed columns, domain validation, and no
+    knowledge of where the row came from or where it will be written.
     """
 
-    def to_bronze_record(self, provider: str = "eodhd") -> dict[str, Any]:
-        """Serialise to a dict suitable for inserting into a ``bronze.*`` table.
+    model_config = ConfigDict(extra="forbid")
 
-        Uses ``model_dump(mode="json")`` so Pydantic handles type coercion
-        (``Decimal`` → string, ``date`` → ISO-8601, etc.) without manual field
-        mapping. The resulting JSON is deterministically sorted and SHA-256 hashed
-        for deduplication at the lake layer.
-
-        Args:
-            provider: Data source identifier stored alongside the raw payload.
-
-        Returns:
-            Dict with keys matching the bronze table schema:
-            ``ticker``, ``bar_date`` (or domain equivalent), ``provider``,
-            ``raw_json``, ``row_hash``, plus all model fields for typed columns.
-        """
-        payload = self.model_dump(mode="json")
-        raw_json = json.dumps(payload, sort_keys=True)
-        row_hash = hashlib.sha256(raw_json.encode()).hexdigest()
-        return {**payload, "provider": provider, "raw_json": raw_json, "row_hash": row_hash}
+    def to_payload(self) -> dict[str, Any]:
+        """Return the normalized Bronze row payload without ingestion metadata."""
+        return self.model_dump(mode="json")
