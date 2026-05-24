@@ -24,10 +24,10 @@ Included:
 
 - EODHD as the first market data provider.
 - End-of-day OHLCV prices.
-- Exchange and securities reference data.
+- Exchange and instrument reference data.
 - Fundamentals ingestion after the prices path is stable.
 - Prefect flows for scheduled and manual ingestion.
-- S3 landing storage for raw provider responses.
+- S3 landing storage for provider-validated raw payloads.
 - DuckDB / MotherDuck as the primary analytical store.
 - dbt Core for Silver and Gold transformations.
 - A future read-only studio for search, charts, and watchlists.
@@ -36,7 +36,7 @@ Excluded for v1:
 
 - Intraday or real-time data.
 - Options chains.
-- Crypto and FX.
+- Crypto and FX price/history ingestion.
 - Multi-tenant SaaS behavior.
 - User authentication.
 - Alerts and notifications.
@@ -51,14 +51,14 @@ These are the default decisions for v1.
 | Decision | Rationale |
 | --- | --- |
 | MotherDuck over S3 + Trino | Lower operations, enough performance for the expected v1 scale, easy local DuckDB fallback. |
-| S3 landing before parsing | Raw provider responses stay replayable and auditable. |
+| S3 landing before parsing | Provider-validated raw payloads stay replayable and auditable while strict provider models catch API drift before storage. |
 | Medallion lake model | Keeps raw capture, typed ingestion, cleanup, and business logic in separate layers. |
 | Prefect over Airflow | Python-native orchestration with less infrastructure. |
 | dbt Core for transformations | SQL transformations stay explicit, testable, and separate from ingestion code. |
 | Plain Parquet archive over Iceberg | v1 data is mostly append-oriented; Iceberg adds catalog and table-format complexity too early. |
 | EODHD first | One provider covers the first required domains and keeps integration complexity low. |
 | Prefect blocks as the runtime credential source | Tasks and flows load credentials from named Prefect blocks at runtime. This decouples secret values from the deployed codebase and allows updates in the Prefect UI without a redeploy. Environment variables seed the block registry at startup; the block registry is the single credential boundary that domain code crosses. |
-| Bronze reference data as daily snapshots | Reference domains (exchanges, securities) store one row per record per ingestion day, even when the underlying data has not changed. This makes Bronze a faithful audit log of what each pipeline run produced. Deduplication and change tracking (SCD2 or latest-only) are Silver responsibilities handled in dbt. |
+| Bronze reference data as daily snapshots | Reference domains (exchanges, instruments) store one row per record per ingestion day, even when the underlying data has not changed. This makes Bronze a faithful audit log of what each pipeline run produced. Deduplication and change tracking (SCD2 or latest-only) are Silver responsibilities handled in dbt. |
 
 ## System shape
 
@@ -73,7 +73,7 @@ The platform is organized around deployable apps and standalone data tooling:
 The intended data flow is:
 
 1. Provider data is fetched by a Prefect task.
-2. The exact provider response is stored in S3 landing storage.
+2. The provider response is validated against strict provider models and stored in S3 landing storage.
 3. A separate task reads landing data, validates and normalizes records, and writes Bronze rows.
 4. dbt transforms Bronze into Silver and Gold.
 5. Future app surfaces query Gold data.
@@ -82,7 +82,7 @@ Ingestion code should stay thin. Provider fetches, parsing, and writes are separ
 
 ## Data layer contract
 
-S3 landing storage is the canonical replay source for raw external data. Nothing in landing should depend on downstream schema choices.
+S3 landing storage is the canonical replay source for provider-validated raw external data. Nothing in landing should depend on downstream schema choices.
 
 MotherDuck stores the lake schemas:
 
@@ -101,7 +101,7 @@ Bronze is the handoff point between Python ingestion and dbt. Python should not 
 | --- | --- | --- | --- |
 | `eod_prices` | Daily OHLCV bars | Weekdays after market close | Active first path. |
 | `exchanges` | Exchange reference list | Manual or monthly | Landing + Bronze ingestion complete. |
-| `securities` | Listed securities per exchange | Weekly | Stubbed / planned. |
+| `instruments` | Tradable instruments per exchange and asset class | Weekly | Landing + Bronze ingestion implemented. |
 | `fundamentals` | Financial statements, ratios, dividends, splits | Quarterly or manual | Stubbed / planned. |
 
 Implementation order:
@@ -109,7 +109,7 @@ Implementation order:
 1. Stabilize EOD prices ingestion end to end.
 2. Add S3 landing writes before Bronze writes.
 3. Make idempotency and run tracking reliable.
-4. Add exchange and securities reference ingestion.
+4. Add exchange and instrument reference ingestion.
 5. Build the first dbt Silver and Gold prices models.
 6. Add fundamentals ingestion.
 7. Decide the API and studio stack.
@@ -139,8 +139,8 @@ Implementation order:
 
 ### Milestone 4: Reference data
 
-- Exchanges and securities flows are implemented.
-- Reference data supports current-security lookup.
+- Exchanges and instruments flows are implemented.
+- Reference data supports current-instrument lookup.
 - Gold models can support search and symbol discovery.
 
 ### Milestone 5: Studio decision

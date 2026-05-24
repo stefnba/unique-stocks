@@ -2,16 +2,16 @@
 
 `apps/pipelines` is the Prefect 3 ingestion app for Unique Stocks. It fetches market data from providers, validates provider responses, writes typed Bronze records through the lake client, and coordinates scheduled runs.
 
-The active path is EODHD end-of-day prices. Exchanges, securities, and fundamentals are planned domain flows.
+The active path is EODHD end-of-day prices. Exchanges and instruments are reference flows; fundamentals is planned.
 
 ## Status
 
-| Domain         | Status       | Schedule                                           |
-| -------------- | ------------ | -------------------------------------------------- |
-| `eod_prices`   | Active       | Weekdays after market close, plus manual backfill. |
-| `exchanges`    | Planned stub | Manual or monthly.                                 |
-| `securities`   | Planned stub | Weekly.                                            |
-| `fundamentals` | Planned stub | Manual or quarterly.                               |
+| Domain         | Status         | Schedule                                           |
+| -------------- | -------------- | -------------------------------------------------- |
+| `eod_prices`   | Active         | Weekdays after market close, plus manual backfill. |
+| `exchanges`    | Reference flow | Manual or monthly.                                 |
+| `instruments`  | Reference flow | Weekly.                                            |
+| `fundamentals` | Planned stub   | Manual or quarterly.                               |
 
 ## Project structure
 
@@ -65,7 +65,7 @@ Set at least `EODHD_API_KEY` for live provider runs. Leave `MOTHERDUCK_TOKEN` bl
 
 ## S3 landing zone
 
-S3 is the landing-zone target for raw provider payloads before they are parsed into typed Bronze records. Bucket names and regions are non-secret infrastructure configuration and are defined in `config/aws_resources.py`, then wired into Prefect blocks by `config/blocks.py`. AWS access keys are secrets and must stay in local `.env` files or the production deployment platform.
+S3 is the landing-zone target for provider-validated raw payloads before they are parsed into typed Bronze records. Bucket names and regions are non-secret infrastructure configuration and are defined in `config/aws_resources.py`, then wired into Prefect blocks by `config/blocks.py`. AWS access keys are secrets and must stay in local `.env` files or the production deployment platform.
 
 You do not need to create the S3 bucket and IAM user manually in the AWS Console each time. The setup is scriptable with `scripts/setup_s3_landing_zone.py`, including bucket creation, encryption, ownership controls, public-access blocking, IAM policy creation, and optional access-key generation. See [docs/aws/s3_landing_zone_guide.md](docs/aws/s3_landing_zone_guide.md) for the runbook, and [docs/aws/iam_guide.md](docs/aws/iam_guide.md) for AWS account and provisioner setup.
 

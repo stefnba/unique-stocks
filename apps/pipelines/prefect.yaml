@@ -51,8 +51,8 @@ deployments:
   # ── EOD prices — daily scheduled run ──────────────────────────────────────
   - name: daily
     description: >
-      Ingest end-of-day OHLCV prices for all US equities from EODHD.
-      Runs after NYSE close Monday–Friday. Skips non-trading days automatically.
+      Ingest end-of-day OHLCV prices for all configured EODHD exchanges.
+      Pass exchange_codes to restrict a manual run to a subset such as US equities.
     entrypoint: domains.eod_prices.flows:eod_prices_flow
     tags:
       - eod-prices
@@ -109,15 +109,16 @@ deployments:
     enforce_parameter_schema: true
     work_pool: *default_pool
 
-  # ── Securities — weekly refresh ───────────────────────────────────────────
+  # ── Instruments — weekly refresh ──────────────────────────────────────────
   - name: weekly
-    flow_name: securities-weekly
+    flow_name: instruments-refresh
     description: >
-      Refresh the list of securities listed per exchange from EODHD.
-      Scheduled for Monday 8am ET once implemented.
-    entrypoint: domains.securities.flows:securities_flow
+      Refresh active instruments across EODHD exchanges, including equities,
+      ETFs, funds, FX, crypto, bonds, and other provider-supported asset classes.
+      Scheduled for Monday 8am ET when activated.
+    entrypoint: domains.instruments.flows:instruments_flow
     tags:
-      - securities
+      - instruments
       - stub
     schedule:
       cron: "0 8 * * 1"
