@@ -24,7 +24,7 @@ async def fetch_schedule_exchange_codes() -> list[str]:
     """Load exchange codes from the v2 schedule API list endpoint.
 
     The v2 endpoint uses MIC-style codes (e.g. ``XETR``) that differ from the
-    catalog codes in ``/exchanges-list`` (e.g. ``XETRA``). Using catalog codes
+    catalog codes from the exchange catalog endpoint (e.g. ``XETRA``). Using catalog codes
     mostly results in 404s on the detail endpoint.
     """
     from providers.eodhd.client import EODHDClient

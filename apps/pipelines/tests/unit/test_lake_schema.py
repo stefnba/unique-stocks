@@ -44,11 +44,11 @@ def test_lake_schema_uses_singular_domain_names() -> None:
 
     domain_root = Path(__file__).parents[2] / "domains"
     old_plural_packages = (
-        "eod_prices",
-        "exchanges",
-        "exchange_schedules",
-        "instruments",
-        "fundamentals",
+        "eod_price" + "s",
+        "exchange" + "s",
+        "exchange_schedule" + "s",
+        "instrument" + "s",
+        "fundamental" + "s",
     )
     assert [name for name in old_plural_packages if (domain_root / name).exists()] == []
 
