@@ -30,7 +30,7 @@ class ProviderModel(BaseModel):
     Subclasses must declare a ``provider`` class variable::
 
         class MyModel(ProviderModel):
-            provider: ClassVar[str] = "my_provider"
+            provider = "my_provider"
             some_field: str
 
     ``extra="forbid"`` is set here on purpose so unexpected API fields fail
