@@ -8,6 +8,7 @@ For simplicity, a single daily run at 22:00 UTC catches all exchanges
 that closed by then (US at ~21:00 UTC, Europe by ~18:00 UTC).
 """
 
+import asyncio
 import uuid
 from datetime import date
 
@@ -136,6 +137,7 @@ def _record_run_failed(lake: DataLakeClient, run_id: str, error: str) -> None:
 # ---------------------------------------------------------------------------
 # Entry point for manual runs / local testing
 # ---------------------------------------------------------------------------
+
 
 @flow(
     name="eod-prices-backfill",

@@ -29,6 +29,7 @@ class EODBulkPriceRaw(EODHDProviderModel):
     close: float
     volume: int
     adjusted_close: float | None = None
+    exchange_short_name: str | None = None
 
 
 class EODPriceBarRaw(EODHDProviderModel):
