@@ -13,13 +13,21 @@ CREATE SCHEMA IF NOT EXISTS pipeline;
 -- -----------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS bronze.eod_prices (
-    ingestion_id UUID DEFAULT GEN_RANDOM_UUID(),
-    ticker VARCHAR NOT NULL,
-    bar_date DATE NOT NULL,
-    provider VARCHAR NOT NULL,  -- 'eodhd'
-    raw_json JSON NOT NULL,
-    ingested_at TIMESTAMPTZ DEFAULT NOW(),
-    row_hash VARCHAR NOT NULL   -- SHA-256 of canonical payload
+    ingestion_id   UUID DEFAULT GEN_RANDOM_UUID(),
+    exchange_code  VARCHAR NOT NULL,
+    ticker         VARCHAR NOT NULL,  -- exchange-qualified, e.g. 'AAPL.US'
+    bar_date       DATE NOT NULL,
+    open           DECIMAL NOT NULL,
+    high           DECIMAL NOT NULL,
+    low            DECIMAL NOT NULL,
+    close          DECIMAL NOT NULL,
+    volume         BIGINT NOT NULL,
+    adjusted_close DECIMAL,
+    provider       VARCHAR NOT NULL,
+    raw_json       JSON NOT NULL,
+    row_hash       VARCHAR NOT NULL,
+    ingested_at    TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (ticker, bar_date, provider)
 );
 
 

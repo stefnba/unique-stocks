@@ -68,9 +68,13 @@ def parse_eod_bars(
     return valid, rejected
 
 
-def bars_to_bronze_records(bars: list[EODBar], provider: str = "eodhd") -> list[dict[str, Any]]:
+def bars_to_bronze_records(
+    bars: list[EODBar],
+    exchange_code: str,
+    provider: str = "eodhd",
+) -> list[dict[str, Any]]:
     """Convert validated EODBar objects to dicts ready for bronze.eod_prices insert."""
-    return [bar.to_bronze_record(provider=provider) for bar in bars]
+    return [{**bar.to_bronze_record(provider=provider), "exchange_code": exchange_code} for bar in bars]
 
 
 def _to_date(value: Any) -> date:
