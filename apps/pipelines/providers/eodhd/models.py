@@ -15,9 +15,28 @@ class EODHDProviderModel(ProviderModel):
 
 
 class EODBulkPriceRaw(EODHDProviderModel):
-    """One row from the EODHD bulk EOD endpoint."""
+    """One row from the EODHD bulk EOD endpoint (GET /eod-bulk-last-day/{exchange}).
+
+    Includes a ``code`` field because the bulk response contains all tickers
+    for the exchange. The ticker is unknown from context alone.
+    """
 
     code: str
+    date: str
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: int
+    adjusted_close: float | None = None
+
+
+class EODPriceBarRaw(EODHDProviderModel):
+    """One OHLCV bar from the per-ticker historical EOD endpoint (GET /eod/{symbol}).
+
+    No ``code`` field — the ticker is the URL path parameter and known by the caller.
+    """
+
     date: str
     open: float
     high: float

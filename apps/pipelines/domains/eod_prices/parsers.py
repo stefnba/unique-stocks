@@ -9,7 +9,7 @@ from typing import Any
 
 import structlog
 
-from providers.eodhd.models import EODBulkPriceRaw
+from providers.eodhd.models import EODBulkPriceRaw, EODPriceBarRaw
 
 from .models import EODBar
 
@@ -64,6 +64,41 @@ def parse_eod_bars(
         except Exception as exc:
             rejected.append(row)
             log.warning("prices.parse_rejected", ticker=row.code, exchange=exchange, error=str(exc))
+
+    return valid, rejected
+
+
+def parse_ticker_bars(
+    raw_bars: list[EODPriceBarRaw],
+    ticker: str,
+) -> tuple[list[EODBar], list[EODPriceBarRaw]]:
+    """Parse per-ticker historical bars into EODBar domain models.
+
+    Unlike ``parse_eod_bars``, the ticker is already fully-qualified (e.g.
+    ``AAPL.US``) and no date-mismatch filtering is applied — the per-ticker
+    endpoint returns exactly the requested range.
+    """
+    valid: list[EODBar] = []
+    rejected: list[EODPriceBarRaw] = []
+
+    for row in raw_bars:
+        try:
+            bar = EODBar.model_validate(
+                {
+                    "ticker": ticker,
+                    "bar_date": _to_date(row.date),
+                    "open": _to_decimal(row.open),
+                    "high": _to_decimal(row.high),
+                    "low": _to_decimal(row.low),
+                    "close": _to_decimal(row.close),
+                    "volume": row.volume,
+                    "adjusted_close": _to_decimal_optional(row.adjusted_close),
+                }
+            )
+            valid.append(bar)
+        except Exception as exc:
+            rejected.append(row)
+            log.warning("backfill.parse_rejected", ticker=ticker, date=row.date, error=str(exc))
 
     return valid, rejected
 

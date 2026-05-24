@@ -15,11 +15,11 @@ from pydantic import ValidationError
 from config.blocks import BlockRegistry
 from core.clients.storage.s3 import S3Key
 from providers.eodhd.client import EODHDClient
-from providers.eodhd.models import EODBulkPriceRaw
+from providers.eodhd.models import EODBulkPriceRaw, EODPriceBarRaw
 from providers.registry import Provider
 
 from .models import EODBar
-from .parsers import bars_to_bronze_records, parse_eod_bars
+from .parsers import bars_to_bronze_records, parse_eod_bars, parse_ticker_bars
 
 log = structlog.get_logger(__name__)
 
@@ -154,4 +154,125 @@ def write_bronze_eod_prices(bars: list[EODBar], exchange: str, bar_date: date) -
     records = bars_to_bronze_records(bars, exchange_code=exchange)
     written = lake.insert_rows("bronze", "eod_prices", records)
     log.info("prices.write_done", exchange=exchange, bar_date=bar_date, rows=written)
+    return written
+
+
+# ---------------------------------------------------------------------------
+# Backfill tasks
+# ---------------------------------------------------------------------------
+
+
+@task(name="load-backfill-pending-symbols")
+def load_backfill_pending_symbols(exchange_code: str, from_date: date) -> list[str]:
+    """Symbols that still need historical EOD data for the given exchange.
+
+    Returns fully-qualified symbols (e.g. ``["AAPL.US", "MSFT.US"]``).
+    A symbol is considered done if any row for it already exists in
+    ``bronze.eod_prices`` — this makes re-runs safe without requiring
+    gap detection. Add a ``fill_gaps`` mode later if needed.
+
+    Source of truth for what *should* be ingested: ``bronze.instruments``
+    (latest snapshot for the exchange).
+    """
+    from core.clients.lake import get_lake_client
+
+    lake = get_lake_client()
+
+    if not lake.table_exists("bronze", "instruments"):
+        log.warning("backfill.no_instruments_table", exchange=exchange_code)
+        return []
+
+    instruments_q = lake.qualified_name("bronze", "instruments")
+    rows = lake.query(
+        f"""
+        SELECT DISTINCT ticker
+        FROM {instruments_q}
+        WHERE exchange_code = ?
+          AND snapshot_date = (
+              SELECT MAX(snapshot_date) FROM {instruments_q} WHERE exchange_code = ?
+          )
+        """,
+        [exchange_code, exchange_code],
+    )
+    all_codes = {r["ticker"] for r in rows}
+
+    if not all_codes:
+        log.info("backfill.no_instruments", exchange=exchange_code)
+        return []
+
+    done_codes: set[str] = set()
+    if lake.table_exists("bronze", "eod_prices"):
+        prices_q = lake.qualified_name("bronze", "eod_prices")
+        done_rows = lake.query(
+            f"SELECT DISTINCT ticker FROM {prices_q} WHERE exchange_code = ? AND provider = ?",
+            [exchange_code, Provider.EODHD],
+        )
+        suffix = f".{exchange_code}"
+        done_codes = {
+            r["ticker"].removesuffix(suffix) for r in done_rows
+        }
+
+    pending = sorted(all_codes - done_codes)
+    log.info(
+        "backfill.pending_loaded",
+        exchange=exchange_code,
+        total=len(all_codes),
+        done=len(done_codes),
+        pending=len(pending),
+    )
+    return [f"{code}.{exchange_code}" for code in pending]
+
+
+@task(
+    name="fetch-ticker-eod-history",
+    retries=2,
+    retry_delay_seconds=30,
+    retry_condition_fn=_is_retryable,
+)
+async def fetch_ticker_eod_history(
+    symbol: str,
+    from_date: date,
+    to_date: date,
+) -> list[EODPriceBarRaw]:
+    """Fetch full OHLCV history for one instrument.
+
+    One API call regardless of date range length.
+    ``symbol`` must be exchange-qualified, e.g. ``AAPL.US``, ``BTC-USD.CC``.
+    """
+    log.info("backfill.fetch_start", symbol=symbol, from_date=from_date, to_date=to_date)
+    api_key = (await BlockRegistry.EODHD_API_KEY.load_async()).get()
+    async with EODHDClient(api_key=api_key) as client:
+        bars = await client.get_eod_prices_ticker(symbol, from_date=from_date, to_date=to_date)
+    log.info("backfill.fetch_done", symbol=symbol, bars=len(bars))
+    return bars
+
+
+@task(name="write-backfill-eod-batch")
+def write_backfill_eod_batch(
+    batch_bars: list[tuple[str, list[EODBar]]],
+    exchange_code: str,
+) -> int:
+    """Bulk-insert one batch of per-ticker bars into bronze.eod_prices.
+
+    Takes a list of (fully-qualified-symbol, bars) tuples so all records from
+    the batch land in a single ``executemany`` call rather than one per symbol.
+    """
+    from core.clients.lake import get_lake_client
+
+    records = [
+        record
+        for symbol, bars in batch_bars
+        for record in bars_to_bronze_records(bars, exchange_code=exchange_code)
+    ]
+    if not records:
+        return 0
+
+    lake = get_lake_client()
+    written = lake.insert_rows("bronze", "eod_prices", records)
+    log.info(
+        "backfill.batch_written",
+        exchange=exchange_code,
+        symbols=len(batch_bars),
+        rows=written,
+    )
     return written

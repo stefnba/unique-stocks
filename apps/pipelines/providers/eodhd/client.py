@@ -15,6 +15,7 @@ from providers.registry import Provider
 
 from .models import (
     EODBulkPriceRaw,
+    EODPriceBarRaw,
     ExchangeDetails,
     ExchangeDetailsCode,
     ExchangeSchedule,
@@ -67,6 +68,25 @@ class EODHDClient(HttpClientBase):
             params={"date": bar_date.isoformat()},
         )
         return rows
+
+    async def get_eod_prices_ticker(
+        self,
+        symbol: str,
+        from_date: date | None = None,
+        to_date: date | None = None,
+    ) -> list[EODPriceBarRaw]:
+        """Full OHLCV history for one instrument (GET /eod/{symbol}).
+
+        ``symbol`` is the exchange-qualified identifier, e.g. ``AAPL.US``,
+        ``EURUSD.FOREX``, ``BTC-USD.CC``.
+        One API call regardless of the requested date range.
+        """
+        params: dict[str, str] = {"period": "d"}
+        if from_date:
+            params["from"] = from_date.isoformat()
+        if to_date:
+            params["to"] = to_date.isoformat()
+        return await self._get_list(f"/eod/{symbol}", model=EODPriceBarRaw, params=params)
 
     async def get_exchanges(self) -> list[SupportedExchange]:
         """Get all exchanges available via EODHD."""
