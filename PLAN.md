@@ -65,7 +65,7 @@ These are the default decisions for v1.
 The platform is organized around deployable apps and standalone data tooling:
 
 - `apps/pipelines` is the active Python ingestion app.
-- `dbt_project` owns transformation models from Bronze to Silver to Gold.
+- `apps/pipelines/dbt` owns transformation models from Bronze to Silver to Gold.
 - `infra` owns local infrastructure and database initialization.
 - `apps/api` is reserved for a future API surface.
 - `apps/studio` is reserved for the future research UI.

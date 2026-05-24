@@ -1,0 +1,60 @@
+version: 2
+
+models:
+  - name: daily_prices
+    description: Gold daily price bars for app queries and downstream analytics.
+    columns:
+      - name: ticker
+        description: Exchange-qualified ticker, such as AAPL.US.
+        data_tests:
+          - not_null
+      - name: exchange_code
+        description: Provider exchange code for the listed security.
+        data_tests:
+          - not_null
+      - name: bar_date
+        description: Trading date for the OHLCV bar.
+        data_tests:
+          - not_null
+      - name: open_price
+        description: Opening price for the trading date.
+        data_tests:
+          - not_null
+      - name: high_price
+        description: Highest traded price for the trading date.
+        data_tests:
+          - not_null
+      - name: low_price
+        description: Lowest traded price for the trading date.
+        data_tests:
+          - not_null
+      - name: close_price
+        description: Closing price for the trading date.
+        data_tests:
+          - not_null
+      - name: adjusted_close_price
+        description: Provider-adjusted close price when available.
+      - name: effective_close_price
+        description: Adjusted close when available, otherwise close price.
+        data_tests:
+          - not_null
+      - name: volume
+        description: Reported trading volume for the trading date.
+        data_tests:
+          - not_null
+      - name: provider
+        description: Provider that supplied the record.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null

@@ -3,7 +3,7 @@
         pipelines-install pipelines-test pipelines-check pipelines-lint pipelines-typecheck \
         pipelines-worker pipelines-deploy \
         infra-up infra-up-prod infra-down infra-down-volumes infra-logs infra-logs-pipelines infra-ps \
-        dbt-run dbt-test dbt-compile
+        dbt-install dbt-debug dbt-compile dbt-run dbt-test dbt-build dbt-clean dbt-run-staging dbt-run-marts
 
 # ── Colours ────────────────────────────────────────────────────────────────
 BOLD  := \033[1m
@@ -85,17 +85,29 @@ infra-ps: ## Show running service status
 	$(COMPOSE_DEV) ps
 
 # ── dbt ────────────────────────────────────────────────────────────────────
+dbt-install: ## Install dbt deps
+	$(MAKE) -C $(PIPELINES_DIR) dbt-install
+
+dbt-debug: ## Validate dbt project config and lake connection
+	$(MAKE) -C $(PIPELINES_DIR) dbt-debug
+
 dbt-compile: ## Compile dbt models (no DB writes)
-	cd dbt_project && dbt compile
+	$(MAKE) -C $(PIPELINES_DIR) dbt-compile
 
 dbt-run: ## Run all dbt models (Bronze → Silver → Gold)
-	cd dbt_project && dbt run
+	$(MAKE) -C $(PIPELINES_DIR) dbt-run
 
 dbt-test: ## Run dbt tests
-	cd dbt_project && dbt test
+	$(MAKE) -C $(PIPELINES_DIR) dbt-test
+
+dbt-build: ## Run dbt models and data tests
+	$(MAKE) -C $(PIPELINES_DIR) dbt-build
+
+dbt-clean: ## Remove dbt build artifacts
+	$(MAKE) -C $(PIPELINES_DIR) dbt-clean
 
 dbt-run-staging: ## Run staging (Silver) models only
-	cd dbt_project && dbt run --select staging
+	$(MAKE) -C $(PIPELINES_DIR) dbt-run-staging
 
 dbt-run-marts: ## Run mart (Gold) models only
-	cd dbt_project && dbt run --select marts
+	$(MAKE) -C $(PIPELINES_DIR) dbt-run-marts

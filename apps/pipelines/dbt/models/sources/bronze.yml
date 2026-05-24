@@ -1,0 +1,96 @@
+version: 2
+
+sources:
+  - name: bronze
+    description: Typed Bronze tables written by the Python ingestion app.
+    schema: bronze
+    tables:
+      - name: eod_prices
+        description: End-of-day OHLCV bars from market data providers.
+        columns:
+          - name: ingestion_id
+            description: Unique ingestion row identifier.
+          - name: exchange_code
+            description: Provider exchange code for the listed security.
+          - name: ticker
+            description: Exchange-qualified ticker, such as AAPL.US.
+          - name: bar_date
+            description: Trading date for the OHLCV bar.
+          - name: open
+            description: Opening price for the trading date.
+          - name: high
+            description: Highest traded price for the trading date.
+          - name: low
+            description: Lowest traded price for the trading date.
+          - name: close
+            description: Closing price for the trading date.
+          - name: volume
+            description: Reported trading volume for the trading date.
+          - name: adjusted_close
+            description: Provider-adjusted close price when available.
+          - name: provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: exchanges
+        description: Exchange reference snapshots from market data providers.
+        columns:
+          - name: snapshot_date
+            description: Date the reference snapshot was ingested.
+          - name: exchange_code
+            description: Provider exchange code.
+          - name: name
+            description: Exchange display name.
+          - name: operating_mic
+            description: Operating Market Identifier Code when available.
+          - name: country
+            description: Exchange country name.
+          - name: currency
+            description: Primary trading currency for the exchange.
+          - name: country_iso2
+            description: ISO 3166-1 alpha-2 country code.
+          - name: country_iso3
+            description: ISO 3166-1 alpha-3 country code.
+          - name: provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: instruments
+        description: Tradable instrument reference snapshots from market data providers.
+        columns:
+          - name: snapshot_date
+            description: Date the reference snapshot was ingested.
+          - name: exchange_code
+            description: Provider exchange code used for the API request.
+          - name: ticker
+            description: Provider ticker symbol.
+          - name: name
+            description: Instrument display name.
+          - name: country
+            description: Instrument country when available.
+          - name: exchange
+            description: Provider exchange or sub-exchange value from the response.
+          - name: currency
+            description: Instrument trading currency when available.
+          - name: asset_type
+            description: Provider asset type classification.
+          - name: isin
+            description: International Securities Identification Number when available.
+          - name: provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.

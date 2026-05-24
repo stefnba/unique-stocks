@@ -1,0 +1,60 @@
+version: 2
+
+models:
+  - name: stg_eod_prices
+    description: Cleaned and deduplicated end-of-day price bars from Bronze.
+    columns:
+      - name: ingestion_id
+        description: Unique ingestion row identifier from Bronze.
+        data_tests:
+          - not_null
+      - name: exchange_code
+        description: Provider exchange code for the listed security.
+        data_tests:
+          - not_null
+      - name: ticker
+        description: Exchange-qualified ticker, such as AAPL.US.
+        data_tests:
+          - not_null
+      - name: bar_date
+        description: Trading date for the OHLCV bar.
+        data_tests:
+          - not_null
+      - name: open_price
+        description: Opening price for the trading date.
+        data_tests:
+          - not_null
+      - name: high_price
+        description: Highest traded price for the trading date.
+        data_tests:
+          - not_null
+      - name: low_price
+        description: Lowest traded price for the trading date.
+        data_tests:
+          - not_null
+      - name: close_price
+        description: Closing price for the trading date.
+        data_tests:
+          - not_null
+      - name: adjusted_close_price
+        description: Provider-adjusted close price when available.
+      - name: volume
+        description: Reported trading volume for the trading date.
+        data_tests:
+          - not_null
+      - name: provider
+        description: Provider that supplied the record.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null

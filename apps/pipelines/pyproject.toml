@@ -13,7 +13,10 @@ dependencies = [
     "tenacity>=8.3",
     "boto3>=1.43.9",
     "prefect[aws]>=3.7.1",
-    "importlib-metadata>=9.0.0",
+    "dbt-core>=1.12.0b1,<2",
+    "dbt-duckdb>=1.10,<2",
+    # dbt 1.12.0b1 allows mashumaro 3.14, but it fails on Python 3.14 startup.
+    "mashumaro>=3.17,<3.18",
 ]
 
 [dependency-groups]

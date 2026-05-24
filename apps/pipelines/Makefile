@@ -3,7 +3,8 @@
         prefect-server prefect-worker \
         docker-up docker-down docker-down-volumes docker-logs docker-logs-worker docker-ps \
         lake-init db-init blocks-save setup s3-landing-zone \
-        deploy deploy-dry
+        deploy deploy-dry \
+        dbt-install dbt-debug dbt-compile dbt-run dbt-test dbt-build dbt-clean dbt-run-staging dbt-run-marts
 
 # Load .env if it exists so PREFECT_API_URL etc. are available to Make targets
 -include .env
@@ -11,6 +12,14 @@ export
 
 LOCAL_LAKE_PATH ?= unique_stocks.duckdb
 LAKE_INIT_SQL := scripts/init_lake.sql
+DBT_DIR := dbt
+DBT_TARGET ?= dev
+DBT_DUCKDB_PATH ?= $(LOCAL_LAKE_PATH)
+UV_CACHE_DIR ?= $(CURDIR)/.uv-cache
+export UV_CACHE_DIR
+UV := UV_CACHE_DIR="$(UV_CACHE_DIR)" uv
+DBT := DBT_DUCKDB_PATH="$(DBT_DUCKDB_PATH)" $(UV) run dbt
+DBT_FLAGS := --project-dir $(DBT_DIR) --profiles-dir $(DBT_DIR) --target $(DBT_TARGET)
 
 # ── Colours ────────────────────────────────────────────────────────────────
 BOLD  := \033[1m
@@ -133,3 +142,31 @@ import yaml; \
 d = yaml.safe_load(open('prefect.yaml')); \
 print('Deployments in prefect.yaml:'); \
 [print(f'  {x[\"name\"]:20s}  {x[\"entrypoint\"]}') for x in d['deployments']]"
+
+# ── dbt ────────────────────────────────────────────────────────────────────
+dbt-install: ## Install app deps including dbt
+	$(UV) sync
+
+dbt-debug: ## Validate dbt project config and lake connection
+	$(DBT) debug $(DBT_FLAGS)
+
+dbt-compile: ## Compile dbt models without writing lake tables
+	$(DBT) compile $(DBT_FLAGS)
+
+dbt-run: ## Run all dbt models
+	$(DBT) run $(DBT_FLAGS)
+
+dbt-test: ## Run dbt data tests
+	$(DBT) test $(DBT_FLAGS)
+
+dbt-build: ## Run dbt models and data tests
+	$(DBT) build $(DBT_FLAGS)
+
+dbt-clean: ## Remove dbt build artifacts
+	$(DBT) clean $(DBT_FLAGS)
+
+dbt-run-staging: ## Run staging (Silver) models only
+	$(DBT) run $(DBT_FLAGS) --select path:models/staging
+
+dbt-run-marts: ## Run mart (Gold) models only
+	$(DBT) run $(DBT_FLAGS) --select path:models/marts

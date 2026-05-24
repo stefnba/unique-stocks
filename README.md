@@ -9,7 +9,7 @@ The goal is a lean, reliable stack that can run cheaply on a single VPS while st
 | Area                 | Status               | Notes                                                          |
 | -------------------- | -------------------- | -------------------------------------------------------------- |
 | `apps/pipelines`     | Active               | Prefect 3 ingestion app for EODHD market data.                 |
-| `dbt_project`        | Planned / scaffolded | dbt Core project for Bronze -> Silver -> Gold transformations. |
+| `apps/pipelines/dbt` | Initial scaffold     | dbt Core project for Bronze -> Silver -> Gold transformations. |
 | `apps/api`           | Not implemented      | API boundary is still an open decision.                        |
 | `apps/studio`        | Not implemented      | Studio stack is still an open decision.                        |
 | `docker-compose.yml` | Active               | Root compose entrypoint — includes per-app stacks.             |
@@ -40,10 +40,9 @@ S3 is the replayable landing zone for raw provider responses. MotherDuck is the 
 ```text
 unique-stocks/
 ├── apps/
-│   ├── pipelines/      Prefect ingestion app
+│   ├── pipelines/      Prefect ingestion app and dbt transformations
 │   ├── api/            Planned API app
 │   └── studio/         Planned user-facing studio
-├── dbt_project/        dbt Core transformations
 ├── docker-compose.yml  Root compose entrypoint (includes per-app stacks)
 ├── AGENTS.md           Coding-agent instructions
 ├── PLAN.md             Product and architecture plan
@@ -62,6 +61,8 @@ cp apps/pipelines/.env.example apps/pipelines/.env
 # edit .env: set ENVIRONMENT=docker_dev and provider keys
 make infra-up          # start Prefect server, Postgres, and worker
 make pipelines-setup   # init lake, save blocks, create work pool, register deployments
+make dbt-install       # install dbt dependencies
+make dbt-build         # build and test dbt Silver/Gold models
 ```
 
 Prefect UI runs at <http://localhost:4200>.
@@ -89,6 +90,9 @@ make pipelines-test
 make infra-up
 make infra-logs-pipelines
 make infra-down
+make dbt-install
+make dbt-debug
+make dbt-build
 make dbt-compile
 make dbt-test
 ```
@@ -100,6 +104,8 @@ make check
 make test
 make lint
 make typecheck
+make dbt-install
+make dbt-build
 make deploy-dry
 ```
 
@@ -107,7 +113,7 @@ make deploy-dry
 
 - [PLAN.md](PLAN.md): v1 product scope, architecture decisions, roadmap, and open decisions.
 - [AGENTS.md](AGENTS.md): coding conventions and guardrails for AI/coding agents.
-- [apps/pipelines/README.md](apps/pipelines/README.md): pipelines setup, configuration, Prefect usage, testing, and deployment notes.
+- [apps/pipelines/README.md](apps/pipelines/README.md): pipelines setup, configuration, dbt, Prefect usage, testing, and deployment notes.
 - [apps/api/README.md](apps/api/README.md): API placeholder and ownership notes.
 - [apps/studio/README.md](apps/studio/README.md): studio placeholder and stack decision notes.
 

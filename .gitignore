@@ -56,10 +56,10 @@ dist/
 *.tsbuildinfo
 
 # ── dbt ───────────────────────────────────────────────────────────────────────
-dbt_project/target/
-dbt_project/dbt_packages/
-dbt_project/logs/
-dbt_project/profiles.yml     # contains DB credentials — use env vars or ~/.dbt/profiles.yml
+apps/pipelines/dbt/target/
+apps/pipelines/dbt/dbt_packages/
+apps/pipelines/dbt/logs/
+apps/pipelines/dbt/.user.yml
 
 # ── Local lake / DuckDB ───────────────────────────────────────────────────────
 apps/pipelines/unique_stocks.duckdb

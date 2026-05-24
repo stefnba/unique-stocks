@@ -21,6 +21,7 @@ apps/pipelines/
 ├── domains/            Domain models, parsers, tasks, and flows
 ├── core/               Shared infrastructure: scheduler, logging, lake, and storage clients
 ├── providers/          Provider-specific clients and raw response models
+├── dbt/                dbt Core project: Bronze -> Silver -> Gold transformations
 ├── docs/               Pipeline runbooks, including AWS/S3 setup
 ├── scripts/            SQL scripts (init_lake.sql — DuckDB/MotherDuck lake setup)
 ├── tests/              Unit and integration tests
@@ -58,6 +59,8 @@ Set at least `EODHD_API_KEY` for live provider runs. Leave `MOTHERDUCK_TOKEN` bl
 | `EODHD_API_KEY`         | Yes for live runs | EODHD API key.                                           |
 | `MOTHERDUCK_TOKEN`      | No                | Blank uses local DuckDB; set for MotherDuck.             |
 | `LOCAL_LAKE_PATH`       | No                | Local DuckDB file path when `MOTHERDUCK_TOKEN` is blank. |
+| `DBT_TARGET`            | No                | dbt target name, usually `dev` locally and `prod` for MotherDuck. |
+| `DBT_DUCKDB_PATH`       | No                | dbt DuckDB path, relative to the command working directory unless absolute. |
 | `AWS_ACCESS_KEY_ID`     | No                | AWS access key when S3 is enabled.                       |
 | `AWS_SECRET_ACCESS_KEY` | No                | AWS secret key when S3 is enabled.                       |
 | `PREFECT_API_URL`       | Yes               | Prefect API URL for workers and deploy commands.         |
@@ -141,6 +144,34 @@ MOTHERDUCK_TOKEN=<token> make lake-init     # MotherDuck
 
 The SQL script (`scripts/init_lake.sql`) is idempotent — safe to re-run.
 
+## dbt transformations
+
+The dbt project lives inside this app at `dbt/`. It uses `dbt-duckdb` from the main pipelines uv environment against the same local DuckDB file in development and MotherDuck in production.
+
+Local dbt workflow:
+
+```bash
+cd apps/pipelines
+make dbt-install
+make lake-init
+make dbt-debug
+make dbt-build
+```
+
+Focused commands:
+
+```bash
+make dbt-compile
+make dbt-run
+make dbt-test
+make dbt-run-staging
+make dbt-run-marts
+```
+
+`dbt/profiles.yml` is committed because it contains only environment-variable references, not secrets. Use `DBT_TARGET=prod` with `MOTHERDUCK_TOKEN` set to run against MotherDuck.
+
+DuckDB allows one writer at a time. If `make lake-init` or `make dbt-build` reports a database lock, close any local DuckDB/Cursor/VS Code database viewer connected to `unique_stocks.duckdb` and rerun the command.
+
 ## Quality checks
 
 Run the full app quality gate before committing pipeline changes:
@@ -160,6 +191,8 @@ make lint
 make lint-fix
 make format-check
 make typecheck
+make dbt-install
+make dbt-build
 ```
 
 ## Prefect deployments

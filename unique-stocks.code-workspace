@@ -7,6 +7,10 @@
         {
             "path": "apps/pipelines",
             "name": "pipelines"
+        },
+        {
+            "path": "apps/pipelines/dbt",
+            "name": "dbt"
         }
     ],
     "settings": {
@@ -49,7 +53,7 @@
                 "type": "file",
                 "path": "./apps/pipelines/unique_stocks.duckdb",
                 "readOnly": true,
-                "attached": true
+                "attached": false
             }
         ],
         "duckdb.defaultDatabase": "unique_stocks",
