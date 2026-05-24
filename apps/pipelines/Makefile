@@ -4,7 +4,8 @@
         docker-up docker-down docker-down-volumes docker-logs docker-logs-worker docker-ps \
         lake-init db-init blocks-save setup s3-landing-zone \
         deploy deploy-dry \
-        dbt-install dbt-debug dbt-compile dbt-run dbt-test dbt-build dbt-clean dbt-run-staging dbt-run-marts
+        dbt-install dbt-debug dbt-compile dbt-run dbt-test dbt-build dbt-clean dbt-run-staging dbt-run-marts \
+        lake-ui
 
 # Load .env if it exists so PREFECT_API_URL etc. are available to Make targets
 -include .env
@@ -142,6 +143,14 @@ import yaml; \
 d = yaml.safe_load(open('prefect.yaml')); \
 print('Deployments in prefect.yaml:'); \
 [print(f'  {x[\"name\"]:20s}  {x[\"entrypoint\"]}') for x in d['deployments']]"
+
+# ── DuckDB UI ──────────────────────────────────────────────────────────────
+lake-ui: ## Open DuckDB local UI (MotherDuck if MOTHERDUCK_TOKEN is set, else local lake)
+	@if [ -n "$(MOTHERDUCK_TOKEN)" ]; then \
+		MOTHERDUCK_TOKEN="$(MOTHERDUCK_TOKEN)" duckdb -ui "md:unique_stocks"; \
+	else \
+		duckdb -ui "$(LOCAL_LAKE_PATH)"; \
+	fi
 
 # ── dbt ────────────────────────────────────────────────────────────────────
 dbt-install: ## Install app deps including dbt
