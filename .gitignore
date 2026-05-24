@@ -61,6 +61,13 @@ dbt_project/dbt_packages/
 dbt_project/logs/
 dbt_project/profiles.yml     # contains DB credentials — use env vars or ~/.dbt/profiles.yml
 
+# ── Local lake / DuckDB ───────────────────────────────────────────────────────
+apps/pipelines/unique_stocks.duckdb
+apps/pipelines/unique_stocks.duckdb.wal
+apps/pipelines/unique_stocks.duckdb.tmp
+apps/pipelines/unique_stocks.db
+apps/pipelines/unique_stocks.db.wal
+
 # ── Docker ────────────────────────────────────────────────────────────────────
 # (compose files are committed; ignore generated artefacts)
 
