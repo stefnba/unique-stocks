@@ -11,5 +11,6 @@ SELECT
     volume,
     provider,
     row_hash,
+    source_uri,
     ingested_at
 FROM {{ ref('stg_eod_prices') }}

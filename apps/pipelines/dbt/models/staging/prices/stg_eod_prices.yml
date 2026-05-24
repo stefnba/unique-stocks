@@ -54,6 +54,8 @@ models:
         description: Stable hash of the normalized Bronze row.
         data_tests:
           - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the row.
       - name: ingested_at
         description: Timestamp when the row was written to Bronze.
         data_tests:

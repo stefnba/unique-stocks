@@ -34,6 +34,8 @@ sources:
             description: Raw provider payload captured for lineage and replay.
           - name: row_hash
             description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
           - name: ingested_at
             description: Timestamp when the row was written to Bronze.
 
@@ -62,6 +64,8 @@ sources:
             description: Raw provider payload captured for lineage and replay.
           - name: row_hash
             description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
           - name: ingested_at
             description: Timestamp when the row was written to Bronze.
 
@@ -92,5 +96,7 @@ sources:
             description: Raw provider payload captured for lineage and replay.
           - name: row_hash
             description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
           - name: ingested_at
             description: Timestamp when the row was written to Bronze.

@@ -17,6 +17,7 @@ renamed AS (
         CAST(source_data.volume AS BIGINT) AS volume,
         CAST(source_data.provider AS VARCHAR) AS provider,
         CAST(source_data.row_hash AS VARCHAR) AS row_hash,
+        CAST(source_data.source_uri AS VARCHAR) AS source_uri,
         CAST(source_data.ingested_at AS TIMESTAMPTZ) AS ingested_at
     FROM source AS source_data
 ),
