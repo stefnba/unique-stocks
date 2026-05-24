@@ -4,7 +4,7 @@ from datetime import date
 from typing import Any
 
 from core.ingestion import BronzeSource
-from domains.exchange_schedules.models import ExchangeHolidaySnapshot, ExchangeScheduleSnapshot
+from domains.exchange_schedule.models import ExchangeHolidaySnapshot, ExchangeScheduleSnapshot
 from providers.eodhd.models import ExchangeSchedule
 
 
@@ -36,9 +36,9 @@ def parse_exchange_holiday_snapshots(
     schedule: ExchangeSchedule,
     snapshot_date: date,
 ) -> list[BronzeSource[ExchangeHolidaySnapshot]]:
-    """Expand ExchangeSchedule holidays into one Bronze exchange holiday row per date."""
+    """Expand ExchangeSchedule holiday into one Bronze exchange holiday row per date."""
     records = []
-    for holiday_date, holiday in schedule.exchange_holidays.items():
+    for holiday_date, holiday in schedule.exchange_holiday.items():
         row = ExchangeHolidaySnapshot(
             exchange_code=schedule.exchange_code,
             holiday_date=date.fromisoformat(holiday_date),

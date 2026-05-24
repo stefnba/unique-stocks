@@ -56,7 +56,7 @@ def parse_eod_bars(
             # (EODHD sometimes returns the previous close when a market was closed)
             if bar.bar_date != expected_date:
                 log.debug(
-                    "prices.date_mismatch",
+                    "price.date_mismatch",
                     ticker=bar.ticker,
                     expected=expected_date,
                     got=bar.bar_date,
@@ -65,7 +65,7 @@ def parse_eod_bars(
             valid.append(BronzeSource(row=bar, raw_fragment=row))
         except Exception as exc:
             rejected.append(row)
-            log.warning("prices.parse_rejected", ticker=row.code, exchange=exchange, error=str(exc))
+            log.warning("price.parse_rejected", ticker=row.code, exchange=exchange, error=str(exc))
 
     return valid, rejected
 

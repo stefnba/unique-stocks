@@ -96,7 +96,7 @@ class ExchangeSchedule(EODHDProviderModel):
     exchange_code: str = Field(alias="Code")
     timezone: str = Field(alias="Timezone")
     trading_hours: TradingHoursRaw = Field(alias="TradingHours")
-    exchange_holidays: dict[str, ExchangeHolidayRaw] = Field(
+    exchange_holiday: dict[str, ExchangeHolidayRaw] = Field(
         alias="ExchangeHolidays",
         default_factory=dict,
     )

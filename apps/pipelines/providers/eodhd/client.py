@@ -56,7 +56,7 @@ class EODHDClient(HttpClientBase):
     def _default_params(self) -> dict[str, str]:
         return {"fmt": "json"}
 
-    async def get_eod_prices_bulk(self, exchange: str, bar_date: date) -> list[EODBulkPriceRaw]:
+    async def get_eod_price_bulk(self, exchange: str, bar_date: date) -> list[EODBulkPriceRaw]:
         """All tickers for an exchange on one date (one API call per exchange).
 
         Response is validated against EODBulkPriceRaw — raises ValidationError
@@ -69,7 +69,7 @@ class EODHDClient(HttpClientBase):
         )
         return rows
 
-    async def get_eod_prices_ticker(
+    async def get_eod_price_ticker(
         self,
         symbol: str,
         from_date: date | None = None,
@@ -88,8 +88,8 @@ class EODHDClient(HttpClientBase):
             params["to"] = to_date.isoformat()
         return await self._get_list(f"/eod/{symbol}", model=EODPriceBarRaw, params=params)
 
-    async def get_exchanges(self) -> list[SupportedExchange]:
-        """Get all exchanges available via EODHD."""
+    async def get_exchange(self) -> list[SupportedExchange]:
+        """Get the exchange catalog available via EODHD."""
         return await self._get_list(
             "/exchanges-list",
             model=SupportedExchange,
@@ -106,7 +106,7 @@ class EODHDClient(HttpClientBase):
         )
         return response.data
 
-    async def get_instruments(
+    async def get_instrument(
         self,
         exchange_code: str,
         asset_type: str | None = None,
@@ -129,7 +129,7 @@ class EODHDClient(HttpClientBase):
         )
 
     async def get_exchange_details_codes(self) -> list[str]:
-        """Exchange codes supported by the v2 trading-hours/holidays endpoint. Run this before calling `get_exchange_details`.
+        """Return exchange codes supported by the v2 trading-hours/holidays endpoint.
 
         These codes differ from ``/exchanges-list`` (e.g. ``XETR`` vs ``XETRA``).
         """

@@ -5,7 +5,7 @@ from datetime import date
 import structlog
 
 from core.ingestion import BronzeSource
-from domains.instruments.models import InstrumentSnapshot
+from domains.instrument.models import InstrumentSnapshot
 from providers.eodhd.models import Instrument
 
 log = structlog.get_logger(__name__)
@@ -36,7 +36,7 @@ def parse_instrument_snapshots(
     exchange_code: str,
     snapshot_date: date,
 ) -> tuple[list[BronzeSource[InstrumentSnapshot]], list[Instrument]]:
-    """Parse provider instruments with partial success for large payloads."""
+    """Parse provider instrument with partial success for large payloads."""
     valid: list[BronzeSource[InstrumentSnapshot]] = []
     rejected: list[Instrument] = []
     for raw in raws:
@@ -44,5 +44,5 @@ def parse_instrument_snapshots(
             valid.append(parse_instrument_snapshot(raw, exchange_code, snapshot_date))
         except Exception as exc:
             rejected.append(raw)
-            log.warning("instruments.parse_rejected", exchange=exchange_code, ticker=raw.ticker, error=str(exc))
+            log.warning("instrument.parse_rejected", exchange=exchange_code, ticker=raw.ticker, error=str(exc))
     return valid, rejected

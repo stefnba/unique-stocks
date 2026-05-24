@@ -7,8 +7,8 @@ from prefect import task
 
 from config.blocks import BlockRegistry
 from core.ingestion import already_ingested, save_landing, write_bronze
-from domains.instruments.datasets import INSTRUMENTS_DATASET, INSTRUMENTS_LANDING
-from domains.instruments.parsers import parse_instrument_snapshots
+from domains.instrument.datasets import INSTRUMENT_DATASET, INSTRUMENT_LANDING
+from domains.instrument.parsers import parse_instrument_snapshots
 from providers.eodhd.models import Instrument
 
 log = structlog.get_logger(__name__)
@@ -20,22 +20,22 @@ async def fetch_instrument_exchange_codes() -> list[str]:
 
     Pass ``exchange_codes`` to the flow to restrict ingestion to a subset
     (e.g. equities only, or crypto only). Use separate flow deployments to
-    run different asset classes on different schedules.
+    run different asset classes on different schedule.
     """
     from providers.eodhd.client import EODHDClient
 
     api_key = (await BlockRegistry.EODHD_API_KEY.load_async()).get()
     async with EODHDClient(api_key=api_key) as client:
-        exchanges = await client.get_exchanges()
+        exchange = await client.get_exchange()
 
-    codes = [ex.exchange_code for ex in exchanges]
-    log.info("instruments.codes_loaded", count=len(codes))
+    codes = [ex.exchange_code for ex in exchange]
+    log.info("instrument.codes_loaded", count=len(codes))
     return codes
 
 
-@task(name="fetch-instruments", retries=3, retry_delay_seconds=10)
-async def fetch_instruments(exchange_code: str) -> list[Instrument]:
-    """Fetch all active instruments for one exchange.
+@task(name="fetch-instrument", retries=3, retry_delay_seconds=10)
+async def fetch_instrument(exchange_code: str) -> list[Instrument]:
+    """Fetch all active instrument for one exchange.
 
     For US equities pass exchange_code="US" — it covers NYSE, NASDAQ,
     NYSE ARCA, and OTC in a single call. The sub-exchange per instrument is
@@ -43,18 +43,18 @@ async def fetch_instruments(exchange_code: str) -> list[Instrument]:
     """
     from providers.eodhd.client import EODHDClient
 
-    log.info("instruments.fetch_start", exchange=exchange_code)
+    log.info("instrument.fetch_start", exchange=exchange_code)
     api_key = (await BlockRegistry.EODHD_API_KEY.load_async()).get()
     async with EODHDClient(api_key=api_key) as client:
-        instruments = await client.get_instruments(exchange_code)
+        instrument = await client.get_instrument(exchange_code)
 
-    log.info("instruments.fetch_done", exchange=exchange_code, count=len(instruments))
-    return instruments
+    log.info("instrument.fetch_done", exchange=exchange_code, count=len(instrument))
+    return instrument
 
 
-@task(name="write-instruments-landing")
-async def write_instruments_to_landing_zone(
-    instruments: list[Instrument],
+@task(name="write-instrument-landing")
+async def write_instrument_to_landing_zone(
+    instrument: list[Instrument],
     exchange_code: str,
     ingested_at: datetime | None = None,
 ) -> str:
@@ -65,23 +65,23 @@ async def write_instruments_to_landing_zone(
     s3 = await S3StorageClient.from_block_entry(BlockRegistry.S3_BUCKET)
     ref = save_landing(
         s3,
-        INSTRUMENTS_LANDING,
-        INSTRUMENTS_DATASET.provider,
-        instruments,
+        INSTRUMENT_LANDING,
+        INSTRUMENT_DATASET.provider,
+        instrument,
         ingested_at=stamp,
         exchange=exchange_code,
     )
     return ref.uri
 
 
-@task(name="write-bronze-instruments")
-def write_bronze_instruments(
-    instruments: list[Instrument],
+@task(name="write-bronze-instrument")
+def write_bronze_instrument(
+    instrument: list[Instrument],
     exchange_code: str,
     snapshot_date: date,
     source_uri: str | None = None,
 ) -> int:
-    """Write instrument rows for one exchange to bronze.instruments.
+    """Write instrument rows for one exchange to bronze.instrument.
 
     ``exchange_code`` is the API call code (e.g. "US", "FOREX", "CC"). The
     sub-exchange per instrument (e.g. "NYSE", "NASDAQ") comes from the model's
@@ -89,31 +89,31 @@ def write_bronze_instruments(
     """
     from core.clients.lake import get_lake_client
 
-    if not instruments:
-        log.info("instruments.write_skipped", reason="no_data", exchange=exchange_code)
+    if not instrument:
+        log.info("instrument.write_skipped", reason="no_data", exchange=exchange_code)
         return 0
 
     lake = get_lake_client()
-    if already_ingested(lake, INSTRUMENTS_DATASET, snapshot_date=snapshot_date, exchange_code=exchange_code):
+    if already_ingested(lake, INSTRUMENT_DATASET, snapshot_date=snapshot_date, exchange_code=exchange_code):
         log.info(
-            "instruments.write_skipped",
+            "instrument.write_skipped",
             reason="already_ingested",
             exchange=exchange_code,
             snapshot_date=snapshot_date,
         )
         return 0
 
-    sources, rejected = parse_instrument_snapshots(instruments, exchange_code, snapshot_date)
+    sources, rejected = parse_instrument_snapshots(instrument, exchange_code, snapshot_date)
     if rejected:
         log.warning(
-            "instruments.parse_rejections",
+            "instrument.parse_rejections",
             exchange=exchange_code,
             snapshot_date=snapshot_date,
             count=len(rejected),
         )
-    written = write_bronze(lake, INSTRUMENTS_DATASET, sources, source_uri=source_uri)
+    written = write_bronze(lake, INSTRUMENT_DATASET, sources, source_uri=source_uri)
     log.info(
-        "instruments.write_done",
+        "instrument.write_done",
         exchange=exchange_code,
         snapshot_date=snapshot_date,
         rows=written,
@@ -121,10 +121,10 @@ def write_bronze_instruments(
     return written
 
 
-@task(name="instruments-already-ingested")
-def instruments_already_ingested(exchange_code: str, snapshot_date: date) -> bool:
+@task(name="instrument-already-ingested")
+def instrument_already_ingested(exchange_code: str, snapshot_date: date) -> bool:
     """Return True when instrument data for this exchange and snapshot already exists."""
     from core.clients.lake import get_lake_client
 
     lake = get_lake_client()
-    return already_ingested(lake, INSTRUMENTS_DATASET, snapshot_date=snapshot_date, exchange_code=exchange_code)
+    return already_ingested(lake, INSTRUMENT_DATASET, snapshot_date=snapshot_date, exchange_code=exchange_code)

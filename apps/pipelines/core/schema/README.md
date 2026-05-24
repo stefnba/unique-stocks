@@ -24,17 +24,17 @@ Table models are plain Python classes. They describe physical lake storage and
 reference a separate Pydantic `row_model`.
 
 ```python
-class ExchangesTable(BronzeTableModel):
-    table_name = "exchanges"
+class ExchangeTable(BronzeTableModel):
+    table_name = "exchange"
     row_model = ExchangeSnapshot
-    unique_columns = ("snapshot_date", "exchange_code", "provider")
+    unique_columns = ("snapshot_date", "exchange_code", "data_provider")
     idempotency_columns = ("snapshot_date",)
 ```
 
 `BronzeTableModel` adds the standard Bronze envelope columns for DDL:
 
 - `ingestion_id`
-- `provider`
+- `data_provider`
 - `raw_json`
 - `row_hash`
 - `source_uri`
@@ -47,7 +47,7 @@ These fields are not part of parser-owned row models.
 Table models can render DuckDB/MotherDuck DDL:
 
 ```python
-ExchangesTable.to_ddl()
+ExchangeTable.to_ddl()
 ```
 
 The generated columns come from:
@@ -86,7 +86,7 @@ Concrete table classes fail fast at class definition time when:
 - `unique_columns` or `idempotency_columns` is not a tuple of strings
 - referenced columns do not exist in the physical table
 
-`provider`, `raw_json`, `row_hash`, `source_uri`, and `ingested_at` are valid
+`data_provider`, `raw_json`, `row_hash`, `source_uri`, and `ingested_at` are valid
 Bronze table columns because `BronzeTableModel` adds them to the physical
 schema.
 
@@ -95,8 +95,8 @@ schema.
 Domain-owned table specs live beside their row models:
 
 ```text
-domains/exchanges/models.py
-domains/exchanges/tables.py
+domains/exchange/models.py
+domains/exchange/tables.py
 ```
 
 The app-level registry lives in `lake/schema.py`. It imports domain table specs
@@ -108,7 +108,7 @@ to regenerate `scripts/init_lake.sql`.
 Column metadata currently uses string tuples:
 
 ```python
-unique_columns = ("snapshot_date", "exchange_code", "provider")
+unique_columns = ("snapshot_date", "exchange_code", "data_provider")
 ```
 
 Those strings are runtime-validated immediately, but Python type checkers do

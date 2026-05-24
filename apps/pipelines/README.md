@@ -2,16 +2,16 @@
 
 `apps/pipelines` is the Prefect 3 ingestion app for Unique Stocks. It fetches market data from providers, validates provider responses, writes typed Bronze records through the lake client, and coordinates scheduled runs.
 
-The active path is EODHD end-of-day prices. Exchanges and instruments are reference flows; fundamentals is planned.
+The active path is EODHD end-of-day price. Exchange and instrument are reference flows; fundamental is planned.
 
 ## Status
 
-| Domain         | Status         | Schedule                                           |
-| -------------- | -------------- | -------------------------------------------------- |
-| `eod_prices`   | Active         | Weekdays after market close, plus manual backfill. |
-| `exchanges`    | Reference flow | Manual or monthly.                                 |
-| `instruments`  | Reference flow | Weekly.                                            |
-| `fundamentals` | Planned stub   | Manual or quarterly.                               |
+| Domain        | Status         | Schedule                                           |
+| ------------- | -------------- | -------------------------------------------------- |
+| `eod_price`   | Active         | Weekdays after market close, plus manual backfill. |
+| `exchange`    | Reference flow | Manual or monthly.                                 |
+| `instrument`  | Reference flow | Weekly.                                            |
+| `fundamental` | Planned stub   | Manual or quarterly.                               |
 
 ## Project structure
 
@@ -54,18 +54,18 @@ cp .env.example .env
 
 Set at least `EODHD_API_KEY` for live provider runs. Leave `MOTHERDUCK_TOKEN` blank to use local DuckDB.
 
-| Variable                | Required          | Description                                              |
-| ----------------------- | ----------------- | -------------------------------------------------------- |
-| `EODHD_API_KEY`         | Yes for live runs | EODHD API key.                                           |
-| `MOTHERDUCK_TOKEN`      | No                | Blank uses local DuckDB; set for MotherDuck.             |
-| `LOCAL_LAKE_PATH`       | No                | Local DuckDB file path when `MOTHERDUCK_TOKEN` is blank. |
-| `DBT_TARGET`            | No                | dbt target name, usually `dev` locally and `prod` for MotherDuck. |
+| Variable                | Required          | Description                                                                 |
+| ----------------------- | ----------------- | --------------------------------------------------------------------------- |
+| `EODHD_API_KEY`         | Yes for live runs | EODHD API key.                                                              |
+| `MOTHERDUCK_TOKEN`      | No                | Blank uses local DuckDB; set for MotherDuck.                                |
+| `LOCAL_LAKE_PATH`       | No                | Local DuckDB file path when `MOTHERDUCK_TOKEN` is blank.                    |
+| `DBT_TARGET`            | No                | dbt target name, usually `dev` locally and `prod` for MotherDuck.           |
 | `DBT_DUCKDB_PATH`       | No                | dbt DuckDB path, relative to the command working directory unless absolute. |
-| `AWS_ACCESS_KEY_ID`     | No                | AWS access key when S3 is enabled.                       |
-| `AWS_SECRET_ACCESS_KEY` | No                | AWS secret key when S3 is enabled.                       |
-| `PREFECT_API_URL`       | Yes               | Prefect API URL for workers and deploy commands.         |
-| `PREFECT_WORK_DIR`      | Yes               | `.` locally, `/app` in Docker.                           |
-| `ENVIRONMENT`           | No                | `dev` (default), `docker_dev`, or `prod`.                |
+| `AWS_ACCESS_KEY_ID`     | No                | AWS access key when S3 is enabled.                                          |
+| `AWS_SECRET_ACCESS_KEY` | No                | AWS secret key when S3 is enabled.                                          |
+| `PREFECT_API_URL`       | Yes               | Prefect API URL for workers and deploy commands.                            |
+| `PREFECT_WORK_DIR`      | Yes               | `.` locally, `/app` in Docker.                                              |
+| `ENVIRONMENT`           | No                | `dev` (default), `docker_dev`, or `prod`.                                   |
 
 ## S3 landing zone
 
@@ -75,11 +75,11 @@ You do not need to create the S3 bucket and IAM user manually in the AWS Console
 
 ## Environments
 
-| Environment     | `ENVIRONMENT` value | Prefect backend    | Lake backend        | When to use                                        |
-| --------------- | ------------------- | ------------------ | ------------------- | -------------------------------------------------- |
-| dev (no Docker) | `dev`               | SQLite, in-process | `LOCAL_LAKE_PATH`   | Fast Python iteration, no containers needed        |
-| docker-dev      | `docker_dev`        | Postgres in Docker | `LOCAL_LAKE_PATH`   | Full stack validation, mirrors production topology |
-| prod            | `prod`              | Postgres on VPS    | MotherDuck          | Live production deployment                         |
+| Environment     | `ENVIRONMENT` value | Prefect backend    | Lake backend      | When to use                                        |
+| --------------- | ------------------- | ------------------ | ----------------- | -------------------------------------------------- |
+| dev (no Docker) | `dev`               | SQLite, in-process | `LOCAL_LAKE_PATH` | Fast Python iteration, no containers needed        |
+| docker-dev      | `docker_dev`        | Postgres in Docker | `LOCAL_LAKE_PATH` | Full stack validation, mirrors production topology |
+| prod            | `prod`              | Postgres on VPS    | MotherDuck        | Live production deployment                         |
 
 All three environments use the same `make setup` command — env vars drive which backend is targeted.
 
@@ -104,8 +104,8 @@ make prefect-worker        # start the worker
 Trigger a flow run manually:
 
 ```bash
-uv run prefect deployment run 'eod-prices-daily/daily'
-uv run prefect deployment run 'eod-prices-daily/backfill' -p trade_date=2026-05-09
+uv run prefect deployment run 'eod-price-daily/daily'
+uv run prefect deployment run 'eod-price-daily/backfill' -p trade_date=2026-05-09
 ```
 
 ## Local development with Docker (`docker_dev`)
@@ -196,7 +196,7 @@ make dbt-build
 
 ## Prefect deployments
 
-`prefect.yaml` defines the app deployments and schedules.
+`prefect.yaml` defines the app deployments and schedule.
 
 ```bash
 cd apps/pipelines

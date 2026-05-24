@@ -8,17 +8,17 @@ specs. ``S3Domain`` means storage dataset name, not a Python package under
 from core.clients.storage.s3 import S3Domain, S3Key
 from providers.registry import Provider
 
-# Snapshot — timestamped by UTC minute (exchanges, instruments)
-S3Key.snapshot(Provider.EODHD, S3Domain.EXCHANGES).jsonl()
-# → "landing/eodhd/exchanges/ingested_at=2026-05-21T09-47-32Z/exchanges.jsonl"
+# Snapshot — timestamped by UTC minute (exchange, instrument)
+S3Key.snapshot(Provider.EODHD, S3Domain.EXCHANGE).jsonl()
+# → "landing/eodhd/exchange/ingested_at=2026-05-21T09-47-32Z/exchange.jsonl"
 
-# Partitioned (eod_prices by exchange + date)
-S3Key.partitioned(Provider.EODHD, S3Domain.EOD_PRICES, exchange="US", bar_date=date(2026, 5, 21)).jsonl()
-# → "landing/eodhd/eod_prices/exchange=US/bar_date=2026-05-21/data.jsonl"
+# Partitioned (eod_price by exchange + date)
+S3Key.partitioned(Provider.EODHD, S3Domain.EOD_PRICE, exchange="US", bar_date=date(2026, 5, 21)).jsonl()
+# → "landing/eodhd/eod_price/exchange=US/bar_date=2026-05-21/data.jsonl"
 
 # Bronze layer
-S3Key.snapshot(Provider.EODHD, S3Domain.EXCHANGES, layer="bronze").jsonl()
-# → "bronze/eodhd/exchanges/ingested_at=2026-05-21T09-47-32Z/exchanges.jsonl"
+S3Key.snapshot(Provider.EODHD, S3Domain.EXCHANGE, layer="bronze").jsonl()
+# → "bronze/eodhd/exchange/ingested_at=2026-05-21T09-47-32Z/exchange.jsonl"
 """
 
 from collections.abc import Mapping
@@ -38,11 +38,11 @@ class S3Domain(StrEnum):
     from one S3 domain when that matches the provider payload.
     """
 
-    EXCHANGES = "exchanges"
-    EXCHANGE_SCHEDULES = "exchange_schedules"
-    EOD_PRICES = "eod_prices"
-    FUNDAMENTALS = "fundamentals"
-    INSTRUMENTS = "instruments"
+    EXCHANGE = "exchange"
+    EXCHANGE_SCHEDULE = "exchange_schedule"
+    EOD_PRICE = "eod_price"
+    FUNDAMENTAL = "fundamental"
+    INSTRUMENT = "instrument"
 
 
 def _utc_now_stamp() -> str:
@@ -88,7 +88,7 @@ class S3Key:
         ingested_at: datetime | date | str | None = None,
         layer: LandingLayer = "landing",
     ) -> Self:
-        """Full-replacement snapshot (e.g. exchanges, instruments).
+        """Full-replacement snapshot (e.g. exchange, instrument).
 
         Always includes an ``ingested_at`` partition for audit trail and
         idempotent re-runs. Defaults to the current UTC minute

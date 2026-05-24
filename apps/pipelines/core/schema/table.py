@@ -129,7 +129,7 @@ class BronzeTableModel(TableModel):
 
     Bronze row fields remain parser-owned domain data. The standard ingestion
     envelope is added only when rendering DDL, so parsers do not need to provide
-    ``provider``, ``raw_json``, ``row_hash``, ``source_uri``, or ``ingested_at``.
+    ``data_provider``, ``raw_json``, ``row_hash``, ``source_uri``, or ``ingested_at``.
     """
 
     schema_name: ClassVar[SchemaName] = "bronze"
@@ -144,7 +144,7 @@ class BronzeTableModel(TableModel):
         return (
             ColumnSpec("ingestion_id", UUID, nullable=True, default="GEN_RANDOM_UUID()"),
             *super().columns(),
-            ColumnSpec("provider", VARCHAR),
+            ColumnSpec("data_provider", VARCHAR),
             ColumnSpec("raw_json", JSON),
             ColumnSpec("row_hash", VARCHAR),
             ColumnSpec("source_uri", VARCHAR, nullable=True),

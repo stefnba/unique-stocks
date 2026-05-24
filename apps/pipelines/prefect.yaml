@@ -1,7 +1,7 @@
 # Prefect deployment configuration for the unique-stocks pipelines app.
 #
 # Deploy all:        uv run prefect deploy --all
-# Deploy one:        uv run prefect deploy --name eod-prices/daily
+# Deploy one:        uv run prefect deploy --name eod-price/daily
 # Dry-run (no push): uv run prefect deploy --all --no-prompt
 #
 # Workers read PREFECT_API_URL from the environment (.env / docker-compose).
@@ -48,14 +48,14 @@ definitions:
 # ---------------------------------------------------------------------------
 deployments:
 
-  # ── EOD prices — daily scheduled run ──────────────────────────────────────
+  # ── EOD price — daily scheduled run ──────────────────────────────────────
   - name: daily
     description: >
-      Ingest end-of-day OHLCV prices for all configured EODHD exchanges.
+      Ingest end-of-day OHLCV price for all configured EODHD exchange.
       Pass exchange_codes to restrict a manual run to a subset such as US equities.
-    entrypoint: domains.eod_prices.flows:eod_prices_flow
+    entrypoint: domains.eod_price.flows:eod_price_flow
     tags:
-      - eod-prices
+      - eod-price
       - scheduled
     schedule:
       cron: "30 16 * * 1-5"   # 4:30pm — interpreted in America/New_York (Prefect handles DST)
@@ -66,29 +66,29 @@ deployments:
     enforce_parameter_schema: true
     work_pool: *default_pool
 
-  # ── EOD prices — manual date backfill (single day via bulk endpoint) ───────
+  # ── EOD price — manual date backfill (single day via bulk endpoint) ───────
   - name: backfill
     description: >
-      Manually backfill EOD prices for a specific trade_date using the bulk endpoint.
-      Trigger from the UI or CLI: prefect deployment run 'eod-prices-daily/backfill' -p trade_date=2026-01-15
-    entrypoint: domains.eod_prices.flows:eod_prices_flow
+      Manually backfill EOD price for a specific trade_date using the bulk endpoint.
+      Trigger from the UI or CLI: prefect deployment run 'eod-price-daily/backfill' -p trade_date=2026-01-15
+    entrypoint: domains.eod_price.flows:eod_price_flow
     tags:
-      - eod-prices
+      - eod-price
       - backfill
     parameters:
       trade_date: null
     enforce_parameter_schema: true
     work_pool: *default_pool
 
-  # ── EOD prices — historical backfill (per-ticker, multi-day range) ─────────
+  # ── EOD price — historical backfill (per-ticker, multi-day range) ─────────
   - name: historical-backfill
     description: >
-      Full historical EOD backfill for all instruments using the per-ticker endpoint.
+      Full historical EOD backfill for all instrument using the per-ticker endpoint.
       One API call per instrument regardless of date range length.
       Pass exchange_codes to restrict to a subset (e.g. ["LSE"]).
-    entrypoint: domains.eod_prices.flows:eod_prices_backfill_flow
+    entrypoint: domains.eod_price.flows:eod_price_backfill_flow
     tags:
-      - eod-prices
+      - eod-price
       - backfill
     parameters:
       from_date: null
@@ -98,58 +98,58 @@ deployments:
     enforce_parameter_schema: true
     work_pool: *default_pool
 
-  # ── Exchanges — manual / monthly refresh ─────────────────────────────────
+  # ── Exchange — manual / monthly refresh ─────────────────────────────────
   - name: refresh
-    flow_name: exchanges-refresh
+    flow_name: exchange-refresh
     description: >
-      Refresh the list of stock exchanges from EODHD.
+      Refresh the list of stock exchange from EODHD.
       Run manually or on a monthly schedule once implemented.
-    entrypoint: domains.exchanges.flows:exchanges_flow
+    entrypoint: domains.exchange.flows:exchange_flow
     tags:
-      - exchanges
+      - exchange
       - stub
     <<: *stub
 
-  # ── Exchange schedules — manual / monthly refresh ───────────────────────────
-  - name: schedules-refresh
-    flow_name: exchange-schedules-refresh
+  # ── Exchange schedule — manual / monthly refresh ───────────────────────────
+  - name: schedule-refresh
+    flow_name: exchange-schedule-refresh
     description: >
-      Refresh trading hours and holidays for all exchanges supported by the
+      Refresh trading hours and holiday for all exchange supported by the
       EODHD v2 exchange-details API (MIC-style codes, distinct from catalog codes).
-    entrypoint: domains.exchange_schedules.flows:exchange_schedules_flow
+    entrypoint: domains.exchange_schedule.flows:exchange_schedule_flow
     tags:
-      - exchanges
-      - schedules
+      - exchange
+      - schedule
     parameters:
       snapshot_date: null
       exchange_codes: null
     enforce_parameter_schema: true
     work_pool: *default_pool
 
-  # ── Instruments — weekly refresh ──────────────────────────────────────────
+  # ── Instrument — weekly refresh ──────────────────────────────────────────
   - name: weekly
-    flow_name: instruments-refresh
+    flow_name: instrument-refresh
     description: >
-      Refresh active instruments across EODHD exchanges, including equities,
+      Refresh active instrument across EODHD exchange, including equities,
       ETFs, funds, FX, crypto, bonds, and other provider-supported asset classes.
       Scheduled for Monday 8am ET when activated.
-    entrypoint: domains.instruments.flows:instruments_flow
+    entrypoint: domains.instrument.flows:instrument_flow
     tags:
-      - instruments
+      - instrument
       - stub
     schedule:
       cron: "0 8 * * 1"
       timezone: America/New_York
     <<: *stub
 
-  # ── Fundamentals — quarterly ───────────────────────────────────────────────
+  # ── Fundamental — quarterly ───────────────────────────────────────────────
   - name: quarterly
-    flow_name: fundamentals-quarterly
+    flow_name: fundamental-quarterly
     description: >
       Ingest income statements, balance sheets, and ratios from EODHD.
       Manually triggered during earnings season once implemented.
-    entrypoint: domains.fundamentals.flows:fundamentals_flow
+    entrypoint: domains.fundamental.flows:fundamental_flow
     tags:
-      - fundamentals
+      - fundamental
       - stub
     <<: *stub

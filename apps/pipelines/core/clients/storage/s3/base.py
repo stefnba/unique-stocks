@@ -204,7 +204,7 @@ class S3StorageClient:
         """Return all object keys under *prefix*, paginating automatically.
 
         Args:
-            prefix: Key prefix to filter by (e.g. ``"bronze/prices/"``).
+            prefix: Key prefix to filter by (e.g. ``"bronze/price/"``).
             bucket: Override the default bucket.
             max_keys: Stop after collecting this many keys (``None`` = all).
         """

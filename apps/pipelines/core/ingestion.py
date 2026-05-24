@@ -44,7 +44,7 @@ class LandingSpec:
     payload be stored before parsing? It does not know the Bronze table shape.
 
     Use ``style="snapshot"`` for full-replacement reference snapshots such as
-    exchanges. Use ``style="partitioned"`` when a provider payload is naturally
+    exchange. Use ``style="partitioned"`` when a provider payload is naturally
     scoped by values like exchange, ticker, date, or backfill range.
 
     ``partition_fields`` declares the domain-provided values required to build
@@ -93,7 +93,7 @@ class BronzeSource[RowT: BronzeModel]:
     ``row`` is the normalized Bronze row model. ``raw_fragment`` is the
     smallest provider-side object responsible for that row and becomes
     ``raw_json``. For a 1:1 parse this is usually the provider item. For a 1:N
-    parse, such as exchange holidays, it can be a child object plus parent
+    parse, such as exchange holiday, it can be a child object plus parent
     context needed for lineage.
 
     ``source_uri`` is optional because parsers should stay pure; flows/tasks
@@ -195,19 +195,19 @@ def bronze_record[RowT: BronzeModel](
     The resulting dict contains the normalized Bronze payload plus the common
     ingestion envelope:
 
-    - ``provider`` from the dataset spec
+    - ``data_provider`` from the dataset spec (ingestion provider id, e.g. ``eodhd``)
     - ``raw_json`` from the provider-side source fragment
     - ``row_hash`` from the normalized Bronze payload plus provider identity
     - ``source_uri`` from parser output or the task-level fallback
     """
     payload = source.row.to_payload()
-    provider = str(dataset.provider)
+    data_provider = str(dataset.provider)
     lineage_uri = source.source_uri or source_uri
     return {
         **payload,
-        "provider": provider,
+        "data_provider": data_provider,
         "raw_json": canonical_json(source.raw_fragment),
-        "row_hash": normalized_row_hash(payload, provider),
+        "row_hash": normalized_row_hash(payload, data_provider),
         "source_uri": lineage_uri,
     }
 
@@ -249,8 +249,9 @@ def already_ingested[RowT: BronzeModel](
     """Return True when rows already exist for a dataset idempotency partition.
 
     ``values`` must include every column listed in
-    ``dataset.idempotency_columns``. Provider is always included automatically
-    because the same Bronze table may later accept rows from multiple sources.
+    ``dataset.idempotency_columns``. The ``data_provider`` column is always
+    included automatically because the same Bronze table may later accept rows
+    from multiple sources.
     """
     missing = [column for column in dataset.idempotency_columns if column not in values]
     if missing:
@@ -258,7 +259,7 @@ def already_ingested[RowT: BronzeModel](
 
     qualified = lake.qualified_name(dataset.schema, dataset.table_name)
     clauses = [f"{column} = ?" for column in dataset.idempotency_columns]
-    clauses.append("provider = ?")
+    clauses.append("data_provider = ?")
     params = [_sql_value(values[column]) for column in dataset.idempotency_columns]
     params.append(str(dataset.provider))
     row = lake.query_one(
@@ -279,13 +280,13 @@ def canonical_json(value: Any) -> str:
     return json.dumps(_jsonable(value), sort_keys=True, separators=(",", ":"))
 
 
-def normalized_row_hash(payload: Mapping[str, Any], provider: str) -> str:
+def normalized_row_hash(payload: Mapping[str, Any], data_provider: str) -> str:
     """Return a stable hash for normalized Bronze payload plus provider identity.
 
     ``raw_json`` is intentionally excluded. The hash tracks the normalized row
     we would insert into DuckDB, not incidental source-payload formatting.
     """
-    return sha256(canonical_json({**payload, "provider": provider}).encode()).hexdigest()
+    return sha256(canonical_json({**payload, "data_provider": data_provider}).encode()).hexdigest()
 
 
 def _sql_value(value: date | str | int) -> str | int:

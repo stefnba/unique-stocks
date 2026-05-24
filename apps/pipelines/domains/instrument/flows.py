@@ -6,28 +6,28 @@ from datetime import date
 import structlog
 from prefect import flow
 
-from domains.instruments.tasks import (
+from domains.instrument.tasks import (
+    fetch_instrument,
     fetch_instrument_exchange_codes,
-    fetch_instruments,
-    instruments_already_ingested,
-    write_bronze_instruments,
-    write_instruments_to_landing_zone,
+    instrument_already_ingested,
+    write_bronze_instrument,
+    write_instrument_to_landing_zone,
 )
 
 log = structlog.get_logger(__name__)
 
 
 @flow(
-    name="instruments-refresh",
-    description="Ingest active instruments for all EODHD exchanges.",
+    name="instrument-refresh",
+    description="Ingest active instrument for all EODHD exchange.",
 )
-async def instruments_flow(
+async def instrument_flow(
     snapshot_date: date | None = None,
     exchange_codes: list[str] | None = None,
 ) -> dict:
-    """Ingest active instruments per exchange.
+    """Ingest active instrument per exchange.
 
-    Fetches all exchanges in parallel; writes to S3 and bronze sequentially
+    Fetches all exchange in parallel; writes to S3 and bronze sequentially
     to avoid concurrent DuckDB write conflicts.
     """
     snapshot_date = snapshot_date or date.today()
@@ -35,37 +35,37 @@ async def instruments_flow(
 
     summary: dict = {
         "snapshot_date": snapshot_date.isoformat(),
-        "exchanges": {},
+        "exchange": {},
         "skipped": [],
         "failed": [],
     }
 
     pending = []
     for code in codes:
-        if instruments_already_ingested(code, snapshot_date):
+        if instrument_already_ingested(code, snapshot_date):
             summary["skipped"].append(code)
         else:
             pending.append(code)
 
     results = await asyncio.gather(
-        *[fetch_instruments(code) for code in pending],
+        *[fetch_instrument(code) for code in pending],
         return_exceptions=True,
     )
 
     for code, result in zip(pending, results, strict=True):
         if isinstance(result, BaseException):
-            log.error("instruments.fetch_error", exchange=code, error=str(result))
+            log.error("instrument.fetch_error", exchange=code, error=str(result))
             summary["failed"].append(code)
             continue
 
-        source_uri = await write_instruments_to_landing_zone(result, code)
-        rows = write_bronze_instruments(result, code, snapshot_date, source_uri=source_uri)
-        summary["exchanges"][code] = {"rows": rows}
+        source_uri = await write_instrument_to_landing_zone(result, code)
+        rows = write_bronze_instrument(result, code, snapshot_date, source_uri=source_uri)
+        summary["exchange"][code] = {"rows": rows}
 
     log.info(
-        "instruments.flow_done",
+        "instrument.flow_done",
         snapshot_date=snapshot_date,
-        ingested=len(summary["exchanges"]),
+        ingested=len(summary["exchange"]),
         skipped=len(summary["skipped"]),
         failed=len(summary["failed"]),
     )
@@ -73,4 +73,4 @@ async def instruments_flow(
 
 
 if __name__ == "__main__":
-    asyncio.run(instruments_flow())
+    asyncio.run(instrument_flow())

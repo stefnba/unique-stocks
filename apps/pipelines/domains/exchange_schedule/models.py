@@ -1,4 +1,4 @@
-"""Bronze models for exchange schedules and holidays."""
+"""Bronze models for exchange schedule and holiday."""
 
 from datetime import date
 

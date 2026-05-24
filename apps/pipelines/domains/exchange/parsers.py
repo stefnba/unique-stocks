@@ -3,7 +3,7 @@
 from datetime import date
 
 from core.ingestion import BronzeSource
-from domains.exchanges.models import ExchangeSnapshot
+from domains.exchange.models import ExchangeSnapshot
 from providers.eodhd.models import SupportedExchange
 
 
@@ -26,5 +26,5 @@ def parse_exchange_snapshots(
     raws: list[SupportedExchange],
     snapshot_date: date,
 ) -> list[BronzeSource[ExchangeSnapshot]]:
-    """Parse provider exchanges into Bronze snapshot rows."""
+    """Parse provider exchange into Bronze snapshot rows."""
     return [parse_exchange_snapshot(raw, snapshot_date) for raw in raws]

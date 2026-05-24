@@ -1,0 +1,69 @@
+"""Prefect tasks for exchange catalog ingestion."""
+
+from datetime import date
+
+import structlog
+from prefect import task
+
+from config.blocks import BlockRegistry
+from core.ingestion import already_ingested, save_landing, write_bronze
+from domains.exchange.datasets import EXCHANGE_DATASET, EXCHANGE_LANDING
+from domains.exchange.parsers import parse_exchange_snapshots
+from providers.eodhd.models import SupportedExchange
+
+log = structlog.get_logger(__name__)
+
+
+@task(retries=3, log_prints=True)
+async def fetch_supported_exchange() -> list[SupportedExchange]:
+    """Fetch and schema-validate the list of supported exchange from EODHD."""
+    from providers.eodhd.client import EODHDClient
+
+    api_key = await BlockRegistry.EODHD_API_KEY.load_async()
+    async with EODHDClient(api_key=api_key.get()) as client:
+        exchange = await client.get_exchange()
+
+    log.info("exchange.fetch_done", count=len(exchange))
+    return exchange
+
+
+@task()
+async def write_to_landing_zone(exchange: list[SupportedExchange]) -> str:
+    """Write supported exchange to the S3 landing zone as JSONL."""
+    from core.clients.storage.s3 import S3StorageClient
+
+    s3 = await S3StorageClient.from_block_entry(BlockRegistry.S3_BUCKET)
+    ref = save_landing(s3, EXCHANGE_LANDING, EXCHANGE_DATASET.provider, exchange)
+    return ref.uri
+
+
+@task()
+def write_bronze_exchange(
+    exchange: list[SupportedExchange],
+    snapshot_date: date,
+    source_uri: str | None = None,
+) -> int:
+    """Write validated exchange to bronze.exchange.
+
+    Skips the insert when a snapshot for this date and provider already exists
+    to ensure idempotency on re-runs.
+    """
+    from core.clients.lake import get_lake_client
+
+    if not exchange:
+        log.info("exchange.write_skipped", reason="no_data", snapshot_date=snapshot_date)
+        return 0
+
+    lake = get_lake_client()
+    if already_ingested(lake, EXCHANGE_DATASET, snapshot_date=snapshot_date):
+        log.info(
+            "exchange.write_skipped",
+            reason="already_ingested",
+            snapshot_date=snapshot_date,
+        )
+        return 0
+
+    sources = parse_exchange_snapshots(exchange, snapshot_date)
+    written = write_bronze(lake, EXCHANGE_DATASET, sources, source_uri=source_uri)
+    log.info("exchange.write_done", snapshot_date=snapshot_date, rows=written)
+    return written

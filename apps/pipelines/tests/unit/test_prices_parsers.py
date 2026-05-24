@@ -1,9 +1,12 @@
+import json
 from datetime import date
 from decimal import Decimal
 from typing import Any
 
-from domains.eod_prices.models import EODBar
-from domains.eod_prices.parsers import parse_eod_bars
+from core.ingestion import BronzeSource, bronze_record
+from domains.eod_price.datasets import EOD_PRICE_DATASET
+from domains.eod_price.models import EODBar
+from domains.eod_price.parsers import parse_eod_bars
 from providers.eodhd.models import EODBulkPriceRaw
 
 TARGET_DATE = date(2026, 5, 9)
@@ -33,9 +36,11 @@ class TestParseEodBars:
         valid, rejected = parse_eod_bars([_row()], TARGET_DATE, EXCHANGE)
         assert len(valid) == 1
         assert len(rejected) == 0
-        bar = valid[0]
+        bar = valid[0].row
+        assert bar.exchange_code == "US"
         assert bar.ticker == "AAPL.US"  # code + exchange suffix
         assert bar.close == Decimal("190.75")
+        assert valid[0].raw_fragment.code == "AAPL"
 
     def test_ohlc_invariant_open_above_high_rejected(self):
         """Row where open > high violates the OHLC invariant and is rejected."""
@@ -75,28 +80,29 @@ class TestParseEodBars:
         row = _row(volume=0)
         valid, rejected = parse_eod_bars([row], TARGET_DATE, EXCHANGE)
         assert len(valid) == 1
-        assert valid[0].volume == 0
+        assert valid[0].row.volume == 0
 
     def test_no_adjusted_close(self):
         """Missing adjusted_close is preserved as None."""
         row = _row(adjusted_close=None)
         valid, rejected = parse_eod_bars([row], TARGET_DATE, EXCHANGE)
         assert len(valid) == 1
-        assert valid[0].adjusted_close is None
+        assert valid[0].row.adjusted_close is None
 
     def test_ticker_has_exchange_suffix(self):
         """Ticker is constructed as code.exchange."""
         row = _row(code="TSLA")
         valid, _ = parse_eod_bars([row], TARGET_DATE, "NASDAQ")
-        assert valid[0].ticker == "TSLA.NASDAQ"
+        assert valid[0].row.ticker == "TSLA.NASDAQ"
 
 
 class TestEodBarBronzeRecord:
-    """Tests for EODBar.to_bronze_record serialisation."""
+    """Tests for EODBar Bronze serialisation through dataset helpers."""
 
     def test_record_has_row_hash(self):
         """Bronze record includes a 64-char SHA-256 row_hash."""
         bar = EODBar(
+            exchange_code="US",
             ticker="AAPL.US",
             bar_date=date(2026, 5, 9),
             open=Decimal("189.50"),
@@ -105,13 +111,18 @@ class TestEodBarBronzeRecord:
             close=Decimal("190.75"),
             volume=55_000_000,
         )
-        record = bar.to_bronze_record()
+        source = BronzeSource(row=bar, raw_fragment=_row(), source_uri="s3://bucket/key.jsonl")
+        record = bronze_record(EOD_PRICE_DATASET, source)
         assert "row_hash" in record
         assert len(record["row_hash"]) == 64  # SHA-256 hex
+        assert record["data_provider"] == "eodhd"
+        assert record["source_uri"] == "s3://bucket/key.jsonl"
+        assert json.loads(record["raw_json"])["code"] == "AAPL"
 
     def test_record_is_deterministic(self):
         """Same bar always produces the same row_hash."""
         bar = EODBar(
+            exchange_code="US",
             ticker="AAPL.US",
             bar_date=date(2026, 5, 9),
             open=Decimal("189.50"),
@@ -120,4 +131,7 @@ class TestEodBarBronzeRecord:
             close=Decimal("190.75"),
             volume=55_000_000,
         )
-        assert bar.to_bronze_record()["row_hash"] == bar.to_bronze_record()["row_hash"]
+        source = BronzeSource(row=bar, raw_fragment=_row())
+        assert bronze_record(EOD_PRICE_DATASET, source)["row_hash"] == bronze_record(EOD_PRICE_DATASET, source)[
+            "row_hash"
+        ]

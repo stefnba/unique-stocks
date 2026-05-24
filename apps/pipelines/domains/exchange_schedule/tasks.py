@@ -1,4 +1,4 @@
-"""Prefect tasks for exchange schedules and holidays ingestion."""
+"""Prefect tasks for exchange schedule and holiday ingestion."""
 
 from datetime import UTC, date, datetime
 
@@ -8,12 +8,12 @@ from prefect import task
 
 from config.blocks import BlockRegistry
 from core.ingestion import already_ingested, save_landing, write_bronze
-from domains.exchange_schedules.datasets import (
-    EXCHANGE_HOLIDAYS_DATASET,
-    EXCHANGE_SCHEDULES_DATASET,
-    EXCHANGE_SCHEDULES_LANDING,
+from domains.exchange_schedule.datasets import (
+    EXCHANGE_HOLIDAY_DATASET,
+    EXCHANGE_SCHEDULE_DATASET,
+    EXCHANGE_SCHEDULE_LANDING,
 )
-from domains.exchange_schedules.parsers import parse_exchange_holiday_snapshots, parse_exchange_schedule_snapshot
+from domains.exchange_schedule.parsers import parse_exchange_holiday_snapshots, parse_exchange_schedule_snapshot
 from providers.eodhd.models import ExchangeSchedule
 
 log = structlog.get_logger(__name__)
@@ -33,19 +33,19 @@ async def fetch_schedule_exchange_codes() -> list[str]:
     async with EODHDClient(api_key=api_key) as client:
         codes = await client.get_exchange_details_codes()
 
-    log.info("schedules.codes_loaded", source="v2_list", count=len(codes))
+    log.info("schedule.codes_loaded", source="v2_list", count=len(codes))
     return codes
 
 
 @task(name="fetch-exchange-details", retries=3, retry_delay_seconds=10)
 async def fetch_exchange_details(exchange_code: str) -> ExchangeSchedule | None:
-    """Fetch v2 trading hours and holidays for one exchange.
+    """Fetch v2 trading hours and holiday for one exchange.
 
     Returns None when the exchange is not supported by the v2 endpoint.
     """
     from providers.eodhd.client import EODHDClient
 
-    log.info("schedules.fetch_start", exchange=exchange_code)
+    log.info("schedule.fetch_start", exchange=exchange_code)
     api_key = (await BlockRegistry.EODHD_API_KEY.load_async()).get()
     async with EODHDClient(api_key=api_key) as client:
         try:
@@ -53,14 +53,14 @@ async def fetch_exchange_details(exchange_code: str) -> ExchangeSchedule | None:
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code == 404:
                 log.warning(
-                    "schedules.exchange_unsupported",
+                    "schedule.exchange_unsupported",
                     exchange=exchange_code,
                     status=exc.response.status_code,
                 )
                 return None
             raise
 
-    log.info("schedules.fetch_done", exchange=exchange_code)
+    log.info("schedule.fetch_done", exchange=exchange_code)
     return details
 
 
@@ -77,8 +77,8 @@ async def write_schedule_to_landing_zone(
     s3 = await S3StorageClient.from_block_entry(BlockRegistry.S3_BUCKET)
     ref = save_landing(
         s3,
-        EXCHANGE_SCHEDULES_LANDING,
-        EXCHANGE_SCHEDULES_DATASET.provider,
+        EXCHANGE_SCHEDULE_LANDING,
+        EXCHANGE_SCHEDULE_DATASET.provider,
         details,
         ingested_at=stamp,
         exchange=exchange_code,
@@ -92,18 +92,18 @@ def write_bronze_exchange_schedule(
     snapshot_date: date,
     source_uri: str | None = None,
 ) -> int:
-    """Write one exchange schedule row to bronze.exchange_schedules."""
+    """Write one exchange schedule row to bronze.exchange_schedule."""
     from core.clients.lake import get_lake_client
 
     lake = get_lake_client()
     if already_ingested(
         lake,
-        EXCHANGE_SCHEDULES_DATASET,
+        EXCHANGE_SCHEDULE_DATASET,
         snapshot_date=snapshot_date,
         exchange_code=details.exchange_code,
     ):
         log.info(
-            "schedules.write_skipped",
+            "schedule.write_skipped",
             reason="already_ingested",
             exchange=details.exchange_code,
             snapshot_date=snapshot_date,
@@ -112,12 +112,12 @@ def write_bronze_exchange_schedule(
 
     written = write_bronze(
         lake,
-        EXCHANGE_SCHEDULES_DATASET,
+        EXCHANGE_SCHEDULE_DATASET,
         [parse_exchange_schedule_snapshot(details, snapshot_date)],
         source_uri=source_uri,
     )
     log.info(
-        "schedules.write_done",
+        "schedule.write_done",
         exchange=details.exchange_code,
         snapshot_date=snapshot_date,
         rows=written,
@@ -125,21 +125,21 @@ def write_bronze_exchange_schedule(
     return written
 
 
-@task(name="write-bronze-exchange-holidays")
-def write_bronze_exchange_holidays(
+@task(name="write-bronze-exchange-holiday")
+def write_bronze_exchange_holiday(
     details: ExchangeSchedule,
     snapshot_date: date,
     source_uri: str | None = None,
 ) -> int:
-    """Write holiday rows for one exchange to bronze.exchange_holidays."""
+    """Write holiday rows for one exchange to bronze.exchange_holiday."""
     from core.clients.lake import get_lake_client
 
     exchange_code = details.exchange_code
-    holidays = parse_exchange_holiday_snapshots(details, snapshot_date)
-    if not holidays:
+    holiday = parse_exchange_holiday_snapshots(details, snapshot_date)
+    if not holiday:
         log.info(
-            "schedules.holidays_write_skipped",
-            reason="no_holidays",
+            "schedule.holiday_write_skipped",
+            reason="no_holiday",
             exchange=exchange_code,
             snapshot_date=snapshot_date,
         )
@@ -148,21 +148,21 @@ def write_bronze_exchange_holidays(
     lake = get_lake_client()
     if already_ingested(
         lake,
-        EXCHANGE_HOLIDAYS_DATASET,
+        EXCHANGE_HOLIDAY_DATASET,
         snapshot_date=snapshot_date,
         exchange_code=exchange_code,
     ):
         log.info(
-            "schedules.holidays_write_skipped",
+            "schedule.holiday_write_skipped",
             reason="already_ingested",
             exchange=exchange_code,
             snapshot_date=snapshot_date,
         )
         return 0
 
-    written = write_bronze(lake, EXCHANGE_HOLIDAYS_DATASET, holidays, source_uri=source_uri)
+    written = write_bronze(lake, EXCHANGE_HOLIDAY_DATASET, holiday, source_uri=source_uri)
     log.info(
-        "schedules.holidays_write_done",
+        "schedule.holiday_write_done",
         exchange=exchange_code,
         snapshot_date=snapshot_date,
         rows=written,
@@ -178,7 +178,7 @@ def schedule_already_ingested(exchange_code: str, snapshot_date: date) -> bool:
     lake = get_lake_client()
     return already_ingested(
         lake,
-        EXCHANGE_SCHEDULES_DATASET,
+        EXCHANGE_SCHEDULE_DATASET,
         snapshot_date=snapshot_date,
         exchange_code=exchange_code,
     )
