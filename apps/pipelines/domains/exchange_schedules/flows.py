@@ -54,7 +54,7 @@ async def exchange_schedules_flow(
     )
 
     # Write results sequentially to avoid concurrent DuckDB write conflicts.
-    for code, details in zip(pending, results):
+    for code, details in zip(pending, results, strict=True):
         if isinstance(details, BaseException):
             log.error("schedules.fetch_error", exchange=code, error=str(details))
             summary["failed"].append(code)
@@ -63,9 +63,9 @@ async def exchange_schedules_flow(
             summary["unsupported"].append(code)
             continue
 
-        await write_schedule_to_landing_zone(details, code)
-        schedule_rows = write_bronze_exchange_schedule(details, snapshot_date)
-        holiday_rows = write_bronze_exchange_holidays(details, snapshot_date)
+        source_uri = await write_schedule_to_landing_zone(details, code)
+        schedule_rows = write_bronze_exchange_schedule(details, snapshot_date, source_uri=source_uri)
+        holiday_rows = write_bronze_exchange_holidays(details, snapshot_date, source_uri=source_uri)
         summary["exchanges"][code] = {
             "schedule_rows": schedule_rows,
             "holiday_rows": holiday_rows,

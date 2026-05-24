@@ -11,12 +11,12 @@ from domains.exchanges.tasks import (
 )
 
 
-@flow(name="exchanges-refresh", description="Ingest the list of supported stock exchanges from EODHD.")
+@flow(name="exchanges-refresh", description="Ingest the list of supported exchanges from EODHD.")
 async def exchanges_flow() -> int:
     """Fetch the EODHD exchange catalog and write landing + bronze snapshots."""
     exchanges = await fetch_supported_exchanges()
-    await write_to_landing_zone(exchanges)
-    written = write_bronze_exchanges(exchanges, snapshot_date=date.today())
+    source_uri = await write_to_landing_zone(exchanges)
+    written = write_bronze_exchanges(exchanges, snapshot_date=date.today(), source_uri=source_uri)
     return written
 
 

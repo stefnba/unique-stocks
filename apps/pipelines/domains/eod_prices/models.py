@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from typing import Self
 
 from pydantic import ConfigDict, model_validator
 
@@ -32,6 +33,7 @@ class EODBar(BronzeModel):
 
     model_config = ConfigDict(strict=True, extra="forbid")
 
+    exchange_code: str
     ticker: str
     bar_date: date
     open: Decimal
@@ -42,7 +44,8 @@ class EODBar(BronzeModel):
     adjusted_close: Decimal | None = None
 
     @model_validator(mode="after")
-    def validate_ohlc(self) -> "EODBar":
+    def validate_ohlc(self) -> Self:
+        """Validate OHLC price ordering invariants."""
         if not (self.low <= self.open <= self.high):
             raise ValueError(
                 f"OHLC invariant violated for {self.ticker} on {self.bar_date}: "
@@ -54,5 +57,3 @@ class EODBar(BronzeModel):
                 f"close={self.close} not in [{self.low}, {self.high}]"
             )
         return self
-
-

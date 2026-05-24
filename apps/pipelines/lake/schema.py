@@ -8,7 +8,10 @@ from pydantic import BaseModel
 
 from core.schema import INTEGER, TEXT, SqlColumn, TableModel
 from core.schema import UUID as SQL_UUID
+from domains.eod_prices.tables import EOD_PRICES_TABLE
+from domains.exchange_schedules.tables import EXCHANGE_HOLIDAYS_TABLE, EXCHANGE_SCHEDULES_TABLE
 from domains.exchanges.tables import EXCHANGES_TABLE
+from domains.instruments.tables import INSTRUMENTS_TABLE
 
 
 class PipelineRunRow(BaseModel):
@@ -36,7 +39,11 @@ class PipelineRunsTable(TableModel):
 PIPELINE_RUNS_TABLE = PipelineRunsTable
 
 BRONZE_TABLES = (
+    EOD_PRICES_TABLE,
     EXCHANGES_TABLE,
+    EXCHANGE_SCHEDULES_TABLE,
+    EXCHANGE_HOLIDAYS_TABLE,
+    INSTRUMENTS_TABLE,
 )
 
 PIPELINE_TABLES = (PIPELINE_RUNS_TABLE,)

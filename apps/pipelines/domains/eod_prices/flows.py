@@ -17,8 +17,10 @@ from prefect import flow
 from pydantic import ValidationError
 
 from core.clients.lake import DataLakeClient, get_lake_client
+from core.ingestion import BronzeSource, attach_source_uri
 from core.scheduler import last_completed_trading_day
 
+from .models import EODBar
 from .parsers import parse_ticker_bars
 from .tasks import (
     fetch_eod_exchange_codes,
@@ -29,6 +31,7 @@ from .tasks import (
     write_backfill_eod_batch,
     write_bronze_eod_prices,
     write_eod_prices_to_landing,
+    write_ticker_eod_history_to_landing,
 )
 
 log = structlog.get_logger(__name__)
@@ -75,9 +78,14 @@ async def eod_prices_flow(
                     summary["exchanges"][exchange] = {"rows_written": 0}
                     continue
 
-                await write_eod_prices_to_landing(raw_rows, exchange=exchange, bar_date=trade_date)
-                bars = parse_eod_prices(raw_rows, bar_date=trade_date, exchange=exchange)
-                written = write_bronze_eod_prices(bars, exchange=exchange, bar_date=trade_date)
+                source_uri = await write_eod_prices_to_landing(raw_rows, exchange=exchange, bar_date=trade_date)
+                sources = parse_eod_prices(raw_rows, bar_date=trade_date, exchange=exchange)
+                written = write_bronze_eod_prices(
+                    sources,
+                    exchange=exchange,
+                    bar_date=trade_date,
+                    source_uri=source_uri,
+                )
 
                 summary["exchanges"][exchange] = {"rows_written": written}
                 total_written += written
@@ -160,8 +168,9 @@ async def eod_prices_backfill_flow(
     its exchange — re-runs are safe. To re-ingest a specific symbol, pass it
     via exchange_codes and delete its rows from bronze first.
 
-    S3 landing is omitted for backfill: the data is always re-fetchable from
-    EODHD and landing 150 k files adds operational noise with little benefit.
+    Provider-validated backfill payloads are written to S3 landing before
+    parsing so historical ingestion follows the same replay contract as daily
+    and reference flows.
 
     Args:
         from_date: Earliest bar date to request from EODHD.
@@ -216,8 +225,8 @@ async def eod_prices_backfill_flow(
                     return_exceptions=True,
                 )
 
-                batch_bars: list[tuple[str, list]] = []
-                for sym, result in zip(batch_symbols, raw_results):
+                batch_sources: list[BronzeSource[EODBar]] = []
+                for sym, result in zip(batch_symbols, raw_results, strict=True):
                     if isinstance(result, ValidationError):
                         raise result  # schema drift — abort everything
                     if isinstance(result, BaseException):
@@ -225,14 +234,21 @@ async def eod_prices_backfill_flow(
                         exchange_failed.append(sym)
                         continue
 
+                    source_uri = await write_ticker_eod_history_to_landing(
+                        result,
+                        symbol=sym,
+                        exchange_code=exchange_code,
+                        from_date=from_date,
+                        to_date=to_date,
+                    )
                     valid, rejected = parse_ticker_bars(result, ticker=sym)
                     if rejected:
                         log.warning("backfill.parse_rejections", symbol=sym, count=len(rejected))
                     if valid:
-                        batch_bars.append((sym, valid))
+                        batch_sources.extend(attach_source_uri(valid, source_uri))
 
-                if batch_bars:
-                    n = write_backfill_eod_batch(batch_bars, exchange_code=exchange_code)
+                if batch_sources:
+                    n = write_backfill_eod_batch(batch_sources, exchange_code=exchange_code)
                     exchange_written += n
 
                 log.info(

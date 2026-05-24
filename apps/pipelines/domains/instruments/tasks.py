@@ -6,9 +6,10 @@ import structlog
 from prefect import task
 
 from config.blocks import BlockRegistry
-from core.clients.storage.s3 import S3Key
+from core.ingestion import already_ingested, save_landing, write_bronze
+from domains.instruments.datasets import INSTRUMENTS_DATASET, INSTRUMENTS_LANDING
+from domains.instruments.parsers import parse_instrument_snapshots
 from providers.eodhd.models import Instrument
-from providers.registry import Provider
 
 log = structlog.get_logger(__name__)
 
@@ -62,13 +63,14 @@ async def write_instruments_to_landing_zone(
 
     stamp = ingested_at or datetime.now(UTC).replace(microsecond=0)
     s3 = await S3StorageClient.from_block_entry(BlockRegistry.S3_BUCKET)
-    key = S3Key.partitioned(
-        S3Key.Provider.EODHD,
-        S3Key.Domain.INSTRUMENTS,
-        exchange=exchange_code,
+    ref = save_landing(
+        s3,
+        INSTRUMENTS_LANDING,
+        INSTRUMENTS_DATASET.provider,
+        instruments,
         ingested_at=stamp,
-    ).jsonl()
-    ref = s3.save(key, instruments)
+        exchange=exchange_code,
+    )
     return ref.uri
 
 
@@ -77,6 +79,7 @@ def write_bronze_instruments(
     instruments: list[Instrument],
     exchange_code: str,
     snapshot_date: date,
+    source_uri: str | None = None,
 ) -> int:
     """Write instrument rows for one exchange to bronze.instruments.
 
@@ -91,15 +94,7 @@ def write_bronze_instruments(
         return 0
 
     lake = get_lake_client()
-    qualified = lake.qualified_name("bronze", "instruments")
-    already_ingested = lake.query_one(
-        f"""
-        SELECT COUNT(*) AS cnt FROM {qualified}
-        WHERE snapshot_date = ? AND exchange_code = ? AND provider = ?
-        """,
-        [snapshot_date.isoformat(), exchange_code, Provider.EODHD],
-    )
-    if already_ingested and already_ingested["cnt"] > 0:
+    if already_ingested(lake, INSTRUMENTS_DATASET, snapshot_date=snapshot_date, exchange_code=exchange_code):
         log.info(
             "instruments.write_skipped",
             reason="already_ingested",
@@ -108,11 +103,15 @@ def write_bronze_instruments(
         )
         return 0
 
-    records = [
-        {**i.to_bronze_record(), "exchange_code": exchange_code, "snapshot_date": snapshot_date}
-        for i in instruments
-    ]
-    written = lake.insert_rows("bronze", "instruments", records)
+    sources, rejected = parse_instrument_snapshots(instruments, exchange_code, snapshot_date)
+    if rejected:
+        log.warning(
+            "instruments.parse_rejections",
+            exchange=exchange_code,
+            snapshot_date=snapshot_date,
+            count=len(rejected),
+        )
+    written = write_bronze(lake, INSTRUMENTS_DATASET, sources, source_uri=source_uri)
     log.info(
         "instruments.write_done",
         exchange=exchange_code,
@@ -128,12 +127,4 @@ def instruments_already_ingested(exchange_code: str, snapshot_date: date) -> boo
     from core.clients.lake import get_lake_client
 
     lake = get_lake_client()
-    qualified = lake.qualified_name("bronze", "instruments")
-    row = lake.query_one(
-        f"""
-        SELECT COUNT(*) AS cnt FROM {qualified}
-        WHERE snapshot_date = ? AND exchange_code = ? AND provider = ?
-        """,
-        [snapshot_date.isoformat(), exchange_code, Provider.EODHD],
-    )
-    return bool(row and row["cnt"] > 0)
+    return already_ingested(lake, INSTRUMENTS_DATASET, snapshot_date=snapshot_date, exchange_code=exchange_code)

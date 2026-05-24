@@ -7,10 +7,14 @@ import structlog
 from prefect import task
 
 from config.blocks import BlockRegistry
-from core.clients.storage.s3 import S3Key
-from domains.exchange_schedules.parsers import parse_holiday_records, parse_schedule_record
+from core.ingestion import already_ingested, save_landing, write_bronze
+from domains.exchange_schedules.datasets import (
+    EXCHANGE_HOLIDAYS_DATASET,
+    EXCHANGE_SCHEDULES_DATASET,
+    EXCHANGE_SCHEDULES_LANDING,
+)
+from domains.exchange_schedules.parsers import parse_exchange_holiday_snapshots, parse_exchange_schedule_snapshot
 from providers.eodhd.models import ExchangeSchedule
-from providers.registry import Provider
 
 log = structlog.get_logger(__name__)
 
@@ -71,32 +75,33 @@ async def write_schedule_to_landing_zone(
 
     stamp = ingested_at or datetime.now(UTC).replace(microsecond=0)
     s3 = await S3StorageClient.from_block_entry(BlockRegistry.S3_BUCKET)
-    key = S3Key.partitioned(
-        S3Key.Provider.EODHD,
-        S3Key.Domain.EXCHANGE_SCHEDULES,
-        exchange=exchange_code,
+    ref = save_landing(
+        s3,
+        EXCHANGE_SCHEDULES_LANDING,
+        EXCHANGE_SCHEDULES_DATASET.provider,
+        details,
         ingested_at=stamp,
-    ).json()
-    ref = s3.save(key, details.model_dump(mode="json", by_alias=False))
+        exchange=exchange_code,
+    )
     return ref.uri
 
 
 @task(name="write-bronze-exchange-schedule")
-def write_bronze_exchange_schedule(details: ExchangeSchedule, snapshot_date: date) -> int:
+def write_bronze_exchange_schedule(
+    details: ExchangeSchedule,
+    snapshot_date: date,
+    source_uri: str | None = None,
+) -> int:
     """Write one exchange schedule row to bronze.exchange_schedules."""
     from core.clients.lake import get_lake_client
 
     lake = get_lake_client()
-    qualified = lake.qualified_name("bronze", "exchange_schedules")
-    already_ingested = lake.query_one(
-        f"""
-        SELECT COUNT(*) AS cnt
-        FROM {qualified}
-        WHERE snapshot_date = ? AND exchange_code = ? AND provider = ?
-        """,
-        [snapshot_date.isoformat(), details.exchange_code, Provider.EODHD],
-    )
-    if already_ingested and already_ingested["cnt"] > 0:
+    if already_ingested(
+        lake,
+        EXCHANGE_SCHEDULES_DATASET,
+        snapshot_date=snapshot_date,
+        exchange_code=details.exchange_code,
+    ):
         log.info(
             "schedules.write_skipped",
             reason="already_ingested",
@@ -105,10 +110,11 @@ def write_bronze_exchange_schedule(details: ExchangeSchedule, snapshot_date: dat
         )
         return 0
 
-    written = lake.insert_rows(
-        "bronze",
-        "exchange_schedules",
-        [parse_schedule_record(details, snapshot_date)],
+    written = write_bronze(
+        lake,
+        EXCHANGE_SCHEDULES_DATASET,
+        [parse_exchange_schedule_snapshot(details, snapshot_date)],
+        source_uri=source_uri,
     )
     log.info(
         "schedules.write_done",
@@ -120,12 +126,16 @@ def write_bronze_exchange_schedule(details: ExchangeSchedule, snapshot_date: dat
 
 
 @task(name="write-bronze-exchange-holidays")
-def write_bronze_exchange_holidays(details: ExchangeSchedule, snapshot_date: date) -> int:
+def write_bronze_exchange_holidays(
+    details: ExchangeSchedule,
+    snapshot_date: date,
+    source_uri: str | None = None,
+) -> int:
     """Write holiday rows for one exchange to bronze.exchange_holidays."""
     from core.clients.lake import get_lake_client
 
     exchange_code = details.exchange_code
-    holidays = parse_holiday_records(details, snapshot_date)
+    holidays = parse_exchange_holiday_snapshots(details, snapshot_date)
     if not holidays:
         log.info(
             "schedules.holidays_write_skipped",
@@ -136,16 +146,12 @@ def write_bronze_exchange_holidays(details: ExchangeSchedule, snapshot_date: dat
         return 0
 
     lake = get_lake_client()
-    qualified = lake.qualified_name("bronze", "exchange_holidays")
-    already_ingested = lake.query_one(
-        f"""
-        SELECT COUNT(*) AS cnt
-        FROM {qualified}
-        WHERE snapshot_date = ? AND exchange_code = ? AND provider = ?
-        """,
-        [snapshot_date.isoformat(), exchange_code, Provider.EODHD],
-    )
-    if already_ingested and already_ingested["cnt"] > 0:
+    if already_ingested(
+        lake,
+        EXCHANGE_HOLIDAYS_DATASET,
+        snapshot_date=snapshot_date,
+        exchange_code=exchange_code,
+    ):
         log.info(
             "schedules.holidays_write_skipped",
             reason="already_ingested",
@@ -154,7 +160,7 @@ def write_bronze_exchange_holidays(details: ExchangeSchedule, snapshot_date: dat
         )
         return 0
 
-    written = lake.insert_rows("bronze", "exchange_holidays", holidays)
+    written = write_bronze(lake, EXCHANGE_HOLIDAYS_DATASET, holidays, source_uri=source_uri)
     log.info(
         "schedules.holidays_write_done",
         exchange=exchange_code,
@@ -170,13 +176,9 @@ def schedule_already_ingested(exchange_code: str, snapshot_date: date) -> bool:
     from core.clients.lake import get_lake_client
 
     lake = get_lake_client()
-    qualified = lake.qualified_name("bronze", "exchange_schedules")
-    row = lake.query_one(
-        f"""
-        SELECT COUNT(*) AS cnt
-        FROM {qualified}
-        WHERE snapshot_date = ? AND exchange_code = ? AND provider = ?
-        """,
-        [snapshot_date.isoformat(), exchange_code, Provider.EODHD],
+    return already_ingested(
+        lake,
+        EXCHANGE_SCHEDULES_DATASET,
+        snapshot_date=snapshot_date,
+        exchange_code=exchange_code,
     )
-    return bool(row and row["cnt"] > 0)

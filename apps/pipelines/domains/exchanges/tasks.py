@@ -6,7 +6,9 @@ import structlog
 from prefect import task
 
 from config.blocks import BlockRegistry
-from core.clients.storage.s3 import S3Key
+from core.ingestion import already_ingested, save_landing, write_bronze
+from domains.exchanges.datasets import EXCHANGES_DATASET, EXCHANGES_LANDING
+from domains.exchanges.parsers import parse_exchange_snapshots
 from providers.eodhd.models import SupportedExchange
 
 log = structlog.get_logger(__name__)
@@ -31,13 +33,16 @@ async def write_to_landing_zone(exchanges: list[SupportedExchange]) -> str:
     from core.clients.storage.s3 import S3StorageClient
 
     s3 = await S3StorageClient.from_block_entry(BlockRegistry.S3_BUCKET)
-    key = S3Key.snapshot(S3Key.Provider.EODHD, S3Key.Domain.EXCHANGES).jsonl()
-    ref = s3.save(key, exchanges)
+    ref = save_landing(s3, EXCHANGES_LANDING, EXCHANGES_DATASET.provider, exchanges)
     return ref.uri
 
 
 @task()
-def write_bronze_exchanges(exchanges: list[SupportedExchange], snapshot_date: date) -> int:
+def write_bronze_exchanges(
+    exchanges: list[SupportedExchange],
+    snapshot_date: date,
+    source_uri: str | None = None,
+) -> int:
     """Write validated exchanges to bronze.exchanges.
 
     Skips the insert when a snapshot for this date and provider already exists
@@ -50,12 +55,7 @@ def write_bronze_exchanges(exchanges: list[SupportedExchange], snapshot_date: da
         return 0
 
     lake = get_lake_client()
-    qualified = lake.qualified_name("bronze", "exchanges")
-    already_ingested = lake.query_one(
-        f"SELECT COUNT(*) AS cnt FROM {qualified} WHERE snapshot_date = ? AND provider = ?",
-        [snapshot_date.isoformat(), SupportedExchange.provider],
-    )
-    if already_ingested and already_ingested["cnt"] > 0:
+    if already_ingested(lake, EXCHANGES_DATASET, snapshot_date=snapshot_date):
         log.info(
             "exchanges.write_skipped",
             reason="already_ingested",
@@ -63,7 +63,7 @@ def write_bronze_exchanges(exchanges: list[SupportedExchange], snapshot_date: da
         )
         return 0
 
-    records = [{**ex.to_bronze_record(), "snapshot_date": snapshot_date} for ex in exchanges]
-    written = lake.insert_rows("bronze", "exchanges", records)
+    sources = parse_exchange_snapshots(exchanges, snapshot_date)
+    written = write_bronze(lake, EXCHANGES_DATASET, sources, source_uri=source_uri)
     log.info("exchanges.write_done", snapshot_date=snapshot_date, rows=written)
     return written

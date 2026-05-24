@@ -30,6 +30,7 @@ from core.clients.lake import DataLakeClient
 from core.clients.storage.s3 import S3ObjectRef, S3StorageClient
 from core.clients.storage.s3.keys import S3Domain, S3Key
 from core.models import BronzeModel
+from core.schema import BronzeTableModel
 
 type LandingStyle = Literal["snapshot", "partitioned"]
 type LandingFormat = Literal["json", "jsonl", "csv"]
@@ -113,20 +114,34 @@ class BronzeDataset[RowT: BronzeModel]:
     """Ingestion policy for one Bronze table.
 
     A dataset binds the provider, Bronze table, landing policy, and
-    idempotency columns for a domain row type. It is the primary DX object for
-    tasks: pass it to ``save_landing``, ``already_ingested``, and
-    ``write_bronze`` instead of repeating provider/table/path details in every
-    flow.
+    landing policy for a domain row type. The table spec owns the physical
+    table name, schema, unique columns, and idempotency columns. It is the
+    primary DX object for tasks: pass it to ``save_landing``,
+    ``already_ingested``, and ``write_bronze`` instead of repeating
+    provider/table/path details in every flow.
 
     Dataset specs are intentionally explicit and small. They do not generate
     Prefect flows; flows remain readable orchestration code.
     """
 
     provider: str
-    table: str
+    table: type[BronzeTableModel]
     landing: LandingSpec
-    idempotency_columns: tuple[str, ...]
-    schema: str = "bronze"
+
+    @property
+    def schema(self) -> str:
+        """Return the lake schema name from the table spec."""
+        return self.table.schema_name
+
+    @property
+    def table_name(self) -> str:
+        """Return the physical table name from the table spec."""
+        return self.table.table_name
+
+    @property
+    def idempotency_columns(self) -> tuple[str, ...]:
+        """Return idempotency columns from the table spec."""
+        return self.table.idempotency_column_names()
 
     def landing_key(
         self,
@@ -223,7 +238,7 @@ def write_bronze[RowT: BronzeModel](
     records = bronze_records(dataset, sources, source_uri=source_uri)
     if not records:
         return 0
-    return lake.insert_rows(dataset.schema, dataset.table, records)
+    return lake.insert_rows(dataset.schema, dataset.table_name, records)
 
 
 def already_ingested[RowT: BronzeModel](
@@ -239,9 +254,9 @@ def already_ingested[RowT: BronzeModel](
     """
     missing = [column for column in dataset.idempotency_columns if column not in values]
     if missing:
-        raise ValueError(f"Missing idempotency values for {dataset.table}: {missing}")
+        raise ValueError(f"Missing idempotency values for {dataset.table_name}: {missing}")
 
-    qualified = lake.qualified_name(dataset.schema, dataset.table)
+    qualified = lake.qualified_name(dataset.schema, dataset.table_name)
     clauses = [f"{column} = ?" for column in dataset.idempotency_columns]
     clauses.append("provider = ?")
     params = [_sql_value(values[column]) for column in dataset.idempotency_columns]

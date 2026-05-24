@@ -52,14 +52,14 @@ async def instruments_flow(
         return_exceptions=True,
     )
 
-    for code, result in zip(pending, results):
+    for code, result in zip(pending, results, strict=True):
         if isinstance(result, BaseException):
             log.error("instruments.fetch_error", exchange=code, error=str(result))
             summary["failed"].append(code)
             continue
 
-        await write_instruments_to_landing_zone(result, code)
-        rows = write_bronze_instruments(result, code, snapshot_date)
+        source_uri = await write_instruments_to_landing_zone(result, code)
+        rows = write_bronze_instruments(result, code, snapshot_date, source_uri=source_uri)
         summary["exchanges"][code] = {"rows": rows}
 
     log.info(

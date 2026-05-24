@@ -13,13 +13,18 @@ from prefect.tasks import exponential_backoff
 from pydantic import ValidationError
 
 from config.blocks import BlockRegistry
-from core.clients.storage.s3 import S3Key
+from core.ingestion import (
+    BronzeSource,
+    already_ingested,
+    save_landing,
+    write_bronze,
+)
 from providers.eodhd.client import EODHDClient
 from providers.eodhd.models import EODBulkPriceRaw, EODPriceBarRaw
-from providers.registry import Provider
 
+from .datasets import EOD_PRICES_BACKFILL_LANDING, EOD_PRICES_DAILY_LANDING, EOD_PRICES_DATASET
 from .models import EODBar
-from .parsers import bars_to_bronze_records, parse_eod_bars, parse_ticker_bars
+from .parsers import parse_eod_bars
 
 log = structlog.get_logger(__name__)
 
@@ -85,15 +90,45 @@ async def write_eod_prices_to_landing(
 
     stamp = ingested_at or datetime.now(UTC).replace(microsecond=0)
     s3 = await S3StorageClient.from_block_entry(BlockRegistry.S3_BUCKET)
-    key = S3Key.partitioned(
-        S3Key.Provider.EODHD,
-        S3Key.Domain.EOD_PRICES,
+    ref = save_landing(
+        s3,
+        EOD_PRICES_DAILY_LANDING,
+        EOD_PRICES_DATASET.provider,
+        raw_rows,
+        ingested_at=stamp,
         exchange=exchange,
         bar_date=bar_date,
-        ingested_at=stamp,
-    ).jsonl()
-    ref = s3.save(key, raw_rows)
+    )
     log.info("prices.landing_written", exchange=exchange, bar_date=bar_date, uri=ref.uri)
+    return ref.uri
+
+
+@task(name="write-ticker-eod-history-landing")
+async def write_ticker_eod_history_to_landing(
+    raw_bars: list[EODPriceBarRaw],
+    symbol: str,
+    exchange_code: str,
+    from_date: date,
+    to_date: date,
+    ingested_at: datetime | None = None,
+) -> str:
+    """Write raw per-ticker historical bars to the S3 landing zone as JSONL."""
+    from core.clients.storage.s3 import S3StorageClient
+
+    stamp = ingested_at or datetime.now(UTC).replace(microsecond=0)
+    s3 = await S3StorageClient.from_block_entry(BlockRegistry.S3_BUCKET)
+    ref = save_landing(
+        s3,
+        EOD_PRICES_BACKFILL_LANDING,
+        EOD_PRICES_DATASET.provider,
+        raw_bars,
+        ingested_at=stamp,
+        exchange=exchange_code,
+        ticker=symbol,
+        from_date=from_date,
+        to_date=to_date,
+    )
+    log.info("backfill.landing_written", symbol=symbol, uri=ref.uri)
     return ref.uri
 
 
@@ -102,7 +137,7 @@ def parse_eod_prices(
     raw_rows: list[EODBulkPriceRaw],
     bar_date: date,
     exchange: str,
-) -> list[EODBar]:
+) -> list[BronzeSource[EODBar]]:
     """Apply business validation and convert raw rows to EODBar domain models.
 
     Logs and drops invalid rows — a few bad tickers should not abort an
@@ -121,7 +156,12 @@ def parse_eod_prices(
 
 
 @task(name="write-bronze-eod-prices")
-def write_bronze_eod_prices(bars: list[EODBar], exchange: str, bar_date: date) -> int:
+def write_bronze_eod_prices(
+    sources: list[BronzeSource[EODBar]],
+    exchange: str,
+    bar_date: date,
+    source_uri: str | None = None,
+) -> int:
     """Write validated bars to bronze.eod_prices.
 
     Idempotency is checked at the (exchange_code, bar_date, provider) level —
@@ -129,20 +169,12 @@ def write_bronze_eod_prices(bars: list[EODBar], exchange: str, bar_date: date) -
     """
     from core.clients.lake import get_lake_client
 
-    if not bars:
+    if not sources:
         log.info("prices.write_skipped", reason="no_bars", exchange=exchange, bar_date=bar_date)
         return 0
 
     lake = get_lake_client()
-    qualified = lake.qualified_name("bronze", "eod_prices")
-    already_ingested = lake.query_one(
-        f"""
-        SELECT COUNT(*) AS cnt FROM {qualified}
-        WHERE exchange_code = ? AND bar_date = ? AND provider = ?
-        """,
-        [exchange, bar_date.isoformat(), Provider.EODHD],
-    )
-    if already_ingested and already_ingested["cnt"] > 0:
+    if already_ingested(lake, EOD_PRICES_DATASET, exchange_code=exchange, bar_date=bar_date):
         log.info(
             "prices.write_skipped",
             reason="already_ingested",
@@ -151,8 +183,7 @@ def write_bronze_eod_prices(bars: list[EODBar], exchange: str, bar_date: date) -
         )
         return 0
 
-    records = bars_to_bronze_records(bars, exchange_code=exchange)
-    written = lake.insert_rows("bronze", "eod_prices", records)
+    written = write_bronze(lake, EOD_PRICES_DATASET, sources, source_uri=source_uri)
     log.info("prices.write_done", exchange=exchange, bar_date=bar_date, rows=written)
     return written
 
@@ -205,7 +236,7 @@ def load_backfill_pending_symbols(exchange_code: str, from_date: date) -> list[s
         prices_q = lake.qualified_name("bronze", "eod_prices")
         done_rows = lake.query(
             f"SELECT DISTINCT ticker FROM {prices_q} WHERE exchange_code = ? AND provider = ?",
-            [exchange_code, Provider.EODHD],
+            [exchange_code, EOD_PRICES_DATASET.provider],
         )
         suffix = f".{exchange_code}"
         done_codes = {
@@ -249,30 +280,24 @@ async def fetch_ticker_eod_history(
 
 @task(name="write-backfill-eod-batch")
 def write_backfill_eod_batch(
-    batch_bars: list[tuple[str, list[EODBar]]],
+    sources: list[BronzeSource[EODBar]],
     exchange_code: str,
 ) -> int:
     """Bulk-insert one batch of per-ticker bars into bronze.eod_prices.
 
-    Takes a list of (fully-qualified-symbol, bars) tuples so all records from
-    the batch land in a single ``executemany`` call rather than one per symbol.
+    Takes parser-produced Bronze sources so all records from the batch land in
+    a single ``executemany`` call rather than one per symbol.
     """
     from core.clients.lake import get_lake_client
 
-    records = [
-        record
-        for symbol, bars in batch_bars
-        for record in bars_to_bronze_records(bars, exchange_code=exchange_code)
-    ]
-    if not records:
+    if not sources:
         return 0
 
     lake = get_lake_client()
-    written = lake.insert_rows("bronze", "eod_prices", records)
+    written = write_bronze(lake, EOD_PRICES_DATASET, sources)
     log.info(
         "backfill.batch_written",
         exchange=exchange_code,
-        symbols=len(batch_bars),
         rows=written,
     )
     return written
