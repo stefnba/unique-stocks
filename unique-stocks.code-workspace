@@ -39,9 +39,11 @@
         },
         "python.envFile": "${workspaceFolder:pipelines}/.env",
         // --- SQLFluff ---
-        "sqlfluff.executablePath": "${workspaceFolder:pipelines}/.venv/bin/sqlfluff",
+        // Use ${workspaceFolder} (first folder = repo root): the extension often does not
+        // resolve ${workspaceFolder:pipelines} / named multi-root variables.
+        "sqlfluff.executablePath": "${workspaceFolder}/apps/pipelines/.venv/bin/sqlfluff",
         // .sqlfluff lives at repo root so sqlfluff picks it up when linting infra/scripts/
-        "sqlfluff.config": "${workspaceFolder:unique-stocks (root)}/.sqlfluff",
+        "sqlfluff.config": "${workspaceFolder}/.sqlfluff",
         "[sql]": {
             "editor.defaultFormatter": "sqlfluff.vscode-sqlfluff",
             "editor.formatOnSave": true
