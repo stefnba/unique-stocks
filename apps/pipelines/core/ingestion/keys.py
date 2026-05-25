@@ -8,7 +8,8 @@ from typing import Literal, Self
 
 from core.ingestion.partitioning import PartitionValue, partition_path, partition_value
 
-type LandingLayer = Literal["landing", "bronze"]
+type LandingLayer = Literal["landing"]
+type LandingFileFormat = Literal["json", "jsonl", "csv"]
 
 
 class LandingDomain(StrEnum):
@@ -29,7 +30,7 @@ def utc_now_stamp() -> str:
 
 @dataclass(frozen=True, slots=True)
 class ObjectStorageKey:
-    """Construct canonical, Hive-compatible object keys for ingestion data."""
+    """Construct canonical, Hive-compatible keys for object storage."""
 
     provider: str
     domain: LandingDomain
@@ -105,4 +106,10 @@ class ObjectStorageKey:
         return self.key("csv")
 
 
-__all__ = ["LandingDomain", "LandingLayer", "ObjectStorageKey", "utc_now_stamp"]
+__all__ = [
+    "LandingDomain",
+    "LandingFileFormat",
+    "LandingLayer",
+    "ObjectStorageKey",
+    "utc_now_stamp",
+]
