@@ -56,16 +56,21 @@ class EODHDClient(HttpClientBase):
     def _default_params(self) -> dict[str, str]:
         return {"fmt": "json"}
 
-    async def get_eod_price_bulk(self, exchange: str, bar_date: date) -> list[EODBulkPriceRaw]:
+    async def get_eod_price_bulk(self, exchange: str, bar_date: date | None = None) -> list[EODBulkPriceRaw]:
         """All tickers for an exchange on one date (one API call per exchange).
 
+        If ``bar_date`` is omitted, EODHD returns its latest available trading
+        day for the exchange.
         Response is validated against EODBulkPriceRaw — raises ValidationError
         if EODHD changes their schema.
         """
+        params: dict[str, str] = {}
+        if bar_date is not None:
+            params["date"] = bar_date.isoformat()
         rows = await self._get_list(
             f"/eod-bulk-last-day/{exchange}",
             model=EODBulkPriceRaw,
-            params={"date": bar_date.isoformat()},
+            params=params,
         )
         return rows
 

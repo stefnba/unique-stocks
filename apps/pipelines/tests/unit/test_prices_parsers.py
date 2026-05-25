@@ -8,7 +8,7 @@ from typing import Any
 from core.ingestion import BronzeParseResult
 from domains.eod_price.datasets import EOD_PRICE_DATASET
 from domains.eod_price.models import EODBar
-from domains.eod_price.parsers import parse_eod_bars, parse_ticker_bars
+from domains.eod_price.parsers import infer_bulk_bar_date, parse_eod_bars, parse_ticker_bars
 from providers.eodhd.models import EODBulkPriceRaw, EODPriceBarRaw
 
 TARGET_DATE = date(2026, 5, 9)
@@ -112,6 +112,11 @@ class TestParseEodBars:
         row = _row(code="TSLA")
         valid, _ = parse_eod_bars([row], TARGET_DATE, "NASDAQ")
         assert valid[0].row.ticker == "TSLA.NASDAQ"
+
+    def test_bulk_bar_date_infers_latest_provider_date(self) -> None:
+        """Daily runs without an explicit date use the latest returned provider date."""
+        rows = [_row(date="2026-05-08"), _row(date="2026-05-09")]
+        assert infer_bulk_bar_date(rows) == TARGET_DATE
 
 
 class TestParseTickerBars:

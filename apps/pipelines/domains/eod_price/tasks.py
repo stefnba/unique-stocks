@@ -60,10 +60,11 @@ def _is_retryable(task: object, task_run: TaskRun, state: State) -> bool:
     retry_condition_fn=_is_retryable,
     log_prints=True,
 )
-async def fetch_eod_price_bulk(exchange: str, bar_date: date) -> list[EODBulkPriceRaw]:
+async def fetch_eod_price_bulk(exchange: str, bar_date: date | None = None) -> list[EODBulkPriceRaw]:
     """Fetch and schema-validate raw EOD price rows for an entire exchange.
 
-    Uses the EODHD bulk endpoint (one API call per exchange per date).
+    Uses the EODHD bulk endpoint. If ``bar_date`` is omitted, EODHD returns its
+    latest available trading day for the exchange.
     Raises ValidationError if EODHD's response shape doesn't match EODBulkPriceRaw.
     """
     log.info("price.fetch_start", exchange=exchange, bar_date=bar_date)

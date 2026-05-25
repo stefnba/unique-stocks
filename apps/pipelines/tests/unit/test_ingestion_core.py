@@ -76,8 +76,6 @@ class BackfillPricePartition(LandingPartitionSchema):
 
     exchange: str
     ticker: str
-    from_date: date
-    to_date: date
 
 
 @dataclass(frozen=True, slots=True)
@@ -233,7 +231,7 @@ def test_landing_target_save_uses_key_format_and_provider_aliases() -> None:
 def test_bronze_dataset_uses_typed_landing_group() -> None:
     """Multiple landing routes remain explicit and dot-accessible on the dataset."""
     assert PRICE_DATASET.landings.daily.partition_field_names == ("exchange", "bar_date")
-    assert PRICE_DATASET.landings.backfill.partition_field_names == ("exchange", "ticker", "from_date", "to_date")
+    assert PRICE_DATASET.landings.backfill.partition_field_names == ("exchange", "ticker")
 
 
 def test_bronze_record_uses_raw_json_hash_and_source_ref() -> None:

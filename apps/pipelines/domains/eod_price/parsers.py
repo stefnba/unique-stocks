@@ -50,6 +50,13 @@ def parse_eod_bars(
     )
 
 
+def infer_bulk_bar_date(raw_rows: list[EODBulkPriceRaw]) -> date:
+    """Infer the exchange bar date from a bulk EODHD response."""
+    if not raw_rows:
+        raise ValueError("Cannot infer bar_date from an empty bulk EOD response.")
+    return max(parse_date(row.date) for row in raw_rows)
+
+
 def parse_ticker_bars(
     raw_bars: list[EODPriceBarRaw],
     ticker: str,

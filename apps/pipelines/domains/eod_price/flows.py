@@ -19,10 +19,9 @@ from pydantic import ValidationError
 from core.clients.lake import DataLakeClient, get_lake_client
 from core.ingestion import BronzeParseResult
 from core.ingestion.parser import attach_source_uri
-from core.scheduler import last_completed_trading_day
 
 from .models import EODBar
-from .parsers import parse_ticker_bars
+from .parsers import infer_bulk_bar_date, parse_ticker_bars
 from .tasks import (
     fetch_eod_exchange_codes,
     fetch_eod_price_bulk,
@@ -49,13 +48,12 @@ async def eod_price_flow(
     """Ingest EOD price for all (or the given) exchange on trade_date.
 
     Args:
-        trade_date: The trading date to ingest. Defaults to the last completed
-            NYSE trading day. Pass explicitly for backfill or non-US exchange.
+        trade_date: Specific trading date to ingest. If omitted, EODHD returns
+            its latest available trading day per exchange.
         exchange_codes: Exchange to ingest. Defaults to all codes present in
             bronze.exchange (loaded by fetch_eod_exchange_codes). Pass
             ["US"] to restrict to US equities only.
     """
-    trade_date = trade_date or last_completed_trading_day()
     codes = exchange_codes or await fetch_eod_exchange_codes()
 
     lake = get_lake_client()
@@ -64,7 +62,7 @@ async def eod_price_flow(
 
     total_written = 0
     summary: dict = {
-        "trade_date": trade_date.isoformat(),
+        "trade_date": trade_date.isoformat() if trade_date else None,
         "exchange": {},
         "failed": [],
     }
@@ -76,19 +74,20 @@ async def eod_price_flow(
 
                 if not raw_rows:
                     log.info("price.exchange_skipped", exchange=exchange, reason="no_data", trade_date=trade_date)
-                    summary["exchange"][exchange] = {"rows_written": 0}
+                    summary["exchange"][exchange] = {"bar_date": None, "rows_written": 0}
                     continue
 
-                source_uri = await write_eod_price_to_landing(raw_rows, exchange=exchange, bar_date=trade_date)
-                sources = parse_eod_price(raw_rows, bar_date=trade_date, exchange=exchange)
+                bar_date = trade_date or infer_bulk_bar_date(raw_rows)
+                source_uri = await write_eod_price_to_landing(raw_rows, exchange=exchange, bar_date=bar_date)
+                sources = parse_eod_price(raw_rows, bar_date=bar_date, exchange=exchange)
                 written = write_bronze_eod_price(
                     sources,
                     exchange=exchange,
-                    bar_date=trade_date,
+                    bar_date=bar_date,
                     source_uri=source_uri,
                 )
 
-                summary["exchange"][exchange] = {"rows_written": written}
+                summary["exchange"][exchange] = {"bar_date": bar_date.isoformat(), "rows_written": written}
                 total_written += written
 
             except ValidationError:
