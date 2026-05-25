@@ -14,9 +14,10 @@ from domains.exchange.tasks import (
 @flow(name="exchange-refresh", description="Ingest the list of supported exchange from EODHD.")
 async def exchange_flow() -> int:
     """Fetch the EODHD exchange catalog and write landing + bronze snapshots."""
+    snapshot_date = date.today()
     exchange = await fetch_supported_exchange()
-    source_uri = await write_to_landing_zone(exchange)
-    written = write_bronze_exchange(exchange, snapshot_date=date.today(), source_uri=source_uri)
+    source_uri = await write_to_landing_zone(exchange=exchange, snapshot_date=snapshot_date)
+    written = write_bronze_exchange(exchange=exchange, snapshot_date=snapshot_date, source_uri=source_uri)
     return written
 
 
