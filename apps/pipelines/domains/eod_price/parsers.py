@@ -30,7 +30,7 @@ def parse_eod_bars(
     """Validate and parse raw API rows into EODBar domain models.
 
     The provider exchange code is required to construct the fully-qualified ticker symbol
-    (e.g. EODHD returns ``code="AAPL"`` on the US exchange → ``ticker="AAPL.US"``).
+    (e.g. provider returns ``code="AAPL"`` on the US exchange → ``ticker="AAPL.US"``).
 
     Returns:
         (valid_bars, rejected_rows) — rejected rows are the original raw objects.
@@ -51,7 +51,7 @@ def parse_eod_bars(
 
 
 def infer_bulk_bar_date(raw_rows: list[EODBulkPriceRaw]) -> date:
-    """Infer the exchange bar date from a bulk EODHD response."""
+    """Infer the exchange bar date from a bulk provider response."""
     if not raw_rows:
         raise ValueError("Cannot infer bar_date from an empty bulk EOD response.")
     return max(parse_date(row.date) for row in raw_rows)
@@ -100,7 +100,7 @@ def _build_eod_bar(
         }
     )
     # Silently drop rows where the API returned data for a different date
-    # (EODHD sometimes returns the previous close when a market was closed)
+    # Some providers return the previous close when a market was closed.
     if bar.bar_date != expected_date:
         log.debug(
             "price.date_mismatch",

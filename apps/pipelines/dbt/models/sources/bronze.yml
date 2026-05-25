@@ -10,8 +10,8 @@ sources:
         columns:
           - name: ingestion_id
             description: Unique ingestion row identifier.
-          - name: exchange_code
-            description: Provider exchange code for the listed security.
+          - name: provider_exchange_code
+            description: Provider exchange code for the listed security, used in endpoint paths and ticker suffixes.
           - name: ticker
             description: Exchange-qualified ticker, such as AAPL.US.
           - name: bar_date
@@ -44,12 +44,12 @@ sources:
         columns:
           - name: snapshot_date
             description: Date the reference snapshot was ingested.
-          - name: exchange_code
-            description: Provider exchange code.
+          - name: provider_exchange_code
+            description: Provider exchange code from the provider exchange catalog, not an official MIC.
           - name: name
             description: Exchange display name.
-          - name: operating_mic
-            description: Operating Market Identifier Code when available.
+          - name: operating_mic_codes
+            description: Official operating MIC value or comma-separated MIC values supplied by the provider.
           - name: country
             description: Exchange country name.
           - name: currency
@@ -69,21 +69,87 @@ sources:
           - name: ingested_at
             description: Timestamp when the row was written to Bronze.
 
+      - name: exchange_schedule
+        description: Trading-hours snapshots from provider schedule endpoints.
+        columns:
+          - name: snapshot_date
+            description: Date the schedule snapshot was ingested.
+          - name: provider_schedule_exchange_code
+            description: Provider schedule endpoint code; not guaranteed to be an official MIC.
+          - name: name
+            description: Exchange display name from the v2 response.
+          - name: timezone
+            description: IANA timezone for the exchange schedule.
+          - name: session_open
+            description: Regular session open time in local exchange time.
+          - name: session_close
+            description: Regular session close time in local exchange time.
+          - name: working_days
+            description: Trading days supplied by the provider.
+          - name: pre_market_open
+            description: Pre-market open time when available.
+          - name: pre_market_close
+            description: Pre-market close time when available.
+          - name: after_hours_open
+            description: After-hours open time when available.
+          - name: after_hours_close
+            description: After-hours close time when available.
+          - name: lunch_break_start
+            description: Lunch-break start time when available.
+          - name: lunch_break_end
+            description: Lunch-break end time when available.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: exchange_holiday
+        description: Exchange holiday snapshots from provider schedule endpoints.
+        columns:
+          - name: snapshot_date
+            description: Date the holiday snapshot was ingested.
+          - name: provider_schedule_exchange_code
+            description: Provider schedule endpoint code; not guaranteed to be an official MIC.
+          - name: holiday_date
+            description: Holiday date in the exchange calendar.
+          - name: holiday_name
+            description: Holiday display name supplied by the provider.
+          - name: holiday_type
+            description: Provider holiday type, such as Official, Bank, or EarlyClose.
+          - name: early_close_time
+            description: Early close time when the holiday type is EarlyClose.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
       - name: instrument
         description: Tradable instrument reference snapshots from market data providers.
         columns:
           - name: snapshot_date
             description: Date the reference snapshot was ingested.
-          - name: exchange_code
-            description: Provider exchange code used for the API request.
+          - name: provider_exchange_code
+            description: Provider exchange code used for the instrument-list request.
           - name: ticker
             description: Provider ticker symbol.
           - name: name
             description: Instrument display name.
           - name: country
             description: Instrument country when available.
-          - name: exchange
-            description: Provider exchange or sub-exchange value from the response.
+          - name: provider_listing_exchange_code
+            description: Provider exchange-like code returned on the individual instrument row.
           - name: currency
             description: Instrument trading currency when available.
           - name: asset_type

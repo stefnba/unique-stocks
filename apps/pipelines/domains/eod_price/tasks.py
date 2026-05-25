@@ -27,9 +27,9 @@ log = structlog.get_logger(__name__)
 
 @task(name="fetch-eod-provider-exchange-codes")
 async def fetch_eod_provider_exchange_codes() -> list[str]:
-    """EODHD provider exchange codes eligible for bulk EOD ingestion.
+    """Provider exchange codes eligible for bulk EOD ingestion.
 
-    Loads distinct EODHD catalog/API codes already present in bronze.exchange.
+    Loads distinct provider catalog/API codes already present in bronze.exchange.
     Falls back to ["US"] if the table is empty (e.g. on a fresh environment
     before the exchange flow has run).
     """
@@ -66,10 +66,10 @@ async def fetch_eod_price_bulk(
 ) -> list[EODBulkPriceRaw]:
     """Fetch and schema-validate raw EOD price rows for an entire exchange.
 
-    Uses EODHD's provider-specific exchange code in the bulk endpoint. If
-    ``bar_date`` is omitted, EODHD returns its latest available trading day for
+    Uses the provider-specific exchange code in the bulk endpoint. If
+    ``bar_date`` is omitted, the provider returns its latest available trading day for
     that code.
-    Raises ValidationError if EODHD's response shape doesn't match EODBulkPriceRaw.
+    Raises ValidationError if the provider response shape doesn't match EODBulkPriceRaw.
     """
     log.info("price.fetch_start", provider_exchange_code=provider_exchange_code, bar_date=bar_date)
     api_key = (await BlockRegistry.EODHD_API_KEY.load_async()).get()

@@ -20,13 +20,13 @@ log = structlog.get_logger(__name__)
 
 @flow(
     name="exchange-schedule-refresh",
-    description="Ingest trading hours and holiday for all v2-supported EODHD exchange.",
+    description="Ingest trading hours and holiday for all provider-supported exchange.",
 )
 async def exchange_schedule_flow(
     snapshot_date: date | None = None,
     provider_schedule_exchange_codes: list[str] | None = None,
 ) -> dict:
-    """Ingest exchange schedule and holiday for the EODHD v2 schedule API universe."""
+    """Ingest exchange schedule and holiday for the provider schedule API universe."""
     snapshot_date = snapshot_date or date.today()
     codes = provider_schedule_exchange_codes or await fetch_provider_schedule_exchange_codes()
 

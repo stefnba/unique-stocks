@@ -1,6 +1,6 @@
 """EOD price daily flow.
 
-Ingests end-of-day OHLCV price for all exchange using the EODHD bulk
+Ingests end-of-day OHLCV price for all exchange using the provider bulk
 endpoint — one API call per exchange per date, not one per ticker.
 
 Schedule: trigger per exchange after that exchange's market close.
@@ -39,7 +39,7 @@ log = structlog.get_logger(__name__)
 
 @flow(
     name="eod-price-daily",
-    description="Ingest EOD OHLCV price for all exchange from EODHD bulk endpoint.",
+    description="Ingest EOD OHLCV price for all exchange from the provider bulk endpoint.",
 )
 async def eod_price_flow(
     trade_date: date | None = None,
@@ -48,9 +48,9 @@ async def eod_price_flow(
     """Ingest EOD price for all (or the given) exchange on trade_date.
 
     Args:
-        trade_date: Specific trading date to ingest. If omitted, EODHD returns
+        trade_date: Specific trading date to ingest. If omitted, the provider returns
             its latest available trading day per exchange.
-        provider_exchange_codes: EODHD catalog/API codes to ingest. Defaults
+        provider_exchange_codes: Provider catalog/API codes to ingest. Defaults
             to all provider codes present in bronze.exchange. Pass ["US"] to
             restrict to US equities only.
     """
@@ -192,12 +192,12 @@ async def eod_price_backfill_flow(
     and reference flows.
 
     Args:
-        from_date: Earliest bar date to request from EODHD.
+        from_date: Earliest bar date to request from the provider.
         to_date: Latest bar date. Defaults to today.
-        provider_exchange_codes: EODHD catalog/API codes to backfill. Defaults
+        provider_exchange_codes: Provider catalog/API codes to backfill. Defaults
             to all provider codes present in bronze.exchange.
         batch_size: Symbols fetched concurrently per batch. Keep this low
-            enough to stay within EODHD's API rate limits (~100 k calls/day).
+            enough to stay within the provider's API rate limits.
             At batch_size=50 and ~0.75 s/call the flow can process ~5 k
             symbols/hour, well within the daily quota.
     """

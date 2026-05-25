@@ -2,12 +2,12 @@
 
 
 def qualified_ticker(code: str, provider_exchange_code: str) -> str:
-    """Return the EODHD exchange-qualified ticker symbol."""
+    """Return the provider exchange-qualified ticker symbol."""
     return f"{code}.{provider_exchange_code}"
 
 
 def exchange_from_qualified_ticker(ticker: str) -> str:
-    """Return the exchange suffix from an EODHD-qualified ticker."""
+    """Return the exchange suffix from a provider-qualified ticker."""
     if "." not in ticker:
         raise ValueError(f"Expected exchange-qualified ticker, got {ticker!r}")
     return ticker.rsplit(".", maxsplit=1)[1]

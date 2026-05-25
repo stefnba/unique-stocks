@@ -15,7 +15,7 @@ log = structlog.get_logger(__name__)
 
 @task(name="fetch-instrument-provider-exchange-codes")
 async def fetch_instrument_provider_exchange_codes() -> list[str]:
-    """All provider exchange codes from the EODHD catalog, including virtual asset classes.
+    """All provider exchange codes from the exchange catalog, including virtual asset classes.
 
     Pass ``provider_exchange_codes`` to the flow to restrict ingestion to a
     subset (e.g. equities only, or crypto only). Use separate flow deployments
@@ -85,7 +85,7 @@ def write_bronze_instrument(
 ) -> int:
     """Write instrument rows for one exchange to bronze.instrument.
 
-    ``provider_exchange_code`` is the EODHD API call code (e.g. "US", "FOREX",
+    ``provider_exchange_code`` is the provider API call code (e.g. "US", "FOREX",
     "CC"). The per-row listing exchange code (e.g. "NYSE", "NASDAQ") comes
     from the model's ``provider_listing_exchange_code`` field. Idempotency is
     checked at the (provider_exchange_code, snapshot_date) level.

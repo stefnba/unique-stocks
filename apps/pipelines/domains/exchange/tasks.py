@@ -15,7 +15,7 @@ log = structlog.get_logger(__name__)
 
 @task(retries=3, log_prints=True)
 async def fetch_supported_exchange() -> list[SupportedExchange]:
-    """Fetch and schema-validate the list of supported exchange from EODHD."""
+    """Fetch and schema-validate the list of supported exchange from the provider."""
     from providers.eodhd.client import EODHDClient
 
     api_key = await BlockRegistry.EODHD_API_KEY.load_async()

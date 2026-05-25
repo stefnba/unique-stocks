@@ -19,7 +19,7 @@ log = structlog.get_logger(__name__)
 
 @flow(
     name="instrument-refresh",
-    description="Ingest active instrument for all EODHD exchange.",
+    description="Ingest active instrument for all provider exchange codes.",
 )
 async def instrument_flow(
     snapshot_date: date | None = None,

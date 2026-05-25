@@ -8,8 +8,8 @@ models:
         description: Exchange-qualified ticker, such as AAPL.US.
         data_tests:
           - not_null
-      - name: exchange_code
-        description: Provider exchange code for the listed security.
+      - name: provider_exchange_code
+        description: Provider exchange code for the listed security, used in endpoint paths and ticker suffixes.
         data_tests:
           - not_null
       - name: bar_date

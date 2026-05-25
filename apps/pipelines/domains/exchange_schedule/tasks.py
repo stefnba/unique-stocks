@@ -21,7 +21,7 @@ log = structlog.get_logger(__name__)
 async def fetch_provider_schedule_exchange_codes() -> list[str]:
     """Load provider schedule exchange codes from the v2 schedule API list endpoint.
 
-    These are endpoint-specific EODHD codes. Some look like MICs (e.g.
+    These are endpoint-specific provider codes. Some look like MICs (e.g.
     ``XETR``), while others are provider aggregate codes (e.g. ``US``). Using
     catalog codes can result in 404s when the v2 endpoint expects a different
     code for that market.

@@ -16,7 +16,7 @@ EXCHANGE = "US"
 
 
 def _row(**kwargs: Any) -> EODBulkPriceRaw:
-    """Build an EODBulkPriceRaw using EODHD's raw field names."""
+    """Build an EODBulkPriceRaw using provider raw field names."""
     base: dict[str, Any] = {
         "code": "AAPL",
         "date": "2026-05-09",

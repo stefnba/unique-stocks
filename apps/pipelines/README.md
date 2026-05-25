@@ -2,7 +2,7 @@
 
 `apps/pipelines` is the Prefect 3 ingestion app for Unique Stocks. It fetches market data from providers, validates provider responses, writes typed Bronze records through the lake client, and coordinates scheduled runs.
 
-The active path is EODHD end-of-day price. Exchange and instrument are reference flows; fundamental is planned.
+The active path is end-of-day price ingestion for the configured market data provider. Exchange and instrument are reference flows; fundamental is planned.
 
 ## Status
 
@@ -12,6 +12,17 @@ The active path is EODHD end-of-day price. Exchange and instrument are reference
 | `exchange`    | Reference flow | Manual or monthly.                                 |
 | `instrument`  | Reference flow | Weekly.                                            |
 | `fundamental` | Planned stub   | Manual or quarterly.                               |
+
+## Exchange identifiers
+
+Providers can return several exchange-like identifiers. Keep them distinct in Python models, Bronze columns, dbt models, and logs:
+
+| Name                              | Meaning                                                                                                                                                      | Example              |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------- |
+| `provider_exchange_code`          | Provider catalog/API code, used in endpoint paths and ticker suffixes when the provider uses exchange-qualified symbols.                                     | `US`, `LSE`, `XETRA` |
+| `operating_mic_codes`             | Official MIC value or comma-separated MIC values supplied by provider metadata. Do not use this as a request code unless an endpoint explicitly asks for it. | `XNAS,XNYS`, `XLON`  |
+| `provider_schedule_exchange_code` | Provider schedule/calendar endpoint code. Some values look like MICs, but this is still the provider-specific request code for that endpoint.                | `US`, `XHKG`, `XETR` |
+| `provider_listing_exchange_code`  | Exchange-like code returned on an individual instrument row from `/exchange-symbol-list/{EXCHANGE_CODE}`.                                                    | `NASDAQ`, `WAR`      |
 
 ## Project structure
 
@@ -41,7 +52,7 @@ Domain code is organized under `domains/<domain>/`. Ingestion domains usually de
 - Python 3.14+
 - [uv](https://docs.astral.sh/uv/)
 - Docker Desktop or OrbStack for Docker-based local infrastructure
-- An EODHD API key for live provider runs
+- A market data provider API key for live provider runs
 
 ## Environment
 
@@ -52,11 +63,11 @@ cd apps/pipelines
 cp .env.example .env
 ```
 
-Set at least `EODHD_API_KEY` for live provider runs. Leave `MOTHERDUCK_TOKEN` blank to use local DuckDB.
+Set at least the active provider API key shown in `.env.example` for live provider runs. Leave `MOTHERDUCK_TOKEN` blank to use local DuckDB.
 
 | Variable                | Required          | Description                                                                 |
 | ----------------------- | ----------------- | --------------------------------------------------------------------------- |
-| `EODHD_API_KEY`         | Yes for live runs | EODHD API key.                                                              |
+| Provider API key(s)     | Yes for live runs | Current market data provider credentials; see `.env.example`.               |
 | `MOTHERDUCK_TOKEN`      | No                | Blank uses local DuckDB; set for MotherDuck.                                |
 | `LOCAL_LAKE_PATH`       | No                | Local DuckDB file path when `MOTHERDUCK_TOKEN` is blank.                    |
 | `DBT_TARGET`            | No                | dbt target name, usually `dev` locally and `prod` for MotherDuck.           |
@@ -218,7 +229,7 @@ Keep these two addresses distinct — they serve different clients:
 Set all secrets in the deployment platform (Coolify environment variables), never in git:
 
 - `POSTGRES_PASSWORD`
-- `EODHD_API_KEY`
+- Provider API key(s) from `.env.example`
 - `MOTHERDUCK_TOKEN`
 - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` (when S3 is enabled)
 - `PREFECT_UI_API_URL`, `PREFECT_API_URL`

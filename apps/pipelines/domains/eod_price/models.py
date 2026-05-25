@@ -16,7 +16,7 @@ class EODBar(BronzeModel):
 
     Attributes:
         provider_exchange_code: Provider-specific exchange/catalog code used
-            by EODHD endpoint paths and ticker suffixes (for example ``US``).
+            by endpoint paths and ticker suffixes (for example ``US``).
         ticker: Exchange-qualified symbol, e.g. ``AAPL.US``.
         bar_date: The trading date this bar covers (NYSE session date).
         open: First traded price of the session.
