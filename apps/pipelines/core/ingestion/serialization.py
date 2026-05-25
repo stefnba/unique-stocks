@@ -1,0 +1,29 @@
+"""Serialization helpers shared by landing and Bronze ingestion surfaces."""
+
+import json
+from collections.abc import Mapping, Sequence
+from datetime import date, datetime
+from decimal import Decimal
+from typing import Any
+
+from pydantic import BaseModel
+
+
+def jsonable(value: Any) -> Any:
+    """Return a JSON-serializable value while preserving provider aliases."""
+    if isinstance(value, BaseModel):
+        return value.model_dump(mode="json", by_alias=True)
+    if isinstance(value, Mapping):
+        return {str(key): jsonable(item) for key, item in value.items()}
+    if isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray | memoryview):
+        return [jsonable(item) for item in value]
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, datetime | date):
+        return value.isoformat()
+    return value
+
+
+def canonical_json(value: Any) -> str:
+    """Return deterministic compact JSON for provider or Bronze payloads."""
+    return json.dumps(jsonable(value), sort_keys=True, separators=(",", ":"))
