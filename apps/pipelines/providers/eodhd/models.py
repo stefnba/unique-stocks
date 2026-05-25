@@ -113,15 +113,16 @@ class Instrument(EODHDProviderModel):
 
     Covers all asset classes: equities, ETFs, forex pairs, cryptocurrencies,
     bonds, and funds. ``provider_listing_exchange_code`` is EODHD's per-row
-    ``Exchange`` value (for example ``NYSE`` or ``NASDAQ``). The API call code
-    used to fetch this instrument (for example ``US``, ``FOREX``, or ``CC``)
-    is added separately at the task layer as ``provider_exchange_code``.
+    ``Exchange`` value (for example ``NYSE`` or ``NASDAQ``), when supplied.
+    The API call code used to fetch this instrument (for example ``US``,
+    ``FOREX``, or ``CC``) is added separately at the task layer as
+    ``provider_exchange_code``.
     """
 
     ticker: str = Field(alias="Code")
     name: str = Field(alias="Name")
     country: str | None = Field(alias="Country", default=None)
-    provider_listing_exchange_code: str = Field(alias="Exchange")
+    provider_listing_exchange_code: str | None = Field(alias="Exchange", default=None)
     currency: str | None = Field(alias="Currency", default=None)
     asset_type: str | None = Field(alias="Type", default=None)
     isin: str | None = Field(alias="Isin", default=None)

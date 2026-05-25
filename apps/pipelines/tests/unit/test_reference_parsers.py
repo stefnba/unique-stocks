@@ -55,6 +55,26 @@ def test_parse_instrument_snapshots() -> None:
     assert json.loads(INSTRUMENT_DATASET.bronze_record(valid[0])["raw_json"])["Code"] == "AAPL"
 
 
+def test_parse_instrument_snapshot_allows_missing_listing_exchange() -> None:
+    """Provider instrument rows can omit the per-row listing exchange code."""
+    raw = Instrument.model_validate(
+        {
+            "Code": "EUFUND123",
+            "Name": "Example Fund",
+            "Country": "LUX",
+            "Exchange": None,
+            "Currency": "EUR",
+            "Type": "Fund",
+            "Isin": None,
+        }
+    )
+    valid, rejected = parse_instrument_snapshots([raw], "EUFUND", date(2026, 5, 24))
+    assert not rejected
+    assert valid[0].row.provider_exchange_code == "EUFUND"
+    assert valid[0].row.provider_listing_exchange_code is None
+    assert json.loads(INSTRUMENT_DATASET.bronze_record(valid[0])["raw_json"])["Exchange"] is None
+
+
 def _schedule() -> ExchangeSchedule:
     return ExchangeSchedule.model_validate(
         {

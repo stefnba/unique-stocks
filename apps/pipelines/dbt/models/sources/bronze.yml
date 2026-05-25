@@ -149,7 +149,7 @@ sources:
           - name: country
             description: Instrument country when available.
           - name: provider_listing_exchange_code
-            description: Provider exchange-like code returned on the individual instrument row.
+            description: Provider exchange-like code returned on the individual instrument row, when available.
           - name: currency
             description: Instrument trading currency when available.
           - name: asset_type

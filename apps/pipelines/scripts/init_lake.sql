@@ -98,7 +98,7 @@ CREATE TABLE IF NOT EXISTS bronze.instrument (
     ticker VARCHAR NOT NULL,
     name VARCHAR NOT NULL,
     country VARCHAR,
-    provider_listing_exchange_code VARCHAR NOT NULL,
+    provider_listing_exchange_code VARCHAR,
     currency VARCHAR,
     asset_type VARCHAR,
     isin VARCHAR,
