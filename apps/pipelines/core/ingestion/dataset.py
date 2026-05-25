@@ -6,8 +6,8 @@ from typing import Any
 
 from core.clients.lake import DataLakeClient
 from core.clients.storage.s3.base import S3ObjectRef
-from core.ingestion.parser import BronzeParseResult, attach_source_uri
-from core.ingestion.serialization import canonical_json
+from core.ingestion.parser import BronzeParseResult
+from core.ingestion.serialization import canonical_json, sql_value
 from core.models import BronzeModel
 from core.schema import BronzeTableModel
 
@@ -51,19 +51,9 @@ class BronzeDataset[LandingsT = object]:
             **payload,
             "data_provider": data_provider,
             "raw_json": canonical_json(source.raw_fragment),
-            "row_hash": normalized_row_hash(payload, data_provider),
+            "row_hash": _normalized_row_hash(payload, data_provider),
             "source_uri": lineage_uri,
         }
-
-    def bronze_records[RowT: BronzeModel](
-        self,
-        sources: Sequence[BronzeParseResult[RowT]],
-        *,
-        source_ref: S3ObjectRef | None = None,
-        source_uri: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """Serialize multiple parsed Bronze rows into lake rows."""
-        return [self.bronze_record(source, source_ref=source_ref, source_uri=source_uri) for source in sources]
 
     def write_bronze[RowT: BronzeModel](
         self,
@@ -74,7 +64,7 @@ class BronzeDataset[LandingsT = object]:
         source_uri: str | None = None,
     ) -> int:
         """Insert parsed Bronze rows into this dataset's lake table."""
-        records = self.bronze_records(sources, source_ref=source_ref, source_uri=source_uri)
+        records = [self.bronze_record(source, source_ref=source_ref, source_uri=source_uri) for source in sources]
         if not records:
             return 0
         return lake.insert_rows(self.schema, self.table_name, records)
@@ -88,7 +78,7 @@ class BronzeDataset[LandingsT = object]:
         qualified = lake.qualified_name(self.schema, self.table_name)
         clauses = [f"{column} = ?" for column in self.idempotency_columns]
         clauses.append("data_provider = ?")
-        params = [_sql_value(values[column]) for column in self.idempotency_columns]
+        params = [sql_value(values[column]) for column in self.idempotency_columns]
         params.append(str(self.provider))
         row = lake.query_one(
             f"SELECT COUNT(*) AS cnt FROM {qualified} WHERE {' AND '.join(clauses)}",
@@ -104,68 +94,11 @@ class BronzeDataset[LandingsT = object]:
             )
 
 
-def bronze_record[RowT: BronzeModel](
-    dataset: BronzeDataset[Any],
-    source: BronzeParseResult[RowT],
-    *,
-    source_ref: S3ObjectRef | None = None,
-    source_uri: str | None = None,
-) -> dict[str, Any]:
-    """Serialize one parsed Bronze row into a lake row."""
-    return dataset.bronze_record(source, source_ref=source_ref, source_uri=source_uri)
-
-
-def bronze_records[RowT: BronzeModel](
-    dataset: BronzeDataset[Any],
-    sources: Sequence[BronzeParseResult[RowT]],
-    *,
-    source_ref: S3ObjectRef | None = None,
-    source_uri: str | None = None,
-) -> list[dict[str, Any]]:
-    """Serialize multiple parsed Bronze rows into lake rows."""
-    return dataset.bronze_records(sources, source_ref=source_ref, source_uri=source_uri)
-
-
-def write_bronze[RowT: BronzeModel](
-    lake: DataLakeClient,
-    dataset: BronzeDataset[Any],
-    sources: Sequence[BronzeParseResult[RowT]],
-    *,
-    source_ref: S3ObjectRef | None = None,
-    source_uri: str | None = None,
-) -> int:
-    """Insert parsed Bronze rows into their configured lake table."""
-    return dataset.write_bronze(lake, sources, source_ref=source_ref, source_uri=source_uri)
-
-
-def already_ingested[RowT: BronzeModel](
-    lake: DataLakeClient,
-    dataset: BronzeDataset[Any],
-    **values: date | str | int,
-) -> bool:
-    """Return True when rows already exist for a dataset idempotency partition."""
-    return dataset.already_ingested(lake, **values)
-
-
-def normalized_row_hash(payload: Mapping[str, Any], data_provider: str) -> str:
+def _normalized_row_hash(payload: Mapping[str, Any], data_provider: str) -> str:
     """Return a stable hash for normalized Bronze payload plus provider identity."""
     return sha256(canonical_json({**payload, "data_provider": data_provider}).encode()).hexdigest()
 
 
-def _sql_value(value: date | str | int) -> str | int:
-    if isinstance(value, date):
-        return value.isoformat()
-    return value
-
-
 __all__ = [
     "BronzeDataset",
-    "BronzeParseResult",
-    "already_ingested",
-    "attach_source_uri",
-    "bronze_record",
-    "bronze_records",
-    "canonical_json",
-    "normalized_row_hash",
-    "write_bronze",
 ]

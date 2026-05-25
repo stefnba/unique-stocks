@@ -27,3 +27,10 @@ def jsonable(value: Any) -> Any:
 def canonical_json(value: Any) -> str:
     """Return deterministic compact JSON for provider or Bronze payloads."""
     return json.dumps(jsonable(value), sort_keys=True, separators=(",", ":"))
+
+
+def sql_value(value: date | str | int) -> str | int:
+    """Return a stable scalar value for SQL query parameters."""
+    if isinstance(value, date):
+        return value.isoformat()
+    return value
