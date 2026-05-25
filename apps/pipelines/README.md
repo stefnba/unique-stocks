@@ -19,7 +19,7 @@ The active path is EODHD end-of-day price. Exchange and instrument are reference
 apps/pipelines/
 ├── config/             App-level configuration: settings and Prefect block registry
 ├── domains/            Domain models, tables, datasets, parsers, tasks, and flows
-├── core/               Shared infrastructure: ingestion, scheduler, logging, lake, and storage clients
+├── core/               Shared infrastructure: ingestion, logging, lake, and storage clients
 ├── providers/          Provider-specific clients and raw response models
 ├── dbt/                dbt Core project: Bronze -> Silver -> Gold transformations
 ├── docs/               Pipeline runbooks, including AWS/S3 setup
