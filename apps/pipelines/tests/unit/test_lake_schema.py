@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from core.clients.storage.s3 import S3Domain
+from core.ingestion import LandingDomain
 from core.schema.ddl import render_init_lake_sql
 from lake.schema import ALL_TABLES, BRONZE_TABLES
 
@@ -34,7 +34,7 @@ def test_lake_schema_uses_singular_domain_names() -> None:
         "exchange_holiday",
         "instrument",
     )
-    assert tuple(domain.value for domain in S3Domain) == (
+    assert tuple(domain.value for domain in LandingDomain) == (
         "exchange",
         "exchange_schedule",
         "eod_price",

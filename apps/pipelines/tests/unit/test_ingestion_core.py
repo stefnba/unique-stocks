@@ -1,0 +1,310 @@
+"""Tests for the new ingestion landing and Bronze dataset surfaces."""
+
+import json
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass
+from datetime import date, datetime
+from decimal import Decimal
+from typing import Any, ClassVar, cast
+
+import pytest
+from pydantic import Field
+
+from core.clients.lake import DataLakeClient
+from core.clients.storage.s3.base import S3ObjectRef, S3StorageClient
+from core.ingestion import (
+    BronzeDataset,
+    BronzeParseResult,
+    LandingDomain,
+    LandingTarget,
+)
+from core.ingestion.landing import PartitionedLandingTarget
+from core.ingestion.parser import attach_source_uri
+from core.ingestion.partitioning import LandingPartitionSchema
+from core.models import BronzeModel, ProviderModel
+from core.schema import BronzeTableModel
+
+
+class RawProviderItem(ProviderModel):
+    """Provider payload with an alias to verify landing serialization."""
+
+    provider: ClassVar[str] = "demo"
+    provider_name: str = Field(alias="ProviderName")
+    close_value: Decimal = Field(alias="Close")
+
+
+class PriceRow(BronzeModel):
+    """Minimal Bronze row for ingestion tests."""
+
+    exchange_code: str
+    ticker: str
+    bar_date: date
+    close: Decimal
+
+
+class OtherRow(BronzeModel):
+    """A different Bronze row shape used to test dataset row validation."""
+
+    name: str
+
+
+class PriceTable(BronzeTableModel):
+    """Minimal Bronze table metadata for ingestion tests."""
+
+    table_name = "eod_price"
+    row_model = PriceRow
+    unique_columns = ("exchange_code", "ticker", "bar_date", "data_provider")
+    idempotency_columns = ("exchange_code", "bar_date")
+
+
+class DailyPricePartition(LandingPartitionSchema):
+    """Daily price landing partitions."""
+
+    exchange: str
+    bar_date: date
+
+
+class BackfillPricePartition(LandingPartitionSchema):
+    """Backfill price landing partitions."""
+
+    exchange: str
+    ticker: str
+    from_date: date
+    to_date: date
+
+
+@dataclass(frozen=True, slots=True)
+class PriceLandings:
+    """Typed landing group for daily and backfill price payloads."""
+
+    daily: PartitionedLandingTarget[DailyPricePartition]
+    backfill: PartitionedLandingTarget[BackfillPricePartition]
+
+
+class FakeS3:
+    """Minimal S3 fake for landing target tests."""
+
+    saved_key: str | None = None
+    saved_data: Any = None
+    saved_format: str | None = None
+
+    def save(
+        self,
+        key: str,
+        data: Any,
+        *,
+        format: str | None = None,
+        bucket: str | None = None,
+        content_type: str | None = None,
+        metadata: Mapping[str, str] | None = None,
+        extra_args: Mapping[str, Any] | None = None,
+    ) -> S3ObjectRef:
+        """Capture the save request and return an S3 object ref."""
+        self.saved_key = key
+        self.saved_data = data
+        self.saved_format = format
+        return S3ObjectRef(bucket=bucket or "landing-bucket", key=key)
+
+
+class FakeLake:
+    """Minimal lake fake for Bronze write and idempotency tests."""
+
+    query_result: dict[str, Any] | None
+    last_query: str | None
+    last_params: Sequence[Any] | None
+    inserted_schema: str | None
+    inserted_table: str | None
+    inserted_rows: list[dict[str, Any]]
+
+    def __init__(self, query_result: dict[str, Any] | None = None) -> None:
+        """Create the fake with an optional query result."""
+        self.query_result = query_result
+        self.last_query = None
+        self.last_params = None
+        self.inserted_schema = None
+        self.inserted_table = None
+        self.inserted_rows = []
+
+    def qualified_name(self, schema: str, table: str) -> str:
+        """Return an unquoted qualified table name for assertions."""
+        return f"{schema}.{table}"
+
+    def query_one(self, sql: str, params: Sequence[Any] | None = None) -> dict[str, Any] | None:
+        """Capture the idempotency query and return the configured row."""
+        self.last_query = sql
+        self.last_params = params
+        return self.query_result
+
+    def insert_rows(self, schema: str, table: str, rows: Iterable[Mapping[str, Any]]) -> int:
+        """Capture inserted rows and return their count."""
+        self.inserted_schema = schema
+        self.inserted_table = table
+        self.inserted_rows = [dict(row) for row in rows]
+        return len(self.inserted_rows)
+
+
+DAILY_LANDING = LandingTarget.partitioned(
+    LandingDomain.EOD_PRICE,
+    partition_fields=DailyPricePartition,
+)
+BACKFILL_LANDING = LandingTarget.partitioned(
+    LandingDomain.EOD_PRICE,
+    partition_fields=BackfillPricePartition,
+)
+PRICE_DATASET = BronzeDataset(
+    provider="eodhd",
+    table=PriceTable,
+    landings=PriceLandings(daily=DAILY_LANDING, backfill=BACKFILL_LANDING),
+)
+
+
+def _price(close: str = "190.75") -> PriceRow:
+    return PriceRow(
+        exchange_code="US",
+        ticker="AAPL.US",
+        bar_date=date(2026, 5, 9),
+        close=Decimal(close),
+    )
+
+
+def test_snapshot_landing_key_matches_canonical_path() -> None:
+    """Snapshot keys keep the old canonical landing path shape."""
+    target = LandingTarget.snapshot(LandingDomain.EXCHANGE)
+
+    key = target.key(
+        provider="eodhd",
+        snapshot_date=date(2026, 5, 23),
+        ingested_at=date(2026, 5, 24),
+    )
+
+    assert key == "landing/eodhd/exchange/snapshot_date=2026-05-23/ingested_at=2026-05-24/exchange.jsonl"
+
+
+def test_partitioned_landing_key_uses_declared_order_and_ingested_at() -> None:
+    """Partitioned keys use declared partition order plus path-safe ingested_at."""
+    key = PRICE_DATASET.landings.daily.key(
+        provider=PRICE_DATASET.provider,
+        partitions=DailyPricePartition(exchange="US", bar_date=date(2026, 5, 24)),
+        ingested_at=datetime(2026, 5, 24, 12, 30),
+    )
+
+    assert key == (
+        "landing/eodhd/eod_price/exchange=US/bar_date=2026-05-24/"
+        "ingested_at=2026-05-24T12-30-00Z/data.jsonl"
+    )
+
+
+def test_partitioned_landing_key_requires_declared_fields() -> None:
+    """Missing partition values fail before building a storage key."""
+    with pytest.raises(ValueError, match="bar_date"):
+        PRICE_DATASET.landings.daily.key(
+            provider="eodhd",
+            partitions=cast(DailyPricePartition, {"exchange": "US"}),
+            ingested_at=date(2026, 5, 24),
+        )
+
+
+def test_landing_target_save_uses_key_format_and_provider_aliases() -> None:
+    """Landing saves pass an explicit format and preserve provider aliases."""
+    s3 = FakeS3()
+    payload = RawProviderItem(ProviderName="EODHD", Close=Decimal("190.75"))
+
+    ref = PRICE_DATASET.landings.daily.save(
+        cast(S3StorageClient, s3),
+        provider=PRICE_DATASET.provider,
+        data=payload,
+        partitions=DailyPricePartition(exchange="US", bar_date=date(2026, 5, 24)),
+        ingested_at=date(2026, 5, 24),
+    )
+
+    expected_key = "landing/eodhd/eod_price/exchange=US/bar_date=2026-05-24/ingested_at=2026-05-24/data.jsonl"
+    assert ref.uri == f"s3://landing-bucket/{expected_key}"
+    assert s3.saved_key == expected_key
+    assert s3.saved_format == "jsonl"
+    assert s3.saved_data == {"ProviderName": "EODHD", "Close": "190.75"}
+
+
+def test_bronze_dataset_uses_typed_landing_group() -> None:
+    """Multiple landing routes remain explicit and dot-accessible on the dataset."""
+    assert PRICE_DATASET.landings.daily.partition_field_names == ("exchange", "bar_date")
+    assert PRICE_DATASET.landings.backfill.partition_field_names == ("exchange", "ticker", "from_date", "to_date")
+
+
+def test_bronze_record_uses_raw_json_hash_and_source_ref() -> None:
+    """Bronze serialization adds the standard ingestion envelope."""
+    source = BronzeParseResult(row=_price(), raw_fragment={"code": "AAPL"})
+    source_ref = S3ObjectRef(bucket="landing-bucket", key="landing/eodhd/eod_price/data.jsonl")
+
+    record = PRICE_DATASET.bronze_record(source, source_ref=source_ref)
+    same_row_other_raw = PRICE_DATASET.bronze_record(
+        BronzeParseResult(row=source.row, raw_fragment={"code": "MSFT"}),
+        source_ref=source_ref,
+    )
+    changed_row = PRICE_DATASET.bronze_record(
+        BronzeParseResult(row=_price("191.50"), raw_fragment={"code": "AAPL"}),
+        source_ref=source_ref,
+    )
+
+    assert json.loads(record["raw_json"]) == {"code": "AAPL"}
+    assert record["row_hash"] == same_row_other_raw["row_hash"]
+    assert record["row_hash"] != changed_row["row_hash"]
+    assert record["source_uri"] == source_ref.uri
+    assert record["data_provider"] == "eodhd"
+
+
+def test_bronze_dataset_rejects_source_for_wrong_row_model() -> None:
+    """The table-owned row model guards Bronze writes at runtime."""
+    source = BronzeParseResult(row=OtherRow(name="wrong"), raw_fragment={})
+
+    with pytest.raises(TypeError, match="eod_price expects BronzeParseResult row PriceRow"):
+        PRICE_DATASET.bronze_record(source)
+
+
+def test_attach_source_uri_accepts_s3_object_ref() -> None:
+    """Landing object refs can be attached to parser output for lineage."""
+    source_ref = S3ObjectRef(bucket="landing-bucket", key="landing/eodhd/eod_price/data.jsonl")
+    sources = attach_source_uri([BronzeParseResult(row=_price(), raw_fragment={})], source_ref)
+
+    assert sources[0].source_uri == source_ref.uri
+
+
+def test_write_bronze_inserts_serialized_rows() -> None:
+    """Bronze writes serialize sources and delegate one insert to the lake."""
+    lake = FakeLake()
+
+    written = PRICE_DATASET.write_bronze(
+        cast(DataLakeClient, lake),
+        [BronzeParseResult(row=_price(), raw_fragment={"code": "AAPL"})],
+        source_uri="s3://landing/eod.jsonl",
+    )
+
+    assert written == 1
+    assert lake.inserted_schema == "bronze"
+    assert lake.inserted_table == "eod_price"
+    assert lake.inserted_rows[0]["ticker"] == "AAPL.US"
+    assert lake.inserted_rows[0]["source_uri"] == "s3://landing/eod.jsonl"
+
+
+def test_write_bronze_skips_empty_sources() -> None:
+    """Empty Bronze writes do not call into the lake client."""
+    lake = FakeLake()
+
+    assert PRICE_DATASET.write_bronze(cast(DataLakeClient, lake), []) == 0
+    assert lake.inserted_rows == []
+
+
+def test_already_ingested_checks_idempotency_partition_and_provider() -> None:
+    """Idempotency checks include declared table keys plus data_provider."""
+    lake = FakeLake(query_result={"cnt": 1})
+
+    exists = PRICE_DATASET.already_ingested(
+        cast(DataLakeClient, lake),
+        exchange_code="US",
+        bar_date=date(2026, 5, 9),
+    )
+
+    assert exists is True
+    assert lake.last_query == (
+        "SELECT COUNT(*) AS cnt FROM bronze.eod_price WHERE exchange_code = ? AND bar_date = ? AND data_provider = ?"
+    )
+    assert lake.last_params == ["US", "2026-05-09", "eodhd"]
