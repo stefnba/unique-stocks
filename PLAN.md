@@ -48,17 +48,17 @@ Excluded for v1:
 
 These are the default decisions for v1.
 
-| Decision | Rationale |
-| --- | --- |
-| MotherDuck over S3 + Trino | Lower operations, enough performance for the expected v1 scale, easy local DuckDB fallback. |
-| S3 landing before parsing | Provider-validated raw payloads stay replayable and auditable while strict provider models catch API drift before storage. |
-| Medallion lake model | Keeps raw capture, typed ingestion, cleanup, and business logic in separate layers. |
-| Prefect over Airflow | Python-native orchestration with less infrastructure. |
-| dbt Core for transformations | SQL transformations stay explicit, testable, and separate from ingestion code. |
-| Plain Parquet archive over Iceberg | v1 data is mostly append-oriented; Iceberg adds catalog and table-format complexity too early. |
-| EODHD first | One provider covers the first required domains and keeps integration complexity low. |
+| Decision                                        | Rationale                                                                                                                                                                                                                                                                                                                        |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| MotherDuck over S3 + Trino                      | Lower operations, enough performance for the expected v1 scale, easy local DuckDB fallback.                                                                                                                                                                                                                                      |
+| S3 landing before parsing                       | Provider-validated raw payloads stay replayable and auditable while strict provider models catch API drift before storage.                                                                                                                                                                                                       |
+| Medallion lake model                            | Keeps raw capture, typed ingestion, cleanup, and business logic in separate layers.                                                                                                                                                                                                                                              |
+| Prefect over Airflow                            | Python-native orchestration with less infrastructure.                                                                                                                                                                                                                                                                            |
+| dbt Core for transformations                    | SQL transformations stay explicit, testable, and separate from ingestion code.                                                                                                                                                                                                                                                   |
+| Plain Parquet archive over Iceberg              | v1 data is mostly append-oriented; Iceberg adds catalog and table-format complexity too early.                                                                                                                                                                                                                                   |
+| EODHD first                                     | One provider covers the first required domains and keeps integration complexity low.                                                                                                                                                                                                                                             |
 | Prefect blocks as the runtime credential source | Tasks and flows load credentials from named Prefect blocks at runtime. This decouples secret values from the deployed codebase and allows updates in the Prefect UI without a redeploy. Environment variables seed the block registry at startup; the block registry is the single credential boundary that domain code crosses. |
-| Bronze reference data as daily snapshots | Reference domains (exchanges, instruments) store one row per record per ingestion day, even when the underlying data has not changed. This makes Bronze a faithful audit log of what each pipeline run produced. Deduplication and change tracking (SCD2 or latest-only) are Silver responsibilities handled in dbt. |
+| Bronze reference data as daily snapshots        | Reference domains (exchanges, instruments) store one row per record per ingestion day, even when the underlying data has not changed. This makes Bronze a faithful audit log of what each pipeline run produced. Deduplication and change tracking (SCD2 or latest-only) are Silver responsibilities handled in dbt.             |
 
 ## System shape
 
@@ -73,12 +73,13 @@ The platform is organized around deployable apps and standalone data tooling:
 The intended data flow is:
 
 1. Provider data is fetched by a Prefect task.
-2. The provider response is validated against strict provider models and stored in S3 landing storage.
-3. A separate task reads landing data, validates and normalizes records, and writes Bronze rows.
-4. dbt transforms Bronze into Silver and Gold.
-5. Future app surfaces query Gold data.
+2. The provider response is validated against provider models and stored in S3 landing storage through a landing target.
+3. A separate parsing step normalizes provider or landed data into typed Bronze parse results.
+4. A Bronze dataset writes normalized rows to the lake with provider lineage and source URI metadata.
+5. dbt transforms Bronze into Silver and Gold.
+6. Future app surfaces query Gold data.
 
-Ingestion code should stay thin. Provider fetches, parsing, and writes are separate responsibilities. Domain flows coordinate schedules, idempotency, run state, and task orchestration.
+Ingestion code should stay thin. Provider fetches, landing writes, parsing, and Bronze writes are separate responsibilities. Domain flows coordinate schedules, idempotency, run state, and task orchestration.
 
 ## Data layer contract
 
@@ -86,23 +87,23 @@ S3 landing storage is the canonical replay source for provider-validated raw ext
 
 MotherDuck stores the lake schemas:
 
-| Layer | Owner | Purpose |
-| --- | --- | --- |
-| Bronze | Python pipelines | Typed, validated, append-oriented records with provider lineage. |
-| Silver | dbt | Deduplicated and normalized tables with no business logic. |
-| Gold | dbt | Analytics-ready models for search, charts, indicators, and app queries. |
-| Pipeline metadata | Python pipelines | Run state, idempotency support, and operational metadata. |
+| Layer             | Owner            | Purpose                                                                 |
+| ----------------- | ---------------- | ----------------------------------------------------------------------- |
+| Bronze            | Python pipelines | Typed, validated, append-oriented records with provider lineage.        |
+| Silver            | dbt              | Deduplicated and normalized tables with no business logic.              |
+| Gold              | dbt              | Analytics-ready models for search, charts, indicators, and app queries. |
+| Pipeline metadata | Python pipelines | Run state, idempotency support, and operational metadata.               |
 
 Bronze is the handoff point between Python ingestion and dbt. Python should not implement analytics logic that belongs in Silver or Gold. dbt staging models should not contain business logic.
 
 ## Domain roadmap
 
-| Domain | Data | Schedule | Status |
-| --- | --- | --- | --- |
-| `eod_prices` | Daily OHLCV bars | Weekdays after market close | Active first path. |
-| `exchanges` | Exchange reference list | Manual or monthly | Landing + Bronze ingestion complete. |
-| `instruments` | Tradable instruments per exchange and asset class | Weekly | Landing + Bronze ingestion implemented. |
-| `fundamentals` | Financial statements, ratios, dividends, splits | Quarterly or manual | Stubbed / planned. |
+| Domain        | Data                                              | Schedule                    | Status                                  |
+| ------------- | ------------------------------------------------- | --------------------------- | --------------------------------------- |
+| `eod_price`   | Daily OHLCV bars                                  | Weekdays after market close | Active first path.                      |
+| `exchange`    | Exchange reference list                           | Manual or monthly           | Landing + Bronze ingestion complete.    |
+| `instrument`  | Tradable instruments per exchange and asset class | Weekly                      | Landing + Bronze ingestion implemented. |
+| `fundamental` | Financial statements, ratios, dividends, splits   | Quarterly or manual         | Stubbed / planned.                      |
 
 Implementation order:
 
@@ -151,13 +152,13 @@ Implementation order:
 
 ## Open decisions
 
-| Decision | Options | Default until decided |
-| --- | --- | --- |
-| Studio stack | Streamlit, or TypeScript frontend with a lightweight API | Do not add studio dependencies. |
-| API boundary | No API for v1, Hono/TypeScript API, or Python API | Keep `apps/api` empty. |
-| Charting library | TradingView Lightweight Charts, Plotly, or native Streamlit charts | Wait for studio stack decision. |
-| Deployment shape for studio | Same VPS, separate service, or static frontend plus API | Wait for stack decision. |
-| Provider expansion | Add more EODHD domains first, or introduce a second provider | Finish EODHD v1 path first. |
+| Decision                    | Options                                                            | Default until decided           |
+| --------------------------- | ------------------------------------------------------------------ | ------------------------------- |
+| Studio stack                | Streamlit, or TypeScript frontend with a lightweight API           | Do not add studio dependencies. |
+| API boundary                | No API for v1, Hono/TypeScript API, or Python API                  | Keep `apps/api` empty.          |
+| Charting library            | TradingView Lightweight Charts, Plotly, or native Streamlit charts | Wait for studio stack decision. |
+| Deployment shape for studio | Same VPS, separate service, or static frontend plus API            | Wait for stack decision.        |
+| Provider expansion          | Add more EODHD domains first, or introduce a second provider       | Finish EODHD v1 path first.     |
 
 ## Documentation boundaries
 

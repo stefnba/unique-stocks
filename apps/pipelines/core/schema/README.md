@@ -29,6 +29,11 @@ class ExchangeTable(BronzeTableModel):
     row_model = ExchangeSnapshot
     unique_columns = ("snapshot_date", "exchange_code", "data_provider")
     idempotency_columns = ("snapshot_date",)
+
+
+EXCHANGE_TABLE = ExchangeTable
+
+__all__ = ["ExchangeTable", "EXCHANGE_TABLE"]
 ```
 
 `BronzeTableModel` adds the standard Bronze envelope columns for DDL:
@@ -98,6 +103,10 @@ Domain-owned table specs live beside their row models:
 domains/exchange/models.py
 domains/exchange/tables.py
 ```
+
+Each `tables.py` exports both the table class and an uppercase constant pointing
+to that class. Domain datasets and the app-level registry import the uppercase
+constant, for example `EXCHANGE_TABLE`.
 
 The app-level registry lives in `lake/schema.py`. It imports domain table specs
 and exposes `ALL_TABLES`, which is used by `scripts/render_init_lake_sql.py`

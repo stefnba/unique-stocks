@@ -17,7 +17,7 @@ This file is for AI and coding agents working in this repository. Human onboardi
 - Set `extra="forbid"` on external API models to catch provider drift early.
 - Use `async` / `await` throughout provider and orchestration paths.
 - Use `httpx` async clients for HTTP.
-- Keep provider fetches, parsing, and Bronze writes in separate tasks.
+- Keep provider fetches, landing writes, parsing, and Bronze writes in separate tasks.
 - Keep domain flows thin: schedule handling, idempotency, task orchestration, and run-state tracking only.
 - Log with `structlog`, not `print`.
 - Include useful structured fields in logs, especially domain identifiers such as `ticker`, `bar_date`, `exchange`, and `provider`.
@@ -25,9 +25,10 @@ This file is for AI and coding agents working in this repository. Human onboardi
 
 ## Pipeline structure
 
-- Every new domain under `apps/pipelines/domains/` follows the same pattern: `models.py`, `flows.py`, `tasks.py`, and `parsers.py`.
+- Every new ingestion domain under `apps/pipelines/domains/` follows the same pattern: `models.py`, `tables.py`, `datasets.py`, `parsers.py`, `tasks.py`, and `flows.py`.
 - Domain models live with the domain that owns them.
 - Shared infrastructure belongs under `apps/pipelines/core/`.
+- Shared ingestion surfaces belong under `apps/pipelines/core/ingestion/`: landing targets for raw object storage and Bronze datasets for lake writes.
 - App-level configuration belongs under `apps/pipelines/config/`: `settings.py` for environment-variable-backed settings, `blocks.py` for the Prefect block registry.
 - Provider-specific clients and raw provider models belong under `apps/pipelines/providers/`.
 - S3 storage code belongs under `apps/pipelines/core/clients/storage/s3/`.
@@ -40,8 +41,8 @@ This file is for AI and coding agents working in this repository. Human onboardi
 
 ## Data flow guardrails
 
-- Always capture raw provider data before parsing when S3 landing support is part of the flow.
-- Parse landing data into typed Bronze records in a separate step.
+- Always capture raw provider data with a landing target before parsing when S3 landing support is part of the flow.
+- Parse provider or landed data into typed Bronze records in a separate step.
 - Keep business logic out of ingestion tasks.
 - Re-running a flow for the same logical partition should be idempotent.
 - Bronze is the handoff from Python ingestion to dbt.
@@ -72,17 +73,17 @@ This file is for AI and coding agents working in this repository. Human onboardi
 
 ## Tech stack reference
 
-| Layer | Technology |
-| --- | --- |
-| Python runtime | Python 3.14+ |
-| Dependency management | uv |
-| Orchestration | Prefect |
-| HTTP client | httpx |
-| Data validation | Pydantic v2 |
-| Data lake query | DuckDB / MotherDuck |
-| Transformation | dbt Core + dbt-duckdb |
-| Containerization | Docker + Docker Compose |
-| Studio backend | TBD |
-| Studio frontend | TBD |
-| Charts | TBD |
-| Monitoring | TBD |
+| Layer                 | Technology              |
+| --------------------- | ----------------------- |
+| Python runtime        | Python 3.14+            |
+| Dependency management | uv                      |
+| Orchestration         | Prefect                 |
+| HTTP client           | httpx                   |
+| Data validation       | Pydantic v2             |
+| Data lake query       | DuckDB / MotherDuck     |
+| Transformation        | dbt Core + dbt-duckdb   |
+| Containerization      | Docker + Docker Compose |
+| Studio backend        | TBD                     |
+| Studio frontend       | TBD                     |
+| Charts                | TBD                     |
+| Monitoring            | TBD                     |

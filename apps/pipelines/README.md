@@ -18,8 +18,8 @@ The active path is EODHD end-of-day price. Exchange and instrument are reference
 ```text
 apps/pipelines/
 ├── config/             App-level configuration: settings and Prefect block registry
-├── domains/            Domain models, parsers, tasks, and flows
-├── core/               Shared infrastructure: scheduler, logging, lake, and storage clients
+├── domains/            Domain models, tables, datasets, parsers, tasks, and flows
+├── core/               Shared infrastructure: ingestion, scheduler, logging, lake, and storage clients
 ├── providers/          Provider-specific clients and raw response models
 ├── dbt/                dbt Core project: Bronze -> Silver -> Gold transformations
 ├── docs/               Pipeline runbooks, including AWS/S3 setup
@@ -32,7 +32,7 @@ apps/pipelines/
 └── Dockerfile          Worker image
 ```
 
-Domain code is organized under `domains/<domain>/`. Add `models.py`, `parsers.py`, `tasks.py`, and `flows.py` as the domain needs them.
+Domain code is organized under `domains/<domain>/`. Ingestion domains usually define `models.py`, `tables.py`, `datasets.py`, `parsers.py`, `tasks.py`, and `flows.py`, plus small domain helpers when needed.
 
 `config/settings.py` holds environment-variable-backed settings. `config/blocks.py` defines the Prefect block registry, which wires secrets plus non-secret infrastructure values into named Prefect blocks at startup. Tasks and flows always load credentials from the block registry at runtime, not from settings directly.
 
@@ -69,7 +69,7 @@ Set at least `EODHD_API_KEY` for live provider runs. Leave `MOTHERDUCK_TOKEN` bl
 
 ## S3 landing zone
 
-S3 is the landing-zone target for provider-validated raw payloads before they are parsed into typed Bronze records. Bucket names and regions are non-secret infrastructure configuration and are defined in `config/aws_resources.py`, then wired into Prefect blocks by `config/blocks.py`. AWS access keys are secrets and must stay in local `.env` files or the production deployment platform.
+S3 is the landing-zone target for provider-validated raw payloads before they are parsed into typed Bronze records. Domain datasets use `LandingTarget` specs for raw object storage and `BronzeDataset` specs for lake writes. Bucket names and regions are non-secret infrastructure configuration and are defined in `config/aws_resources.py`, then wired into Prefect blocks by `config/blocks.py`. AWS access keys are secrets and must stay in local `.env` files or the production deployment platform.
 
 You do not need to create the S3 bucket and IAM user manually in the AWS Console each time. The setup is scriptable with `scripts/setup_s3_landing_zone.py`, including bucket creation, encryption, ownership controls, public-access blocking, IAM policy creation, and optional access-key generation. See [docs/aws/s3_landing_zone_guide.md](docs/aws/s3_landing_zone_guide.md) for the runbook, and [docs/aws/iam_guide.md](docs/aws/iam_guide.md) for AWS account and provisioner setup.
 
