@@ -20,6 +20,7 @@ from providers.eodhd.models import EODBulkPriceRaw, EODPriceBarRaw
 from .datasets import EOD_PRICE_DATASET
 from .models import EODBar
 from .parsers import parse_eod_bars
+from .symbols import qualified_ticker, ticker_without_exchange
 
 log = structlog.get_logger(__name__)
 
@@ -236,8 +237,7 @@ def load_backfill_pending_symbols(exchange_code: str, from_date: date) -> list[s
             f"SELECT DISTINCT ticker FROM {price_q} WHERE exchange_code = ? AND data_provider = ?",
             [exchange_code, EOD_PRICE_DATASET.provider],
         )
-        suffix = f".{exchange_code}"
-        done_codes = {r["ticker"].removesuffix(suffix) for r in done_rows}
+        done_codes = {ticker_without_exchange(r["ticker"], exchange_code) for r in done_rows}
 
     pending = sorted(all_codes - done_codes)
     log.info(
@@ -247,7 +247,7 @@ def load_backfill_pending_symbols(exchange_code: str, from_date: date) -> list[s
         done=len(done_codes),
         pending=len(pending),
     )
-    return [f"{code}.{exchange_code}" for code in pending]
+    return [qualified_ticker(code, exchange_code) for code in pending]
 
 
 @task(

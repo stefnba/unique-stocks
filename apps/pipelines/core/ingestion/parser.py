@@ -1,15 +1,22 @@
-"""Parser-facing ingestion types."""
+"""Parser helpers for turning provider payloads into Bronze parse results.
+
+Use ``parse_strict_rows`` for small/reference payloads where every raw row is
+expected to parse. Use ``parse_best_effort_rows`` for large or noisy provider
+payloads where valid rows should continue even when some rows are rejected.
+"""
 
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
+from datetime import date
+from decimal import Decimal, InvalidOperation
 from typing import Any, Protocol
 
 from core.clients.storage.s3.base import S3ObjectRef
 from core.models import BronzeModel
 
 type ParseFailureHandler[RawT] = Callable[[RawT, Exception], None]
-type ParseOne[RawT, RowT: BronzeModel] = Callable[[RawT], BronzeParseResult[RowT] | None]
-type RowBuilder[RawT, RowT: BronzeModel] = Callable[[RawT], RowT]
+type StrictRowBuilder[RawT, RowT: BronzeModel] = Callable[[RawT], RowT]
+type BestEffortRowBuilder[RawT, RowT: BronzeModel] = Callable[[RawT], RowT | None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,9 +33,9 @@ class BronzeParseResult[RowT: BronzeModel]:
 
 
 class BronzeParser[RawT, RowT: BronzeModel](Protocol):
-    """Shape for parser objects that parse one raw item into one Bronze row."""
+    """Shape for parser objects that need shared context while building rows."""
 
-    def parse(self, raw: RawT) -> BronzeParseResult[RowT] | None:
+    def parse(self, raw: RawT) -> RowT | None:
         """Parse one raw item, returning ``None`` when it should be skipped."""
         ...
 
@@ -38,38 +45,75 @@ def parse_result[RowT: BronzeModel](row: RowT, raw_fragment: Any) -> BronzeParse
     return BronzeParseResult(row=row, raw_fragment=raw_fragment)
 
 
-def parse_rows[RawT, RowT: BronzeModel](
+def parse_date(value: Any) -> date:
+    """Parse a provider date scalar into a ``date``."""
+    if isinstance(value, date):
+        return value
+    try:
+        return date.fromisoformat(str(value))
+    except (ValueError, TypeError) as exc:
+        raise ValueError(f"Cannot convert {value!r} to date") from exc
+
+
+def parse_decimal(value: object) -> Decimal:
+    """Parse a required provider numeric scalar into a ``Decimal``."""
+    if value is None:
+        raise ValueError("Expected a numeric value, got None")
+    try:
+        return Decimal(str(value))
+    except InvalidOperation as exc:
+        raise ValueError(f"Cannot convert {value!r} to Decimal") from exc
+
+
+def parse_optional_decimal(value: object) -> Decimal | None:
+    """Parse an optional provider numeric scalar into a ``Decimal`` when possible."""
+    if value is None or value == "":
+        return None
+    try:
+        return Decimal(str(value))
+    except InvalidOperation:
+        return None
+
+
+def parse_strict_rows[RawT, RowT: BronzeModel](
     raws: Iterable[RawT],
-    build_row: RowBuilder[RawT, RowT],
+    build_row: StrictRowBuilder[RawT, RowT],
 ) -> list[BronzeParseResult[RowT]]:
-    """Parse one-to-one raw rows while keeping each raw fragment for lineage."""
+    """Parse raw rows with fail-fast semantics.
+
+    Every raw row must build a Bronze row. Any exception raised by ``build_row``
+    bubbles up and fails the whole parse call. Use this for small/reference
+    payloads where a bad row usually means provider drift or a broken contract.
+    """
     return [parse_result(build_row(raw), raw) for raw in raws]
 
 
-def parse_many[RawT, RowT: BronzeModel](
+def parse_best_effort_rows[RawT, RowT: BronzeModel](
     raws: Iterable[RawT],
-    parse: ParseOne[RawT, RowT],
+    build_row: BestEffortRowBuilder[RawT, RowT],
     *,
     on_rejected: ParseFailureHandler[RawT] | None = None,
 ) -> tuple[list[BronzeParseResult[RowT]], list[RawT]]:
-    """Parse many raw items, collecting exceptions as rejected raw payloads.
+    """Parse raw rows with per-row isolation.
 
-    A parser may return ``None`` to intentionally drop a raw item without
-    counting it as rejected.
+    ``build_row`` may return ``None`` to intentionally drop a raw item without
+    counting it as rejected. Exceptions are caught per row, the original raw
+    payload is added to ``rejected``, and parsing continues. Use this for large
+    or noisy provider feeds where a few bad rows should not stop the batch.
     """
     valid: list[BronzeParseResult[RowT]] = []
     rejected: list[RawT] = []
     for raw in raws:
         try:
-            result = parse(raw)
+            row = build_row(raw)
         except Exception as exc:
             rejected.append(raw)
             if on_rejected:
                 on_rejected(raw, exc)
             continue
 
-        if result is not None:
-            valid.append(result)
+        if row is not None:
+            valid.append(parse_result(row, raw))
     return valid, rejected
 
 
@@ -91,7 +135,10 @@ __all__ = [
     "BronzeParser",
     "BronzeParseResult",
     "attach_source_uri",
-    "parse_many",
+    "parse_date",
+    "parse_decimal",
+    "parse_best_effort_rows",
+    "parse_optional_decimal",
     "parse_result",
-    "parse_rows",
+    "parse_strict_rows",
 ]

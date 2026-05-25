@@ -3,7 +3,7 @@
 from datetime import date
 
 from core.ingestion import BronzeParseResult
-from core.ingestion.parser import parse_rows
+from core.ingestion.parser import parse_strict_rows
 from domains.exchange.models import ExchangeSnapshot
 from providers.eodhd.models import SupportedExchange
 
@@ -13,7 +13,7 @@ def parse_exchange_snapshots(
     snapshot_date: date,
 ) -> list[BronzeParseResult[ExchangeSnapshot]]:
     """Parse provider exchange rows into Bronze snapshot results."""
-    return parse_rows(
+    return parse_strict_rows(
         raws,
         lambda raw: ExchangeSnapshot(
             snapshot_date=snapshot_date,
