@@ -11,38 +11,11 @@ from core.ingestion.serialization import jsonable
 
 
 @dataclass(frozen=True, slots=True)
-class LandingTarget(ABC):
+class LandingTargetBase(ABC):
     """Base landing-zone target for raw provider payloads."""
 
     domain: LandingDomain
     file_format: LandingFileFormat = "jsonl"
-
-    @classmethod
-    def snapshot(
-        cls,
-        domain: LandingDomain,
-        *,
-        file_format: LandingFileFormat = "jsonl",
-    ) -> SnapshotLandingTarget:
-        """Create a landing target for full-replacement snapshot payloads."""
-        return SnapshotLandingTarget(domain=domain, file_format=file_format)
-
-    @classmethod
-    def partitioned[P: LandingPartitionSchema](
-        cls,
-        domain: LandingDomain,
-        *,
-        partition_fields: type[P],
-        file_format: LandingFileFormat = "jsonl",
-        include_ingested_at: bool = True,
-    ) -> PartitionedLandingTarget[P]:
-        """Create a landing target for payloads scoped by typed partitions."""
-        return PartitionedLandingTarget(
-            domain=domain,
-            file_format=file_format,
-            partition_fields=partition_fields,
-            include_ingested_at=include_ingested_at,
-        )
 
     def _format_key(self, key: ObjectStorageKey) -> str:
         return key.key(self.file_format)
@@ -52,7 +25,7 @@ class LandingTarget(ABC):
 
 
 @dataclass(frozen=True, slots=True)
-class SnapshotLandingTarget(LandingTarget):
+class SnapshotLandingTarget(LandingTargetBase):
     """Landing target for full-replacement snapshot payloads."""
 
     def key(
@@ -86,7 +59,7 @@ class SnapshotLandingTarget(LandingTarget):
 
 
 @dataclass(frozen=True, slots=True)
-class PartitionedLandingTarget[P: LandingPartitionSchema](LandingTarget):
+class PartitionedLandingTarget[P: LandingPartitionSchema](LandingTargetBase):
     """Landing target for payloads scoped by typed logical partitions."""
 
     partition_fields: type[P] = field(kw_only=True)
@@ -131,9 +104,11 @@ class PartitionedLandingTarget[P: LandingPartitionSchema](LandingTarget):
         return self._save(s3, key, data)
 
 
-__all__ = [
-    "LandingFileFormat",
-    "LandingTarget",
-    "PartitionedLandingTarget",
-    "SnapshotLandingTarget",
-]
+class LandingTarget:
+    """Factory catalog for concrete landing target types."""
+
+    snapshot = SnapshotLandingTarget
+    partitioned = PartitionedLandingTarget
+
+
+__all__ = ["LandingFileFormat", "LandingTarget"]
