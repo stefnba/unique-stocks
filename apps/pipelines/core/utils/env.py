@@ -1,19 +1,15 @@
-
-
 """Environment helpers for the pipelines app."""
 
-from typing import Literal, TypeVar, overload
-
-T = TypeVar("T")
+from typing import Literal, overload
 
 
 @overload
-def by_env(*, dev: T, prod: T) -> T: ...
+def by_env[T](*, dev: T, prod: T) -> T: ...
 @overload
 def by_env(*, default: str, add_env: Literal["suffix", "prefix"]) -> str: ...
 
 
-def by_env(
+def by_env[T](
     *,
     dev: T | None = None,
     prod: T | None = None,

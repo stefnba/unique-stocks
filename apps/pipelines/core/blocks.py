@@ -8,12 +8,9 @@ define the project's concrete block registry.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Generic, Literal, TypeVar, cast
+from typing import Literal, cast
 
 from prefect.blocks.core import Block
-
-
-T = TypeVar('T', bound=Block)
 
 type ExistsMode = Literal["skip", "throw", "overwrite"]
 """
@@ -26,9 +23,8 @@ Controls behaviour when a block with the same name already exists in the registr
 
 
 @dataclass
-class BlockEntry(Generic[T]):
-    """
-    A typed handle for a named Prefect block.
+class BlockEntry[T: Block]:
+    """A typed handle for a named Prefect block.
 
     Pairs a registry name with a concrete block instance so that the block can
     be saved, loaded, and existence-checked without losing static type
@@ -45,15 +41,19 @@ class BlockEntry(Generic[T]):
     """The concrete block instance (e.g. ``Secret``, ``AwsCredentials``)."""
 
     def __repr__(self) -> str:
+        """Return the registry name (same as :meth:`__str__`)."""
         return self.name
 
     def __str__(self) -> str:
+        """Return the registry name for display and string coercion."""
         return self.name
 
     def __hash__(self) -> int:
+        """Return a hash based on the registry name."""
         return hash(self.name)
 
     def __eq__(self, other: object) -> bool:
+        """Return ``True`` if *other* is a ``BlockEntry`` with the same name."""
         if not isinstance(other, BlockEntry):
             return False
         return self.name == other.name
@@ -95,8 +95,7 @@ class BlockEntry(Generic[T]):
     # ------------------------------------------------------------------
 
     def _handle_exists(self, if_exists: ExistsMode) -> bool:
-        """
-        Evaluate the ``if_exists`` policy synchronously.
+        """Evaluate the ``if_exists`` policy synchronously.
 
         Returns ``True`` when the caller should abort the save (block already
         exists and mode is ``"skip"``).  Raises ``ValueError`` for
@@ -123,8 +122,7 @@ class BlockEntry(Generic[T]):
     # ------------------------------------------------------------------
 
     def save(self, if_exists: ExistsMode = "skip") -> None:
-        """
-        Persist the block to the Prefect registry (sync).
+        """Persist the block to the Prefect registry (sync).
 
         Args:
             if_exists: How to handle a name collision. Defaults to ``"skip"``.
@@ -135,8 +133,7 @@ class BlockEntry(Generic[T]):
         print(f"Block '{self.name}' of type '{type(self.block).__name__}' saved successfully")
 
     async def save_async(self, if_exists: ExistsMode = "skip") -> None:
-        """
-        Persist the block to the Prefect registry (async).
+        """Persist the block to the Prefect registry (async).
 
         Uses :meth:`exists_async` to probe for an existing block, then falls
         back to the synchronous ``Block.save`` call (Prefect does not expose an
@@ -151,10 +148,7 @@ class BlockEntry(Generic[T]):
         print(f"Block '{self.name}' of type '{type(self.block).__name__}' saved successfully")
 
 
-
-    
-
-def define_block(name: str, block: T) -> BlockEntry[T]:
+def define_block[T: Block](name: str, block: T) -> BlockEntry[T]:
     """Create a typed ``BlockEntry`` without saving to the Prefect registry.
 
     Call ``BlockRegistry.save_all()`` explicitly (or run ``config/blocks.py``
@@ -172,7 +166,7 @@ class BlockRegistryBase:
     """
 
     @classmethod
-    def _entries(cls) -> list[BlockEntry]: 
+    def _entries(cls) -> list[BlockEntry]:
         """Return a list of all block entries in the registry."""
         return [v for v in vars(cls).values() if isinstance(v, BlockEntry)]
 
@@ -187,5 +181,3 @@ class BlockRegistryBase:
         """Persist all block entries to the Prefect server (async)."""
         for entry in cls._entries():
             await entry.save_async(if_exists=if_exists)
-
-
