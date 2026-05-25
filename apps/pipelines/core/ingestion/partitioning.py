@@ -20,7 +20,7 @@ class LandingPartitionSchema(TypedDict):
     """
 
 
-def partition_value(value: PartitionValue) -> str:
+def serialize_partition_value(value: PartitionValue) -> str:
     """Serialize a partition value to a stable, path-safe string."""
     if isinstance(value, datetime):
         return value.replace(microsecond=0).strftime("%Y-%m-%dT%H-%M-%SZ")
@@ -31,7 +31,7 @@ def partition_value(value: PartitionValue) -> str:
 
 def partition_path(partitions: Mapping[str, PartitionValue]) -> str:
     """Return Hive-style ``key=value`` path segments for partition values."""
-    return "/".join(f"{key}={partition_value(value)}" for key, value in partitions.items())
+    return "/".join(f"{key}={serialize_partition_value(value)}" for key, value in partitions.items())
 
 
 def partition_field_names(schema: type[LandingPartitionSchema]) -> tuple[str, ...]:

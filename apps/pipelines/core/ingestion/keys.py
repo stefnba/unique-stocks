@@ -6,7 +6,7 @@ from datetime import UTC, date, datetime
 from enum import StrEnum
 from typing import Literal, Self
 
-from core.ingestion.partitioning import PartitionValue, partition_path, partition_value
+from core.ingestion.partitioning import PartitionValue, partition_path, serialize_partition_value
 
 type LandingLayer = Literal["landing"]
 type LandingFileFormat = Literal["json", "jsonl", "csv"]
@@ -44,15 +44,16 @@ class ObjectStorageKey:
         provider: str,
         domain: LandingDomain,
         *,
+        snapshot_date: date | str,
         ingested_at: datetime | date | str | None = None,
         layer: LandingLayer = "landing",
     ) -> Self:
         """Return a key builder for a full-replacement snapshot payload."""
-        stamp = utc_now_stamp() if ingested_at is None else partition_value(ingested_at)
+        stamp = utc_now_stamp() if ingested_at is None else serialize_partition_value(ingested_at)
         return cls(
             provider=str(provider),
             domain=domain,
-            partitions={"ingested_at": stamp},
+            partitions={"snapshot_date": serialize_partition_value(snapshot_date), "ingested_at": stamp},
             layer=layer,
             filename=str(domain),
         )
@@ -67,7 +68,7 @@ class ObjectStorageKey:
         **partition_kwargs: PartitionValue,
     ) -> Self:
         """Return a key builder for a partitioned payload."""
-        partitions = {key: partition_value(value) for key, value in partition_kwargs.items()}
+        partitions = {key: serialize_partition_value(value) for key, value in partition_kwargs.items()}
         return cls(provider=str(provider), domain=domain, partitions=partitions, layer=layer)
 
     @classmethod
@@ -80,7 +81,7 @@ class ObjectStorageKey:
         layer: LandingLayer = "landing",
     ) -> Self:
         """Return a key builder from dynamic partition key/value pairs."""
-        serialized = {key: partition_value(value) for key, value in partitions.items()}
+        serialized = {key: serialize_partition_value(value) for key, value in partitions.items()}
         return cls(provider=str(provider), domain=domain, partitions=serialized, layer=layer)
 
     def key(self, suffix: str) -> str:

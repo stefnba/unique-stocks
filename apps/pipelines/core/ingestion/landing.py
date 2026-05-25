@@ -59,10 +59,16 @@ class SnapshotLandingTarget(LandingTarget):
         self,
         *,
         provider: str,
+        snapshot_date: date | str,
         ingested_at: datetime | date | str | None = None,
     ) -> str:
         """Build the landing object key for a snapshot payload."""
-        key = ObjectStorageKey.snapshot(provider, self.domain, ingested_at=ingested_at)
+        key = ObjectStorageKey.snapshot(
+            provider,
+            self.domain,
+            snapshot_date=snapshot_date,
+            ingested_at=ingested_at,
+        )
         return self._format_key(key)
 
     def save(
@@ -71,10 +77,12 @@ class SnapshotLandingTarget(LandingTarget):
         *,
         provider: str,
         data: object,
+        snapshot_date: date | str,
         ingested_at: datetime | date | str | None = None,
     ) -> S3ObjectRef:
         """Serialize and save raw provider data to this landing target."""
-        return self._save(s3, self.key(provider=provider, ingested_at=ingested_at), data)
+        key = self.key(provider=provider, snapshot_date=snapshot_date, ingested_at=ingested_at)
+        return self._save(s3, key, data)
 
 
 @dataclass(frozen=True, slots=True)
