@@ -31,7 +31,7 @@ class EODBar(BronzeModel):
         Any bar violating this is rejected before it can reach the lake.
     """
 
-    model_config = ConfigDict(strict=True, extra="forbid")
+    model_config = ConfigDict(strict=True)
 
     exchange_code: str
     ticker: str
