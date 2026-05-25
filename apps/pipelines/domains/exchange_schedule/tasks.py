@@ -7,11 +7,10 @@ import structlog
 from prefect import task
 
 from config.blocks import BlockRegistry
-from core.ingestion import already_ingested, save_landing, write_bronze
 from domains.exchange_schedule.datasets import (
     EXCHANGE_HOLIDAY_DATASET,
     EXCHANGE_SCHEDULE_DATASET,
-    EXCHANGE_SCHEDULE_LANDING,
+    ExchangeScheduleLandingPartition,
 )
 from domains.exchange_schedule.parsers import parse_exchange_holiday_snapshots, parse_exchange_schedule_snapshot
 from providers.eodhd.models import ExchangeSchedule
@@ -68,6 +67,7 @@ async def fetch_exchange_details(exchange_code: str) -> ExchangeSchedule | None:
 async def write_schedule_to_landing_zone(
     details: ExchangeSchedule,
     exchange_code: str,
+    snapshot_date: date,
     ingested_at: datetime | None = None,
 ) -> str:
     """Write raw exchange-details JSON to the S3 landing zone."""
@@ -75,13 +75,12 @@ async def write_schedule_to_landing_zone(
 
     stamp = ingested_at or datetime.now(UTC).replace(microsecond=0)
     s3 = await S3StorageClient.from_block_entry(BlockRegistry.S3_BUCKET)
-    ref = save_landing(
+    ref = EXCHANGE_SCHEDULE_DATASET.landings.details.save(
         s3,
-        EXCHANGE_SCHEDULE_LANDING,
-        EXCHANGE_SCHEDULE_DATASET.provider,
-        details,
+        provider=EXCHANGE_SCHEDULE_DATASET.provider,
+        data=details,
+        partitions=ExchangeScheduleLandingPartition(exchange=exchange_code, snapshot_date=snapshot_date),
         ingested_at=stamp,
-        exchange=exchange_code,
     )
     return ref.uri
 
@@ -96,9 +95,8 @@ def write_bronze_exchange_schedule(
     from core.clients.lake import get_lake_client
 
     lake = get_lake_client()
-    if already_ingested(
+    if EXCHANGE_SCHEDULE_DATASET.already_ingested(
         lake,
-        EXCHANGE_SCHEDULE_DATASET,
         snapshot_date=snapshot_date,
         exchange_code=details.exchange_code,
     ):
@@ -110,9 +108,8 @@ def write_bronze_exchange_schedule(
         )
         return 0
 
-    written = write_bronze(
+    written = EXCHANGE_SCHEDULE_DATASET.write_bronze(
         lake,
-        EXCHANGE_SCHEDULE_DATASET,
         [parse_exchange_schedule_snapshot(details, snapshot_date)],
         source_uri=source_uri,
     )
@@ -146,9 +143,8 @@ def write_bronze_exchange_holiday(
         return 0
 
     lake = get_lake_client()
-    if already_ingested(
+    if EXCHANGE_HOLIDAY_DATASET.already_ingested(
         lake,
-        EXCHANGE_HOLIDAY_DATASET,
         snapshot_date=snapshot_date,
         exchange_code=exchange_code,
     ):
@@ -160,7 +156,7 @@ def write_bronze_exchange_holiday(
         )
         return 0
 
-    written = write_bronze(lake, EXCHANGE_HOLIDAY_DATASET, holiday, source_uri=source_uri)
+    written = EXCHANGE_HOLIDAY_DATASET.write_bronze(lake, holiday, source_uri=source_uri)
     log.info(
         "schedule.holiday_write_done",
         exchange=exchange_code,
@@ -176,9 +172,8 @@ def schedule_already_ingested(exchange_code: str, snapshot_date: date) -> bool:
     from core.clients.lake import get_lake_client
 
     lake = get_lake_client()
-    return already_ingested(
+    return EXCHANGE_SCHEDULE_DATASET.already_ingested(
         lake,
-        EXCHANGE_SCHEDULE_DATASET,
         snapshot_date=snapshot_date,
         exchange_code=exchange_code,
     )

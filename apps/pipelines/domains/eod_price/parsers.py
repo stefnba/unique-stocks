@@ -9,7 +9,7 @@ from typing import Any
 
 import structlog
 
-from core.ingestion import BronzeSource
+from core.ingestion import BronzeParseResult
 from providers.eodhd.models import EODBulkPriceRaw, EODPriceBarRaw
 
 from .models import EODBar
@@ -21,7 +21,7 @@ def parse_eod_bars(
     raw_rows: list[EODBulkPriceRaw],
     expected_date: date,
     exchange: str,
-) -> tuple[list[BronzeSource[EODBar]], list[EODBulkPriceRaw]]:
+) -> tuple[list[BronzeParseResult[EODBar]], list[EODBulkPriceRaw]]:
     """Validate and parse raw API rows into EODBar domain models.
 
     The exchange is required to construct the fully-qualified ticker symbol
@@ -33,7 +33,7 @@ def parse_eod_bars(
     We log rejections but never raise — a few bad tickers should not abort
     an entire exchange's worth of data.
     """
-    valid: list[BronzeSource[EODBar]] = []
+    valid: list[BronzeParseResult[EODBar]] = []
     rejected: list[EODBulkPriceRaw] = []
 
     for row in raw_rows:
@@ -62,7 +62,7 @@ def parse_eod_bars(
                     got=bar.bar_date,
                 )
                 continue
-            valid.append(BronzeSource(row=bar, raw_fragment=row))
+            valid.append(BronzeParseResult(row=bar, raw_fragment=row))
         except Exception as exc:
             rejected.append(row)
             log.warning("price.parse_rejected", ticker=row.code, exchange=exchange, error=str(exc))
@@ -73,14 +73,14 @@ def parse_eod_bars(
 def parse_ticker_bars(
     raw_bars: list[EODPriceBarRaw],
     ticker: str,
-) -> tuple[list[BronzeSource[EODBar]], list[EODPriceBarRaw]]:
+) -> tuple[list[BronzeParseResult[EODBar]], list[EODPriceBarRaw]]:
     """Parse per-ticker historical bars into EODBar domain models.
 
     Unlike ``parse_eod_bars``, the ticker is already fully-qualified (e.g.
     ``AAPL.US``) and no date-mismatch filtering is applied — the per-ticker
     endpoint returns exactly the requested range.
     """
-    valid: list[BronzeSource[EODBar]] = []
+    valid: list[BronzeParseResult[EODBar]] = []
     rejected: list[EODPriceBarRaw] = []
 
     for row in raw_bars:
@@ -98,7 +98,7 @@ def parse_ticker_bars(
                     "adjusted_close": _to_decimal_optional(row.adjusted_close),
                 }
             )
-            valid.append(BronzeSource(row=bar, raw_fragment=row))
+            valid.append(BronzeParseResult(row=bar, raw_fragment=row))
         except Exception as exc:
             rejected.append(row)
             log.warning("backfill.parse_rejected", ticker=ticker, date=row.date, error=str(exc))

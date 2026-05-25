@@ -58,7 +58,7 @@ async def instrument_flow(
             summary["failed"].append(code)
             continue
 
-        source_uri = await write_instrument_to_landing_zone(result, code)
+        source_uri = await write_instrument_to_landing_zone(result, code, snapshot_date)
         rows = write_bronze_instrument(result, code, snapshot_date, source_uri=source_uri)
         summary["exchange"][code] = {"rows": rows}
 

@@ -4,7 +4,7 @@ from datetime import date
 
 import structlog
 
-from core.ingestion import BronzeSource
+from core.ingestion import BronzeParseResult
 from domains.instrument.models import InstrumentSnapshot
 from providers.eodhd.models import Instrument
 
@@ -15,7 +15,7 @@ def parse_instrument_snapshot(
     raw: Instrument,
     exchange_code: str,
     snapshot_date: date,
-) -> BronzeSource[InstrumentSnapshot]:
+) -> BronzeParseResult[InstrumentSnapshot]:
     """Parse one provider instrument into a Bronze snapshot row."""
     row = InstrumentSnapshot(
         snapshot_date=snapshot_date,
@@ -28,16 +28,16 @@ def parse_instrument_snapshot(
         asset_type=raw.asset_type,
         isin=raw.isin,
     )
-    return BronzeSource(row=row, raw_fragment=raw)
+    return BronzeParseResult(row=row, raw_fragment=raw)
 
 
 def parse_instrument_snapshots(
     raws: list[Instrument],
     exchange_code: str,
     snapshot_date: date,
-) -> tuple[list[BronzeSource[InstrumentSnapshot]], list[Instrument]]:
+) -> tuple[list[BronzeParseResult[InstrumentSnapshot]], list[Instrument]]:
     """Parse provider instrument with partial success for large payloads."""
-    valid: list[BronzeSource[InstrumentSnapshot]] = []
+    valid: list[BronzeParseResult[InstrumentSnapshot]] = []
     rejected: list[Instrument] = []
     for raw in raws:
         try:

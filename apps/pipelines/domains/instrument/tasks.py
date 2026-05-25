@@ -6,8 +6,7 @@ import structlog
 from prefect import task
 
 from config.blocks import BlockRegistry
-from core.ingestion import already_ingested, save_landing, write_bronze
-from domains.instrument.datasets import INSTRUMENT_DATASET, INSTRUMENT_LANDING
+from domains.instrument.datasets import INSTRUMENT_DATASET
 from domains.instrument.parsers import parse_instrument_snapshots
 from providers.eodhd.models import Instrument
 
@@ -56,6 +55,7 @@ async def fetch_instrument(exchange_code: str) -> list[Instrument]:
 async def write_instrument_to_landing_zone(
     instrument: list[Instrument],
     exchange_code: str,
+    snapshot_date: date,
     ingested_at: datetime | None = None,
 ) -> str:
     """Write raw instrument list for one exchange to the S3 landing zone as JSONL."""
@@ -63,13 +63,15 @@ async def write_instrument_to_landing_zone(
 
     stamp = ingested_at or datetime.now(UTC).replace(microsecond=0)
     s3 = await S3StorageClient.from_block_entry(BlockRegistry.S3_BUCKET)
-    ref = save_landing(
+    ref = INSTRUMENT_DATASET.landings.catalog.save(
         s3,
-        INSTRUMENT_LANDING,
-        INSTRUMENT_DATASET.provider,
-        instrument,
+        provider=INSTRUMENT_DATASET.provider,
+        data=instrument,
+        partitions={
+            "exchange": exchange_code,
+            "snapshot_date": snapshot_date,
+        },
         ingested_at=stamp,
-        exchange=exchange_code,
     )
     return ref.uri
 
@@ -94,7 +96,7 @@ def write_bronze_instrument(
         return 0
 
     lake = get_lake_client()
-    if already_ingested(lake, INSTRUMENT_DATASET, snapshot_date=snapshot_date, exchange_code=exchange_code):
+    if INSTRUMENT_DATASET.already_ingested(lake, snapshot_date=snapshot_date, exchange_code=exchange_code):
         log.info(
             "instrument.write_skipped",
             reason="already_ingested",
@@ -111,7 +113,7 @@ def write_bronze_instrument(
             snapshot_date=snapshot_date,
             count=len(rejected),
         )
-    written = write_bronze(lake, INSTRUMENT_DATASET, sources, source_uri=source_uri)
+    written = INSTRUMENT_DATASET.write_bronze(lake, sources, source_uri=source_uri)
     log.info(
         "instrument.write_done",
         exchange=exchange_code,
@@ -127,4 +129,4 @@ def instrument_already_ingested(exchange_code: str, snapshot_date: date) -> bool
     from core.clients.lake import get_lake_client
 
     lake = get_lake_client()
-    return already_ingested(lake, INSTRUMENT_DATASET, snapshot_date=snapshot_date, exchange_code=exchange_code)
+    return INSTRUMENT_DATASET.already_ingested(lake, snapshot_date=snapshot_date, exchange_code=exchange_code)

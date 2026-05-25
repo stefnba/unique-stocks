@@ -17,7 +17,8 @@ from prefect import flow
 from pydantic import ValidationError
 
 from core.clients.lake import DataLakeClient, get_lake_client
-from core.ingestion import BronzeSource, attach_source_uri
+from core.ingestion import BronzeParseResult
+from core.ingestion.parser import attach_source_uri
 from core.scheduler import last_completed_trading_day
 
 from .models import EODBar
@@ -225,7 +226,7 @@ async def eod_price_backfill_flow(
                     return_exceptions=True,
                 )
 
-                batch_sources: list[BronzeSource[EODBar]] = []
+                batch_sources: list[BronzeParseResult[EODBar]] = []
                 for sym, result in zip(batch_symbols, raw_results, strict=True):
                     if isinstance(result, ValidationError):
                         raise result  # schema drift — abort everything

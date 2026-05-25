@@ -189,8 +189,7 @@ def test_partitioned_landing_key_uses_declared_order_and_ingested_at() -> None:
     )
 
     assert key == (
-        "landing/eodhd/eod_price/exchange=US/bar_date=2026-05-24/"
-        "ingested_at=2026-05-24T12-30-00Z/data.jsonl"
+        "landing/eodhd/eod_price/exchange=US/bar_date=2026-05-24/ingested_at=2026-05-24T12-30-00Z/data.jsonl"
     )
 
 

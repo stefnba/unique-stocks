@@ -27,7 +27,10 @@ async def fetch_supported_exchange() -> list[SupportedExchange]:
 
 
 @task()
-async def write_to_landing_zone(exchange: list[SupportedExchange], snapshot_date: date) -> str:
+async def write_to_landing_zone(
+    exchange: list[SupportedExchange],
+    snapshot_date: date,
+) -> str:
     """Write supported exchange to the S3 landing zone as JSONL."""
     from core.clients.storage.s3 import S3StorageClient
 
@@ -69,5 +72,9 @@ def write_bronze_exchange(
 
     sources = parse_exchange_snapshots(exchange, snapshot_date)
     written = EXCHANGE_DATASET.write_bronze(lake, sources, source_uri=source_uri)
-    log.info("exchange.write_done", snapshot_date=snapshot_date, rows=written)
+    log.info(
+        "exchange.write_done",
+        snapshot_date=snapshot_date,
+        rows=written,
+    )
     return written

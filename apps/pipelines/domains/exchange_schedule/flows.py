@@ -63,7 +63,7 @@ async def exchange_schedule_flow(
             summary["unsupported"].append(code)
             continue
 
-        source_uri = await write_schedule_to_landing_zone(details, code)
+        source_uri = await write_schedule_to_landing_zone(details, code, snapshot_date)
         schedule_rows = write_bronze_exchange_schedule(details, snapshot_date, source_uri=source_uri)
         holiday_rows = write_bronze_exchange_holiday(details, snapshot_date, source_uri=source_uri)
         summary["exchange"][code] = {

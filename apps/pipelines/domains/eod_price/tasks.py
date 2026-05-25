@@ -13,16 +13,11 @@ from prefect.tasks import exponential_backoff
 from pydantic import ValidationError
 
 from config.blocks import BlockRegistry
-from core.ingestion import (
-    BronzeSource,
-    already_ingested,
-    save_landing,
-    write_bronze,
-)
+from core.ingestion import BronzeParseResult
 from providers.eodhd.client import EODHDClient
 from providers.eodhd.models import EODBulkPriceRaw, EODPriceBarRaw
 
-from .datasets import EOD_PRICE_BACKFILL_LANDING, EOD_PRICE_DAILY_LANDING, EOD_PRICE_DATASET
+from .datasets import EOD_PRICE_DATASET, EODPriceBackfillPartition, EODPriceDailyPartition
 from .models import EODBar
 from .parsers import parse_eod_bars
 
@@ -90,14 +85,12 @@ async def write_eod_price_to_landing(
 
     stamp = ingested_at or datetime.now(UTC).replace(microsecond=0)
     s3 = await S3StorageClient.from_block_entry(BlockRegistry.S3_BUCKET)
-    ref = save_landing(
+    ref = EOD_PRICE_DATASET.landings.daily.save(
         s3,
-        EOD_PRICE_DAILY_LANDING,
-        EOD_PRICE_DATASET.provider,
-        raw_rows,
+        provider=EOD_PRICE_DATASET.provider,
+        data=raw_rows,
+        partitions=EODPriceDailyPartition(exchange=exchange, bar_date=bar_date),
         ingested_at=stamp,
-        exchange=exchange,
-        bar_date=bar_date,
     )
     log.info("price.landing_written", exchange=exchange, bar_date=bar_date, uri=ref.uri)
     return ref.uri
@@ -117,16 +110,17 @@ async def write_ticker_eod_history_to_landing(
 
     stamp = ingested_at or datetime.now(UTC).replace(microsecond=0)
     s3 = await S3StorageClient.from_block_entry(BlockRegistry.S3_BUCKET)
-    ref = save_landing(
+    ref = EOD_PRICE_DATASET.landings.backfill.save(
         s3,
-        EOD_PRICE_BACKFILL_LANDING,
-        EOD_PRICE_DATASET.provider,
-        raw_bars,
+        provider=EOD_PRICE_DATASET.provider,
+        data=raw_bars,
+        partitions=EODPriceBackfillPartition(
+            exchange=exchange_code,
+            ticker=symbol,
+            from_date=from_date,
+            to_date=to_date,
+        ),
         ingested_at=stamp,
-        exchange=exchange_code,
-        ticker=symbol,
-        from_date=from_date,
-        to_date=to_date,
     )
     log.info("backfill.landing_written", symbol=symbol, uri=ref.uri)
     return ref.uri
@@ -137,7 +131,7 @@ def parse_eod_price(
     raw_rows: list[EODBulkPriceRaw],
     bar_date: date,
     exchange: str,
-) -> list[BronzeSource[EODBar]]:
+) -> list[BronzeParseResult[EODBar]]:
     """Apply business validation and convert raw rows to EODBar domain models.
 
     Logs and drops invalid rows — a few bad tickers should not abort an
@@ -157,7 +151,7 @@ def parse_eod_price(
 
 @task(name="write-bronze-eod-price")
 def write_bronze_eod_price(
-    sources: list[BronzeSource[EODBar]],
+    sources: list[BronzeParseResult[EODBar]],
     exchange: str,
     bar_date: date,
     source_uri: str | None = None,
@@ -175,7 +169,7 @@ def write_bronze_eod_price(
         return 0
 
     lake = get_lake_client()
-    if already_ingested(lake, EOD_PRICE_DATASET, exchange_code=exchange, bar_date=bar_date):
+    if EOD_PRICE_DATASET.already_ingested(lake, exchange_code=exchange, bar_date=bar_date):
         log.info(
             "price.write_skipped",
             reason="already_ingested",
@@ -184,7 +178,7 @@ def write_bronze_eod_price(
         )
         return 0
 
-    written = write_bronze(lake, EOD_PRICE_DATASET, sources, source_uri=source_uri)
+    written = EOD_PRICE_DATASET.write_bronze(lake, sources, source_uri=source_uri)
     log.info("price.write_done", exchange=exchange, bar_date=bar_date, rows=written)
     return written
 
@@ -240,9 +234,7 @@ def load_backfill_pending_symbols(exchange_code: str, from_date: date) -> list[s
             [exchange_code, EOD_PRICE_DATASET.provider],
         )
         suffix = f".{exchange_code}"
-        done_codes = {
-            r["ticker"].removesuffix(suffix) for r in done_rows
-        }
+        done_codes = {r["ticker"].removesuffix(suffix) for r in done_rows}
 
     pending = sorted(all_codes - done_codes)
     log.info(
@@ -281,7 +273,7 @@ async def fetch_ticker_eod_history(
 
 @task(name="write-backfill-eod-batch")
 def write_backfill_eod_batch(
-    sources: list[BronzeSource[EODBar]],
+    sources: list[BronzeParseResult[EODBar]],
     exchange_code: str,
 ) -> int:
     """Bulk-insert one batch of per-ticker bars into bronze.eod_price.
@@ -295,7 +287,7 @@ def write_backfill_eod_batch(
         return 0
 
     lake = get_lake_client()
-    written = write_bronze(lake, EOD_PRICE_DATASET, sources)
+    written = EOD_PRICE_DATASET.write_bronze(lake, sources)
     log.info(
         "backfill.batch_written",
         exchange=exchange_code,

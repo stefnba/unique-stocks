@@ -3,7 +3,7 @@
 from datetime import date
 from typing import Any
 
-from core.ingestion import BronzeSource
+from core.ingestion import BronzeParseResult
 from domains.exchange_schedule.models import ExchangeHolidaySnapshot, ExchangeScheduleSnapshot
 from providers.eodhd.models import ExchangeSchedule
 
@@ -11,7 +11,7 @@ from providers.eodhd.models import ExchangeSchedule
 def parse_exchange_schedule_snapshot(
     schedule: ExchangeSchedule,
     snapshot_date: date,
-) -> BronzeSource[ExchangeScheduleSnapshot]:
+) -> BronzeParseResult[ExchangeScheduleSnapshot]:
     """Flatten an ExchangeSchedule into one Bronze exchange schedule row."""
     h = schedule.trading_hours
     row = ExchangeScheduleSnapshot(
@@ -29,13 +29,13 @@ def parse_exchange_schedule_snapshot(
         lunch_break_end=h.lunch_break_end,
         snapshot_date=snapshot_date,
     )
-    return BronzeSource(row=row, raw_fragment=schedule)
+    return BronzeParseResult(row=row, raw_fragment=schedule)
 
 
 def parse_exchange_holiday_snapshots(
     schedule: ExchangeSchedule,
     snapshot_date: date,
-) -> list[BronzeSource[ExchangeHolidaySnapshot]]:
+) -> list[BronzeParseResult[ExchangeHolidaySnapshot]]:
     """Expand ExchangeSchedule holiday into one Bronze exchange holiday row per date."""
     records = []
     for holiday_date, holiday in schedule.exchange_holiday.items():
@@ -53,5 +53,5 @@ def parse_exchange_holiday_snapshots(
             "holiday_date": holiday_date,
             **holiday.model_dump(mode="json", by_alias=True),
         }
-        records.append(BronzeSource(row=row, raw_fragment=raw_fragment))
+        records.append(BronzeParseResult(row=row, raw_fragment=raw_fragment))
     return records

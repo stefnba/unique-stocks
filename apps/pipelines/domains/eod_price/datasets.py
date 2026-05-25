@@ -1,33 +1,63 @@
 """Bronze dataset specs for EOD price ingestion."""
 
-from core.clients.storage.s3 import S3Domain
-from core.ingestion import BronzeDataset, LandingSpec
-from domains.eod_price.models import EODBar
+from dataclasses import dataclass
+from datetime import date
+
+from core.ingestion import BronzeDataset, LandingDomain, LandingTarget
+from core.ingestion.landing import PartitionedLandingTarget
+from core.ingestion.partitioning import LandingPartitionSchema
 from domains.eod_price.tables import EOD_PRICE_TABLE
 from providers.registry import Provider
 
-EOD_PRICE_DAILY_LANDING = LandingSpec(
-    s3_domain=S3Domain.EOD_PRICE,
-    style="partitioned",
-    partition_fields=("exchange", "bar_date"),
+
+class EODPriceDailyPartition(LandingPartitionSchema):
+    """Daily price landing partitions."""
+
+    exchange: str
+    bar_date: date
+
+
+class EODPriceBackfillPartition(LandingPartitionSchema):
+    """Historical backfill landing partitions."""
+
+    exchange: str
+    ticker: str
+    from_date: date
+    to_date: date
+
+
+EOD_PRICE_DAILY_LANDING = LandingTarget.partitioned(
+    domain=LandingDomain.EOD_PRICE,
+    partition_fields=EODPriceDailyPartition,
     file_format="jsonl",
 )
 
-EOD_PRICE_BACKFILL_LANDING = LandingSpec(
-    s3_domain=S3Domain.EOD_PRICE,
-    style="partitioned",
-    partition_fields=("exchange", "ticker", "from_date", "to_date"),
+EOD_PRICE_BACKFILL_LANDING = LandingTarget.partitioned(
+    domain=LandingDomain.EOD_PRICE,
+    partition_fields=EODPriceBackfillPartition,
     file_format="jsonl",
 )
 
-EOD_PRICE_DATASET = BronzeDataset[EODBar](
+
+@dataclass(frozen=True, slots=True)
+class EODPriceLandings:
+    """Landing targets that can produce ``bronze.eod_price`` rows."""
+
+    daily: PartitionedLandingTarget[EODPriceDailyPartition]
+    backfill: PartitionedLandingTarget[EODPriceBackfillPartition]
+
+
+EOD_PRICE_DATASET = BronzeDataset(
     provider=Provider.EODHD,
     table=EOD_PRICE_TABLE,
-    landing=EOD_PRICE_DAILY_LANDING,
+    landings=EODPriceLandings(daily=EOD_PRICE_DAILY_LANDING, backfill=EOD_PRICE_BACKFILL_LANDING),
 )
 
 __all__ = [
     "EOD_PRICE_BACKFILL_LANDING",
     "EOD_PRICE_DAILY_LANDING",
     "EOD_PRICE_DATASET",
+    "EODPriceBackfillPartition",
+    "EODPriceDailyPartition",
+    "EODPriceLandings",
 ]
