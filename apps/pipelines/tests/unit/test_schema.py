@@ -14,9 +14,9 @@ class ExchangeRow(BaseModel):
     """Small row model used to test inferred Bronze DDL."""
 
     snapshot_date: date
-    exchange_code: str
+    provider_exchange_code: str
     name: str
-    operating_mic: str | None = None
+    operating_mic_codes: str | None = None
 
 
 class ExchangeTable(BronzeTableModel):
@@ -24,7 +24,7 @@ class ExchangeTable(BronzeTableModel):
 
     table_name = "exchange"
     row_model = ExchangeRow
-    unique_columns = ("snapshot_date", "exchange_code", "data_provider")
+    unique_columns = ("snapshot_date", "provider_exchange_code", "data_provider")
     idempotency_columns = ("snapshot_date",)
 
 
@@ -35,15 +35,15 @@ def test_bronze_table_model_generates_ddl_with_envelope() -> None:
         == """CREATE TABLE IF NOT EXISTS bronze.exchange (
     ingestion_id UUID DEFAULT GEN_RANDOM_UUID(),
     snapshot_date DATE NOT NULL,
-    exchange_code VARCHAR NOT NULL,
+    provider_exchange_code VARCHAR NOT NULL,
     name VARCHAR NOT NULL,
-    operating_mic VARCHAR,
+    operating_mic_codes VARCHAR,
     data_provider VARCHAR NOT NULL,
     raw_json JSON NOT NULL,
     row_hash VARCHAR NOT NULL,
     source_uri VARCHAR,
     ingested_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE (snapshot_date, exchange_code, data_provider)
+    UNIQUE (snapshot_date, provider_exchange_code, data_provider)
 );"""
     )
 
@@ -52,20 +52,20 @@ def test_table_model_uses_separate_pydantic_row_model() -> None:
     """Table metadata stays separate from Pydantic row validation."""
     row = ExchangeRow(
         snapshot_date=date(2026, 5, 24),
-        exchange_code="US",
+        provider_exchange_code="US",
         name="USA Stocks",
     )
     assert row.model_dump(mode="json") == {
         "snapshot_date": "2026-05-24",
-        "exchange_code": "US",
+        "provider_exchange_code": "US",
         "name": "USA Stocks",
-        "operating_mic": None,
+        "operating_mic_codes": None,
     }
 
 
 def test_table_exposes_key_column_names() -> None:
     """Table metadata exposes validated unique and idempotency columns."""
-    assert ExchangeTable.unique_column_names() == ("snapshot_date", "exchange_code", "data_provider")
+    assert ExchangeTable.unique_column_names() == ("snapshot_date", "provider_exchange_code", "data_provider")
     assert ExchangeTable.idempotency_column_names() == ("snapshot_date",)
 
 

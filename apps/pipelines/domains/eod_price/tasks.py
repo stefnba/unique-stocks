@@ -25,25 +25,25 @@ from .symbols import qualified_ticker, ticker_without_exchange
 log = structlog.get_logger(__name__)
 
 
-@task(name="fetch-eod-exchange-codes")
-async def fetch_eod_exchange_codes() -> list[str]:
-    """Exchange codes eligible for bulk EOD ingestion.
+@task(name="fetch-eod-provider-exchange-codes")
+async def fetch_eod_provider_exchange_codes() -> list[str]:
+    """EODHD provider exchange codes eligible for bulk EOD ingestion.
 
-    Loads distinct codes already present in bronze.exchange. Falls back to
-    ["US"] if the table is empty (e.g. on a fresh environment before the
-    exchange flow has run).
+    Loads distinct EODHD catalog/API codes already present in bronze.exchange.
+    Falls back to ["US"] if the table is empty (e.g. on a fresh environment
+    before the exchange flow has run).
     """
     from core.clients.lake import get_lake_client
 
     lake = get_lake_client()
     if not lake.table_exists("bronze", "exchange"):
-        log.warning("price.exchange_codes_fallback", reason="bronze.exchange missing")
+        log.warning("price.provider_exchange_codes_fallback", reason="bronze.exchange missing")
         return ["US"]
 
     qualified = lake.qualified_name("bronze", "exchange")
-    rows = lake.query(f"SELECT DISTINCT exchange_code FROM {qualified} ORDER BY exchange_code")
-    codes = [r["exchange_code"] for r in rows] if rows else ["US"]
-    log.info("price.exchange_codes_loaded", count=len(codes))
+    rows = lake.query(f"SELECT DISTINCT provider_exchange_code FROM {qualified} ORDER BY provider_exchange_code")
+    codes = [r["provider_exchange_code"] for r in rows] if rows else ["US"]
+    log.info("price.provider_exchange_codes_loaded", count=len(codes))
     return codes
 
 
@@ -60,25 +60,29 @@ def _is_retryable(task: object, task_run: TaskRun, state: State) -> bool:
     retry_condition_fn=_is_retryable,
     log_prints=True,
 )
-async def fetch_eod_price_bulk(exchange: str, bar_date: date | None = None) -> list[EODBulkPriceRaw]:
+async def fetch_eod_price_bulk(
+    provider_exchange_code: str,
+    bar_date: date | None = None,
+) -> list[EODBulkPriceRaw]:
     """Fetch and schema-validate raw EOD price rows for an entire exchange.
 
-    Uses the EODHD bulk endpoint. If ``bar_date`` is omitted, EODHD returns its
-    latest available trading day for the exchange.
+    Uses EODHD's provider-specific exchange code in the bulk endpoint. If
+    ``bar_date`` is omitted, EODHD returns its latest available trading day for
+    that code.
     Raises ValidationError if EODHD's response shape doesn't match EODBulkPriceRaw.
     """
-    log.info("price.fetch_start", exchange=exchange, bar_date=bar_date)
+    log.info("price.fetch_start", provider_exchange_code=provider_exchange_code, bar_date=bar_date)
     api_key = (await BlockRegistry.EODHD_API_KEY.load_async()).get()
     async with EODHDClient(api_key=api_key) as client:
-        rows = await client.get_eod_price_bulk(exchange=exchange, bar_date=bar_date)
-    log.info("price.fetch_done", exchange=exchange, bar_date=bar_date, rows=len(rows))
+        rows = await client.get_eod_price_bulk(provider_exchange_code=provider_exchange_code, bar_date=bar_date)
+    log.info("price.fetch_done", provider_exchange_code=provider_exchange_code, bar_date=bar_date, rows=len(rows))
     return rows
 
 
 @task(name="write-eod-price-landing")
 async def write_eod_price_to_landing(
     raw_rows: list[EODBulkPriceRaw],
-    exchange: str,
+    provider_exchange_code: str,
     bar_date: date,
     ingested_at: datetime | None = None,
 ) -> str:
@@ -92,12 +96,12 @@ async def write_eod_price_to_landing(
         provider=EOD_PRICE_DATASET.provider,
         data=raw_rows,
         partitions={
-            "exchange": exchange,
+            "provider_exchange_code": provider_exchange_code,
             "bar_date": bar_date,
         },
         ingested_at=stamp,
     )
-    log.info("price.landing_written", exchange=exchange, bar_date=bar_date, uri=ref.uri)
+    log.info("price.landing_written", provider_exchange_code=provider_exchange_code, bar_date=bar_date, uri=ref.uri)
     return ref.uri
 
 
@@ -105,7 +109,7 @@ async def write_eod_price_to_landing(
 async def write_ticker_eod_history_to_landing(
     raw_bars: list[EODPriceBarRaw],
     symbol: str,
-    exchange_code: str,
+    provider_exchange_code: str,
     from_date: date,
     to_date: date,
     ingested_at: datetime | None = None,
@@ -120,7 +124,7 @@ async def write_ticker_eod_history_to_landing(
         provider=EOD_PRICE_DATASET.provider,
         data=raw_bars,
         partitions={
-            "exchange": exchange_code,
+            "provider_exchange_code": provider_exchange_code,
             "ticker": symbol,
             "from_date": from_date,
             "to_date": to_date,
@@ -135,56 +139,72 @@ async def write_ticker_eod_history_to_landing(
 def parse_eod_price(
     raw_rows: list[EODBulkPriceRaw],
     bar_date: date,
-    exchange: str,
+    provider_exchange_code: str,
 ) -> list[BronzeParseResult[EODBar]]:
     """Apply business validation and convert raw rows to EODBar domain models.
 
     Logs and drops invalid rows — a few bad tickers should not abort an
     entire exchange's worth of data.
     """
-    valid, rejected = parse_eod_bars(raw_rows, expected_date=bar_date, exchange=exchange)
+    valid, rejected = parse_eod_bars(
+        raw_rows,
+        expected_date=bar_date,
+        provider_exchange_code=provider_exchange_code,
+    )
     if rejected:
         log.warning(
             "price.parse_rejections",
             count=len(rejected),
             bar_date=bar_date,
-            exchange=exchange,
+            provider_exchange_code=provider_exchange_code,
         )
-    log.info("price.parsed", valid=len(valid), rejected=len(rejected), bar_date=bar_date)
+    log.info(
+        "price.parsed",
+        valid=len(valid),
+        rejected=len(rejected),
+        bar_date=bar_date,
+        provider_exchange_code=provider_exchange_code,
+    )
     return valid
 
 
 @task(name="write-bronze-eod-price")
 def write_bronze_eod_price(
     sources: list[BronzeParseResult[EODBar]],
-    exchange: str,
+    provider_exchange_code: str,
     bar_date: date,
     source_uri: str | None = None,
 ) -> int:
     """Write validated bars to bronze.eod_price.
 
-    Idempotency is checked at the (exchange_code, bar_date) level — the
+    Idempotency is checked at the (provider_exchange_code, bar_date) level — the
     ``data_provider`` column is enforced in ``already_ingested``. Re-running the
     flow for the same exchange + date is safe.
     """
     from core.clients.lake import get_lake_client
 
     if not sources:
-        log.info("price.write_skipped", reason="no_bars", exchange=exchange, bar_date=bar_date)
+        log.info(
+            "price.write_skipped", reason="no_bars", provider_exchange_code=provider_exchange_code, bar_date=bar_date
+        )
         return 0
 
     lake = get_lake_client()
-    if EOD_PRICE_DATASET.already_ingested(lake, exchange_code=exchange, bar_date=bar_date):
+    if EOD_PRICE_DATASET.already_ingested(
+        lake,
+        provider_exchange_code=provider_exchange_code,
+        bar_date=bar_date,
+    ):
         log.info(
             "price.write_skipped",
             reason="already_ingested",
-            exchange=exchange,
+            provider_exchange_code=provider_exchange_code,
             bar_date=bar_date,
         )
         return 0
 
     written = EOD_PRICE_DATASET.write_bronze(lake, sources, source_uri=source_uri)
-    log.info("price.write_done", exchange=exchange, bar_date=bar_date, rows=written)
+    log.info("price.write_done", provider_exchange_code=provider_exchange_code, bar_date=bar_date, rows=written)
     return written
 
 
@@ -194,7 +214,7 @@ def write_bronze_eod_price(
 
 
 @task(name="load-backfill-pending-symbols")
-def load_backfill_pending_symbols(exchange_code: str, from_date: date) -> list[str]:
+def load_backfill_pending_symbols(provider_exchange_code: str, from_date: date) -> list[str]:
     """Symbols that still need historical EOD data for the given exchange.
 
     Returns fully-qualified symbols (e.g. ``["AAPL.US", "MSFT.US"]``).
@@ -210,7 +230,7 @@ def load_backfill_pending_symbols(exchange_code: str, from_date: date) -> list[s
     lake = get_lake_client()
 
     if not lake.table_exists("bronze", "instrument"):
-        log.warning("backfill.no_instrument_table", exchange=exchange_code)
+        log.warning("backfill.no_instrument_table", provider_exchange_code=provider_exchange_code)
         return []
 
     instrument_q = lake.qualified_name("bronze", "instrument")
@@ -218,37 +238,37 @@ def load_backfill_pending_symbols(exchange_code: str, from_date: date) -> list[s
         f"""
         SELECT DISTINCT ticker
         FROM {instrument_q}
-        WHERE exchange_code = ?
+        WHERE provider_exchange_code = ?
           AND snapshot_date = (
-              SELECT MAX(snapshot_date) FROM {instrument_q} WHERE exchange_code = ?
+              SELECT MAX(snapshot_date) FROM {instrument_q} WHERE provider_exchange_code = ?
           )
         """,
-        [exchange_code, exchange_code],
+        [provider_exchange_code, provider_exchange_code],
     )
     all_codes = {r["ticker"] for r in rows}
 
     if not all_codes:
-        log.info("backfill.no_instrument", exchange=exchange_code)
+        log.info("backfill.no_instrument", provider_exchange_code=provider_exchange_code)
         return []
 
     done_codes: set[str] = set()
     if lake.table_exists("bronze", "eod_price"):
         price_q = lake.qualified_name("bronze", "eod_price")
         done_rows = lake.query(
-            f"SELECT DISTINCT ticker FROM {price_q} WHERE exchange_code = ? AND data_provider = ?",
-            [exchange_code, EOD_PRICE_DATASET.provider],
+            f"SELECT DISTINCT ticker FROM {price_q} WHERE provider_exchange_code = ? AND data_provider = ?",
+            [provider_exchange_code, EOD_PRICE_DATASET.provider],
         )
-        done_codes = {ticker_without_exchange(r["ticker"], exchange_code) for r in done_rows}
+        done_codes = {ticker_without_exchange(r["ticker"], provider_exchange_code) for r in done_rows}
 
     pending = sorted(all_codes - done_codes)
     log.info(
         "backfill.pending_loaded",
-        exchange=exchange_code,
+        provider_exchange_code=provider_exchange_code,
         total=len(all_codes),
         done=len(done_codes),
         pending=len(pending),
     )
-    return [qualified_ticker(code, exchange_code) for code in pending]
+    return [qualified_ticker(code, provider_exchange_code) for code in pending]
 
 
 @task(
@@ -278,7 +298,7 @@ async def fetch_ticker_eod_history(
 @task(name="write-backfill-eod-batch")
 def write_backfill_eod_batch(
     sources: list[BronzeParseResult[EODBar]],
-    exchange_code: str,
+    provider_exchange_code: str,
 ) -> int:
     """Bulk-insert one batch of per-ticker bars into bronze.eod_price.
 
@@ -294,7 +314,7 @@ def write_backfill_eod_batch(
     written = EOD_PRICE_DATASET.write_bronze(lake, sources)
     log.info(
         "backfill.batch_written",
-        exchange=exchange_code,
+        provider_exchange_code=provider_exchange_code,
         rows=written,
     )
     return written

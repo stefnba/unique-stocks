@@ -6,12 +6,16 @@ from core.models import BronzeModel
 
 
 class ExchangeSnapshot(BronzeModel):
-    """One exchange reference row for a snapshot date."""
+    """One EODHD exchange reference row for a snapshot date.
+
+    ``provider_exchange_code`` is EODHD's catalog/API code. ``operating_mic_codes``
+    stores the official MIC value or comma-separated MIC values supplied by EODHD.
+    """
 
     snapshot_date: date
-    exchange_code: str
+    provider_exchange_code: str
     name: str
-    operating_mic: str | None = None
+    operating_mic_codes: str | None = None
     country: str
     currency: str
     country_iso2: str

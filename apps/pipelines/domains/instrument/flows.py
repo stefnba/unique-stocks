@@ -8,7 +8,7 @@ from prefect import flow
 
 from domains.instrument.tasks import (
     fetch_instrument,
-    fetch_instrument_exchange_codes,
+    fetch_instrument_provider_exchange_codes,
     instrument_already_ingested,
     write_bronze_instrument,
     write_instrument_to_landing_zone,
@@ -23,7 +23,7 @@ log = structlog.get_logger(__name__)
 )
 async def instrument_flow(
     snapshot_date: date | None = None,
-    exchange_codes: list[str] | None = None,
+    provider_exchange_codes: list[str] | None = None,
 ) -> dict:
     """Ingest active instrument per exchange.
 
@@ -31,7 +31,7 @@ async def instrument_flow(
     to avoid concurrent DuckDB write conflicts.
     """
     snapshot_date = snapshot_date or date.today()
-    codes = exchange_codes or await fetch_instrument_exchange_codes()
+    codes = provider_exchange_codes or await fetch_instrument_provider_exchange_codes()
 
     summary: dict = {
         "snapshot_date": snapshot_date.isoformat(),
@@ -41,26 +41,26 @@ async def instrument_flow(
     }
 
     pending = []
-    for code in codes:
-        if instrument_already_ingested(code, snapshot_date):
-            summary["skipped"].append(code)
+    for provider_exchange_code in codes:
+        if instrument_already_ingested(provider_exchange_code, snapshot_date):
+            summary["skipped"].append(provider_exchange_code)
         else:
-            pending.append(code)
+            pending.append(provider_exchange_code)
 
     results = await asyncio.gather(
         *[fetch_instrument(code) for code in pending],
         return_exceptions=True,
     )
 
-    for code, result in zip(pending, results, strict=True):
+    for provider_exchange_code, result in zip(pending, results, strict=True):
         if isinstance(result, BaseException):
-            log.error("instrument.fetch_error", exchange=code, error=str(result))
-            summary["failed"].append(code)
+            log.error("instrument.fetch_error", provider_exchange_code=provider_exchange_code, error=str(result))
+            summary["failed"].append(provider_exchange_code)
             continue
 
-        source_uri = await write_instrument_to_landing_zone(result, code, snapshot_date)
-        rows = write_bronze_instrument(result, code, snapshot_date, source_uri=source_uri)
-        summary["exchange"][code] = {"rows": rows}
+        source_uri = await write_instrument_to_landing_zone(result, provider_exchange_code, snapshot_date)
+        rows = write_bronze_instrument(result, provider_exchange_code, snapshot_date, source_uri=source_uri)
+        summary["exchange"][provider_exchange_code] = {"rows": rows}
 
     log.info(
         "instrument.flow_done",

@@ -43,7 +43,7 @@ class RawProviderItem(ProviderModel):
 class PriceRow(BronzeModel):
     """Minimal Bronze row for ingestion tests."""
 
-    exchange_code: str
+    provider_exchange_code: str
     ticker: str
     bar_date: date
     close: Decimal
@@ -60,22 +60,24 @@ class PriceTable(BronzeTableModel):
 
     table_name = "eod_price"
     row_model = PriceRow
-    unique_columns = ("exchange_code", "ticker", "bar_date", "data_provider")
-    idempotency_columns = ("exchange_code", "bar_date")
+    unique_columns = ("provider_exchange_code", "ticker", "bar_date", "data_provider")
+    idempotency_columns = ("provider_exchange_code", "bar_date")
 
 
 class DailyPricePartition(LandingPartitionSchema):
     """Daily price landing partitions."""
 
-    exchange: str
+    provider_exchange_code: str
     bar_date: date
 
 
 class BackfillPricePartition(LandingPartitionSchema):
     """Backfill price landing partitions."""
 
-    exchange: str
+    provider_exchange_code: str
     ticker: str
+    from_date: date
+    to_date: date
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,7 +167,7 @@ PRICE_DATASET = BronzeDataset(
 
 def _price(close: str = "190.75") -> PriceRow:
     return PriceRow(
-        exchange_code="US",
+        provider_exchange_code="US",
         ticker="AAPL.US",
         bar_date=date(2026, 5, 9),
         close=Decimal(close),
@@ -189,12 +191,13 @@ def test_partitioned_landing_key_uses_declared_order_and_ingested_at() -> None:
     """Partitioned keys use declared partition order plus path-safe ingested_at."""
     key = PRICE_DATASET.landings.daily.key(
         provider=PRICE_DATASET.provider,
-        partitions=DailyPricePartition(exchange="US", bar_date=date(2026, 5, 24)),
+        partitions=DailyPricePartition(provider_exchange_code="US", bar_date=date(2026, 5, 24)),
         ingested_at=datetime(2026, 5, 24, 12, 30),
     )
 
     assert key == (
-        "landing/eodhd/eod_price/exchange=US/bar_date=2026-05-24/ingested_at=2026-05-24T12-30-00Z/data.jsonl"
+        "landing/eodhd/eod_price/provider_exchange_code=US/"
+        "bar_date=2026-05-24/ingested_at=2026-05-24T12-30-00Z/data.jsonl"
     )
 
 
@@ -203,7 +206,7 @@ def test_partitioned_landing_key_requires_declared_fields() -> None:
     with pytest.raises(ValueError, match="bar_date"):
         PRICE_DATASET.landings.daily.key(
             provider="eodhd",
-            partitions=cast(DailyPricePartition, {"exchange": "US"}),
+            partitions=cast(DailyPricePartition, {"provider_exchange_code": "US"}),
             ingested_at=date(2026, 5, 24),
         )
 
@@ -217,11 +220,13 @@ def test_landing_target_save_uses_key_format_and_provider_aliases() -> None:
         cast(S3StorageClient, s3),
         provider=PRICE_DATASET.provider,
         data=payload,
-        partitions=DailyPricePartition(exchange="US", bar_date=date(2026, 5, 24)),
+        partitions=DailyPricePartition(provider_exchange_code="US", bar_date=date(2026, 5, 24)),
         ingested_at=date(2026, 5, 24),
     )
 
-    expected_key = "landing/eodhd/eod_price/exchange=US/bar_date=2026-05-24/ingested_at=2026-05-24/data.jsonl"
+    expected_key = (
+        "landing/eodhd/eod_price/provider_exchange_code=US/bar_date=2026-05-24/ingested_at=2026-05-24/data.jsonl"
+    )
     assert ref.uri == f"s3://landing-bucket/{expected_key}"
     assert s3.saved_key == expected_key
     assert s3.saved_format == "jsonl"
@@ -230,8 +235,13 @@ def test_landing_target_save_uses_key_format_and_provider_aliases() -> None:
 
 def test_bronze_dataset_uses_typed_landing_group() -> None:
     """Multiple landing routes remain explicit and dot-accessible on the dataset."""
-    assert PRICE_DATASET.landings.daily.partition_field_names == ("exchange", "bar_date")
-    assert PRICE_DATASET.landings.backfill.partition_field_names == ("exchange", "ticker")
+    assert PRICE_DATASET.landings.daily.partition_field_names == ("provider_exchange_code", "bar_date")
+    assert PRICE_DATASET.landings.backfill.partition_field_names == (
+        "provider_exchange_code",
+        "ticker",
+        "from_date",
+        "to_date",
+    )
 
 
 def test_bronze_record_uses_raw_json_hash_and_source_ref() -> None:
@@ -284,6 +294,7 @@ def test_parse_strict_rows_wraps_raw_fragments() -> None:
 
 def test_parse_strict_rows_raises_on_bad_row() -> None:
     """Strict row parsing fails the whole batch on the first bad row."""
+
     def build_row(raw: str) -> PriceRow:
         raise ValueError(f"{raw} row")
 
@@ -355,12 +366,13 @@ def test_already_ingested_checks_idempotency_partition_and_provider() -> None:
 
     exists = PRICE_DATASET.already_ingested(
         cast(DataLakeClient, lake),
-        exchange_code="US",
+        provider_exchange_code="US",
         bar_date=date(2026, 5, 9),
     )
 
     assert exists is True
     assert lake.last_query == (
-        "SELECT COUNT(*) AS cnt FROM bronze.eod_price WHERE exchange_code = ? AND bar_date = ? AND data_provider = ?"
+        "SELECT COUNT(*) AS cnt FROM bronze.eod_price "
+        "WHERE provider_exchange_code = ? AND bar_date = ? AND data_provider = ?"
     )
     assert lake.last_params == ["US", "2026-05-09", "eodhd"]

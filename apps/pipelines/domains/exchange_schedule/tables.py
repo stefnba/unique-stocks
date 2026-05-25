@@ -9,8 +9,8 @@ class ExchangeScheduleTable(BronzeTableModel):
 
     table_name = "exchange_schedule"
     row_model = ExchangeScheduleSnapshot
-    unique_columns = ("snapshot_date", "exchange_code", "data_provider")
-    idempotency_columns = ("snapshot_date", "exchange_code")
+    unique_columns = ("snapshot_date", "provider_schedule_exchange_code", "data_provider")
+    idempotency_columns = ("snapshot_date", "provider_schedule_exchange_code")
 
 
 class ExchangeHolidayTable(BronzeTableModel):
@@ -18,8 +18,8 @@ class ExchangeHolidayTable(BronzeTableModel):
 
     table_name = "exchange_holiday"
     row_model = ExchangeHolidaySnapshot
-    unique_columns = ("snapshot_date", "exchange_code", "holiday_date", "data_provider")
-    idempotency_columns = ("snapshot_date", "exchange_code")
+    unique_columns = ("snapshot_date", "provider_schedule_exchange_code", "holiday_date", "data_provider")
+    idempotency_columns = ("snapshot_date", "provider_schedule_exchange_code")
 
 
 EXCHANGE_SCHEDULE_TABLE = ExchangeScheduleTable

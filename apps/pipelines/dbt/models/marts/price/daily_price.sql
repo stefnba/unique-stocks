@@ -1,6 +1,6 @@
 SELECT
     ticker,
-    exchange_code,
+    provider_exchange_code,
     bar_date,
     open_price,
     high_price,

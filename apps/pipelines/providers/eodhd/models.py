@@ -50,13 +50,14 @@ class EODPriceBarRaw(EODHDProviderModel):
 class SupportedExchange(EODHDProviderModel):
     """One exchange from the EODHD supported exchanges endpoint.
 
-    Field names are snake_case (bronze column names); PascalCase aliases
-    match the raw API response keys.
+    ``Code`` is the provider-specific code used in EODHD endpoints and ticker
+    suffixes (for example ``US`` or ``LSE``). ``OperatingMIC`` contains one or
+    more official MIC values when EODHD supplies them.
     """
 
-    exchange_code: str = Field(alias="Code")
+    provider_exchange_code: str = Field(alias="Code")
     name: str = Field(alias="Name")
-    operating_mic: str | None = Field(alias="OperatingMIC", default=None)
+    operating_mic_codes: str | None = Field(alias="OperatingMIC", default=None)
     country: str = Field(alias="Country")
     currency: str = Field(alias="Currency")
     country_iso2: str = Field(alias="CountryISO2")
@@ -90,10 +91,15 @@ class ExchangeHolidayRaw(BaseModel):
 
 
 class ExchangeSchedule(EODHDProviderModel):
-    """Exchange trading hours and holidays from the EODHD v2 exchange-details endpoint."""
+    """Exchange trading hours and holidays from the EODHD v2 exchange-details endpoint.
+
+    ``Code`` is the code used by the v2 endpoint. It can look like a MIC
+    (for example ``XHKG``), but EODHD also returns provider codes such as
+    ``US`` here, so it is stored separately from official MIC metadata.
+    """
 
     name: str = Field(alias="Name")
-    exchange_code: str = Field(alias="Code")
+    provider_schedule_exchange_code: str = Field(alias="Code")
     timezone: str = Field(alias="Timezone")
     trading_hours: TradingHoursRaw = Field(alias="TradingHours")
     exchange_holiday: dict[str, ExchangeHolidayRaw] = Field(
@@ -102,21 +108,20 @@ class ExchangeSchedule(EODHDProviderModel):
     )
 
 
-
 class Instrument(EODHDProviderModel):
     """One instrument from the EODHD exchange-symbol-list endpoint.
 
     Covers all asset classes: equities, ETFs, forex pairs, cryptocurrencies,
-    bonds, and funds. ``exchange`` is the sub-exchange from the API response
-    (e.g. NYSE, NASDAQ). The API call code used to fetch this instrument
-    (e.g. "US", "FOREX", "CC") is added separately at the task layer as
-    ``exchange_code``.
+    bonds, and funds. ``provider_listing_exchange_code`` is EODHD's per-row
+    ``Exchange`` value (for example ``NYSE`` or ``NASDAQ``). The API call code
+    used to fetch this instrument (for example ``US``, ``FOREX``, or ``CC``)
+    is added separately at the task layer as ``provider_exchange_code``.
     """
 
     ticker: str = Field(alias="Code")
     name: str = Field(alias="Name")
     country: str | None = Field(alias="Country", default=None)
-    exchange: str = Field(alias="Exchange")
+    provider_listing_exchange_code: str = Field(alias="Exchange")
     currency: str | None = Field(alias="Currency", default=None)
     asset_type: str | None = Field(alias="Type", default=None)
     isin: str | None = Field(alias="Isin", default=None)

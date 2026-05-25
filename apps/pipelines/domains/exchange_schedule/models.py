@@ -6,10 +6,15 @@ from core.models import BronzeModel
 
 
 class ExchangeScheduleSnapshot(BronzeModel):
-    """One exchange trading schedule row for a snapshot date."""
+    """One EODHD v2 exchange-details schedule row for a snapshot date.
+
+    ``provider_schedule_exchange_code`` is the v2 endpoint code. It is stored
+    separately from official MIC metadata because EODHD v2 codes are not always
+    MICs.
+    """
 
     snapshot_date: date
-    exchange_code: str
+    provider_schedule_exchange_code: str
     name: str
     timezone: str
     session_open: str
@@ -24,10 +29,10 @@ class ExchangeScheduleSnapshot(BronzeModel):
 
 
 class ExchangeHolidaySnapshot(BronzeModel):
-    """One exchange holiday row for a snapshot date."""
+    """One holiday row from EODHD v2 exchange-details for a snapshot date."""
 
     snapshot_date: date
-    exchange_code: str
+    provider_schedule_exchange_code: str
     holiday_date: date
     holiday_name: str
     holiday_type: str

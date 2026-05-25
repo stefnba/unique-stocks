@@ -8,7 +8,7 @@ from prefect import flow
 
 from domains.exchange_schedule.tasks import (
     fetch_exchange_details,
-    fetch_schedule_exchange_codes,
+    fetch_provider_schedule_exchange_codes,
     schedule_already_ingested,
     write_bronze_exchange_holiday,
     write_bronze_exchange_schedule,
@@ -24,11 +24,11 @@ log = structlog.get_logger(__name__)
 )
 async def exchange_schedule_flow(
     snapshot_date: date | None = None,
-    exchange_codes: list[str] | None = None,
+    provider_schedule_exchange_codes: list[str] | None = None,
 ) -> dict:
-    """Ingest exchange schedule and holiday for the v2 schedule API universe."""
+    """Ingest exchange schedule and holiday for the EODHD v2 schedule API universe."""
     snapshot_date = snapshot_date or date.today()
-    codes = exchange_codes or await fetch_schedule_exchange_codes()
+    codes = provider_schedule_exchange_codes or await fetch_provider_schedule_exchange_codes()
 
     summary: dict = {
         "snapshot_date": snapshot_date.isoformat(),
@@ -40,11 +40,11 @@ async def exchange_schedule_flow(
 
     # Pre-filter exchange already in bronze for this snapshot.
     pending = []
-    for code in codes:
-        if schedule_already_ingested(code, snapshot_date):
-            summary["skipped"].append(code)
+    for provider_schedule_exchange_code in codes:
+        if schedule_already_ingested(provider_schedule_exchange_code, snapshot_date):
+            summary["skipped"].append(provider_schedule_exchange_code)
         else:
-            pending.append(code)
+            pending.append(provider_schedule_exchange_code)
 
     # Fetch all exchange concurrently — HTTP is the bottleneck (~0.75 s each).
     # return_exceptions=True prevents one 5xx from cancelling all other tasks.
@@ -54,19 +54,23 @@ async def exchange_schedule_flow(
     )
 
     # Write results sequentially to avoid concurrent DuckDB write conflicts.
-    for code, details in zip(pending, results, strict=True):
+    for provider_schedule_exchange_code, details in zip(pending, results, strict=True):
         if isinstance(details, BaseException):
-            log.error("schedule.fetch_error", exchange=code, error=str(details))
-            summary["failed"].append(code)
+            log.error(
+                "schedule.fetch_error",
+                provider_schedule_exchange_code=provider_schedule_exchange_code,
+                error=str(details),
+            )
+            summary["failed"].append(provider_schedule_exchange_code)
             continue
         if details is None:
-            summary["unsupported"].append(code)
+            summary["unsupported"].append(provider_schedule_exchange_code)
             continue
 
-        source_uri = await write_schedule_to_landing_zone(details, code, snapshot_date)
+        source_uri = await write_schedule_to_landing_zone(details, provider_schedule_exchange_code, snapshot_date)
         schedule_rows = write_bronze_exchange_schedule(details, snapshot_date, source_uri=source_uri)
         holiday_rows = write_bronze_exchange_holiday(details, snapshot_date, source_uri=source_uri)
-        summary["exchange"][code] = {
+        summary["exchange"][provider_schedule_exchange_code] = {
             "schedule_rows": schedule_rows,
             "holiday_rows": holiday_rows,
         }

@@ -6,14 +6,19 @@ from core.models import BronzeModel
 
 
 class InstrumentSnapshot(BronzeModel):
-    """One active instrument row for a snapshot date."""
+    """One active instrument row for a snapshot date.
+
+    ``provider_exchange_code`` is the EODHD request/symbol-suffix code used to
+    fetch the instrument list. ``provider_listing_exchange_code`` is the
+    exchange-like code EODHD returns on the individual instrument row.
+    """
 
     snapshot_date: date
-    exchange_code: str
+    provider_exchange_code: str
     ticker: str
     name: str
     country: str | None = None
-    exchange: str
+    provider_listing_exchange_code: str
     currency: str | None = None
     asset_type: str | None = None
     isin: str | None = None

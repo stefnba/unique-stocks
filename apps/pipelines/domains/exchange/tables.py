@@ -9,7 +9,7 @@ class ExchangeTable(BronzeTableModel):
 
     table_name = "exchange"
     row_model = ExchangeSnapshot
-    unique_columns = ("snapshot_date", "exchange_code", "data_provider")
+    unique_columns = ("snapshot_date", "provider_exchange_code", "data_provider")
     idempotency_columns = ("snapshot_date",)
 
 

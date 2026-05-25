@@ -17,9 +17,9 @@ def parse_exchange_snapshots(
         raws,
         lambda raw: ExchangeSnapshot(
             snapshot_date=snapshot_date,
-            exchange_code=raw.exchange_code,
+            provider_exchange_code=raw.provider_exchange_code,
             name=raw.name,
-            operating_mic=raw.operating_mic,
+            operating_mic_codes=raw.operating_mic_codes,
             country=raw.country,
             currency=raw.currency,
             country_iso2=raw.country_iso2,

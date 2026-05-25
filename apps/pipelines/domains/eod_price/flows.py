@@ -23,8 +23,8 @@ from core.ingestion.parser import attach_source_uri
 from .models import EODBar
 from .parsers import infer_bulk_bar_date, parse_ticker_bars
 from .tasks import (
-    fetch_eod_exchange_codes,
     fetch_eod_price_bulk,
+    fetch_eod_provider_exchange_codes,
     fetch_ticker_eod_history,
     load_backfill_pending_symbols,
     parse_eod_price,
@@ -43,18 +43,18 @@ log = structlog.get_logger(__name__)
 )
 async def eod_price_flow(
     trade_date: date | None = None,
-    exchange_codes: list[str] | None = None,
+    provider_exchange_codes: list[str] | None = None,
 ) -> dict:
     """Ingest EOD price for all (or the given) exchange on trade_date.
 
     Args:
         trade_date: Specific trading date to ingest. If omitted, EODHD returns
             its latest available trading day per exchange.
-        exchange_codes: Exchange to ingest. Defaults to all codes present in
-            bronze.exchange (loaded by fetch_eod_exchange_codes). Pass
-            ["US"] to restrict to US equities only.
+        provider_exchange_codes: EODHD catalog/API codes to ingest. Defaults
+            to all provider codes present in bronze.exchange. Pass ["US"] to
+            restrict to US equities only.
     """
-    codes = exchange_codes or await fetch_eod_exchange_codes()
+    codes = provider_exchange_codes or await fetch_eod_provider_exchange_codes()
 
     lake = get_lake_client()
     run_id = _record_run_start(lake, "eod-price-daily")
@@ -68,36 +68,55 @@ async def eod_price_flow(
     }
 
     try:
-        for exchange in codes:
+        for provider_exchange_code in codes:
             try:
-                raw_rows = await fetch_eod_price_bulk(exchange=exchange, bar_date=trade_date)
+                raw_rows = await fetch_eod_price_bulk(
+                    provider_exchange_code=provider_exchange_code,
+                    bar_date=trade_date,
+                )
 
                 if not raw_rows:
-                    log.info("price.exchange_skipped", exchange=exchange, reason="no_data", trade_date=trade_date)
-                    summary["exchange"][exchange] = {"bar_date": None, "rows_written": 0}
+                    log.info(
+                        "price.exchange_skipped",
+                        provider_exchange_code=provider_exchange_code,
+                        reason="no_data",
+                        trade_date=trade_date,
+                    )
+                    summary["exchange"][provider_exchange_code] = {"bar_date": None, "rows_written": 0}
                     continue
 
                 bar_date = trade_date or infer_bulk_bar_date(raw_rows)
-                source_uri = await write_eod_price_to_landing(raw_rows, exchange=exchange, bar_date=bar_date)
-                sources = parse_eod_price(raw_rows, bar_date=bar_date, exchange=exchange)
+                source_uri = await write_eod_price_to_landing(
+                    raw_rows,
+                    provider_exchange_code=provider_exchange_code,
+                    bar_date=bar_date,
+                )
+                sources = parse_eod_price(
+                    raw_rows,
+                    bar_date=bar_date,
+                    provider_exchange_code=provider_exchange_code,
+                )
                 written = write_bronze_eod_price(
                     sources,
-                    exchange=exchange,
+                    provider_exchange_code=provider_exchange_code,
                     bar_date=bar_date,
                     source_uri=source_uri,
                 )
 
-                summary["exchange"][exchange] = {"bar_date": bar_date.isoformat(), "rows_written": written}
+                summary["exchange"][provider_exchange_code] = {
+                    "bar_date": bar_date.isoformat(),
+                    "rows_written": written,
+                }
                 total_written += written
 
             except ValidationError:
                 # Schema drift from provider — re-raise immediately.
                 # All exchange will fail the same way; no point continuing.
-                _record_run_failed(lake, run_id, f"ValidationError on exchange {exchange}")
+                _record_run_failed(lake, run_id, f"ValidationError on provider exchange {provider_exchange_code}")
                 raise
             except Exception as exc:
-                log.error("price.exchange_failed", exchange=exchange, error=str(exc))
-                summary["failed"].append(exchange)
+                log.error("price.exchange_failed", provider_exchange_code=provider_exchange_code, error=str(exc))
+                summary["failed"].append(provider_exchange_code)
 
         _record_run_complete(lake, run_id, total_written)
         log.info(
@@ -154,7 +173,7 @@ def _record_run_failed(lake: DataLakeClient, run_id: str, error: str) -> None:
 async def eod_price_backfill_flow(
     from_date: date,
     to_date: date | None = None,
-    exchange_codes: list[str] | None = None,
+    provider_exchange_codes: list[str] | None = None,
     batch_size: int = 50,
 ) -> dict:
     """Ingest full OHLCV history for every instrument in bronze.instrument.
@@ -165,8 +184,8 @@ async def eod_price_backfill_flow(
     giving natural checkpoints for resume on failure.
 
     A symbol is skipped if it already has any row in bronze.eod_price for
-    its exchange — re-runs are safe. To re-ingest a specific symbol, pass it
-    via exchange_codes and delete its rows from bronze first.
+    its provider exchange code — re-runs are safe. To re-ingest a specific
+    symbol, pass its provider exchange code and delete its rows from bronze first.
 
     Provider-validated backfill payloads are written to S3 landing before
     parsing so historical ingestion follows the same replay contract as daily
@@ -175,15 +194,15 @@ async def eod_price_backfill_flow(
     Args:
         from_date: Earliest bar date to request from EODHD.
         to_date: Latest bar date. Defaults to today.
-        exchange_codes: Exchange to backfill. Defaults to all codes present
-            in bronze.exchange.
+        provider_exchange_codes: EODHD catalog/API codes to backfill. Defaults
+            to all provider codes present in bronze.exchange.
         batch_size: Symbols fetched concurrently per batch. Keep this low
             enough to stay within EODHD's API rate limits (~100 k calls/day).
             At batch_size=50 and ~0.75 s/call the flow can process ~5 k
             symbols/hour, well within the daily quota.
     """
     to_date = to_date or date.today()
-    codes = exchange_codes or await fetch_eod_exchange_codes()
+    codes = provider_exchange_codes or await fetch_eod_provider_exchange_codes()
 
     lake = get_lake_client()
     run_id = _record_run_start(lake, "eod-price-backfill")
@@ -205,15 +224,15 @@ async def eod_price_backfill_flow(
     }
 
     try:
-        for exchange_code in codes:
-            pending = load_backfill_pending_symbols(exchange_code, from_date)
+        for provider_exchange_code in codes:
+            pending = load_backfill_pending_symbols(provider_exchange_code, from_date)
 
             if not pending:
-                log.info("backfill.exchange_skip", exchange=exchange_code, reason="all_done")
-                summary["exchange"][exchange_code] = {"symbols": 0, "rows": 0}
+                log.info("backfill.exchange_skip", provider_exchange_code=provider_exchange_code, reason="all_done")
+                summary["exchange"][provider_exchange_code] = {"symbols": 0, "rows": 0}
                 continue
 
-            log.info("backfill.exchange_start", exchange=exchange_code, pending=len(pending))
+            log.info("backfill.exchange_start", provider_exchange_code=provider_exchange_code, pending=len(pending))
             exchange_written = 0
             exchange_failed: list[str] = []
 
@@ -237,7 +256,7 @@ async def eod_price_backfill_flow(
                     source_uri = await write_ticker_eod_history_to_landing(
                         result,
                         symbol=sym,
-                        exchange_code=exchange_code,
+                        provider_exchange_code=provider_exchange_code,
                         from_date=from_date,
                         to_date=to_date,
                     )
@@ -248,17 +267,20 @@ async def eod_price_backfill_flow(
                         batch_sources.extend(attach_source_uri(valid, source_uri))
 
                 if batch_sources:
-                    n = write_backfill_eod_batch(batch_sources, exchange_code=exchange_code)
+                    n = write_backfill_eod_batch(
+                        batch_sources,
+                        provider_exchange_code=provider_exchange_code,
+                    )
                     exchange_written += n
 
                 log.info(
                     "backfill.batch_done",
-                    exchange=exchange_code,
+                    provider_exchange_code=provider_exchange_code,
                     batch=i // batch_size + 1,
                     of=(len(pending) + batch_size - 1) // batch_size,
                 )
 
-            summary["exchange"][exchange_code] = {
+            summary["exchange"][provider_exchange_code] = {
                 "symbols_pending": len(pending),
                 "symbols_failed": len(exchange_failed),
                 "rows_written": exchange_written,

@@ -6,7 +6,7 @@ WITH source AS (
 renamed AS (
     SELECT
         CAST(source_data.ingestion_id AS VARCHAR) AS ingestion_id,
-        CAST(source_data.exchange_code AS VARCHAR) AS exchange_code,
+        CAST(source_data.provider_exchange_code AS VARCHAR) AS provider_exchange_code,
         CAST(source_data.ticker AS VARCHAR) AS ticker,
         CAST(source_data.bar_date AS DATE) AS bar_date,
         CAST(source_data.open AS DECIMAL(18, 6)) AS open_price,

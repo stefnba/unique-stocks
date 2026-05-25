@@ -16,7 +16,7 @@ def parse_exchange_schedule_snapshot(
     """Flatten an ExchangeSchedule into one Bronze exchange schedule row."""
     h = schedule.trading_hours
     row = ExchangeScheduleSnapshot(
-        exchange_code=schedule.exchange_code,
+        provider_schedule_exchange_code=schedule.provider_schedule_exchange_code,
         name=schedule.name,
         timezone=schedule.timezone,
         session_open=h.session_open,
@@ -41,7 +41,7 @@ def parse_exchange_holiday_snapshots(
     records = []
     for holiday_date, holiday in schedule.exchange_holiday.items():
         row = ExchangeHolidaySnapshot(
-            exchange_code=schedule.exchange_code,
+            provider_schedule_exchange_code=schedule.provider_schedule_exchange_code,
             holiday_date=date.fromisoformat(holiday_date),
             holiday_name=holiday.holiday_name,
             holiday_type=holiday.holiday_type,
@@ -49,7 +49,7 @@ def parse_exchange_holiday_snapshots(
             snapshot_date=snapshot_date,
         )
         raw_fragment: dict[str, Any] = {
-            "exchange_code": schedule.exchange_code,
+            "provider_schedule_exchange_code": schedule.provider_schedule_exchange_code,
             "snapshot_date": snapshot_date,
             "holiday_date": holiday_date,
             **holiday.model_dump(mode="json", by_alias=True),

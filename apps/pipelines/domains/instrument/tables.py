@@ -9,8 +9,8 @@ class InstrumentTable(BronzeTableModel):
 
     table_name = "instrument"
     row_model = InstrumentSnapshot
-    unique_columns = ("snapshot_date", "exchange_code", "ticker", "data_provider")
-    idempotency_columns = ("snapshot_date", "exchange_code")
+    unique_columns = ("snapshot_date", "provider_exchange_code", "ticker", "data_provider")
+    idempotency_columns = ("snapshot_date", "provider_exchange_code")
 
 
 INSTRUMENT_TABLE = InstrumentTable

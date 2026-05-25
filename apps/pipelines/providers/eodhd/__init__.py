@@ -2,5 +2,4 @@
 
 from providers.eodhd.client import EODHDClient
 
-
 __all__ = ["EODHDClient"]

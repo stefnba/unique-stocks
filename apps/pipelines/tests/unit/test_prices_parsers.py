@@ -53,7 +53,7 @@ class TestParseEodBars:
         assert len(valid) == 1
         assert len(rejected) == 0
         bar = valid[0].row
-        assert bar.exchange_code == "US"
+        assert bar.provider_exchange_code == "US"
         assert bar.ticker == "AAPL.US"
         assert bar.close == Decimal("190.75")
         assert valid[0].raw_fragment.code == "AAPL"
@@ -129,7 +129,7 @@ class TestParseTickerBars:
 
         assert rejected == []
         assert len(valid) == 1
-        assert valid[0].row.exchange_code == "US"
+        assert valid[0].row.provider_exchange_code == "US"
         assert valid[0].row.ticker == "AAPL.US"
         assert valid[0].row.close == Decimal("190.75")
         assert valid[0].raw_fragment is raw
@@ -165,7 +165,7 @@ class TestEodBarBronzeRecord:
     def test_record_has_row_hash(self) -> None:
         """Bronze record includes a 64-char SHA-256 row_hash."""
         bar = EODBar(
-            exchange_code="US",
+            provider_exchange_code="US",
             ticker="AAPL.US",
             bar_date=date(2026, 5, 9),
             open=Decimal("189.50"),
@@ -185,7 +185,7 @@ class TestEodBarBronzeRecord:
     def test_record_is_deterministic(self) -> None:
         """Same bar always produces the same row_hash."""
         bar = EODBar(
-            exchange_code="US",
+            provider_exchange_code="US",
             ticker="AAPL.US",
             bar_date=date(2026, 5, 9),
             open=Decimal("189.50"),

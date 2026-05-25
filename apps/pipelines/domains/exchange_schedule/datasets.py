@@ -13,7 +13,7 @@ from providers.registry import Provider
 class ExchangeScheduleLandingPartition(LandingPartitionSchema):
     """Exchange schedule landing partitions."""
 
-    exchange: str
+    provider_schedule_exchange_code: str
     snapshot_date: date
 
 

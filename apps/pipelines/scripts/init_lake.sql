@@ -17,7 +17,7 @@ CREATE SCHEMA IF NOT EXISTS pipeline;
 
 CREATE TABLE IF NOT EXISTS bronze.eod_price (
     ingestion_id UUID DEFAULT GEN_RANDOM_UUID(),
-    exchange_code VARCHAR NOT NULL,
+    provider_exchange_code VARCHAR NOT NULL,
     ticker VARCHAR NOT NULL,
     bar_date DATE NOT NULL,
     open DECIMAL NOT NULL,
@@ -37,9 +37,9 @@ CREATE TABLE IF NOT EXISTS bronze.eod_price (
 CREATE TABLE IF NOT EXISTS bronze.exchange (
     ingestion_id UUID DEFAULT GEN_RANDOM_UUID(),
     snapshot_date DATE NOT NULL,
-    exchange_code VARCHAR NOT NULL,
+    provider_exchange_code VARCHAR NOT NULL,
     name VARCHAR NOT NULL,
-    operating_mic VARCHAR,
+    operating_mic_codes VARCHAR,
     country VARCHAR NOT NULL,
     currency VARCHAR NOT NULL,
     country_iso2 VARCHAR NOT NULL,
@@ -49,13 +49,13 @@ CREATE TABLE IF NOT EXISTS bronze.exchange (
     row_hash VARCHAR NOT NULL,
     source_uri VARCHAR,
     ingested_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE (snapshot_date, exchange_code, data_provider)
+    UNIQUE (snapshot_date, provider_exchange_code, data_provider)
 );
 
 CREATE TABLE IF NOT EXISTS bronze.exchange_schedule (
     ingestion_id UUID DEFAULT GEN_RANDOM_UUID(),
     snapshot_date DATE NOT NULL,
-    exchange_code VARCHAR NOT NULL,
+    provider_schedule_exchange_code VARCHAR NOT NULL,
     name VARCHAR NOT NULL,
     timezone VARCHAR NOT NULL,
     session_open VARCHAR NOT NULL,
@@ -72,13 +72,13 @@ CREATE TABLE IF NOT EXISTS bronze.exchange_schedule (
     row_hash VARCHAR NOT NULL,
     source_uri VARCHAR,
     ingested_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE (snapshot_date, exchange_code, data_provider)
+    UNIQUE (snapshot_date, provider_schedule_exchange_code, data_provider)
 );
 
 CREATE TABLE IF NOT EXISTS bronze.exchange_holiday (
     ingestion_id UUID DEFAULT GEN_RANDOM_UUID(),
     snapshot_date DATE NOT NULL,
-    exchange_code VARCHAR NOT NULL,
+    provider_schedule_exchange_code VARCHAR NOT NULL,
     holiday_date DATE NOT NULL,
     holiday_name VARCHAR NOT NULL,
     holiday_type VARCHAR NOT NULL,
@@ -88,17 +88,17 @@ CREATE TABLE IF NOT EXISTS bronze.exchange_holiday (
     row_hash VARCHAR NOT NULL,
     source_uri VARCHAR,
     ingested_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE (snapshot_date, exchange_code, holiday_date, data_provider)
+    UNIQUE (snapshot_date, provider_schedule_exchange_code, holiday_date, data_provider)
 );
 
 CREATE TABLE IF NOT EXISTS bronze.instrument (
     ingestion_id UUID DEFAULT GEN_RANDOM_UUID(),
     snapshot_date DATE NOT NULL,
-    exchange_code VARCHAR NOT NULL,
+    provider_exchange_code VARCHAR NOT NULL,
     ticker VARCHAR NOT NULL,
     name VARCHAR NOT NULL,
     country VARCHAR,
-    exchange VARCHAR NOT NULL,
+    provider_listing_exchange_code VARCHAR NOT NULL,
     currency VARCHAR,
     asset_type VARCHAR,
     isin VARCHAR,
@@ -107,7 +107,7 @@ CREATE TABLE IF NOT EXISTS bronze.instrument (
     row_hash VARCHAR NOT NULL,
     source_uri VARCHAR,
     ingested_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE (snapshot_date, exchange_code, ticker, data_provider)
+    UNIQUE (snapshot_date, provider_exchange_code, ticker, data_provider)
 );
 
 -- -----------------------------------------------------------------------

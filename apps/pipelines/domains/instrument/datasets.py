@@ -13,7 +13,7 @@ from providers.registry import Provider
 class InstrumentLandingPartition(LandingPartitionSchema):
     """Instrument landing partitions."""
 
-    exchange: str
+    provider_exchange_code: str
     snapshot_date: date
 
 

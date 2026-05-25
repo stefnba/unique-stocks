@@ -26,7 +26,8 @@ def test_parse_exchange_snapshots() -> None:
         }
     )
     sources = parse_exchange_snapshots([raw], date(2026, 5, 24))
-    assert sources[0].row.exchange_code == "US"
+    assert sources[0].row.provider_exchange_code == "US"
+    assert sources[0].row.operating_mic_codes == "XNYS"
     assert sources[0].row.snapshot_date == date(2026, 5, 24)
     assert sources[0].raw_fragment is raw
     assert json.loads(EXCHANGE_DATASET.bronze_record(sources[0])["raw_json"])["Code"] == "US"
@@ -47,7 +48,8 @@ def test_parse_instrument_snapshots() -> None:
     )
     valid, rejected = parse_instrument_snapshots([raw], "US", date(2026, 5, 24))
     assert not rejected
-    assert valid[0].row.exchange_code == "US"
+    assert valid[0].row.provider_exchange_code == "US"
+    assert valid[0].row.provider_listing_exchange_code == "NASDAQ"
     assert valid[0].row.ticker == "AAPL"
     assert valid[0].raw_fragment is raw
     assert json.loads(INSTRUMENT_DATASET.bronze_record(valid[0])["raw_json"])["Code"] == "AAPL"
@@ -78,9 +80,9 @@ def _schedule() -> ExchangeSchedule:
 def test_parse_exchange_schedule_snapshot() -> None:
     """Exchange schedule parse to a single typed Bronze result."""
     source = parse_exchange_schedule_snapshot(_schedule(), date(2026, 5, 24))
-    assert source.row.exchange_code == "XNYS"
+    assert source.row.provider_schedule_exchange_code == "XNYS"
     assert source.row.session_open == "09:30"
-    assert source.raw_fragment.exchange_code == "XNYS"
+    assert source.raw_fragment.provider_schedule_exchange_code == "XNYS"
     assert json.loads(EXCHANGE_SCHEDULE_DATASET.bronze_record(source)["raw_json"])["Code"] == "XNYS"
 
 
@@ -88,6 +90,6 @@ def test_parse_exchange_holiday_snapshots() -> None:
     """Exchange holiday use a small provider fragment plus parent context."""
     sources = parse_exchange_holiday_snapshots(_schedule(), date(2026, 5, 24))
     assert sources[0].row.holiday_date == date(2026, 1, 1)
-    assert sources[0].raw_fragment["exchange_code"] == "XNYS"
+    assert sources[0].raw_fragment["provider_schedule_exchange_code"] == "XNYS"
     assert sources[0].raw_fragment["Holiday"] == "New Year's Day"
     assert json.loads(EXCHANGE_HOLIDAY_DATASET.bronze_record(sources[0])["raw_json"])["Holiday"] == "New Year's Day"

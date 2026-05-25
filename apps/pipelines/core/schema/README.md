@@ -13,9 +13,9 @@ domain parsers before those rows are written to Bronze.
 ```python
 class ExchangeSnapshot(BronzeModel):
     snapshot_date: date
-    exchange_code: str
+    provider_exchange_code: str
     name: str
-    operating_mic: str | None = None
+    operating_mic_codes: str | None = None
 ```
 
 ### Table Model
@@ -27,7 +27,7 @@ reference a separate Pydantic `row_model`.
 class ExchangeTable(BronzeTableModel):
     table_name = "exchange"
     row_model = ExchangeSnapshot
-    unique_columns = ("snapshot_date", "exchange_code", "data_provider")
+    unique_columns = ("snapshot_date", "provider_exchange_code", "data_provider")
     idempotency_columns = ("snapshot_date",)
 
 
@@ -117,7 +117,7 @@ to regenerate `scripts/init_lake.sql`.
 Column metadata currently uses string tuples:
 
 ```python
-unique_columns = ("snapshot_date", "exchange_code", "data_provider")
+unique_columns = ("snapshot_date", "provider_exchange_code", "data_provider")
 ```
 
 Those strings are runtime-validated immediately, but Python type checkers do

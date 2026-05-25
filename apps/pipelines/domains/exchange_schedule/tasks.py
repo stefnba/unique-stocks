@@ -17,13 +17,14 @@ from providers.eodhd.models import ExchangeSchedule
 log = structlog.get_logger(__name__)
 
 
-@task(name="fetch-schedule-exchange-codes")
-async def fetch_schedule_exchange_codes() -> list[str]:
-    """Load exchange codes from the v2 schedule API list endpoint.
+@task(name="fetch-provider-schedule-exchange-codes")
+async def fetch_provider_schedule_exchange_codes() -> list[str]:
+    """Load provider schedule exchange codes from the v2 schedule API list endpoint.
 
-    The v2 endpoint uses MIC-style codes (e.g. ``XETR``) that differ from the
-    catalog codes from the exchange catalog endpoint (e.g. ``XETRA``). Using catalog codes
-    mostly results in 404s on the detail endpoint.
+    These are endpoint-specific EODHD codes. Some look like MICs (e.g.
+    ``XETR``), while others are provider aggregate codes (e.g. ``US``). Using
+    catalog codes can result in 404s when the v2 endpoint expects a different
+    code for that market.
     """
     from providers.eodhd.client import EODHDClient
 
@@ -31,41 +32,41 @@ async def fetch_schedule_exchange_codes() -> list[str]:
     async with EODHDClient(api_key=api_key) as client:
         codes = await client.get_exchange_details_codes()
 
-    log.info("schedule.codes_loaded", source="v2_list", count=len(codes))
+    log.info("schedule.provider_schedule_exchange_codes_loaded", source="v2_list", count=len(codes))
     return codes
 
 
 @task(name="fetch-exchange-details", retries=3, retry_delay_seconds=10)
-async def fetch_exchange_details(exchange_code: str) -> ExchangeSchedule | None:
+async def fetch_exchange_details(provider_schedule_exchange_code: str) -> ExchangeSchedule | None:
     """Fetch v2 trading hours and holiday for one exchange.
 
     Returns None when the exchange is not supported by the v2 endpoint.
     """
     from providers.eodhd.client import EODHDClient
 
-    log.info("schedule.fetch_start", exchange=exchange_code)
+    log.info("schedule.fetch_start", provider_schedule_exchange_code=provider_schedule_exchange_code)
     api_key = (await BlockRegistry.EODHD_API_KEY.load_async()).get()
     async with EODHDClient(api_key=api_key) as client:
         try:
-            details = await client.get_exchange_details(exchange_code)
+            details = await client.get_exchange_details(provider_schedule_exchange_code)
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code == 404:
                 log.warning(
                     "schedule.exchange_unsupported",
-                    exchange=exchange_code,
+                    provider_schedule_exchange_code=provider_schedule_exchange_code,
                     status=exc.response.status_code,
                 )
                 return None
             raise
 
-    log.info("schedule.fetch_done", exchange=exchange_code)
+    log.info("schedule.fetch_done", provider_schedule_exchange_code=provider_schedule_exchange_code)
     return details
 
 
 @task(name="write-schedule-landing")
 async def write_schedule_to_landing_zone(
     details: ExchangeSchedule,
-    exchange_code: str,
+    provider_schedule_exchange_code: str,
     snapshot_date: date,
     ingested_at: datetime | None = None,
 ) -> str:
@@ -79,7 +80,7 @@ async def write_schedule_to_landing_zone(
         provider=EXCHANGE_SCHEDULE_DATASET.provider,
         data=details,
         partitions={
-            "exchange": exchange_code,
+            "provider_schedule_exchange_code": provider_schedule_exchange_code,
             "snapshot_date": snapshot_date,
         },
         ingested_at=stamp,
@@ -100,12 +101,12 @@ def write_bronze_exchange_schedule(
     if EXCHANGE_SCHEDULE_DATASET.already_ingested(
         lake,
         snapshot_date=snapshot_date,
-        exchange_code=details.exchange_code,
+        provider_schedule_exchange_code=details.provider_schedule_exchange_code,
     ):
         log.info(
             "schedule.write_skipped",
             reason="already_ingested",
-            exchange=details.exchange_code,
+            provider_schedule_exchange_code=details.provider_schedule_exchange_code,
             snapshot_date=snapshot_date,
         )
         return 0
@@ -117,7 +118,7 @@ def write_bronze_exchange_schedule(
     )
     log.info(
         "schedule.write_done",
-        exchange=details.exchange_code,
+        provider_schedule_exchange_code=details.provider_schedule_exchange_code,
         snapshot_date=snapshot_date,
         rows=written,
     )
@@ -133,13 +134,13 @@ def write_bronze_exchange_holiday(
     """Write holiday rows for one exchange to bronze.exchange_holiday."""
     from core.clients.lake import get_lake_client
 
-    exchange_code = details.exchange_code
+    provider_schedule_exchange_code = details.provider_schedule_exchange_code
     holiday = parse_exchange_holiday_snapshots(details, snapshot_date)
     if not holiday:
         log.info(
             "schedule.holiday_write_skipped",
             reason="no_holiday",
-            exchange=exchange_code,
+            provider_schedule_exchange_code=provider_schedule_exchange_code,
             snapshot_date=snapshot_date,
         )
         return 0
@@ -148,12 +149,12 @@ def write_bronze_exchange_holiday(
     if EXCHANGE_HOLIDAY_DATASET.already_ingested(
         lake,
         snapshot_date=snapshot_date,
-        exchange_code=exchange_code,
+        provider_schedule_exchange_code=provider_schedule_exchange_code,
     ):
         log.info(
             "schedule.holiday_write_skipped",
             reason="already_ingested",
-            exchange=exchange_code,
+            provider_schedule_exchange_code=provider_schedule_exchange_code,
             snapshot_date=snapshot_date,
         )
         return 0
@@ -161,7 +162,7 @@ def write_bronze_exchange_holiday(
     written = EXCHANGE_HOLIDAY_DATASET.write_bronze(lake, holiday, source_uri=source_uri)
     log.info(
         "schedule.holiday_write_done",
-        exchange=exchange_code,
+        provider_schedule_exchange_code=provider_schedule_exchange_code,
         snapshot_date=snapshot_date,
         rows=written,
     )
@@ -169,7 +170,7 @@ def write_bronze_exchange_holiday(
 
 
 @task(name="schedule-already-ingested")
-def schedule_already_ingested(exchange_code: str, snapshot_date: date) -> bool:
+def schedule_already_ingested(provider_schedule_exchange_code: str, snapshot_date: date) -> bool:
     """Return True when schedule data for this exchange and snapshot already exists."""
     from core.clients.lake import get_lake_client
 
@@ -177,5 +178,5 @@ def schedule_already_ingested(exchange_code: str, snapshot_date: date) -> bool:
     return EXCHANGE_SCHEDULE_DATASET.already_ingested(
         lake,
         snapshot_date=snapshot_date,
-        exchange_code=exchange_code,
+        provider_schedule_exchange_code=provider_schedule_exchange_code,
     )

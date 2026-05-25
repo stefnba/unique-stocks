@@ -56,8 +56,12 @@ class EODHDClient(HttpClientBase):
     def _default_params(self) -> dict[str, str]:
         return {"fmt": "json"}
 
-    async def get_eod_price_bulk(self, exchange: str, bar_date: date | None = None) -> list[EODBulkPriceRaw]:
-        """All tickers for an exchange on one date (one API call per exchange).
+    async def get_eod_price_bulk(
+        self,
+        provider_exchange_code: str,
+        bar_date: date | None = None,
+    ) -> list[EODBulkPriceRaw]:
+        """All tickers for an EODHD exchange code on one date.
 
         If ``bar_date`` is omitted, EODHD returns its latest available trading
         day for the exchange.
@@ -68,7 +72,7 @@ class EODHDClient(HttpClientBase):
         if bar_date is not None:
             params["date"] = bar_date.isoformat()
         rows = await self._get_list(
-            f"/eod-bulk-last-day/{exchange}",
+            f"/eod-bulk-last-day/{provider_exchange_code}",
             model=EODBulkPriceRaw,
             params=params,
         )
@@ -94,26 +98,29 @@ class EODHDClient(HttpClientBase):
         return await self._get_list(f"/eod/{symbol}", model=EODPriceBarRaw, params=params)
 
     async def get_exchange(self) -> list[SupportedExchange]:
-        """Get the exchange catalog available via EODHD."""
+        """Get the EODHD exchange catalog with provider codes and MIC metadata."""
         return await self._get_list(
             "/exchanges-list",
             model=SupportedExchange,
         )
 
-    async def get_exchange_details(self, exchange_code: str) -> ExchangeSchedule:
+    async def get_exchange_details(self, provider_schedule_exchange_code: str) -> ExchangeSchedule:
         """Trading hours and holidays for one exchange (v2 endpoint).
+
+        ``provider_schedule_exchange_code`` is the v2 endpoint code, not
+        necessarily an official MIC.
 
         Raises httpx.HTTPStatusError when the exchange is not supported by v2.
         """
         response = await self._get(
-            f"/v2/exchange-details/{exchange_code}",
+            f"/v2/exchange-details/{provider_schedule_exchange_code}",
             model=ExchangeDetails,
         )
         return response.data
 
     async def get_instrument(
         self,
-        exchange_code: str,
+        provider_exchange_code: str,
         asset_type: str | None = None,
     ) -> list[Instrument]:
         """All active instruments for one exchange (GET /exchange-symbol-list/{code}).
@@ -121,22 +128,23 @@ class EODHDClient(HttpClientBase):
         Covers equities, ETFs, forex pairs, crypto, bonds, and funds depending
         on the exchange code. ``asset_type`` filters by instrument type;
         supported values: common_stock, preferred_stock, stock, etf, fund.
-        For US equities pass exchange_code="US" — it covers NYSE, NASDAQ,
-        NYSE ARCA, and OTC in a single call.
+        For US equities pass provider_exchange_code="US" — it covers NYSE,
+        NASDAQ, NYSE ARCA, and OTC in a single call.
         """
         params: dict[str, str] = {}
         if asset_type:
             params["type"] = asset_type
         return await self._get_list(
-            f"/exchange-symbol-list/{exchange_code}",
+            f"/exchange-symbol-list/{provider_exchange_code}",
             model=Instrument,
             params=params,
         )
 
     async def get_exchange_details_codes(self) -> list[str]:
-        """Return exchange codes supported by the v2 trading-hours/holidays endpoint.
+        """Return provider codes supported by the v2 trading-hours/holidays endpoint.
 
-        These codes differ from ``/exchanges-list`` (e.g. ``XETR`` vs ``XETRA``).
+        These endpoint-specific codes differ from ``/exchanges-list`` in some
+        markets (for example ``XETR`` vs ``XETRA``).
         """
         response = await self._get(
             "/v2/exchange-details",

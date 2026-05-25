@@ -25,11 +25,11 @@ log = structlog.get_logger(__name__)
 def parse_eod_bars(
     raw_rows: list[EODBulkPriceRaw],
     expected_date: date,
-    exchange: str,
+    provider_exchange_code: str,
 ) -> tuple[list[BronzeParseResult[EODBar]], list[EODBulkPriceRaw]]:
     """Validate and parse raw API rows into EODBar domain models.
 
-    The exchange is required to construct the fully-qualified ticker symbol
+    The provider exchange code is required to construct the fully-qualified ticker symbol
     (e.g. EODHD returns ``code="AAPL"`` on the US exchange → ``ticker="AAPL.US"``).
 
     Returns:
@@ -40,11 +40,11 @@ def parse_eod_bars(
     """
     return parse_best_effort_rows(
         raw_rows,
-        lambda row: _build_eod_bar(row, expected_date=expected_date, exchange=exchange),
+        lambda row: _build_eod_bar(row, expected_date=expected_date, provider_exchange_code=provider_exchange_code),
         on_rejected=lambda row, exc: log.warning(
             "price.parse_rejected",
             ticker=row.code,
-            exchange=exchange,
+            provider_exchange_code=provider_exchange_code,
             error=str(exc),
         ),
     )
@@ -83,12 +83,12 @@ def _build_eod_bar(
     row: EODBulkPriceRaw,
     *,
     expected_date: date,
-    exchange: str,
+    provider_exchange_code: str,
 ) -> EODBar | None:
     bar = EODBar.model_validate(
         {
-            "exchange_code": exchange,
-            "ticker": qualified_ticker(row.code, exchange),
+            "provider_exchange_code": provider_exchange_code,
+            "ticker": qualified_ticker(row.code, provider_exchange_code),
             # EODBar is strict=True — must pass a date object, not a string
             "bar_date": parse_date(row.date),
             "open": parse_decimal(row.open),
@@ -115,7 +115,7 @@ def _build_eod_bar(
 def _build_ticker_bar(row: EODPriceBarRaw, *, ticker: str) -> EODBar:
     return EODBar.model_validate(
         {
-            "exchange_code": exchange_from_qualified_ticker(ticker),
+            "provider_exchange_code": exchange_from_qualified_ticker(ticker),
             "ticker": ticker,
             "bar_date": parse_date(row.date),
             "open": parse_decimal(row.open),

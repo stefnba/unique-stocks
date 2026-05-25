@@ -13,14 +13,14 @@ from providers.registry import Provider
 class EODPriceDailyPartition(LandingPartitionSchema):
     """Daily price landing partitions."""
 
-    exchange: str
+    provider_exchange_code: str
     bar_date: date
 
 
 class EODPriceBackfillPartition(LandingPartitionSchema):
     """Historical backfill landing partitions."""
 
-    exchange: str
+    provider_exchange_code: str
     ticker: str
     from_date: date
     to_date: date

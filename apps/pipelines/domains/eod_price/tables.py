@@ -10,7 +10,7 @@ class EODPriceTable(BronzeTableModel):
     table_name = "eod_price"
     row_model = EODBar
     unique_columns = ("ticker", "bar_date", "data_provider")
-    idempotency_columns = ("exchange_code", "bar_date")
+    idempotency_columns = ("provider_exchange_code", "bar_date")
 
 
 EOD_PRICE_TABLE = EODPriceTable

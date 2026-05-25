@@ -14,7 +14,7 @@ log = structlog.get_logger(__name__)
 
 def parse_instrument_snapshots(
     raws: list[Instrument],
-    exchange_code: str,
+    provider_exchange_code: str,
     snapshot_date: date,
 ) -> tuple[list[BronzeParseResult[InstrumentSnapshot]], list[Instrument]]:
     """Parse provider instrument with partial success for large payloads."""
@@ -22,18 +22,18 @@ def parse_instrument_snapshots(
         raws,
         lambda raw: InstrumentSnapshot(
             snapshot_date=snapshot_date,
-            exchange_code=exchange_code,
+            provider_exchange_code=provider_exchange_code,
             ticker=raw.ticker,
             name=raw.name,
             country=raw.country,
-            exchange=raw.exchange,
+            provider_listing_exchange_code=raw.provider_listing_exchange_code,
             currency=raw.currency,
             asset_type=raw.asset_type,
             isin=raw.isin,
         ),
         on_rejected=lambda raw, exc: log.warning(
             "instrument.parse_rejected",
-            exchange=exchange_code,
+            provider_exchange_code=provider_exchange_code,
             ticker=raw.ticker,
             error=str(exc),
         ),
