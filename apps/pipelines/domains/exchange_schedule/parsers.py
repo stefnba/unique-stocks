@@ -4,6 +4,7 @@ from datetime import date
 from typing import Any
 
 from core.ingestion import BronzeParseResult
+from core.ingestion.parser import parse_result
 from domains.exchange_schedule.models import ExchangeHolidaySnapshot, ExchangeScheduleSnapshot
 from providers.eodhd.models import ExchangeSchedule
 
@@ -29,7 +30,7 @@ def parse_exchange_schedule_snapshot(
         lunch_break_end=h.lunch_break_end,
         snapshot_date=snapshot_date,
     )
-    return BronzeParseResult(row=row, raw_fragment=schedule)
+    return parse_result(row, schedule)
 
 
 def parse_exchange_holiday_snapshots(
@@ -53,5 +54,5 @@ def parse_exchange_holiday_snapshots(
             "holiday_date": holiday_date,
             **holiday.model_dump(mode="json", by_alias=True),
         }
-        records.append(BronzeParseResult(row=row, raw_fragment=raw_fragment))
+        records.append(parse_result(row, raw_fragment))
     return records
