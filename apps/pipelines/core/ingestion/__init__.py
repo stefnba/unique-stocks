@@ -2,10 +2,7 @@
 
 from .dataset import (
     BronzeDataset,
-    BronzeSource,
-    IngestionDataset,
     already_ingested,
-    attach_source_uri,
     bronze_record,
     bronze_records,
     canonical_json,
@@ -13,9 +10,8 @@ from .dataset import (
     write_bronze,
 )
 from .keys import LandingDomain, LandingFileFormat, ObjectStorageKey
-from .landing import (
-    LandingTarget,
-)
+from .landing import LandingTarget, LandingTargetBase, PartitionedLandingTarget, SnapshotLandingTarget
+from .parser import BronzeParseResult, attach_source_uri
 from .partitioning import (
     LandingPartitionSchema,
     PartitionValue,
@@ -27,14 +23,16 @@ from .partitioning import (
 
 __all__ = [
     "BronzeDataset",
-    "BronzeSource",
-    "IngestionDataset",
+    "BronzeParseResult",
     "LandingDomain",
     "LandingFileFormat",
     "LandingPartitionSchema",
     "LandingTarget",
+    "LandingTargetBase",
     "ObjectStorageKey",
+    "PartitionedLandingTarget",
     "PartitionValue",
+    "SnapshotLandingTarget",
     "already_ingested",
     "attach_source_uri",
     "bronze_record",
