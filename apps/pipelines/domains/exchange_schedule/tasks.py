@@ -10,7 +10,6 @@ from config.blocks import BlockRegistry
 from domains.exchange_schedule.datasets import (
     EXCHANGE_HOLIDAY_DATASET,
     EXCHANGE_SCHEDULE_DATASET,
-    ExchangeScheduleLandingPartition,
 )
 from domains.exchange_schedule.parsers import parse_exchange_holiday_snapshots, parse_exchange_schedule_snapshot
 from providers.eodhd.models import ExchangeSchedule
@@ -79,7 +78,10 @@ async def write_schedule_to_landing_zone(
         s3,
         provider=EXCHANGE_SCHEDULE_DATASET.provider,
         data=details,
-        partitions=ExchangeScheduleLandingPartition(exchange=exchange_code, snapshot_date=snapshot_date),
+        partitions={
+            "exchange": exchange_code,
+            "snapshot_date": snapshot_date,
+        },
         ingested_at=stamp,
     )
     return ref.uri

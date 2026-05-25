@@ -17,7 +17,7 @@ from core.ingestion import BronzeParseResult
 from providers.eodhd.client import EODHDClient
 from providers.eodhd.models import EODBulkPriceRaw, EODPriceBarRaw
 
-from .datasets import EOD_PRICE_DATASET, EODPriceBackfillPartition, EODPriceDailyPartition
+from .datasets import EOD_PRICE_DATASET
 from .models import EODBar
 from .parsers import parse_eod_bars
 
@@ -89,7 +89,10 @@ async def write_eod_price_to_landing(
         s3,
         provider=EOD_PRICE_DATASET.provider,
         data=raw_rows,
-        partitions=EODPriceDailyPartition(exchange=exchange, bar_date=bar_date),
+        partitions={
+            "exchange": exchange,
+            "bar_date": bar_date,
+        },
         ingested_at=stamp,
     )
     log.info("price.landing_written", exchange=exchange, bar_date=bar_date, uri=ref.uri)
@@ -114,12 +117,12 @@ async def write_ticker_eod_history_to_landing(
         s3,
         provider=EOD_PRICE_DATASET.provider,
         data=raw_bars,
-        partitions=EODPriceBackfillPartition(
-            exchange=exchange_code,
-            ticker=symbol,
-            from_date=from_date,
-            to_date=to_date,
-        ),
+        partitions={
+            "exchange": exchange_code,
+            "ticker": symbol,
+            "from_date": from_date,
+            "to_date": to_date,
+        },
         ingested_at=stamp,
     )
     log.info("backfill.landing_written", symbol=symbol, uri=ref.uri)
