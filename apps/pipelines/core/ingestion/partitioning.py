@@ -1,39 +1,34 @@
+from collections.abc import Mapping
 from datetime import date, datetime
-from typing import Any, TypedDict
+from typing import TypedDict
+
+type PartitionValue = date | datetime | str | int
 
 
-class LandingPartitionSchema(TypedDict, total=False):
-    """A partition of an ingestion run.
+class LandingPartitionSchema(TypedDict):
+    """Base class for typed landing partition payloads.
 
-    This is a placeholder for the actual partition keys.
+    Example:
+    -------
+    >>> from datetime import date
+    >>> from pipelines.core.ingestion.partitioning import LandingPartitionSchema
+    >>> class DailyPricePartition(LandingPartitionSchema):
+    ...     exchange: str
+    ...     bar_date: date
+    >>> DailyPricePartition(exchange="US", bar_date=date(2026, 5, 9))
+    {'exchange': 'US', 'bar_date': datetime.date(2026, 5, 9)}
     """
 
-    pass
+
+def partition_value(value: PartitionValue) -> str:
+    """Serialize a partition value to a stable, path-safe string."""
+    if isinstance(value, datetime):
+        return value.replace(microsecond=0).strftime("%Y-%m-%dT%H-%M-%SZ")
+    if isinstance(value, date):
+        return value.isoformat()
+    return str(value)
 
 
-class LandingPartitionBuilder:
-    """A builder for landing partitions."""
-
-    schema: dict[str, Any]
-
-    def __init__(self, **kwargs: Any):
-        """Initialize the builder."""
-        self.schema = kwargs
-
-    def build(self) -> str:
-        """Build the partition key as hive partition."""
-        if not self.schema:
-            return ""
-
-        serialized = {k: self._serialize_partition(v) for k, v in self.schema.items()}
-
-        return "/".join([f"{k}={v}" for k, v in serialized.items()])
-
-    def _serialize_partition(self, value: Any) -> str:
-        """Serialize the partition value."""
-        if isinstance(value, datetime):
-            return value.replace(microsecond=0).strftime("%Y-%m-%dT%H-%M-%SZ")
-        elif isinstance(value, date):
-            return value.isoformat()
-        else:
-            return str(value)
+def partition_path(partitions: Mapping[str, PartitionValue]) -> str:
+    """Return Hive-style ``key=value`` path segments for partition values."""
+    return "/".join(f"{key}={partition_value(value)}" for key, value in partitions.items())
