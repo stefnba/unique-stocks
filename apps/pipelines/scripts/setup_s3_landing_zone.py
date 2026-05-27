@@ -1,4 +1,4 @@
-"""Provision the AWS S3 landing zone used by the ingestion pipeline.
+r"""Provision the AWS S3 landing zone used by the ingestion pipeline.
 
 Run from ``apps/pipelines/``.  All commands below assume that working directory.
 
