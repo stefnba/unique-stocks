@@ -84,6 +84,21 @@ S3 is the landing-zone target for provider-validated raw payloads before they ar
 
 You do not need to create the S3 bucket and IAM user manually in the AWS Console each time. The setup is scriptable with `scripts/setup_s3_landing_zone.py`, including bucket creation, encryption, ownership controls, public-access blocking, IAM policy creation, and optional access-key generation. See [docs/aws/s3_landing_zone_guide.md](docs/aws/s3_landing_zone_guide.md) for the runbook, and [docs/aws/iam_guide.md](docs/aws/iam_guide.md) for AWS account and provisioner setup.
 
+## Pipeline audit
+
+The lake `pipeline` schema stores data-plane audit facts for ingestion and transformation runs. Prefect remains the orchestration control plane for scheduling, retries, task states, and logs; the lake audit tables answer data questions such as which exchange/date was skipped, which ticker backfill failed, which landing URI produced Bronze rows, and which dbt model or test failed.
+
+Current audit tables are generated from `lake/schema.py` and initialized by `make lake-init`:
+
+- `pipeline.runs`
+- `pipeline.run_units`
+- `pipeline.landing_objects`
+- `pipeline.rejections`
+- `pipeline.dbt_invocations`
+- `pipeline.dbt_node_results`
+
+See [docs/pipeline_audit.md](docs/pipeline_audit.md) for table semantics, statuses, and the integration pattern.
+
 ## Environments
 
 | Environment     | `ENVIRONMENT` value | Prefect backend    | Lake backend      | When to use                                        |
@@ -179,6 +194,8 @@ make dbt-run-marts
 ```
 
 `dbt/profiles.yml` is committed because it contains only environment-variable references, not secrets. Use `DBT_TARGET=prod` with `MOTHERDUCK_TOKEN` set to run against MotherDuck.
+
+Production dbt execution is also available as a Prefect deployment: `dbt-build/price-build`. It runs the current price staging and mart paths, reads `dbt/target/run_results.json`, and writes dbt invocation/node-result audit rows to the lake.
 
 DuckDB allows one writer at a time. If `make lake-init` or `make dbt-build` reports a database lock, close any local DuckDB/Cursor/VS Code database viewer connected to `unique_stocks.duckdb` and rerun the command.
 

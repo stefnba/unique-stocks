@@ -22,6 +22,11 @@ def test_lake_schema_registers_current_bronze_tables() -> None:
         "bronze.exchange_holiday",
         "bronze.instrument",
         "pipeline.runs",
+        "pipeline.run_units",
+        "pipeline.landing_objects",
+        "pipeline.rejections",
+        "pipeline.dbt_invocations",
+        "pipeline.dbt_node_results",
     )
 
 

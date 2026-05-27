@@ -116,11 +116,120 @@ CREATE TABLE IF NOT EXISTS bronze.instrument (
 
 CREATE TABLE IF NOT EXISTS pipeline.runs (
     run_id UUID DEFAULT GEN_RANDOM_UUID(),
+    parent_run_id UUID,
+    prefect_flow_run_id UUID,
     flow_name VARCHAR NOT NULL,
+    domain VARCHAR NOT NULL,
+    run_kind VARCHAR NOT NULL,
+    provider VARCHAR,
+    environment VARCHAR,
+    code_version VARCHAR,
+    parameters_json JSON,
+    target_window_start DATE,
+    target_window_end DATE,
     status VARCHAR NOT NULL,
     started_at TIMESTAMPTZ NOT NULL,
     completed_at TIMESTAMPTZ,
+    units_total INTEGER,
+    units_succeeded INTEGER,
+    units_failed INTEGER,
+    units_skipped INTEGER,
+    rows_raw INTEGER,
+    rows_valid INTEGER,
+    rows_rejected INTEGER,
     rows_written INTEGER,
+    summary_json JSON,
+    error_class VARCHAR,
     error_message TEXT,
     UNIQUE (run_id)
+);
+
+CREATE TABLE IF NOT EXISTS pipeline.run_units (
+    unit_id UUID DEFAULT GEN_RANDOM_UUID(),
+    run_id UUID NOT NULL,
+    domain VARCHAR NOT NULL,
+    provider VARCHAR,
+    unit_type VARCHAR NOT NULL,
+    unit_key_hash VARCHAR NOT NULL,
+    unit_key_json JSON NOT NULL,
+    status VARCHAR NOT NULL,
+    reason VARCHAR,
+    source_uri VARCHAR,
+    rows_raw INTEGER,
+    rows_valid INTEGER,
+    rows_rejected INTEGER,
+    rows_written INTEGER,
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    error_class VARCHAR,
+    error_message TEXT,
+    UNIQUE (run_id, unit_type, unit_key_hash)
+);
+
+CREATE TABLE IF NOT EXISTS pipeline.landing_objects (
+    landing_id UUID DEFAULT GEN_RANDOM_UUID(),
+    run_id UUID NOT NULL,
+    unit_id UUID,
+    domain VARCHAR NOT NULL,
+    provider VARCHAR,
+    dataset VARCHAR NOT NULL,
+    source_uri VARCHAR NOT NULL,
+    partition_json JSON,
+    rows_raw INTEGER,
+    byte_count INTEGER,
+    content_hash VARCHAR,
+    recorded_at TIMESTAMPTZ NOT NULL,
+    UNIQUE (run_id, source_uri)
+);
+
+CREATE TABLE IF NOT EXISTS pipeline.rejections (
+    rejection_id UUID DEFAULT GEN_RANDOM_UUID(),
+    run_id UUID NOT NULL,
+    unit_id UUID,
+    domain VARCHAR NOT NULL,
+    entity_key_json JSON,
+    source_uri VARCHAR,
+    raw_hash VARCHAR NOT NULL,
+    reason VARCHAR NOT NULL,
+    error_class VARCHAR,
+    error_message TEXT,
+    raw_sample_json JSON,
+    recorded_at TIMESTAMPTZ NOT NULL,
+    UNIQUE (run_id, domain, raw_hash)
+);
+
+CREATE TABLE IF NOT EXISTS pipeline.dbt_invocations (
+    dbt_run_id UUID DEFAULT GEN_RANDOM_UUID(),
+    run_id UUID NOT NULL,
+    dbt_invocation_id UUID,
+    command VARCHAR NOT NULL,
+    command_args_json JSON NOT NULL,
+    project_dir VARCHAR NOT NULL,
+    profiles_dir VARCHAR NOT NULL,
+    target VARCHAR,
+    status VARCHAR NOT NULL,
+    return_code INTEGER,
+    started_at TIMESTAMPTZ NOT NULL,
+    completed_at TIMESTAMPTZ,
+    elapsed_seconds DOUBLE,
+    artifact_path VARCHAR,
+    artifact_metadata_json JSON,
+    error_message TEXT,
+    UNIQUE (dbt_run_id)
+);
+
+CREATE TABLE IF NOT EXISTS pipeline.dbt_node_results (
+    node_result_id UUID DEFAULT GEN_RANDOM_UUID(),
+    dbt_run_id UUID NOT NULL,
+    unique_id VARCHAR NOT NULL,
+    resource_type VARCHAR,
+    status VARCHAR NOT NULL,
+    execution_time DOUBLE,
+    failures INTEGER,
+    message TEXT,
+    adapter_response_json JSON,
+    rows_affected INTEGER,
+    relation_name VARCHAR,
+    compiled BOOLEAN,
+    UNIQUE (dbt_run_id, unique_id)
 );

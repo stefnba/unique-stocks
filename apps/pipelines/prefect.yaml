@@ -47,7 +47,6 @@ definitions:
 # Deployments
 # ---------------------------------------------------------------------------
 deployments:
-
   # ── EOD price — daily scheduled run ──────────────────────────────────────
   - name: daily
     description: >
@@ -58,11 +57,11 @@ deployments:
       - eod-price
       - scheduled
     schedule:
-      cron: "30 16 * * 1-5"   # 4:30pm — interpreted in America/New_York (Prefect handles DST)
+      cron: "30 16 * * 1-5" # 4:30pm — interpreted in America/New_York (Prefect handles DST)
       timezone: America/New_York
     concurrency_limit:
       limit: 1
-      collision_strategy: CANCEL_NEW   # a late trigger should not stack on a running one
+      collision_strategy: CANCEL_NEW # a late trigger should not stack on a running one
     enforce_parameter_schema: true
     work_pool: *default_pool
 
@@ -96,6 +95,33 @@ deployments:
       provider_exchange_codes: null
       batch_size: 50
     enforce_parameter_schema: true
+    work_pool: *default_pool
+
+  # ── dbt — transform current price models ─────────────────────────────────
+  - name: price-build
+    flow_name: dbt-build
+    description: >
+      Run dbt build for current price staging and mart models, then persist
+      run_results.json into pipeline audit tables.
+    entrypoint: core.transforms.dbt:dbt_build_flow
+    tags:
+      - dbt
+      - transform
+      - price
+    parameters:
+      command: build
+      select:
+        - path:models/staging/price
+        - path:models/marts/price
+      exclude: null
+      project_dir: dbt
+      profiles_dir: dbt
+      target: null
+      parent_run_id: null
+    enforce_parameter_schema: true
+    concurrency_limit:
+      limit: 1
+      collision_strategy: CANCEL_NEW
     work_pool: *default_pool
 
   # ── Exchange — manual / monthly refresh ─────────────────────────────────
