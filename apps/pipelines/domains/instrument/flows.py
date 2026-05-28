@@ -105,7 +105,8 @@ async def instrument_flow(
                     "rows": bronze.rows_written,
                     "raw_rows": len(result),
                 }
-                unit_id = run.record_unit(
+                run.record_unit_with_landing(
+                    landing,
                     unit_type="exchange_snapshot",
                     unit_key={
                         "provider_exchange_code": provider_exchange_code,
@@ -113,14 +114,8 @@ async def instrument_flow(
                     },
                     status="completed",
                     reason=bronze.reason,
-                    source_uri=landing.source_uri,
-                    rows_raw=landing.rows_raw,
                     rows_valid=bronze.rows_written,
                     rows_written=bronze.rows_written,
-                )
-                run.record_landing_object(
-                    landing,
-                    unit_id=unit_id,
                 )
 
             log.info(

@@ -216,6 +216,33 @@ def test_track_unit_records_failure_on_exception() -> None:
     assert lake.executed[-1][1][3] == 1
 
 
+def test_run_scope_records_unit_with_landing_object() -> None:
+    """Run scopes should support loop-friendly unit + landing recording."""
+    lake = FakeLake()
+    tracker = PipelineRunTracker(lake)  # type: ignore[arg-type]
+    landing = LandingWrite(
+        dataset="instrument.catalog",
+        source_uri="s3://bucket/instrument.jsonl",
+        partition={"provider_exchange_code": "US", "snapshot_date": "2026-05-22"},
+        rows_raw=100,
+    )
+
+    with tracker.track_run(flow_name="instrument-refresh", domain="instrument", run_kind="snapshot") as run:
+        unit_id = run.record_unit_with_landing(
+            landing,
+            unit_type="exchange_snapshot",
+            unit_key={"provider_exchange_code": "US", "snapshot_date": "2026-05-22"},
+            rows_written=99,
+        )
+        run.complete(rows_raw=100, rows_written=99)
+
+    assert [item[1] for item in lake.inserted] == ["runs", "run_units", "landing_objects"]
+    assert lake.inserted[1][2][0]["unit_id"] == unit_id
+    assert lake.inserted[1][2][0]["source_uri"] == landing.source_uri
+    assert lake.inserted[2][2][0]["unit_id"] == unit_id
+    assert lake.inserted[2][2][0]["dataset"] == "instrument.catalog"
+
+
 def test_track_run_requires_terminal_state() -> None:
     """Exiting a scope without complete/fail should become a failed run and a test-visible error."""
     lake = FakeLake()

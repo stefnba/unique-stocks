@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 import uuid
-from collections.abc import Generator, Sequence
+from collections.abc import Generator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
@@ -259,6 +259,44 @@ class PipelineRunScope:
         unit_ids = self.tracker.record_units(records)
         self.tally.extend(records)
         return unit_ids
+
+    def record_unit_with_landing(
+        self,
+        landing: LandingWrite,
+        *,
+        unit_type: str,
+        unit_key: dict[str, object],
+        status: UnitStatus = "completed",
+        provider: str | None = None,
+        reason: str | None = None,
+        rows_raw: int | None = None,
+        rows_valid: int | None = None,
+        rows_rejected: int | None = None,
+        rows_written: int | None = None,
+        started_at: datetime | None = None,
+        completed_at: datetime | None = None,
+        error: BaseException | str | None = None,
+        unit_id: str | UUID | None = None,
+    ) -> str:
+        """Record one unit and its landing object using this run's bound context."""
+        recorded_unit_id = self.record_unit(
+            provider=provider,
+            unit_type=unit_type,
+            unit_key=unit_key,
+            status=status,
+            reason=reason,
+            source_uri=landing.source_uri,
+            rows_raw=landing.rows_raw if rows_raw is None else rows_raw,
+            rows_valid=rows_valid,
+            rows_rejected=rows_rejected,
+            rows_written=rows_written,
+            started_at=started_at,
+            completed_at=completed_at,
+            error=error,
+            unit_id=unit_id,
+        )
+        self.record_landing_object(landing, unit_id=recorded_unit_id, provider=provider)
+        return recorded_unit_id
 
     def record_landing_object(
         self,
@@ -918,7 +956,7 @@ def _landing_values(
     *,
     dataset: str | None,
     source_uri: str | None,
-    partition: dict[str, object] | None,
+    partition: Mapping[str, object] | None,
     rows_raw: int | None,
     byte_count: int | None,
     content_hash: str | None,
@@ -926,13 +964,13 @@ def _landing_values(
     if landing is not None:
         dataset = landing.dataset if dataset is None else dataset
         source_uri = landing.source_uri if source_uri is None else source_uri
-        partition = landing.partition if partition is None else partition
+        partition = landing.partition if partition is None and landing.partition is not None else partition
         rows_raw = landing.rows_raw if rows_raw is None else rows_raw
         byte_count = landing.byte_count if byte_count is None else byte_count
         content_hash = landing.content_hash if content_hash is None else content_hash
     if dataset is None or source_uri is None:
         raise ValueError("A landing object needs either LandingWrite metadata or dataset/source_uri arguments.")
-    return dataset, source_uri, partition, rows_raw, byte_count, content_hash
+    return dataset, source_uri, dict(partition) if partition is not None else None, rows_raw, byte_count, content_hash
 
 
 def _current_prefect_flow_run_id() -> str | None:

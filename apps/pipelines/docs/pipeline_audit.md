@@ -85,6 +85,8 @@ with tracker.track_run(
     provider="eodhd",
     parameters={"snapshot_date": snapshot_date.isoformat()},
 ) as run:
+    rows_raw = 0
+    rows_written = 0
     with run.track_unit(
         unit_type="exchange_snapshot",
         unit_key={"provider_exchange_code": "US", "snapshot_date": snapshot_date.isoformat()},
@@ -92,8 +94,10 @@ with tracker.track_run(
         landing = await write_instrument_to_landing_zone(raw_rows, "US", snapshot_date)
         bronze = write_bronze_instrument(raw_rows, "US", snapshot_date, source_uri=landing.source_uri)
         unit.complete_with_landing(landing, reason=bronze.reason, rows_written=bronze.rows_written)
+        rows_raw = landing.rows_raw or 0
+        rows_written = bronze.rows_written
 
-    run.complete(rows_raw=landing.rows_raw, rows_written=bronze.rows_written)
+    run.complete(rows_raw=rows_raw, rows_written=rows_written)
 ```
 
 Do not copy SQL into domain flows. Add new tracking behavior to `core.ingestion.run_tracking` and keep the

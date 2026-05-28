@@ -69,7 +69,6 @@ async def eod_price_flow(
     total_raw = 0
     total_valid = 0
     total_rejected = 0
-    unit_tally = RunUnitTally()
     summary: dict = {
         "trade_date": trade_date.isoformat() if trade_date else None,
         "exchange": {},
@@ -111,10 +110,7 @@ async def eod_price_flow(
                         )
                         summary["exchange"][provider_exchange_code] = {"bar_date": None, "rows_written": 0}
                         can_mark_failed = False
-                        tracker.record_unit(
-                            run_id=run_id,
-                            domain="eod_price",
-                            provider="eodhd",
+                        run.record_unit(
                             unit_type="exchange_date",
                             unit_key={
                                 "provider_exchange_code": provider_exchange_code,
@@ -127,7 +123,6 @@ async def eod_price_flow(
                             rows_rejected=0,
                             rows_written=0,
                         )
-                        unit_tally.record("skipped")
                         continue
 
                     bar_date = trade_date or infer_bulk_bar_date(raw_rows)
@@ -157,10 +152,8 @@ async def eod_price_flow(
                     }
                     total_written += bronze.rows_written
                     can_mark_failed = False
-                    unit_id = tracker.record_unit(
-                        run_id=run_id,
-                        domain="eod_price",
-                        provider="eodhd",
+                    unit_id = run.record_unit_with_landing(
+                        landing,
                         unit_type="exchange_date",
                         unit_key={
                             "provider_exchange_code": provider_exchange_code,
@@ -168,22 +161,10 @@ async def eod_price_flow(
                         },
                         status="completed",
                         reason=bronze.reason,
-                        source_uri=landing.source_uri,
                         rows_raw=len(raw_rows),
                         rows_valid=len(sources),
                         rows_rejected=rejected,
                         rows_written=bronze.rows_written,
-                    )
-                    unit_tally.record("completed")
-                    tracker.record_landing_object(
-                        run_id=run_id,
-                        unit_id=unit_id,
-                        domain="eod_price",
-                        provider="eodhd",
-                        dataset=landing.dataset,
-                        source_uri=landing.source_uri,
-                        partition=landing.partition,
-                        rows_raw=landing.rows_raw,
                     )
                     tracker.record_rejections(
                         _daily_rejection_records(
@@ -200,10 +181,7 @@ async def eod_price_flow(
                     # Schema drift from provider — re-raise immediately.
                     # All exchange will likely fail the same way; no point continuing.
                     summary["failed"].append(provider_exchange_code)
-                    tracker.record_unit(
-                        run_id=run_id,
-                        domain="eod_price",
-                        provider="eodhd",
+                    run.record_unit(
                         unit_type="exchange_date",
                         unit_key={
                             "provider_exchange_code": provider_exchange_code,
@@ -213,10 +191,9 @@ async def eod_price_flow(
                         error=exc,
                         rows_written=0,
                     )
-                    unit_tally.record("failed")
                     run.fail(
                         exc,
-                        counters=unit_tally.counters(
+                        counters=run.tally.counters(
                             rows_raw=total_raw,
                             rows_valid=total_valid,
                             rows_rejected=total_rejected,
@@ -230,10 +207,7 @@ async def eod_price_flow(
                         raise
                     log.error("price.exchange_failed", provider_exchange_code=provider_exchange_code, error=str(exc))
                     summary["failed"].append(provider_exchange_code)
-                    tracker.record_unit(
-                        run_id=run_id,
-                        domain="eod_price",
-                        provider="eodhd",
+                    run.record_unit(
                         unit_type="exchange_date",
                         unit_key={
                             "provider_exchange_code": provider_exchange_code,
@@ -243,15 +217,14 @@ async def eod_price_flow(
                         error=exc,
                         rows_written=0,
                     )
-                    unit_tally.record("failed")
 
             run.complete(
                 status=terminal_status(
-                    failed=unit_tally.failed,
+                    failed=run.tally.failed,
                     rejected=total_rejected,
-                    skipped_all=_all_units_skipped(total=unit_tally.total, skipped=unit_tally.skipped),
+                    skipped_all=_all_units_skipped(total=run.tally.total, skipped=run.tally.skipped),
                 ),
-                counters=unit_tally.counters(
+                counters=run.tally.counters(
                     rows_raw=total_raw,
                     rows_valid=total_valid,
                     rows_rejected=total_rejected,
@@ -270,7 +243,7 @@ async def eod_price_flow(
             if not run.is_terminal:
                 run.fail(
                     exc,
-                    counters=unit_tally.counters(
+                    counters=run.tally.counters(
                         rows_raw=total_raw,
                         rows_valid=total_valid,
                         rows_rejected=total_rejected,
@@ -552,7 +525,7 @@ async def eod_price_backfill_flow(
                                 provider="eodhd",
                                 dataset=landing.dataset,
                                 source_uri=landing.source_uri,
-                                partition=landing.partition,
+                                partition=dict(landing.partition) if landing.partition is not None else None,
                                 rows_raw=landing.rows_raw,
                             )
                         )

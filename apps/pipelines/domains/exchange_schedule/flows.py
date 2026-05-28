@@ -119,7 +119,8 @@ async def exchange_schedule_flow(
                     "schedule_rows": schedule_write.rows_written,
                     "holiday_rows": holiday_write.rows_written,
                 }
-                unit_id = run.record_unit(
+                run.record_unit_with_landing(
+                    landing,
                     unit_type="schedule_snapshot",
                     unit_key={
                         "provider_schedule_exchange_code": provider_schedule_exchange_code,
@@ -129,14 +130,8 @@ async def exchange_schedule_flow(
                     reason=_combined_bronze_reason(schedule_write.reason, holiday_write.reason)
                     if rows_written == 0
                     else None,
-                    source_uri=landing.source_uri,
-                    rows_raw=landing.rows_raw,
                     rows_valid=rows_written,
                     rows_written=rows_written,
-                )
-                run.record_landing_object(
-                    landing,
-                    unit_id=unit_id,
                 )
 
             log.info(
