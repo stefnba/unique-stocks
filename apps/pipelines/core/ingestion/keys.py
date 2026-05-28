@@ -134,7 +134,7 @@ class ObjectStorageKey:
         """
         ext = suffix.lstrip(".")
         filename = f"{self.filename}.{ext}" if self.filename else f"data.{ext}"
-        parts = [self.layer, self.provider, str(self.domain)]
+        parts = [self.layer, str(self.domain), f"provider={self.provider}"]
         partition_segments = partition_path(self.partitions)
         if partition_segments:
             parts.append(partition_segments)

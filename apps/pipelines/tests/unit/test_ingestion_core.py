@@ -177,7 +177,7 @@ def _price(close: str = "190.75") -> PriceRow:
 
 
 def test_snapshot_landing_key_matches_canonical_path() -> None:
-    """Snapshot keys keep the old canonical landing path shape."""
+    """Snapshot keys use domain-first layout with provider as a partition."""
     target = LandingTarget.snapshot(LandingDomain.EXCHANGE)
 
     key = target.key(
@@ -186,7 +186,7 @@ def test_snapshot_landing_key_matches_canonical_path() -> None:
         ingested_at=date(2026, 5, 24),
     )
 
-    assert key == "landing/eodhd/exchange/snapshot_date=2026-05-23/ingested_at=2026-05-24/exchange.jsonl"
+    assert key == "landing/exchange/provider=eodhd/snapshot_date=2026-05-23/ingested_at=2026-05-24/exchange.jsonl"
 
 
 def test_partitioned_landing_key_uses_declared_order_and_ingested_at() -> None:
@@ -198,7 +198,7 @@ def test_partitioned_landing_key_uses_declared_order_and_ingested_at() -> None:
     )
 
     assert key == (
-        "landing/eodhd/eod_price/provider_exchange_code=US/"
+        "landing/eod_price/provider=eodhd/provider_exchange_code=US/"
         "bar_date=2026-05-24/ingested_at=2026-05-24T12-30-00Z/data.jsonl"
     )
 
@@ -227,7 +227,8 @@ def test_landing_target_save_uses_key_format_and_provider_aliases() -> None:
     )
 
     expected_key = (
-        "landing/eodhd/eod_price/provider_exchange_code=US/bar_date=2026-05-24/ingested_at=2026-05-24/data.jsonl"
+        "landing/eod_price/provider=eodhd/provider_exchange_code=US/bar_date=2026-05-24/"
+        "ingested_at=2026-05-24/data.jsonl"
     )
     assert ref.uri == f"s3://landing-bucket/{expected_key}"
     assert s3.saved_key == expected_key
@@ -239,7 +240,7 @@ def test_landing_target_builds_audit_metadata() -> None:
     """Bronze datasets infer landing-object audit datasets from landing field names."""
     ref = S3ObjectRef(
         bucket="landing-bucket",
-        key="landing/eodhd/eod_price/provider_exchange_code=US/bar_date=2026-05-24/data.jsonl",
+        key="landing/eod_price/provider=eodhd/provider_exchange_code=US/bar_date=2026-05-24/data.jsonl",
     )
 
     landing = PRICE_DATASET.landings.daily.landing_write(
@@ -275,7 +276,7 @@ def test_exchange_mic_registry_landing_uses_iso10383_csv_snapshot() -> None:
         ingested_at=date(2026, 5, 25),
     )
 
-    expected_key = "landing/iso10383/exchange/snapshot_date=2026-05-24/ingested_at=2026-05-25/exchange.csv"
+    expected_key = "landing/exchange/provider=iso10383/snapshot_date=2026-05-24/ingested_at=2026-05-25/exchange.csv"
     assert ref.uri == f"s3://landing-bucket/{expected_key}"
     assert s3.saved_key == expected_key
     assert s3.saved_format == "csv"
