@@ -119,6 +119,8 @@ The main audit API lives in `core.ingestion.run_tracking`:
 | `PipelineRunScope.unit_record(...)`              | Build a unit row for batched inserts, especially backfills.          |
 | `PipelineRunScope.landing_object_record(...)`    | Build a landing-object row for batched inserts.                      |
 | `PipelineRunScope.rejection_record(...)`         | Build a sampled parser rejection row bound to the active run/domain. |
+| `PipelineRunScope.record_rejection(...)`         | Record one sampled parser rejection without repeating run/domain.    |
+| `PipelineRunScope.record_rejections(...)`        | Flush a batch of sampled parser rejection rows.                      |
 | `PipelineUnitScope.complete_with_landing(...)`   | Complete a single scoped unit plus landing object.                   |
 
 `core.ingestion.run_tracking` is intentionally consolidated while the audit model is still changing. If navigation

@@ -13,7 +13,7 @@ class LandingPartitionSchema(TypedDict):
     Example:
     -------
     >>> from datetime import date
-    >>> from pipelines.core.ingestion.partitioning import LandingPartitionSchema
+    >>> from core.ingestion.partitioning import LandingPartitionSchema
     >>> class DailyPricePartition(LandingPartitionSchema):
     ...     exchange: str
     ...     bar_date: date

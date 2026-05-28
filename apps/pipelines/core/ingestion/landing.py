@@ -51,7 +51,11 @@ class LandingTargetBase(ABC):
 
     @property
     def audit_dataset_name(self) -> str:
-        """Return the dataset label stored in ``pipeline.landing_objects``."""
+        """Return the dataset label stored in ``pipeline.landing_objects``.
+
+        Bare targets fall back to the domain segment. ``BronzeDataset`` replaces
+        missing labels with ``<domain>.<landing_field>`` for typed landing groups.
+        """
         return self.audit_dataset or str(self.domain)
 
     def _format_key(self, key: ObjectStorageKey) -> str:
