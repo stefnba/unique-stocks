@@ -15,7 +15,11 @@ EXCHANGE_LANDING = LandingTarget.snapshot(
 
 @dataclass(frozen=True, slots=True)
 class ExchangeLandings:
-    """Landing targets that can produce ``bronze.exchange`` rows."""
+    """Landing targets that can produce ``bronze.exchange`` rows.
+
+    Attributes:
+        catalog: Full exchange catalog snapshot landing target.
+    """
 
     catalog: SnapshotLandingTarget
 

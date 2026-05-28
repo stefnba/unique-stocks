@@ -31,6 +31,7 @@ from core.ingestion.parser import (
 from core.ingestion.partitioning import LandingPartitionSchema
 from core.models import BronzeModel, ProviderModel
 from core.schema import BronzeTableModel
+from domains.exchange.datasets import EXCHANGE_DATASET
 
 
 class RawProviderItem(ProviderModel):
@@ -254,6 +255,11 @@ def test_landing_target_builds_audit_metadata() -> None:
         "bar_date": date(2026, 5, 24),
     }
     assert landing.rows_raw == 42
+
+
+def test_exchange_landing_audit_dataset_is_inferred() -> None:
+    """Exchange catalog audit metadata should be inferred from domain and landing field."""
+    assert EXCHANGE_DATASET.landings.catalog.audit_dataset_name == "exchange.catalog"
 
 
 def test_explicit_landing_audit_dataset_overrides_inference() -> None:

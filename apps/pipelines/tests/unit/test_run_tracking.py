@@ -278,6 +278,34 @@ def test_run_scope_builds_batched_unit_and_landing_records() -> None:
     assert lake.executed[-1][1][2] == 1
 
 
+def test_run_scope_builds_and_records_rejections() -> None:
+    """Run scopes should bind rejection rows to the active run/domain."""
+    lake = FakeLake()
+    tracker = PipelineRunTracker(lake)  # type: ignore[arg-type]
+
+    with tracker.track_run(flow_name="backfill", domain="eod_price", run_kind="historical_backfill") as run:
+        inserted = run.record_rejections(
+            [
+                run.rejection_record(
+                    unit_id="unit-1",
+                    entity_key={"ticker": "AAPL.US"},
+                    source_uri="s3://bucket/aapl.jsonl",
+                    raw_fragment={"date": "2026-05-22", "close": None},
+                    reason="parse_rejected",
+                )
+            ]
+        )
+        run.complete()
+
+    assert inserted == 1
+    assert [item[1] for item in lake.inserted] == ["runs", "rejections"]
+    rejection_row = lake.inserted[1][2][0]
+    assert rejection_row["run_id"] == run.run_id
+    assert rejection_row["unit_id"] == "unit-1"
+    assert rejection_row["domain"] == "eod_price"
+    assert rejection_row["entity_key_json"] == {"ticker": "AAPL.US"}
+
+
 def test_track_run_requires_terminal_state() -> None:
     """Exiting a scope without complete/fail should become a failed run and a test-visible error."""
     lake = FakeLake()

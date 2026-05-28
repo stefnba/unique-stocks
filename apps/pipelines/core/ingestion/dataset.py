@@ -1,3 +1,5 @@
+"""Bronze dataset metadata and write helpers for ingestion domains."""
+
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, fields, is_dataclass, replace
 from datetime import date
@@ -15,7 +17,12 @@ from core.schema import BronzeTableModel
 
 @dataclass(frozen=True, slots=True)
 class BronzeWrite:
-    """Structured result from a domain Bronze write task."""
+    """Structured result from a domain Bronze write task.
+
+    Attributes:
+        rows_written: Number of rows inserted into Bronze.
+        reason: Optional reason when the write intentionally produced no new rows.
+    """
 
     rows_written: int
     reason: str | None = None
@@ -28,7 +35,13 @@ class BronzeWrite:
 
 @dataclass(frozen=True, slots=True)
 class BronzeDataset[LandingsT = object]:
-    """Bronze lake target for normalized ingestion rows."""
+    """Bronze lake target for normalized ingestion rows.
+
+    Attributes:
+        provider: Source provider identifier stamped into Bronze rows.
+        table: Bronze table spec that owns schema, row model, and keys.
+        landings: Typed landing target group for raw payloads that feed this dataset.
+    """
 
     provider: str
     table: type[BronzeTableModel]
@@ -69,7 +82,19 @@ class BronzeDataset[LandingsT = object]:
         source_ref: S3ObjectRef | None = None,
         source_uri: str | None = None,
     ) -> dict[str, Any]:
-        """Serialize one parsed Bronze row into a lake row."""
+        """Serialize one parsed Bronze row into a lake row.
+
+        Args:
+            source: Parsed row with its raw provider fragment.
+            source_ref: Optional landing object reference for lineage.
+            source_uri: Optional landing object URI for lineage.
+
+        Returns:
+            Lake-ready row with provider, raw JSON, row hash, and source URI.
+
+        Raises:
+            TypeError: If ``source.row`` does not match this dataset's row model.
+        """
         self._validate_source_row(source)
         payload = source.row.to_payload()
         data_provider = str(self.provider)
@@ -90,14 +115,35 @@ class BronzeDataset[LandingsT = object]:
         source_ref: S3ObjectRef | None = None,
         source_uri: str | None = None,
     ) -> int:
-        """Insert parsed Bronze rows into this dataset's lake table."""
+        """Insert parsed Bronze rows into this dataset's lake table.
+
+        Args:
+            lake: Lake client used for insertion.
+            sources: Parsed rows and raw fragments to write.
+            source_ref: Optional landing object reference applied to every row.
+            source_uri: Optional landing object URI applied to every row.
+
+        Returns:
+            Number of inserted rows.
+        """
         records = [self.bronze_record(source, source_ref=source_ref, source_uri=source_uri) for source in sources]
         if not records:
             return 0
         return lake.insert_rows(self.schema, self.table_name, records)
 
     def already_ingested(self, lake: DataLakeClient, **values: date | str | int) -> bool:
-        """Return True when this dataset's idempotency partition already exists."""
+        """Return True when this dataset's idempotency partition already exists.
+
+        Args:
+            lake: Lake client used for the idempotency query.
+            **values: Values for every configured idempotency column.
+
+        Returns:
+            True when at least one provider row exists for the idempotency key.
+
+        Raises:
+            ValueError: If a required idempotency value is missing.
+        """
         missing = [column for column in self.idempotency_columns if column not in values]
         if missing:
             raise ValueError(f"Missing idempotency values for {self.table_name}: {missing}")

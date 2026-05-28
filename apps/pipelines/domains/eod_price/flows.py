@@ -19,6 +19,7 @@ from pydantic import ValidationError
 from core.ingestion import (
     BronzeParseResult,
     LandingObjectRecord,
+    PipelineRunScope,
     PipelineRunTracker,
     RejectionRecord,
     RunUnitRecord,
@@ -87,8 +88,7 @@ async def eod_price_flow(
         target_window_start=trade_date,
         target_window_end=trade_date,
     ) as run:
-        run_id = run.run_id
-        log.info("price.flow_start", trade_date=trade_date, exchange=len(codes), run_id=run_id)
+        log.info("price.flow_start", trade_date=trade_date, exchange=len(codes), run_id=run.run_id)
 
         try:
             for provider_exchange_code in codes:
@@ -165,9 +165,9 @@ async def eod_price_flow(
                         rows_rejected=rejected,
                         rows_written=bronze.rows_written,
                     )
-                    tracker.record_rejections(
+                    run.record_rejections(
                         _daily_rejection_records(
-                            run_id=run_id,
+                            run=run,
                             unit_id=unit_id,
                             provider_exchange_code=provider_exchange_code,
                             bar_date=bar_date,
@@ -257,7 +257,7 @@ async def eod_price_flow(
 
 def _daily_rejection_records(
     *,
-    run_id: str,
+    run: PipelineRunScope,
     unit_id: str,
     provider_exchange_code: str,
     bar_date: date,
@@ -266,10 +266,8 @@ def _daily_rejection_records(
 ) -> list[RejectionRecord]:
     """Build capped daily parser rejection records for one exchange/date unit."""
     return [
-        RejectionRecord(
-            run_id=run_id,
+        run.rejection_record(
             unit_id=unit_id,
-            domain="eod_price",
             entity_key={
                 "provider_exchange_code": provider_exchange_code,
                 "ticker_code": row.code,
@@ -286,7 +284,7 @@ def _daily_rejection_records(
 
 def _ticker_rejection_records(
     *,
-    run_id: str,
+    run: PipelineRunScope,
     unit_id: str,
     provider_exchange_code: str,
     ticker: str,
@@ -295,10 +293,8 @@ def _ticker_rejection_records(
 ) -> list[RejectionRecord]:
     """Build capped historical parser rejection records for one ticker unit."""
     return [
-        RejectionRecord(
-            run_id=run_id,
+        run.rejection_record(
             unit_id=unit_id,
-            domain="eod_price",
             entity_key={
                 "provider_exchange_code": provider_exchange_code,
                 "ticker": ticker,
@@ -386,14 +382,13 @@ async def eod_price_backfill_flow(
         target_window_start=from_date,
         target_window_end=to_date,
     ) as run:
-        run_id = run.run_id
         log.info(
             "backfill.flow_start",
             from_date=from_date,
             to_date=to_date,
             exchange=len(codes),
             batch_size=batch_size,
-            run_id=run_id,
+            run_id=run.run_id,
         )
 
         try:
@@ -509,7 +504,7 @@ async def eod_price_backfill_flow(
                         )
                         rejection_records.extend(
                             _ticker_rejection_records(
-                                run_id=run_id,
+                                run=run,
                                 unit_id=unit_id,
                                 provider_exchange_code=provider_exchange_code,
                                 ticker=sym,
@@ -529,7 +524,7 @@ async def eod_price_backfill_flow(
 
                     run.record_units(unit_records)
                     run.record_landing_objects(landing_records)
-                    tracker.record_rejections(rejection_records)
+                    run.record_rejections(rejection_records)
 
                     log.info(
                         "backfill.batch_done",

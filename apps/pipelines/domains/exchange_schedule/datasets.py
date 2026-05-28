@@ -11,7 +11,12 @@ from providers.registry import Provider
 
 
 class ExchangeScheduleLandingPartition(LandingPartitionSchema):
-    """Exchange schedule landing partitions."""
+    """Exchange schedule landing partitions.
+
+    Attributes:
+        provider_schedule_exchange_code: Provider schedule/calendar exchange code.
+        snapshot_date: Logical schedule snapshot date.
+    """
 
     provider_schedule_exchange_code: str
     snapshot_date: date
@@ -26,7 +31,11 @@ EXCHANGE_SCHEDULE_LANDING = LandingTarget.partitioned(
 
 @dataclass(frozen=True, slots=True)
 class ExchangeScheduleLandings:
-    """Landing targets that can produce exchange schedule Bronze rows."""
+    """Landing targets that can produce exchange schedule Bronze rows.
+
+    Attributes:
+        details: Schedule/holiday detail landing target.
+    """
 
     details: PartitionedLandingTarget[ExchangeScheduleLandingPartition]
 

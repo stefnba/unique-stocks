@@ -29,7 +29,18 @@ _ERROR_LIMIT = 2000
 
 @dataclass(frozen=True, slots=True)
 class RunCounters:
-    """Aggregate run counters stored on ``pipeline.runs``."""
+    """Aggregate counters written to ``pipeline.runs``.
+
+    Attributes:
+        units_total: Number of recorded ``pipeline.run_units`` rows for the run.
+        units_succeeded: Number of recorded work units with ``completed`` status.
+        units_failed: Number of recorded work units with ``failed`` status.
+        units_skipped: Number of recorded work units with ``skipped`` or ``unsupported`` status.
+        rows_raw: Provider/raw rows observed by the run.
+        rows_valid: Parsed rows that passed validation.
+        rows_rejected: Rows rejected by parser or domain validation.
+        rows_written: Rows written to Bronze or the relevant downstream table.
+    """
 
     units_total: int | None = None
     units_succeeded: int | None = None
@@ -43,7 +54,17 @@ class RunCounters:
 
 @dataclass(slots=True)
 class RunUnitTally:
-    """Mutable aggregate of successfully recorded work-unit statuses."""
+    """Mutable aggregate of successfully recorded work-unit statuses.
+
+    The tally is owned by ``PipelineRunScope`` and advances only after unit
+    audit rows have been written, so run counters match ``pipeline.run_units``.
+
+    Attributes:
+        total: Number of recorded units.
+        succeeded: Number of completed units.
+        failed: Number of failed units.
+        skipped: Number of skipped or unsupported units.
+    """
 
     total: int = 0
     succeeded: int = 0
@@ -51,7 +72,11 @@ class RunUnitTally:
     skipped: int = 0
 
     def record(self, status: UnitStatus) -> None:
-        """Add one recorded work unit to the tally."""
+        """Add one recorded work unit to the tally.
+
+        Args:
+            status: Terminal unit status that was successfully written.
+        """
         self.total += 1
         if status == "completed":
             self.succeeded += 1
@@ -61,7 +86,11 @@ class RunUnitTally:
             self.skipped += 1
 
     def extend(self, records: Sequence[RunUnitRecord]) -> None:
-        """Add several recorded work units to the tally."""
+        """Add several recorded work units to the tally.
+
+        Args:
+            records: Unit records that have just been inserted.
+        """
         for record in records:
             self.record(record.status)
 
@@ -73,7 +102,17 @@ class RunUnitTally:
         rows_rejected: int | None = None,
         rows_written: int | None = None,
     ) -> RunCounters:
-        """Return run counters using this tally for unit counts."""
+        """Return run counters using this tally for unit counts.
+
+        Args:
+            rows_raw: Optional aggregate raw row count.
+            rows_valid: Optional aggregate valid row count.
+            rows_rejected: Optional aggregate rejected row count.
+            rows_written: Optional aggregate written row count.
+
+        Returns:
+            A ``RunCounters`` object suitable for completing/failing a run.
+        """
         return RunCounters(
             units_total=self.total,
             units_succeeded=self.succeeded,
@@ -88,7 +127,26 @@ class RunUnitTally:
 
 @dataclass(frozen=True, slots=True)
 class RunUnitRecord:
-    """One work-unit audit record pending insert."""
+    """One work-unit audit record pending insert.
+
+    Attributes:
+        run_id: Parent ``pipeline.runs.run_id``.
+        domain: Logical domain, such as ``eod_price`` or ``instrument``.
+        unit_type: Domain-defined unit grain, such as ``exchange_date`` or ``ticker_backfill``.
+        unit_key: JSON-serializable natural key for replay/debugging.
+        status: Terminal unit status.
+        provider: Optional source provider identifier.
+        reason: Optional domain reason, such as ``already_ingested`` or ``no_data``.
+        source_uri: Optional raw landing object URI associated with the unit.
+        rows_raw: Raw rows observed for the unit.
+        rows_valid: Valid parsed rows for the unit.
+        rows_rejected: Rejected rows for the unit.
+        rows_written: Rows written for the unit when known at this grain.
+        started_at: Optional unit start time.
+        completed_at: Optional unit completion time; defaults at insert time.
+        error: Optional compact failure error.
+        unit_id: Optional caller-provided id for linking prebuilt records.
+    """
 
     run_id: str | UUID
     domain: str
@@ -110,7 +168,20 @@ class RunUnitRecord:
 
 @dataclass(frozen=True, slots=True)
 class LandingObjectRecord:
-    """One landing-object audit record pending insert."""
+    """One landing-object audit record pending insert.
+
+    Attributes:
+        run_id: Parent ``pipeline.runs.run_id``.
+        domain: Logical domain that produced or consumed the landing object.
+        dataset: Audit dataset label, usually inferred as ``<domain>.<landing_field>``.
+        source_uri: S3/object-store URI of the landed raw payload.
+        unit_id: Optional linked work-unit id.
+        provider: Optional source provider identifier.
+        partition: JSON-serializable landing partition values.
+        rows_raw: Number of raw records in the object when known.
+        byte_count: Object byte size when available.
+        content_hash: Object content hash when available.
+    """
 
     run_id: str | UUID
     domain: str
@@ -126,7 +197,18 @@ class LandingObjectRecord:
 
 @dataclass(frozen=True, slots=True)
 class RejectionRecord:
-    """One parser rejection audit record pending insert."""
+    """One parser rejection audit record pending insert.
+
+    Attributes:
+        run_id: Parent ``pipeline.runs.run_id``.
+        domain: Logical domain whose parser rejected the row.
+        raw_fragment: JSON-serializable raw row or payload fragment.
+        reason: Domain rejection reason.
+        unit_id: Optional linked work-unit id.
+        entity_key: JSON key identifying the rejected entity, included in ``raw_hash``.
+        source_uri: Optional source landing object URI.
+        error: Optional parser/domain error associated with the rejection.
+    """
 
     run_id: str | UUID
     domain: str
@@ -139,7 +221,15 @@ class RejectionRecord:
 
 
 class PipelineRunScope:
-    """Context-managed pipeline run that prevents accidental orphan rows."""
+    """Context-managed pipeline run that prevents accidental orphan rows.
+
+    Attributes:
+        tracker: Low-level writer used by the scope.
+        run_id: Active ``pipeline.runs`` id.
+        domain: Bound domain applied to units, landing objects, and rejections.
+        provider: Default provider applied to child audit records.
+        tally: Count of successfully recorded work-unit outcomes.
+    """
 
     def __init__(
         self,
@@ -149,7 +239,14 @@ class PipelineRunScope:
         domain: str,
         provider: str | None,
     ) -> None:
-        """Create a scope for an already-started run."""
+        """Create a scope for an already-started run.
+
+        Args:
+            tracker: Audit writer that owns the lake connection.
+            run_id: Existing ``pipeline.runs`` id.
+            domain: Domain bound to child audit rows.
+            provider: Default provider bound to child audit rows.
+        """
         self.tracker = tracker
         self.run_id = run_id
         self.domain = domain
@@ -173,7 +270,17 @@ class PipelineRunScope:
         rows_written: int | None = None,
         summary: dict[str, object] | None = None,
     ) -> None:
-        """Mark this scoped run complete."""
+        """Mark this scoped run complete.
+
+        Args:
+            status: Terminal run status to write.
+            counters: Explicit counters. When omitted, the scope tally provides unit counts.
+            rows_raw: Optional raw row count used when ``counters`` is omitted.
+            rows_valid: Optional valid row count used when ``counters`` is omitted.
+            rows_rejected: Optional rejected row count used when ``counters`` is omitted.
+            rows_written: Optional written row count used when ``counters`` is omitted.
+            summary: Optional compact JSON summary for dashboard/debug use.
+        """
         self.tracker.complete_run(
             self.run_id,
             status=status,
@@ -199,7 +306,17 @@ class PipelineRunScope:
         rows_written: int | None = None,
         summary: dict[str, object] | None = None,
     ) -> None:
-        """Mark this scoped run failed."""
+        """Mark this scoped run failed.
+
+        Args:
+            error: Exception or message that explains the run failure.
+            counters: Explicit counters. When omitted, the scope tally provides unit counts.
+            rows_raw: Optional raw row count used when ``counters`` is omitted.
+            rows_valid: Optional valid row count used when ``counters`` is omitted.
+            rows_rejected: Optional rejected row count used when ``counters`` is omitted.
+            rows_written: Optional written row count used when ``counters`` is omitted.
+            summary: Optional compact JSON summary for dashboard/debug use.
+        """
         self.tracker.fail_run(
             self.run_id,
             error,
@@ -232,7 +349,27 @@ class PipelineRunScope:
         error: BaseException | str | None = None,
         unit_id: str | UUID | None = None,
     ) -> str:
-        """Record one unit using this run's domain/provider and update the tally."""
+        """Record one unit using this run's domain/provider and update the tally.
+
+        Args:
+            unit_type: Domain-defined work-unit grain.
+            unit_key: JSON-serializable natural key for the unit.
+            status: Terminal unit status.
+            provider: Optional provider override for this unit.
+            reason: Optional domain reason for the outcome.
+            source_uri: Optional landing object URI linked to the unit.
+            rows_raw: Raw rows observed for the unit.
+            rows_valid: Valid parsed rows for the unit.
+            rows_rejected: Rejected rows for the unit.
+            rows_written: Rows written for the unit when known at this grain.
+            started_at: Optional unit start time.
+            completed_at: Optional unit completion time.
+            error: Optional failure error/message.
+            unit_id: Optional caller-provided unit id.
+
+        Returns:
+            Inserted unit id.
+        """
         return self.record_units(
             [
                 self.unit_record(
@@ -272,7 +409,27 @@ class PipelineRunScope:
         error: BaseException | str | None = None,
         unit_id: str | UUID | None = None,
     ) -> RunUnitRecord:
-        """Build a unit record with this run's domain/provider for batched inserts."""
+        """Build a unit record with this run's domain/provider for batched inserts.
+
+        Args:
+            unit_type: Domain-defined work-unit grain.
+            unit_key: JSON-serializable natural key for the unit.
+            status: Terminal unit status.
+            provider: Optional provider override for this unit.
+            reason: Optional domain reason for the outcome.
+            source_uri: Optional landing object URI linked to the unit.
+            rows_raw: Raw rows observed for the unit.
+            rows_valid: Valid parsed rows for the unit.
+            rows_rejected: Rejected rows for the unit.
+            rows_written: Rows written for the unit when known at this grain.
+            started_at: Optional unit start time.
+            completed_at: Optional unit completion time.
+            error: Optional failure error/message.
+            unit_id: Optional caller-provided unit id.
+
+        Returns:
+            A prebuilt unit record for ``record_units``.
+        """
         return RunUnitRecord(
             run_id=self.run_id,
             unit_id=unit_id,
@@ -293,7 +450,14 @@ class PipelineRunScope:
         )
 
     def record_units(self, records: Sequence[RunUnitRecord]) -> list[str]:
-        """Record prebuilt unit rows and update this run's tally."""
+        """Record prebuilt unit rows and update this run's tally.
+
+        Args:
+            records: Unit records already bound to the run.
+
+        Returns:
+            Inserted unit ids, in the same order as ``records``.
+        """
         unit_ids = self.tracker.record_units(records)
         self.tally.extend(records)
         return unit_ids
@@ -316,7 +480,27 @@ class PipelineRunScope:
         error: BaseException | str | None = None,
         unit_id: str | UUID | None = None,
     ) -> str:
-        """Record one unit and its landing object using this run's bound context."""
+        """Record one unit and its landing object using this run's bound context.
+
+        Args:
+            landing: Metadata returned by the landing-zone write task.
+            unit_type: Domain-defined work-unit grain.
+            unit_key: JSON-serializable natural key for the unit.
+            status: Terminal unit status.
+            provider: Optional provider override for this unit and landing object.
+            reason: Optional domain reason for the outcome.
+            rows_raw: Raw row count override. Defaults from ``landing.rows_raw``.
+            rows_valid: Valid parsed rows for the unit.
+            rows_rejected: Rejected rows for the unit.
+            rows_written: Rows written for the unit when known at this grain.
+            started_at: Optional unit start time.
+            completed_at: Optional unit completion time.
+            error: Optional failure error/message.
+            unit_id: Optional caller-provided unit id.
+
+        Returns:
+            Inserted unit id.
+        """
         recorded_unit_id = self.record_unit(
             provider=provider,
             unit_type=unit_type,
@@ -349,7 +533,19 @@ class PipelineRunScope:
         byte_count: int | None = None,
         content_hash: str | None = None,
     ) -> None:
-        """Record one landing object using this run's domain/provider."""
+        """Record one landing object using this run's domain/provider.
+
+        Args:
+            landing: Optional ``LandingWrite`` metadata returned by a landing task.
+            dataset: Audit dataset override when ``landing`` is not supplied.
+            source_uri: Landing object URI override when ``landing`` is not supplied.
+            unit_id: Optional linked work-unit id.
+            provider: Optional provider override.
+            partition: Optional landing partition values.
+            rows_raw: Optional raw row count override.
+            byte_count: Optional object byte size.
+            content_hash: Optional object content hash.
+        """
         self.record_landing_objects(
             [
                 self.landing_object_record(
@@ -379,7 +575,22 @@ class PipelineRunScope:
         byte_count: int | None = None,
         content_hash: str | None = None,
     ) -> LandingObjectRecord:
-        """Build a landing-object record with this run's domain/provider for batched inserts."""
+        """Build a landing-object record with this run's domain/provider for batched inserts.
+
+        Args:
+            landing: Optional ``LandingWrite`` metadata returned by a landing task.
+            dataset: Audit dataset override when ``landing`` is not supplied.
+            source_uri: Landing object URI override when ``landing`` is not supplied.
+            unit_id: Optional linked work-unit id.
+            provider: Optional provider override.
+            partition: Optional landing partition values.
+            rows_raw: Optional raw row count override.
+            byte_count: Optional object byte size.
+            content_hash: Optional object content hash.
+
+        Returns:
+            A prebuilt landing object record for ``record_landing_objects``.
+        """
         dataset, source_uri, partition, rows_raw, byte_count, content_hash = _landing_values(
             landing,
             dataset=dataset,
@@ -403,8 +614,91 @@ class PipelineRunScope:
         )
 
     def record_landing_objects(self, records: Sequence[LandingObjectRecord]) -> None:
-        """Record prebuilt landing-object rows."""
+        """Record prebuilt landing-object rows.
+
+        Args:
+            records: Landing-object records already bound to the run.
+        """
         self.tracker.record_landing_objects(records)
+
+    def rejection_record(
+        self,
+        *,
+        raw_fragment: object,
+        reason: str,
+        unit_id: str | UUID | None = None,
+        entity_key: dict[str, object] | None = None,
+        source_uri: str | None = None,
+        error: BaseException | str | None = None,
+    ) -> RejectionRecord:
+        """Build a rejection record with this run's bound context.
+
+        Args:
+            raw_fragment: Raw row or payload fragment to sample.
+            reason: Domain rejection reason.
+            unit_id: Optional linked work-unit id.
+            entity_key: Entity key used for debugging and hash uniqueness.
+            source_uri: Optional landing object URI.
+            error: Optional parser/domain error.
+
+        Returns:
+            A prebuilt rejection record for ``record_rejections``.
+        """
+        return RejectionRecord(
+            run_id=self.run_id,
+            unit_id=unit_id,
+            domain=self.domain,
+            entity_key=entity_key,
+            source_uri=source_uri,
+            raw_fragment=raw_fragment,
+            reason=reason,
+            error=error,
+        )
+
+    def record_rejection(
+        self,
+        *,
+        raw_fragment: object,
+        reason: str,
+        unit_id: str | UUID | None = None,
+        entity_key: dict[str, object] | None = None,
+        source_uri: str | None = None,
+        error: BaseException | str | None = None,
+    ) -> None:
+        """Record one parser rejection using this run's domain.
+
+        Args:
+            raw_fragment: Raw row or payload fragment to sample.
+            reason: Domain rejection reason.
+            unit_id: Optional linked work-unit id.
+            entity_key: Entity key used for debugging and hash uniqueness.
+            source_uri: Optional landing object URI.
+            error: Optional parser/domain error.
+        """
+        self.record_rejections(
+            [
+                self.rejection_record(
+                    raw_fragment=raw_fragment,
+                    reason=reason,
+                    unit_id=unit_id,
+                    entity_key=entity_key,
+                    source_uri=source_uri,
+                    error=error,
+                )
+            ]
+        )
+
+    def record_rejections(self, records: Sequence[RejectionRecord], *, limit: int | None = None) -> int:
+        """Record prebuilt parser rejection rows.
+
+        Args:
+            records: Rejection records already bound to the run.
+            limit: Optional cap for high-volume rejection sampling.
+
+        Returns:
+            Number of rejection rows inserted.
+        """
+        return self.tracker.record_rejections(records, limit=limit)
 
     @contextmanager
     def track_unit(
@@ -414,7 +708,16 @@ class PipelineRunScope:
         unit_key: dict[str, object],
         provider: str | None = None,
     ) -> Generator[PipelineUnitScope]:
-        """Track one unit and record it failed if the unit scope raises."""
+        """Track one unit and record it failed if the unit scope raises.
+
+        Args:
+            unit_type: Domain-defined work-unit grain.
+            unit_key: JSON-serializable natural key for the unit.
+            provider: Optional provider override for this unit.
+
+        Yields:
+            A unit scope that must be completed, skipped, unsupported, or failed.
+        """
         scope = PipelineUnitScope(
             self,
             unit_type=unit_type,
@@ -435,7 +738,15 @@ class PipelineRunScope:
 
 
 class PipelineUnitScope:
-    """Context-managed audit helper for one unit inside a run."""
+    """Context-managed audit helper for one unit inside a run.
+
+    Attributes:
+        run: Parent run scope.
+        unit_type: Domain-defined work-unit grain.
+        unit_key: JSON-serializable natural key for this unit.
+        provider: Optional provider override for this unit.
+        unit_id: Inserted unit id after a terminal unit method is called.
+    """
 
     def __init__(
         self,
@@ -445,7 +756,14 @@ class PipelineUnitScope:
         unit_key: dict[str, object],
         provider: str | None = None,
     ) -> None:
-        """Create a unit scope bound to a run."""
+        """Create a unit scope bound to a run.
+
+        Args:
+            run: Parent run scope.
+            unit_type: Domain-defined work-unit grain.
+            unit_key: JSON-serializable natural key for this unit.
+            provider: Optional provider override for this unit.
+        """
         self.run = run
         self.unit_type = unit_type
         self.unit_key = unit_key
@@ -469,7 +787,20 @@ class PipelineUnitScope:
         rows_rejected: int | None = None,
         rows_written: int | None = None,
     ) -> str:
-        """Record this unit as completed."""
+        """Record this unit as completed.
+
+        Args:
+            landing: Optional landing metadata whose URI/row count should populate the unit.
+            reason: Optional domain reason, commonly a Bronze write reason.
+            source_uri: Optional source URI override.
+            rows_raw: Raw row count override. Defaults from ``landing.rows_raw``.
+            rows_valid: Valid parsed rows for the unit.
+            rows_rejected: Rejected rows for the unit.
+            rows_written: Rows written for the unit when known at this grain.
+
+        Returns:
+            Inserted unit id.
+        """
         if landing is not None:
             source_uri = source_uri or landing.source_uri
             rows_raw = landing.rows_raw if rows_raw is None else rows_raw
@@ -492,7 +823,18 @@ class PipelineUnitScope:
         rows_rejected: int | None = None,
         rows_written: int | None = None,
     ) -> str:
-        """Record this unit as completed and record its landing object."""
+        """Record this unit as completed and record its landing object.
+
+        Args:
+            landing: Landing metadata returned by the landing-zone write task.
+            reason: Optional domain reason, commonly a Bronze write reason.
+            rows_valid: Valid parsed rows for the unit.
+            rows_rejected: Rejected rows for the unit.
+            rows_written: Rows written for the unit when known at this grain.
+
+        Returns:
+            Inserted unit id.
+        """
         unit_id = self.complete(
             landing=landing,
             reason=reason,
@@ -512,7 +854,18 @@ class PipelineUnitScope:
         rows_rejected: int | None = None,
         rows_written: int | None = None,
     ) -> str:
-        """Record this unit as failed."""
+        """Record this unit as failed.
+
+        Args:
+            error: Exception or message that explains the unit failure.
+            rows_raw: Raw rows observed before failure.
+            rows_valid: Valid parsed rows observed before failure.
+            rows_rejected: Rejected rows observed before failure.
+            rows_written: Rows written before failure.
+
+        Returns:
+            Inserted unit id.
+        """
         return self._record(
             status="failed",
             rows_raw=rows_raw,
@@ -531,7 +884,18 @@ class PipelineUnitScope:
         rows_rejected: int | None = None,
         rows_written: int | None = None,
     ) -> str:
-        """Record this unit as skipped."""
+        """Record this unit as skipped.
+
+        Args:
+            reason: Domain skip reason, such as ``already_ingested`` or ``no_data``.
+            rows_raw: Raw rows observed before skip.
+            rows_valid: Valid parsed rows observed before skip.
+            rows_rejected: Rejected rows observed before skip.
+            rows_written: Rows written before skip, usually zero.
+
+        Returns:
+            Inserted unit id.
+        """
         return self._record(
             status="skipped",
             reason=reason,
@@ -547,7 +911,15 @@ class PipelineUnitScope:
         reason: str,
         rows_written: int | None = None,
     ) -> str:
-        """Record this unit as unsupported."""
+        """Record this unit as unsupported.
+
+        Args:
+            reason: Domain reason the requested unit is unsupported.
+            rows_written: Rows written before discovering unsupported status.
+
+        Returns:
+            Inserted unit id.
+        """
         return self._record(status="unsupported", reason=reason, rows_written=rows_written)
 
     def record_landing_object(
@@ -561,7 +933,20 @@ class PipelineUnitScope:
         byte_count: int | None = None,
         content_hash: str | None = None,
     ) -> None:
-        """Record one landing object for this unit."""
+        """Record one landing object for this unit.
+
+        Args:
+            landing: Optional ``LandingWrite`` metadata returned by a landing task.
+            dataset: Audit dataset override when ``landing`` is not supplied.
+            source_uri: Landing object URI override when ``landing`` is not supplied.
+            partition: Optional landing partition values.
+            rows_raw: Optional raw row count override.
+            byte_count: Optional object byte size.
+            content_hash: Optional object content hash.
+
+        Raises:
+            RuntimeError: If called before the unit has a recorded terminal outcome.
+        """
         if self.unit_id is None:
             raise RuntimeError("Cannot record a landing object before recording the unit outcome.")
         self.run.record_landing_object(
@@ -607,10 +992,19 @@ class PipelineUnitScope:
 
 
 class PipelineRunTracker:
-    """Write audit facts for one pipeline flow run."""
+    """Low-level writer for pipeline audit facts.
+
+    Most domain flows should prefer ``track_run()`` and the returned
+    ``PipelineRunScope``. The direct methods remain available for tests,
+    compatibility, and rare batch paths that need explicit row construction.
+    """
 
     def __init__(self, lake: DataLakeClient | None = None) -> None:
-        """Create a tracker backed by the configured lake client."""
+        """Create a tracker backed by the configured lake client.
+
+        Args:
+            lake: Optional lake client override, mainly for tests.
+        """
         self.lake = lake or get_lake_client()
 
     def start_run(
@@ -625,7 +1019,21 @@ class PipelineRunTracker:
         target_window_end: date | None = None,
         parent_run_id: str | UUID | None = None,
     ) -> str:
-        """Insert a ``running`` row in ``pipeline.runs`` and return its id."""
+        """Insert a ``running`` row in ``pipeline.runs``.
+
+        Args:
+            flow_name: Prefect/logical flow name.
+            domain: Logical pipeline domain.
+            run_kind: Domain run kind, such as ``daily`` or ``snapshot``.
+            provider: Optional source provider identifier.
+            parameters: JSON-serializable run parameters.
+            target_window_start: Optional logical data-window start.
+            target_window_end: Optional logical data-window end.
+            parent_run_id: Optional parent run id when chaining known runs.
+
+        Returns:
+            Newly generated run id.
+        """
         run_id = str(uuid.uuid4())
         self.lake.insert_rows(
             "pipeline",
@@ -664,7 +1072,24 @@ class PipelineRunTracker:
         target_window_end: date | None = None,
         parent_run_id: str | UUID | None = None,
     ) -> Generator[PipelineRunScope]:
-        """Start a run and mark it failed if the scope exits non-terminal."""
+        """Start a run and guard it against non-terminal exits.
+
+        Args:
+            flow_name: Prefect/logical flow name.
+            domain: Logical pipeline domain.
+            run_kind: Domain run kind, such as ``daily`` or ``snapshot``.
+            provider: Optional source provider identifier.
+            parameters: JSON-serializable run parameters.
+            target_window_start: Optional logical data-window start.
+            target_window_end: Optional logical data-window end.
+            parent_run_id: Optional parent run id when chaining known runs.
+
+        Yields:
+            A run scope that must be explicitly completed or failed.
+
+        Raises:
+            RuntimeError: If the scope exits without a terminal state.
+        """
         scope = PipelineRunScope(
             self,
             self.start_run(
@@ -700,7 +1125,14 @@ class PipelineRunTracker:
         counters: RunCounters | None = None,
         summary: dict[str, object] | None = None,
     ) -> None:
-        """Mark a pipeline run terminal with optional aggregate counters."""
+        """Mark a pipeline run terminal with optional aggregate counters.
+
+        Args:
+            run_id: Run id to update.
+            status: Terminal run status.
+            counters: Optional aggregate counters.
+            summary: Optional compact JSON summary.
+        """
         counters = counters or RunCounters()
         self.lake.execute(
             """
@@ -742,7 +1174,14 @@ class PipelineRunTracker:
         counters: RunCounters | None = None,
         summary: dict[str, object] | None = None,
     ) -> None:
-        """Mark a pipeline run failed with a compact terminal error."""
+        """Mark a pipeline run failed with a compact terminal error.
+
+        Args:
+            run_id: Run id to update.
+            error: Exception or message that explains the failure.
+            counters: Optional aggregate counters.
+            summary: Optional compact JSON summary.
+        """
         counters = counters or RunCounters()
         error_class = type(error).__name__ if isinstance(error, BaseException) else None
         error_message = str(error)[:_ERROR_LIMIT]
@@ -801,7 +1240,29 @@ class PipelineRunTracker:
         error: BaseException | str | None = None,
         unit_id: str | UUID | None = None,
     ) -> str:
-        """Insert one work-unit outcome and return its id."""
+        """Insert one work-unit outcome.
+
+        Args:
+            run_id: Parent run id.
+            domain: Logical pipeline domain.
+            unit_type: Domain-defined work-unit grain.
+            unit_key: JSON-serializable natural key for the unit.
+            status: Terminal unit status.
+            provider: Optional source provider identifier.
+            reason: Optional domain reason for the outcome.
+            source_uri: Optional landing object URI linked to the unit.
+            rows_raw: Raw rows observed for the unit.
+            rows_valid: Valid parsed rows for the unit.
+            rows_rejected: Rejected rows for the unit.
+            rows_written: Rows written for the unit when known at this grain.
+            started_at: Optional unit start time.
+            completed_at: Optional unit completion time.
+            error: Optional failure error/message.
+            unit_id: Optional caller-provided unit id.
+
+        Returns:
+            Inserted unit id.
+        """
         return self.record_units(
             [
                 RunUnitRecord(
@@ -826,7 +1287,14 @@ class PipelineRunTracker:
         )[0]
 
     def record_units(self, records: Sequence[RunUnitRecord]) -> list[str]:
-        """Insert work-unit outcomes in one lake write and return their ids."""
+        """Insert work-unit outcomes in one lake write.
+
+        Args:
+            records: Unit records to insert.
+
+        Returns:
+            Inserted unit ids, in the same order as ``records``.
+        """
         if not records:
             return []
         rows = []
@@ -881,7 +1349,20 @@ class PipelineRunTracker:
         byte_count: int | None = None,
         content_hash: str | None = None,
     ) -> None:
-        """Record one raw landing object used by a pipeline unit."""
+        """Record one raw landing object used by a pipeline unit.
+
+        Args:
+            run_id: Parent run id.
+            domain: Logical pipeline domain.
+            dataset: Audit dataset label.
+            source_uri: S3/object-store URI.
+            unit_id: Optional linked work-unit id.
+            provider: Optional source provider identifier.
+            partition: Optional landing partition values.
+            rows_raw: Raw rows in the object when known.
+            byte_count: Object byte size when known.
+            content_hash: Object content hash when known.
+        """
         self.record_landing_objects(
             [
                 LandingObjectRecord(
@@ -900,7 +1381,11 @@ class PipelineRunTracker:
         )
 
     def record_landing_objects(self, records: Sequence[LandingObjectRecord]) -> None:
-        """Insert landing-object audit records in one lake write."""
+        """Insert landing-object audit records in one lake write.
+
+        Args:
+            records: Landing object records to insert.
+        """
         if not records:
             return
         now = _now()
@@ -937,7 +1422,18 @@ class PipelineRunTracker:
         source_uri: str | None = None,
         error: BaseException | str | None = None,
     ) -> None:
-        """Record one structured parser rejection."""
+        """Record one structured parser rejection.
+
+        Args:
+            run_id: Parent run id.
+            domain: Logical pipeline domain.
+            raw_fragment: Raw row or payload fragment to sample.
+            reason: Domain rejection reason.
+            unit_id: Optional linked work-unit id.
+            entity_key: Entity key used for debugging and hash uniqueness.
+            source_uri: Optional landing object URI.
+            error: Optional parser/domain error.
+        """
         self.record_rejections(
             [
                 RejectionRecord(
@@ -999,7 +1495,14 @@ class PipelineRunTracker:
         return len(rows)
 
     def stale_running_runs(self, *, older_than_hours: int = 2) -> list[dict[str, object]]:
-        """Return running runs older than the given threshold."""
+        """Return running runs older than the given threshold.
+
+        Args:
+            older_than_hours: Minimum run age in hours.
+
+        Returns:
+            Raw lake rows for matching stale ``running`` runs.
+        """
         return self.lake.query(
             """
             SELECT *
@@ -1013,7 +1516,17 @@ class PipelineRunTracker:
 
 
 def terminal_status(*, failed: int = 0, rejected: int = 0, skipped_all: bool = False) -> RunStatus:
-    """Return the aggregate run status from unit counters."""
+    """Return the aggregate run status from unit counters.
+
+    Args:
+        failed: Number of failed work units or node results.
+        rejected: Number of parser/domain rejections.
+        skipped_all: Whether all planned work was intentionally skipped.
+
+    Returns:
+        ``partial`` for failures/rejections, ``skipped`` for all-skipped runs,
+        otherwise ``completed``.
+    """
     if failed:
         return "partial"
     if skipped_all:

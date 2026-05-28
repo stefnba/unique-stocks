@@ -13,7 +13,7 @@ type LandingFileFormat = Literal["json", "jsonl", "csv"]
 
 
 class LandingDomain(StrEnum):
-    """Stable storage dataset names used in ingestion object keys."""
+    """Logical domain segments used in ingestion object keys."""
 
     EXCHANGE = "exchange"
     EXCHANGE_SCHEDULE = "exchange_schedule"
@@ -30,7 +30,15 @@ def utc_now_stamp() -> str:
 
 @dataclass(frozen=True, slots=True)
 class ObjectStorageKey:
-    """Construct canonical, Hive-compatible keys for object storage."""
+    """Construct canonical, Hive-compatible keys for object storage.
+
+    Attributes:
+        provider: Source provider identifier.
+        domain: Logical landing domain.
+        partitions: Ordered partition key/value strings.
+        layer: Storage layer prefix, currently ``landing``.
+        filename: Optional file stem. Defaults to ``data`` for partitioned payloads.
+    """
 
     provider: str
     domain: LandingDomain
@@ -48,7 +56,18 @@ class ObjectStorageKey:
         ingested_at: datetime | date | str | None = None,
         layer: LandingLayer = "landing",
     ) -> Self:
-        """Return a key builder for a full-replacement snapshot payload."""
+        """Return a key builder for a full-replacement snapshot payload.
+
+        Args:
+            provider: Source provider identifier.
+            domain: Logical landing domain.
+            snapshot_date: Logical snapshot date.
+            ingested_at: Optional ingestion timestamp/date. Defaults to current UTC time.
+            layer: Storage layer prefix.
+
+        Returns:
+            Key builder configured for a snapshot payload.
+        """
         stamp = utc_now_stamp() if ingested_at is None else serialize_partition_value(ingested_at)
         return cls(
             provider=str(provider),
@@ -67,7 +86,17 @@ class ObjectStorageKey:
         layer: LandingLayer = "landing",
         **partition_kwargs: PartitionValue,
     ) -> Self:
-        """Return a key builder for a partitioned payload."""
+        """Return a key builder for a partitioned payload.
+
+        Args:
+            provider: Source provider identifier.
+            domain: Logical landing domain.
+            layer: Storage layer prefix.
+            **partition_kwargs: Partition values to serialize into the object path.
+
+        Returns:
+            Key builder configured for a partitioned payload.
+        """
         partitions = {key: serialize_partition_value(value) for key, value in partition_kwargs.items()}
         return cls(provider=str(provider), domain=domain, partitions=partitions, layer=layer)
 
@@ -80,12 +109,29 @@ class ObjectStorageKey:
         *,
         layer: LandingLayer = "landing",
     ) -> Self:
-        """Return a key builder from dynamic partition key/value pairs."""
+        """Return a key builder from dynamic partition key/value pairs.
+
+        Args:
+            provider: Source provider identifier.
+            domain: Logical landing domain.
+            partitions: Partition values to serialize into the object path.
+            layer: Storage layer prefix.
+
+        Returns:
+            Key builder configured from the provided partition mapping.
+        """
         serialized = {key: serialize_partition_value(value) for key, value in partitions.items()}
         return cls(provider=str(provider), domain=domain, partitions=serialized, layer=layer)
 
     def key(self, suffix: str) -> str:
-        """Return the full object key with *suffix* as the file extension."""
+        """Return the full object key with ``suffix`` as the file extension.
+
+        Args:
+            suffix: File extension, with or without a leading dot.
+
+        Returns:
+            Canonical object key.
+        """
         ext = suffix.lstrip(".")
         filename = f"{self.filename}.{ext}" if self.filename else f"data.{ext}"
         parts = [self.layer, self.provider, str(self.domain)]

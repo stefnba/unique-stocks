@@ -1,3 +1,5 @@
+"""Typed partition helpers for landing object keys and audit metadata."""
+
 from collections.abc import Mapping
 from datetime import UTC, date, datetime
 from typing import TypedDict
@@ -21,7 +23,14 @@ class LandingPartitionSchema(TypedDict):
 
 
 def serialize_partition_value(value: PartitionValue) -> str:
-    """Serialize a partition value to a stable, path-safe string."""
+    """Serialize a partition value to a stable, path-safe string.
+
+    Args:
+        value: Date, datetime, string, or integer partition value.
+
+    Returns:
+        Path-safe string representation.
+    """
     if isinstance(value, datetime):
         return value.replace(microsecond=0).strftime("%Y-%m-%dT%H-%M-%SZ")
     if isinstance(value, date):
@@ -30,12 +39,26 @@ def serialize_partition_value(value: PartitionValue) -> str:
 
 
 def partition_path(partitions: Mapping[str, PartitionValue]) -> str:
-    """Return Hive-style ``key=value`` path segments for partition values."""
+    """Return Hive-style ``key=value`` path segments for partition values.
+
+    Args:
+        partitions: Ordered partition mapping.
+
+    Returns:
+        Slash-joined ``key=value`` path segments.
+    """
     return "/".join(f"{key}={serialize_partition_value(value)}" for key, value in partitions.items())
 
 
 def partition_field_names(schema: type[LandingPartitionSchema]) -> tuple[str, ...]:
-    """Return typed partition field names in declaration order."""
+    """Return typed partition field names in declaration order.
+
+    Args:
+        schema: TypedDict partition schema.
+
+    Returns:
+        Declared partition field names.
+    """
     return tuple(schema.__annotations__)
 
 
@@ -46,7 +69,20 @@ def normalize_partitions(
     include_ingested_at: bool = True,
     ingested_at: datetime | date | str | None = None,
 ) -> dict[str, PartitionValue]:
-    """Validate and order typed partition values for object-key building."""
+    """Validate and order typed partition values for object-key building.
+
+    Args:
+        schema: TypedDict partition schema that declares required fields.
+        partitions: Runtime partition values.
+        include_ingested_at: Whether to add an ``ingested_at`` value.
+        ingested_at: Optional ingestion timestamp/date. Defaults to current UTC time.
+
+    Returns:
+        Ordered partition mapping ready for key construction or audit metadata.
+
+    Raises:
+        ValueError: If a declared partition field is missing.
+    """
     fields = partition_field_names(schema)
     missing = [field for field in fields if field not in partitions]
     if missing:

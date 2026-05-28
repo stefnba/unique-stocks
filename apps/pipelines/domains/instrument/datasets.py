@@ -11,7 +11,12 @@ from providers.registry import Provider
 
 
 class InstrumentLandingPartition(LandingPartitionSchema):
-    """Instrument landing partitions."""
+    """Instrument landing partitions.
+
+    Attributes:
+        provider_exchange_code: Provider exchange code requested from EODHD.
+        snapshot_date: Logical catalog snapshot date.
+    """
 
     provider_exchange_code: str
     snapshot_date: date
@@ -26,7 +31,11 @@ INSTRUMENT_LANDING = LandingTarget.partitioned(
 
 @dataclass(frozen=True, slots=True)
 class InstrumentLandings:
-    """Landing targets that can produce ``bronze.instrument`` rows."""
+    """Landing targets that can produce ``bronze.instrument`` rows.
+
+    Attributes:
+        catalog: Instrument catalog landing target.
+    """
 
     catalog: PartitionedLandingTarget[InstrumentLandingPartition]
 

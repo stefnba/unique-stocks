@@ -105,6 +105,25 @@ domain flow limited to choosing the right flow, unit type, unit key, dataset, co
 landing tasks write audit rows directly; Prefect tasks are retryable work steps and should return `LandingWrite`
 metadata, while the flow or unit scope records the audit row with the active run/unit context.
 
+For parser rejection samples, build rows from the active run scope with `run.rejection_record(...)` and flush them
+with `run.record_rejections(...)`. This keeps `run_id` and `domain` bound in one place while still allowing backfill
+flows to batch rejection inserts at batch boundaries.
+
+The main audit API lives in `core.ingestion.run_tracking`:
+
+| API                                              | Use it for                                                           |
+| ------------------------------------------------ | -------------------------------------------------------------------- |
+| `PipelineRunTracker.track_run(...)`              | Start a guarded run scope and avoid forgotten terminal states.       |
+| `PipelineRunScope.record_unit(...)`              | Record one unit when there is no landing object to link.             |
+| `PipelineRunScope.record_unit_with_landing(...)` | Record one unit plus its landing object in loop-oriented flows.      |
+| `PipelineRunScope.unit_record(...)`              | Build a unit row for batched inserts, especially backfills.          |
+| `PipelineRunScope.landing_object_record(...)`    | Build a landing-object row for batched inserts.                      |
+| `PipelineRunScope.rejection_record(...)`         | Build a sampled parser rejection row bound to the active run/domain. |
+| `PipelineUnitScope.complete_with_landing(...)`   | Complete a single scoped unit plus landing object.                   |
+
+`core.ingestion.run_tracking` is intentionally consolidated while the audit model is still changing. If navigation
+starts hurting, split it along the natural boundaries: record dataclasses, scoped DX helpers, and low-level lake writer.
+
 `track_run()` marks the run failed on Python exceptions and raises if a flow exits without an explicit terminal state.
 It currently treats interrupts such as Ctrl+C as failed; `cancelled` is reserved for a future explicit Prefect
 cancellation hook. It cannot protect against worker process death, machine shutdown, or a lost database connection

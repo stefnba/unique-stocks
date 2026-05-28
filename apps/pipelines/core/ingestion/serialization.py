@@ -10,7 +10,14 @@ from pydantic import BaseModel
 
 
 def jsonable(value: Any) -> Any:
-    """Return a JSON-serializable value while preserving provider aliases."""
+    """Return a JSON-serializable value while preserving provider aliases.
+
+    Args:
+        value: Arbitrary provider/domain value.
+
+    Returns:
+        Value normalized for JSON storage.
+    """
     if isinstance(value, BaseModel):
         return value.model_dump(mode="json", by_alias=True)
     if isinstance(value, Mapping):
@@ -25,12 +32,26 @@ def jsonable(value: Any) -> Any:
 
 
 def canonical_json(value: Any) -> str:
-    """Return deterministic compact JSON for provider or Bronze payloads."""
+    """Return deterministic compact JSON for provider or Bronze payloads.
+
+    Args:
+        value: Value to normalize and serialize.
+
+    Returns:
+        Compact JSON string with stable key ordering.
+    """
     return json.dumps(jsonable(value), sort_keys=True, separators=(",", ":"))
 
 
 def sql_value(value: date | str | int) -> str | int:
-    """Return a stable scalar value for SQL query parameters."""
+    """Return a stable scalar value for SQL query parameters.
+
+    Args:
+        value: Date, string, or integer query parameter.
+
+    Returns:
+        ISO date string for dates; otherwise the original scalar.
+    """
     if isinstance(value, date):
         return value.isoformat()
     return value
