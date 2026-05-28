@@ -243,6 +243,41 @@ def test_run_scope_records_unit_with_landing_object() -> None:
     assert lake.inserted[2][2][0]["dataset"] == "instrument.catalog"
 
 
+def test_run_scope_builds_batched_unit_and_landing_records() -> None:
+    """Run scopes should bind batch records without inserting each row eagerly."""
+    lake = FakeLake()
+    tracker = PipelineRunTracker(lake)  # type: ignore[arg-type]
+    landing = LandingWrite(
+        dataset="eod_price.backfill",
+        source_uri="s3://bucket/aapl.jsonl",
+        partition={"ticker": "AAPL.US"},
+        rows_raw=20,
+    )
+
+    with tracker.track_run(flow_name="backfill", domain="eod_price", run_kind="historical_backfill") as run:
+        unit = run.unit_record(
+            unit_id="unit-1",
+            unit_type="ticker_backfill",
+            unit_key={"ticker": "AAPL.US"},
+            status="completed",
+            rows_raw=20,
+            rows_written=20,
+        )
+        landing_object = run.landing_object_record(landing, unit_id="unit-1")
+
+        assert [item[1] for item in lake.inserted] == ["runs"]
+        run.record_units([unit])
+        run.record_landing_objects([landing_object])
+        run.complete(rows_raw=20, rows_written=20)
+
+    assert [item[1] for item in lake.inserted] == ["runs", "run_units", "landing_objects"]
+    assert lake.inserted[1][2][0]["run_id"] == run.run_id
+    assert lake.inserted[1][2][0]["domain"] == "eod_price"
+    assert lake.inserted[2][2][0]["unit_id"] == "unit-1"
+    assert lake.executed[-1][1] is not None
+    assert lake.executed[-1][1][2] == 1
+
+
 def test_track_run_requires_terminal_state() -> None:
     """Exiting a scope without complete/fail should become a failed run and a test-visible error."""
     lake = FakeLake()

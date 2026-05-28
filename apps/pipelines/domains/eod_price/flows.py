@@ -22,7 +22,6 @@ from core.ingestion import (
     PipelineRunTracker,
     RejectionRecord,
     RunUnitRecord,
-    RunUnitTally,
     terminal_status,
 )
 from core.ingestion.parser import attach_source_uri
@@ -365,7 +364,6 @@ async def eod_price_backfill_flow(
     total_raw = 0
     total_valid = 0
     total_rejected = 0
-    unit_tally = RunUnitTally()
     summary: dict = {
         "from_date": from_date.isoformat(),
         "to_date": to_date.isoformat(),
@@ -405,10 +403,7 @@ async def eod_price_backfill_flow(
                 if not pending:
                     log.info("backfill.exchange_skip", provider_exchange_code=provider_exchange_code, reason="all_done")
                     summary["exchange"][provider_exchange_code] = {"symbols": 0, "rows": 0}
-                    tracker.record_unit(
-                        run_id=run_id,
-                        domain="eod_price",
-                        provider="eodhd",
+                    run.record_unit(
                         unit_type="exchange_backfill",
                         unit_key={
                             "provider_exchange_code": provider_exchange_code,
@@ -419,7 +414,6 @@ async def eod_price_backfill_flow(
                         reason="all_done",
                         rows_written=0,
                     )
-                    unit_tally.record("skipped")
                     continue
 
                 log.info("backfill.exchange_start", provider_exchange_code=provider_exchange_code, pending=len(pending))
@@ -451,28 +445,21 @@ async def eod_price_backfill_flow(
                         }
                         if isinstance(result, ValidationError):
                             summary["failed_symbols"].append(sym)
-                            tracker.record_unit(
-                                run_id=run_id,
+                            run.record_unit(
                                 unit_id=unit_id,
-                                domain="eod_price",
-                                provider="eodhd",
                                 unit_type="ticker_backfill",
                                 unit_key=unit_key,
                                 status="failed",
                                 error=result,
                                 rows_written=0,
                             )
-                            unit_tally.record("failed")
                             raise result  # schema drift — abort everything
                         if isinstance(result, BaseException):
                             log.error("backfill.symbol_failed", symbol=sym, error=str(result))
                             exchange_failed.append(sym)
                             unit_records.append(
-                                RunUnitRecord(
-                                    run_id=run_id,
+                                run.unit_record(
                                     unit_id=unit_id,
-                                    domain="eod_price",
-                                    provider="eodhd",
                                     unit_type="ticker_backfill",
                                     unit_key=unit_key,
                                     status="failed",
@@ -502,11 +489,8 @@ async def eod_price_backfill_flow(
                         if valid:
                             batch_sources.extend(attach_source_uri(valid, landing.source_uri))
                         unit_records.append(
-                            RunUnitRecord(
-                                run_id=run_id,
+                            run.unit_record(
                                 unit_id=unit_id,
-                                domain="eod_price",
-                                provider="eodhd",
                                 unit_type="ticker_backfill",
                                 unit_key=unit_key,
                                 status="completed",
@@ -518,15 +502,9 @@ async def eod_price_backfill_flow(
                             )
                         )
                         landing_records.append(
-                            LandingObjectRecord(
-                                run_id=run_id,
+                            run.landing_object_record(
+                                landing,
                                 unit_id=unit_id,
-                                domain="eod_price",
-                                provider="eodhd",
-                                dataset=landing.dataset,
-                                source_uri=landing.source_uri,
-                                partition=dict(landing.partition) if landing.partition is not None else None,
-                                rows_raw=landing.rows_raw,
                             )
                         )
                         rejection_records.extend(
@@ -549,9 +527,8 @@ async def eod_price_backfill_flow(
                         batch_written = bronze_batch.rows_written
                         exchange_written += batch_written
 
-                    tracker.record_units(unit_records)
-                    unit_tally.extend(unit_records)
-                    tracker.record_landing_objects(landing_records)
+                    run.record_units(unit_records)
+                    run.record_landing_objects(landing_records)
                     tracker.record_rejections(rejection_records)
 
                     log.info(
@@ -569,10 +546,7 @@ async def eod_price_backfill_flow(
                     "rows_written": exchange_written,
                 }
                 exchange_status = "completed" if not exchange_failed else "failed"
-                tracker.record_unit(
-                    run_id=run_id,
-                    domain="eod_price",
-                    provider="eodhd",
+                run.record_unit(
                     unit_type="exchange_backfill",
                     unit_key={
                         "provider_exchange_code": provider_exchange_code,
@@ -586,17 +560,16 @@ async def eod_price_backfill_flow(
                     rows_rejected=exchange_rejected,
                     rows_written=exchange_written,
                 )
-                unit_tally.record(exchange_status)
                 summary["failed_symbols"].extend(exchange_failed)
                 total_written += exchange_written
 
             run.complete(
                 status=terminal_status(
-                    failed=unit_tally.failed,
+                    failed=run.tally.failed,
                     rejected=total_rejected,
-                    skipped_all=_all_units_skipped(total=unit_tally.total, skipped=unit_tally.skipped),
+                    skipped_all=_all_units_skipped(total=run.tally.total, skipped=run.tally.skipped),
                 ),
-                counters=unit_tally.counters(
+                counters=run.tally.counters(
                     rows_raw=total_raw,
                     rows_valid=total_valid,
                     rows_rejected=total_rejected,
@@ -614,7 +587,7 @@ async def eod_price_backfill_flow(
             if not run.is_terminal:
                 run.fail(
                     exc,
-                    counters=unit_tally.counters(
+                    counters=run.tally.counters(
                         rows_raw=total_raw,
                         rows_valid=total_valid,
                         rows_rejected=total_rejected,

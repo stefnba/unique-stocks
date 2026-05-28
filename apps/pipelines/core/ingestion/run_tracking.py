@@ -233,8 +233,49 @@ class PipelineRunScope:
         unit_id: str | UUID | None = None,
     ) -> str:
         """Record one unit using this run's domain/provider and update the tally."""
-        recorded_unit_id = self.tracker.record_unit(
+        return self.record_units(
+            [
+                self.unit_record(
+                    provider=provider,
+                    unit_type=unit_type,
+                    unit_key=unit_key,
+                    status=status,
+                    reason=reason,
+                    source_uri=source_uri,
+                    rows_raw=rows_raw,
+                    rows_valid=rows_valid,
+                    rows_rejected=rows_rejected,
+                    rows_written=rows_written,
+                    started_at=started_at,
+                    completed_at=completed_at,
+                    error=error,
+                    unit_id=unit_id,
+                )
+            ]
+        )[0]
+
+    def unit_record(
+        self,
+        *,
+        unit_type: str,
+        unit_key: dict[str, object],
+        status: UnitStatus,
+        provider: str | None = None,
+        reason: str | None = None,
+        source_uri: str | None = None,
+        rows_raw: int | None = None,
+        rows_valid: int | None = None,
+        rows_rejected: int | None = None,
+        rows_written: int | None = None,
+        started_at: datetime | None = None,
+        completed_at: datetime | None = None,
+        error: BaseException | str | None = None,
+        unit_id: str | UUID | None = None,
+    ) -> RunUnitRecord:
+        """Build a unit record with this run's domain/provider for batched inserts."""
+        return RunUnitRecord(
             run_id=self.run_id,
+            unit_id=unit_id,
             domain=self.domain,
             provider=self.provider if provider is None else provider,
             unit_type=unit_type,
@@ -249,10 +290,7 @@ class PipelineRunScope:
             started_at=started_at,
             completed_at=completed_at,
             error=error,
-            unit_id=unit_id,
         )
-        self.tally.record(status)
-        return recorded_unit_id
 
     def record_units(self, records: Sequence[RunUnitRecord]) -> list[str]:
         """Record prebuilt unit rows and update this run's tally."""
@@ -312,6 +350,36 @@ class PipelineRunScope:
         content_hash: str | None = None,
     ) -> None:
         """Record one landing object using this run's domain/provider."""
+        self.record_landing_objects(
+            [
+                self.landing_object_record(
+                    landing,
+                    dataset=dataset,
+                    source_uri=source_uri,
+                    unit_id=unit_id,
+                    provider=provider,
+                    partition=partition,
+                    rows_raw=rows_raw,
+                    byte_count=byte_count,
+                    content_hash=content_hash,
+                )
+            ]
+        )
+
+    def landing_object_record(
+        self,
+        landing: LandingWrite | None = None,
+        *,
+        dataset: str | None = None,
+        source_uri: str | None = None,
+        unit_id: str | UUID | None = None,
+        provider: str | None = None,
+        partition: Mapping[str, object] | None = None,
+        rows_raw: int | None = None,
+        byte_count: int | None = None,
+        content_hash: str | None = None,
+    ) -> LandingObjectRecord:
+        """Build a landing-object record with this run's domain/provider for batched inserts."""
         dataset, source_uri, partition, rows_raw, byte_count, content_hash = _landing_values(
             landing,
             dataset=dataset,
@@ -321,7 +389,7 @@ class PipelineRunScope:
             byte_count=byte_count,
             content_hash=content_hash,
         )
-        self.tracker.record_landing_object(
+        return LandingObjectRecord(
             run_id=self.run_id,
             unit_id=unit_id,
             domain=self.domain,
@@ -333,6 +401,10 @@ class PipelineRunScope:
             byte_count=byte_count,
             content_hash=content_hash,
         )
+
+    def record_landing_objects(self, records: Sequence[LandingObjectRecord]) -> None:
+        """Record prebuilt landing-object rows."""
+        self.tracker.record_landing_objects(records)
 
     @contextmanager
     def track_unit(
