@@ -1,11 +1,12 @@
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, is_dataclass, replace
 from datetime import date
 from hashlib import sha256
 from typing import Any
 
 from core.clients.lake import DataLakeClient
 from core.clients.storage.s3.base import S3ObjectRef
+from core.ingestion.landing import LandingTargetBase
 from core.ingestion.parser import BronzeParseResult
 from core.ingestion.serialization import canonical_json, sql_value
 from core.models import BronzeModel
@@ -32,6 +33,19 @@ class BronzeDataset[LandingsT = object]:
     provider: str
     table: type[BronzeTableModel]
     landings: LandingsT
+
+    def __post_init__(self) -> None:
+        """Bind default audit dataset labels from landing group field names."""
+        if not is_dataclass(self.landings) or isinstance(self.landings, type):
+            return
+
+        updates = {}
+        for field in fields(self.landings):
+            target = getattr(self.landings, field.name)
+            if isinstance(target, LandingTargetBase) and target.audit_dataset is None:
+                updates[field.name] = replace(target, audit_dataset=f"{target.domain}.{field.name}")
+        if updates:
+            object.__setattr__(self, "landings", replace(self.landings, **updates))
 
     @property
     def schema(self) -> str:

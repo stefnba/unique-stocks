@@ -30,14 +30,12 @@ EOD_PRICE_DAILY_LANDING = LandingTarget.partitioned(
     domain=LandingDomain.EOD_PRICE,
     partition_fields=EODPriceDailyPartition,
     file_format="jsonl",
-    audit_dataset="eod_price.daily",
 )
 
 EOD_PRICE_BACKFILL_LANDING = LandingTarget.partitioned(
     domain=LandingDomain.EOD_PRICE,
     partition_fields=EODPriceBackfillPartition,
     file_format="jsonl",
-    audit_dataset="eod_price.backfill",
 )
 
 

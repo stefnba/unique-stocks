@@ -21,7 +21,6 @@ EXCHANGE_SCHEDULE_LANDING = LandingTarget.partitioned(
     domain=LandingDomain.EXCHANGE_SCHEDULE,
     partition_fields=ExchangeScheduleLandingPartition,
     file_format="json",
-    audit_dataset="exchange_schedule.details",
 )
 
 

@@ -10,7 +10,6 @@ from providers.registry import Provider
 EXCHANGE_LANDING = LandingTarget.snapshot(
     domain=LandingDomain.EXCHANGE,
     file_format="jsonl",
-    audit_dataset="exchange.catalog",
 )
 
 

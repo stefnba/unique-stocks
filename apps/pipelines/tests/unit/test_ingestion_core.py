@@ -154,12 +154,10 @@ class FakeLake:
 DAILY_LANDING = LandingTarget.partitioned(
     LandingDomain.EOD_PRICE,
     partition_fields=DailyPricePartition,
-    audit_dataset="eod_price.daily",
 )
 BACKFILL_LANDING = LandingTarget.partitioned(
     LandingDomain.EOD_PRICE,
     partition_fields=BackfillPricePartition,
-    audit_dataset="eod_price.backfill",
 )
 PRICE_DATASET = BronzeDataset(
     provider="eodhd",
@@ -237,7 +235,7 @@ def test_landing_target_save_uses_key_format_and_provider_aliases() -> None:
 
 
 def test_landing_target_builds_audit_metadata() -> None:
-    """Landing targets own the landing-object audit dataset and logical partition."""
+    """Bronze datasets infer landing-object audit datasets from landing field names."""
     ref = S3ObjectRef(
         bucket="landing-bucket",
         key="landing/eodhd/eod_price/provider_exchange_code=US/bar_date=2026-05-24/data.jsonl",
@@ -256,6 +254,23 @@ def test_landing_target_builds_audit_metadata() -> None:
         "bar_date": date(2026, 5, 24),
     }
     assert landing.rows_raw == 42
+
+
+def test_explicit_landing_audit_dataset_overrides_inference() -> None:
+    """Landing targets can still override the inferred audit dataset label."""
+    explicit = LandingTarget.partitioned(
+        LandingDomain.EOD_PRICE,
+        partition_fields=DailyPricePartition,
+        audit_dataset="custom.daily",
+    )
+    dataset = BronzeDataset(
+        provider="eodhd",
+        table=PriceTable,
+        landings=PriceLandings(daily=explicit, backfill=BACKFILL_LANDING),
+    )
+
+    assert dataset.landings.daily.audit_dataset_name == "custom.daily"
+    assert dataset.landings.backfill.audit_dataset_name == "eod_price.backfill"
 
 
 def test_bronze_dataset_uses_typed_landing_group() -> None:
