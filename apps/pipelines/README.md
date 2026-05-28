@@ -43,7 +43,7 @@ apps/pipelines/
 └── Dockerfile          Worker image
 ```
 
-Domain code is organized under `domains/<domain>/`. Ingestion domains usually define `models.py`, `tables.py`, `datasets.py`, `parsers.py`, `tasks.py`, and `flows.py`, plus small domain helpers when needed.
+Domain code is organized under `domains/<domain>/`. Ingestion domains usually define `models.py`, `tables.py`, `datasets.py`, `parsers.py`, task modules, and `flows.py`, plus small domain helpers when needed.
 
 `config/settings.py` holds environment-variable-backed settings. `config/blocks.py` defines the Prefect block registry, which wires secrets plus non-secret infrastructure values into named Prefect blocks at startup. Tasks and flows always load credentials from the block registry at runtime, not from settings directly.
 

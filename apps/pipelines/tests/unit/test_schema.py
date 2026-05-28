@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from core.schema import DECIMAL, BronzeTableModel, SqlColumn
 
 
-class ExchangeRow(BaseModel):
+class ExchangeCatalogRow(BaseModel):
     """Small row model used to test inferred Bronze DDL."""
 
     snapshot_date: date
@@ -19,11 +19,11 @@ class ExchangeRow(BaseModel):
     operating_mic_codes: str | None = None
 
 
-class ExchangeTable(BronzeTableModel):
+class ExchangeCatalogTable(BronzeTableModel):
     """Small table used to test inferred Bronze DDL."""
 
-    table_name = "exchange"
-    row_model = ExchangeRow
+    table_name = "exchange_catalog"
+    row_model = ExchangeCatalogRow
     unique_columns = ("snapshot_date", "provider_exchange_code", "data_provider")
     idempotency_columns = ("snapshot_date",)
 
@@ -31,8 +31,8 @@ class ExchangeTable(BronzeTableModel):
 def test_bronze_table_model_generates_ddl_with_envelope() -> None:
     """Bronze DDL combines Pydantic fields and the standard ingestion envelope."""
     assert (
-        ExchangeTable.to_ddl()
-        == """CREATE TABLE IF NOT EXISTS bronze.exchange (
+        ExchangeCatalogTable.to_ddl()
+        == """CREATE TABLE IF NOT EXISTS bronze.exchange_catalog (
     ingestion_id UUID DEFAULT GEN_RANDOM_UUID(),
     snapshot_date DATE NOT NULL,
     provider_exchange_code VARCHAR NOT NULL,
@@ -50,7 +50,7 @@ def test_bronze_table_model_generates_ddl_with_envelope() -> None:
 
 def test_table_model_uses_separate_pydantic_row_model() -> None:
     """Table metadata stays separate from Pydantic row validation."""
-    row = ExchangeRow(
+    row = ExchangeCatalogRow(
         snapshot_date=date(2026, 5, 24),
         provider_exchange_code="US",
         name="USA Stocks",
@@ -65,8 +65,8 @@ def test_table_model_uses_separate_pydantic_row_model() -> None:
 
 def test_table_exposes_key_column_names() -> None:
     """Table metadata exposes validated unique and idempotency columns."""
-    assert ExchangeTable.unique_column_names() == ("snapshot_date", "provider_exchange_code", "data_provider")
-    assert ExchangeTable.idempotency_column_names() == ("snapshot_date",)
+    assert ExchangeCatalogTable.unique_column_names() == ("snapshot_date", "provider_exchange_code", "data_provider")
+    assert ExchangeCatalogTable.idempotency_column_names() == ("snapshot_date",)
 
 
 def test_annotated_sql_column_overrides_inferred_type() -> None:

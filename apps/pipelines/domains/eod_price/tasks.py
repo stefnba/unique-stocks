@@ -29,20 +29,13 @@ log = structlog.get_logger(__name__)
 async def fetch_eod_provider_exchange_codes() -> list[str]:
     """Provider exchange codes eligible for bulk EOD ingestion.
 
-    Loads distinct provider catalog/API codes already present in bronze.exchange.
-    Falls back to ["US"] if the table is empty (e.g. on a fresh environment
-    before the exchange flow has run).
+    Loads provider catalog/API codes from the dbt-built exchange ingestion
+    universe. Falls back to ["US"] on a fresh environment before exchange
+    reference models have been built.
     """
-    from core.clients.lake import get_lake_client
+    from domains.exchange.provider_universe import load_provider_exchange_codes
 
-    lake = get_lake_client()
-    if not lake.table_exists("bronze", "exchange"):
-        log.warning("price.provider_exchange_codes_fallback", reason="bronze.exchange missing")
-        return ["US"]
-
-    qualified = lake.qualified_name("bronze", "exchange")
-    rows = lake.query(f"SELECT DISTINCT provider_exchange_code FROM {qualified} ORDER BY provider_exchange_code")
-    codes = [r["provider_exchange_code"] for r in rows] if rows else ["US"]
+    codes = load_provider_exchange_codes("eodhd", fallback=("US",))
     log.info("price.provider_exchange_codes_loaded", count=len(codes))
     return codes
 

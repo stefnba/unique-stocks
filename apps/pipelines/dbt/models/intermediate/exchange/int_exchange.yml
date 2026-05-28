@@ -1,0 +1,216 @@
+version: 2
+
+models:
+  - name: int_exchange_universe
+    description: Canonical exchange universe derived from the latest ISO 10383 MIC registry snapshot.
+    columns:
+      - name: mic
+        description: Market Identifier Code for the exchange or segment.
+        data_tests:
+          - not_null
+      - name: operating_mic
+        description: Operating MIC that owns or equals this MIC.
+        data_tests:
+          - not_null
+      - name: mic_type
+        description: MIC type, either OPRT for operating MICs or SGMT for segment MICs.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - OPRT
+                  - SGMT
+      - name: exchange_name
+        description: Canonical exchange or market name.
+        data_tests:
+          - not_null
+      - name: legal_entity_name
+        description: Legal name of the entity owning the market.
+      - name: lei
+        description: Legal Entity Identifier when supplied.
+      - name: market_category_code
+        description: ISO 10383 market category code.
+      - name: acronym
+        description: Known market acronym when supplied.
+      - name: country_iso2
+        description: ISO 3166-1 alpha-2 country code.
+        data_tests:
+          - not_null
+      - name: city
+        description: City where the market is located.
+        data_tests:
+          - not_null
+      - name: website
+        description: Market website when supplied.
+      - name: status
+        description: Lowercase registry lifecycle status.
+        data_tests:
+          - not_null
+      - name: creation_date
+        description: Date the MIC was originally created.
+        data_tests:
+          - not_null
+      - name: last_update_date
+        description: Date the MIC was last modified.
+      - name: last_validation_date
+        description: Date the MIC was last reviewed for correctness.
+      - name: expiry_date
+        description: Date the MIC was deactivated, when applicable.
+      - name: comments
+        description: Registry comments supplied by the source.
+      - name: is_operating_mic
+        description: True when this row is an operating MIC.
+        data_tests:
+          - not_null
+      - name: is_active
+        description: True when the registry status is active.
+        data_tests:
+          - not_null
+      - name: registry_provider
+        description: Provider that supplied the canonical registry row.
+        data_tests:
+          - not_null
+      - name: registry_snapshot_date
+        description: Source registry snapshot date used for this universe row.
+        data_tests:
+          - not_null
+      - name: registry_row_hash
+        description: Stable hash of the normalized registry Bronze row.
+        data_tests:
+          - not_null
+      - name: registry_source_uri
+        description: S3 URI of the registry landing object that produced the row.
+      - name: registry_ingested_at
+        description: Timestamp when the registry row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: int_exchange_provider_coverage
+    description: Candidate mapping between provider exchange/API catalog codes and the exchange universe.
+    columns:
+      - name: data_provider
+        description: Market data provider that supplies the catalog code.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider exchange/API code used to fetch provider data.
+        data_tests:
+          - not_null
+      - name: exchange_catalog_name
+        description: Provider display name for the catalog row.
+        data_tests:
+          - not_null
+      - name: catalog_operating_mic
+        description: One MIC token parsed from the provider catalog operating_mic_codes field.
+      - name: mic
+        description: Matched MIC from the exchange universe when the provider code maps cleanly.
+      - name: operating_mic
+        description: Operating MIC from the matched exchange universe row.
+      - name: mic_type
+        description: MIC type from the matched exchange universe row.
+      - name: exchange_name
+        description: Matched canonical exchange or market name.
+      - name: registry_country_iso2
+        description: Country code from the matched registry row.
+      - name: catalog_country_iso2
+        description: Country code from the provider catalog row.
+        data_tests:
+          - not_null
+      - name: currency
+        description: Currency from the provider catalog row.
+        data_tests:
+          - not_null
+      - name: match_method
+        description: Mapping method used for this candidate row.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - operating_mic_code
+                  - provider_bucket
+                  - unmatched_mic_code
+      - name: match_confidence
+        description: Coarse confidence label for the provider-to-universe mapping.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - high
+                  - none
+      - name: is_mapped_to_exchange_universe
+        description: True when the provider catalog row maps to a MIC in the exchange universe.
+        data_tests:
+          - not_null
+      - name: catalog_snapshot_date
+        description: Provider catalog snapshot date.
+        data_tests:
+          - not_null
+      - name: registry_snapshot_date
+        description: Registry snapshot date for the matched exchange universe row.
+      - name: catalog_row_hash
+        description: Stable hash of the normalized provider catalog Bronze row.
+        data_tests:
+          - not_null
+      - name: registry_row_hash
+        description: Stable hash of the matched registry Bronze row.
+      - name: catalog_source_uri
+        description: S3 URI of the provider catalog landing object.
+      - name: registry_source_uri
+        description: S3 URI of the matched registry landing object.
+      - name: catalog_ingested_at
+        description: Timestamp when the provider catalog row was written to Bronze.
+        data_tests:
+          - not_null
+      - name: registry_ingested_at
+        description: Timestamp when the matched registry row was written to Bronze.
+
+  - name: int_exchange_provider_ingestion_universe
+    description: Operational provider exchange/API code universe consumed by downstream ingestion flows.
+    columns:
+      - name: data_provider
+        description: Market data provider that supplies the catalog code.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider exchange/API code approved for downstream ingestion.
+        data_tests:
+          - not_null
+      - name: exchange_catalog_name
+        description: Provider display name for the catalog row.
+        data_tests:
+          - not_null
+      - name: country_iso2
+        description: Country code from the provider catalog row.
+        data_tests:
+          - not_null
+      - name: currency
+        description: Currency from the provider catalog row.
+        data_tests:
+          - not_null
+      - name: catalog_snapshot_date
+        description: Provider catalog snapshot date used for this operational row.
+        data_tests:
+          - not_null
+      - name: coverage_candidate_count
+        description: Number of provider coverage candidate rows behind this provider code.
+        data_tests:
+          - not_null
+      - name: mapped_mic_count
+        description: Number of matched MIC rows behind this provider code.
+        data_tests:
+          - not_null
+      - name: unmatched_mic_count
+        description: Number of unmatched MIC tokens behind this provider code.
+        data_tests:
+          - not_null
+      - name: includes_provider_bucket
+        description: True when this provider code has no MIC token and represents a provider bucket.
+        data_tests:
+          - not_null
+      - name: is_enabled_for_ingestion
+        description: True when downstream ingestion flows should use this provider code.
+        data_tests:
+          - not_null

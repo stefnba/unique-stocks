@@ -1,4 +1,4 @@
-"""Prefect tasks for exchange catalog ingestion."""
+"""Prefect tasks for EODHD exchange catalog ingestion."""
 
 from datetime import date
 
@@ -7,15 +7,15 @@ from prefect import task
 
 from config.blocks import BlockRegistry
 from core.ingestion import BronzeWrite, LandingWrite
-from domains.exchange.datasets import EXCHANGE_DATASET
-from domains.exchange.parsers import parse_exchange_snapshots
+from domains.exchange.datasets import EXCHANGE_CATALOG_DATASET
+from domains.exchange.parsers import parse_exchange_catalog_snapshots
 from providers.eodhd.models import SupportedExchange
 
 log = structlog.get_logger(__name__)
 
 
-@task(retries=3, log_prints=True)
-async def fetch_supported_exchange() -> list[SupportedExchange]:
+@task(name="fetch-exchange-catalog", retries=3, log_prints=True)
+async def fetch_exchange_catalog() -> list[SupportedExchange]:
     """Fetch and schema-validate the list of supported exchange from the provider."""
     from providers.eodhd.client import EODHDClient
 
@@ -27,8 +27,8 @@ async def fetch_supported_exchange() -> list[SupportedExchange]:
     return exchange
 
 
-@task()
-async def write_to_landing_zone(
+@task(name="write-exchange-catalog-landing")
+async def write_exchange_catalog_to_landing_zone(
     exchange: list[SupportedExchange],
     snapshot_date: date,
 ) -> LandingWrite:
@@ -36,26 +36,26 @@ async def write_to_landing_zone(
     from core.clients.storage.s3 import S3StorageClient
 
     s3 = await S3StorageClient.from_block_entry(BlockRegistry.S3_BUCKET)
-    ref = EXCHANGE_DATASET.landings.catalog.save(
+    ref = EXCHANGE_CATALOG_DATASET.landings.catalog.save(
         s3,
-        provider=EXCHANGE_DATASET.provider,
+        provider=EXCHANGE_CATALOG_DATASET.provider,
         data=exchange,
         snapshot_date=snapshot_date,
     )
-    return EXCHANGE_DATASET.landings.catalog.landing_write(ref, snapshot_date=snapshot_date, rows_raw=len(exchange))
+    return EXCHANGE_CATALOG_DATASET.landings.catalog.landing_write(
+        ref,
+        snapshot_date=snapshot_date,
+        rows_raw=len(exchange),
+    )
 
 
-@task()
-def write_bronze_exchange(
+@task(name="write-bronze-exchange-catalog")
+def write_bronze_exchange_catalog(
     exchange: list[SupportedExchange],
     snapshot_date: date,
     source_uri: str | None = None,
 ) -> BronzeWrite:
-    """Write validated exchange to bronze.exchange.
-
-    Skips the insert when a snapshot for this date and provider already exists
-    to ensure idempotency on re-runs.
-    """
+    """Write validated exchange catalog rows to bronze.exchange_catalog."""
     from core.clients.lake import get_lake_client
 
     if not exchange:
@@ -63,7 +63,7 @@ def write_bronze_exchange(
         return BronzeWrite(rows_written=0, reason="no_data")
 
     lake = get_lake_client()
-    if EXCHANGE_DATASET.already_ingested(lake, snapshot_date=snapshot_date):
+    if EXCHANGE_CATALOG_DATASET.already_ingested(lake, snapshot_date=snapshot_date):
         log.info(
             "exchange.write_skipped",
             reason="already_ingested",
@@ -71,8 +71,8 @@ def write_bronze_exchange(
         )
         return BronzeWrite(rows_written=0, reason="already_ingested")
 
-    sources = parse_exchange_snapshots(exchange, snapshot_date)
-    written = EXCHANGE_DATASET.write_bronze(lake, sources, source_uri=source_uri)
+    sources = parse_exchange_catalog_snapshots(exchange, snapshot_date)
+    written = EXCHANGE_CATALOG_DATASET.write_bronze(lake, sources, source_uri=source_uri)
     log.info(
         "exchange.write_done",
         snapshot_date=snapshot_date,

@@ -60,7 +60,7 @@ async def eod_price_flow(
         trade_date: Specific trading date to ingest. If omitted, the provider returns
             its latest available trading day per exchange.
         provider_exchange_codes: Provider catalog/API codes to ingest. Defaults
-            to all provider codes present in bronze.exchange. Pass ["US"] to
+            to all provider codes present in the exchange ingestion universe. Pass ["US"] to
             restrict to US equities only.
     """
     codes = provider_exchange_codes or await fetch_eod_provider_exchange_codes()
@@ -347,7 +347,7 @@ async def eod_price_backfill_flow(
         from_date: Earliest bar date to request from the provider.
         to_date: Latest bar date. Defaults to today.
         provider_exchange_codes: Provider catalog/API codes to backfill. Defaults
-            to all provider codes present in bronze.exchange.
+            to all provider codes present in the exchange ingestion universe.
         batch_size: Symbols fetched concurrently per batch. Keep this low
             enough to stay within the provider's API rate limits.
             At batch_size=50 and ~0.75 s/call the flow can process ~5 k

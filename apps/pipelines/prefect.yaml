@@ -125,12 +125,23 @@ deployments:
     work_pool: *default_pool
 
   # ── Exchange — manual / monthly refresh ─────────────────────────────────
-  - name: refresh
-    flow_name: exchange-refresh
+  - name: catalog-refresh
+    flow_name: exchange-catalog-refresh
     description: >
-      Refresh the list of stock exchange from the configured provider.
+      Refresh the list of provider-supported exchange catalog codes.
       Run manually or on a monthly schedule once implemented.
-    entrypoint: domains.exchange.flows:exchange_flow
+    entrypoint: domains.exchange.flows:exchange_catalog_flow
+    tags:
+      - exchange
+      - stub
+    <<: *stub
+
+  - name: mic-registry-refresh
+    flow_name: exchange-mic-registry-refresh
+    description: >
+      Refresh the ISO 10383 MIC registry snapshot.
+      Run manually or on a monthly schedule once implemented.
+    entrypoint: domains.exchange.flows:exchange_mic_registry_flow
     tags:
       - exchange
       - stub

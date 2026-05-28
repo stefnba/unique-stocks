@@ -17,7 +17,8 @@ def test_lake_schema_registers_current_bronze_tables() -> None:
     """Current Bronze table specs are all registered for generated DDL."""
     assert tuple(table.qualified_name() for table in ALL_TABLES) == (
         "bronze.eod_price",
-        "bronze.exchange",
+        "bronze.exchange_catalog",
+        "bronze.exchange_mic_registry",
         "bronze.exchange_schedule",
         "bronze.exchange_holiday",
         "bronze.instrument",
@@ -34,7 +35,8 @@ def test_lake_schema_uses_singular_domain_names() -> None:
     """Pipeline-owned lake and package names should use singular domain terms."""
     assert tuple(table.table_name for table in BRONZE_TABLES) == (
         "eod_price",
-        "exchange",
+        "exchange_catalog",
+        "exchange_mic_registry",
         "exchange_schedule",
         "exchange_holiday",
         "instrument",

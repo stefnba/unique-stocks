@@ -25,6 +25,11 @@ models:
       +materialized: view
       +tags:
         - silver
+    intermediate:
+      +schema: silver
+      +materialized: view
+      +tags:
+        - silver
     marts:
       +schema: gold
       +materialized: table

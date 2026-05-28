@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS bronze.eod_price (
     UNIQUE (ticker, bar_date, data_provider)
 );
 
-CREATE TABLE IF NOT EXISTS bronze.exchange (
+CREATE TABLE IF NOT EXISTS bronze.exchange_catalog (
     ingestion_id UUID DEFAULT GEN_RANDOM_UUID(),
     snapshot_date DATE NOT NULL,
     provider_exchange_code VARCHAR NOT NULL,
@@ -50,6 +50,35 @@ CREATE TABLE IF NOT EXISTS bronze.exchange (
     source_uri VARCHAR,
     ingested_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (snapshot_date, provider_exchange_code, data_provider)
+);
+
+CREATE TABLE IF NOT EXISTS bronze.exchange_mic_registry (
+    ingestion_id UUID DEFAULT GEN_RANDOM_UUID(),
+    snapshot_date DATE NOT NULL,
+    mic VARCHAR NOT NULL,
+    operating_mic VARCHAR NOT NULL,
+    mic_type VARCHAR NOT NULL,
+    name VARCHAR NOT NULL,
+    legal_entity_name VARCHAR,
+    lei VARCHAR,
+    market_category_code VARCHAR,
+    acronym VARCHAR,
+    country_iso2 VARCHAR NOT NULL,
+    city VARCHAR NOT NULL,
+    website VARCHAR,
+    status VARCHAR NOT NULL,
+    creation_date DATE NOT NULL,
+    last_update_date DATE,
+    last_validation_date DATE,
+    expiry_date DATE,
+    comments VARCHAR,
+    provider_supported BOOLEAN NOT NULL,
+    data_provider VARCHAR NOT NULL,
+    raw_json JSON NOT NULL,
+    row_hash VARCHAR NOT NULL,
+    source_uri VARCHAR,
+    ingested_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (snapshot_date, mic, data_provider)
 );
 
 CREATE TABLE IF NOT EXISTS bronze.exchange_schedule (

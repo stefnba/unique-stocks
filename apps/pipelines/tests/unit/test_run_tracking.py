@@ -170,7 +170,7 @@ def test_track_unit_binds_run_context_and_landing_object() -> None:
     tracker = PipelineRunTracker(lake)  # type: ignore[arg-type]
 
     with tracker.track_run(
-        flow_name="exchange-refresh", domain="exchange", run_kind="snapshot", provider="eodhd"
+        flow_name="exchange-catalog-refresh", domain="exchange", run_kind="snapshot", provider="eodhd"
     ) as run:
         with run.track_unit(unit_type="catalog_snapshot", unit_key={"snapshot_date": "2026-05-22"}) as unit:
             landing = LandingWrite(
@@ -203,7 +203,7 @@ def test_track_unit_records_failure_on_exception() -> None:
 
     with (
         pytest.raises(ValueError, match="fetch failed"),
-        tracker.track_run(flow_name="exchange-refresh", domain="exchange", run_kind="snapshot") as run,
+        tracker.track_run(flow_name="exchange-catalog-refresh", domain="exchange", run_kind="snapshot") as run,
         run.track_unit(unit_type="catalog_snapshot", unit_key={"snapshot_date": "2026-05-22"}),
     ):
         raise ValueError("fetch failed")

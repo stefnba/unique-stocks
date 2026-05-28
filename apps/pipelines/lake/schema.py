@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from core.schema import BOOLEAN, DOUBLE, INTEGER, JSON, TEXT, VARCHAR, SqlColumn, TableModel
 from core.schema import UUID as SQL_UUID
 from domains.eod_price.tables import EOD_PRICE_TABLE
-from domains.exchange.tables import EXCHANGE_TABLE
+from domains.exchange.tables import EXCHANGE_CATALOG_TABLE, EXCHANGE_MIC_REGISTRY_TABLE
 from domains.exchange_schedule.tables import EXCHANGE_HOLIDAY_TABLE, EXCHANGE_SCHEDULE_TABLE
 from domains.instrument.tables import INSTRUMENT_TABLE
 
@@ -209,7 +209,8 @@ PIPELINE_DBT_NODE_RESULTS_TABLE = PipelineDbtNodeResultsTable
 
 BRONZE_TABLES = (
     EOD_PRICE_TABLE,
-    EXCHANGE_TABLE,
+    EXCHANGE_CATALOG_TABLE,
+    EXCHANGE_MIC_REGISTRY_TABLE,
     EXCHANGE_SCHEDULE_TABLE,
     EXCHANGE_HOLIDAY_TABLE,
     INSTRUMENT_TABLE,

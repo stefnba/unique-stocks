@@ -31,7 +31,7 @@ from core.ingestion.parser import (
 from core.ingestion.partitioning import LandingPartitionSchema
 from core.models import BronzeModel, ProviderModel
 from core.schema import BronzeTableModel
-from domains.exchange.datasets import EXCHANGE_DATASET
+from domains.exchange.datasets import EXCHANGE_CATALOG_DATASET, EXCHANGE_MIC_REGISTRY_DATASET
 
 
 class RawProviderItem(ProviderModel):
@@ -259,7 +259,27 @@ def test_landing_target_builds_audit_metadata() -> None:
 
 def test_exchange_landing_audit_dataset_is_inferred() -> None:
     """Exchange catalog audit metadata should be inferred from domain and landing field."""
-    assert EXCHANGE_DATASET.landings.catalog.audit_dataset_name == "exchange.catalog"
+    assert EXCHANGE_CATALOG_DATASET.landings.catalog.audit_dataset_name == "exchange.catalog"
+    assert EXCHANGE_MIC_REGISTRY_DATASET.landings.mic_registry.audit_dataset_name == "exchange.mic_registry"
+
+
+def test_exchange_mic_registry_landing_uses_iso10383_csv_snapshot() -> None:
+    """ISO MIC registry landing writes CSV snapshots under the ISO provider."""
+    s3 = FakeS3()
+
+    ref = EXCHANGE_MIC_REGISTRY_DATASET.landings.mic_registry.save(
+        cast(S3StorageClient, s3),
+        provider=EXCHANGE_MIC_REGISTRY_DATASET.provider,
+        data=[{"MIC": "XABC", "OPERATING MIC": "XABC"}],
+        snapshot_date=date(2026, 5, 24),
+        ingested_at=date(2026, 5, 25),
+    )
+
+    expected_key = "landing/iso10383/exchange/snapshot_date=2026-05-24/ingested_at=2026-05-25/exchange.csv"
+    assert ref.uri == f"s3://landing-bucket/{expected_key}"
+    assert s3.saved_key == expected_key
+    assert s3.saved_format == "csv"
+    assert s3.saved_data == [{"MIC": "XABC", "OPERATING MIC": "XABC"}]
 
 
 def test_explicit_landing_audit_dataset_overrides_inference() -> None:

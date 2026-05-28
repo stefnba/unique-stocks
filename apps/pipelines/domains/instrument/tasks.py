@@ -22,13 +22,9 @@ async def fetch_instrument_provider_exchange_codes() -> list[str]:
     subset (e.g. equities only, or crypto only). Use separate flow deployments
     to run different asset classes on different schedule.
     """
-    from providers.eodhd.client import EODHDClient
+    from domains.exchange.provider_universe import load_provider_exchange_codes
 
-    api_key = (await BlockRegistry.EODHD_API_KEY.load_async()).get()
-    async with EODHDClient(api_key=api_key) as client:
-        exchange = await client.get_exchange()
-
-    codes = [ex.provider_exchange_code for ex in exchange]
+    codes = load_provider_exchange_codes("eodhd", fallback=("US",))
     log.info("instrument.provider_exchange_codes_loaded", count=len(codes))
     return codes
 

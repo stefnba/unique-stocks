@@ -11,7 +11,7 @@ Row models are Pydantic models. They validate normalized rows produced by
 domain parsers before those rows are written to Bronze.
 
 ```python
-class ExchangeSnapshot(BronzeModel):
+class ExchangeCatalogSnapshot(BronzeModel):
     snapshot_date: date
     provider_exchange_code: str
     name: str
@@ -24,16 +24,16 @@ Table models are plain Python classes. They describe physical lake storage and
 reference a separate Pydantic `row_model`.
 
 ```python
-class ExchangeTable(BronzeTableModel):
-    table_name = "exchange"
-    row_model = ExchangeSnapshot
+class ExchangeCatalogTable(BronzeTableModel):
+    table_name = "exchange_catalog"
+    row_model = ExchangeCatalogSnapshot
     unique_columns = ("snapshot_date", "provider_exchange_code", "data_provider")
     idempotency_columns = ("snapshot_date",)
 
 
-EXCHANGE_TABLE = ExchangeTable
+EXCHANGE_CATALOG_TABLE = ExchangeCatalogTable
 
-__all__ = ["ExchangeTable", "EXCHANGE_TABLE"]
+__all__ = ["ExchangeCatalogTable", "EXCHANGE_CATALOG_TABLE"]
 ```
 
 `BronzeTableModel` adds the standard Bronze envelope columns for DDL:
@@ -52,7 +52,7 @@ These fields are not part of parser-owned row models.
 Table models can render DuckDB/MotherDuck DDL:
 
 ```python
-ExchangeTable.to_ddl()
+ExchangeCatalogTable.to_ddl()
 ```
 
 The generated columns come from:
@@ -106,7 +106,7 @@ domains/exchange/tables.py
 
 Each `tables.py` exports both the table class and an uppercase constant pointing
 to that class. Domain datasets and the app-level registry import the uppercase
-constant, for example `EXCHANGE_TABLE`.
+constant, for example `EXCHANGE_CATALOG_TABLE`.
 
 The app-level registry lives in `lake/schema.py`. It imports domain table specs
 and exposes `ALL_TABLES`, which is used by `scripts/render_init_lake_sql.py`

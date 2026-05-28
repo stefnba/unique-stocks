@@ -86,11 +86,34 @@ class HttpClientBase(ABC):
             httpx.TimeoutException: Request timed out.
             RuntimeError:           Called outside of async context manager.
         """
+        response = await self._send(path, method=method, params=params, json=json)
+        return response.json()
+
+    async def _request_text(
+        self,
+        path: str,
+        *,
+        method: HttpMethod = "GET",
+        params: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
+    ) -> str:
+        """Make an authenticated HTTP request and return the text body."""
+        response = await self._send(path, method=method, params=params, json=json)
+        return response.text
+
+    async def _send(
+        self,
+        path: str,
+        *,
+        method: HttpMethod = "GET",
+        params: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
+    ) -> httpx.Response:
+        """Make an authenticated HTTP request and return the response object."""
         if self._http is None:
             raise RuntimeError(f"{type(self).__name__} must be used as an async context manager")
 
         log.debug(f"http.client.{self.PROVIDER}.request", method=method, path=path)
-
         try:
             response = await self._http.request(method, path, params=params, json=json)
             response.raise_for_status()
@@ -106,7 +129,6 @@ class HttpClientBase(ABC):
             log.error(f"http.client.{self.PROVIDER}.timeout", path=path, method=method)
             raise
 
-
         log.info(
             f"http.client.{self.PROVIDER}.response",
             path=path,
@@ -114,8 +136,7 @@ class HttpClientBase(ABC):
             status=response.status_code,
             elapsed_seconds=response.elapsed.total_seconds(),
         )
-   
-        return response.json()
+        return response
 
     async def _get(
         self,
@@ -125,8 +146,7 @@ class HttpClientBase(ABC):
         params: dict[str, Any] | None = None,
     ) -> T:
         """GET a single resource and validate the response against a Pydantic model.
-        
-        
+
         Args:
             path:   URL path relative to BASE_URL.
             model:  Pydantic model to validate the response against.
@@ -146,8 +166,7 @@ class HttpClientBase(ABC):
         params: dict[str, Any] | None = None,
     ) -> list[T]:
         """GET a list resource and validate each item against a Pydantic model.
-        
-        
+
         Args:
             path:   URL path relative to BASE_URL.
             model:  Pydantic model to validate each item against.
