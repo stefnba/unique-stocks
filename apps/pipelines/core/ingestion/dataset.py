@@ -13,6 +13,19 @@ from core.schema import BronzeTableModel
 
 
 @dataclass(frozen=True, slots=True)
+class BronzeWrite:
+    """Structured result from a domain Bronze write task."""
+
+    rows_written: int
+    reason: str | None = None
+
+    @property
+    def skipped(self) -> bool:
+        """Return True when the write intentionally produced no new rows."""
+        return self.rows_written == 0 and self.reason is not None
+
+
+@dataclass(frozen=True, slots=True)
 class BronzeDataset[LandingsT = object]:
     """Bronze lake target for normalized ingestion rows."""
 
@@ -101,4 +114,5 @@ def _normalized_row_hash(payload: Mapping[str, Any], data_provider: str) -> str:
 
 __all__ = [
     "BronzeDataset",
+    "BronzeWrite",
 ]

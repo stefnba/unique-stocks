@@ -7,6 +7,7 @@ import structlog
 from prefect import task
 
 from config.blocks import BlockRegistry
+from core.ingestion import BronzeWrite, LandingWrite
 from domains.exchange_schedule.datasets import (
     EXCHANGE_HOLIDAY_DATASET,
     EXCHANGE_SCHEDULE_DATASET,
@@ -69,7 +70,7 @@ async def write_schedule_to_landing_zone(
     provider_schedule_exchange_code: str,
     snapshot_date: date,
     ingested_at: datetime | None = None,
-) -> str:
+) -> LandingWrite:
     """Write raw exchange-details JSON to the S3 landing zone."""
     from core.clients.storage.s3 import S3StorageClient
 
@@ -85,7 +86,14 @@ async def write_schedule_to_landing_zone(
         },
         ingested_at=stamp,
     )
-    return ref.uri
+    return EXCHANGE_SCHEDULE_DATASET.landings.details.landing_write(
+        ref,
+        partitions={
+            "provider_schedule_exchange_code": provider_schedule_exchange_code,
+            "snapshot_date": snapshot_date,
+        },
+        rows_raw=1,
+    )
 
 
 @task(name="write-bronze-exchange-schedule")
@@ -93,7 +101,7 @@ def write_bronze_exchange_schedule(
     details: ExchangeSchedule,
     snapshot_date: date,
     source_uri: str | None = None,
-) -> int:
+) -> BronzeWrite:
     """Write one exchange schedule row to bronze.exchange_schedule."""
     from core.clients.lake import get_lake_client
 
@@ -109,7 +117,7 @@ def write_bronze_exchange_schedule(
             provider_schedule_exchange_code=details.provider_schedule_exchange_code,
             snapshot_date=snapshot_date,
         )
-        return 0
+        return BronzeWrite(rows_written=0, reason="already_ingested")
 
     written = EXCHANGE_SCHEDULE_DATASET.write_bronze(
         lake,
@@ -122,7 +130,7 @@ def write_bronze_exchange_schedule(
         snapshot_date=snapshot_date,
         rows=written,
     )
-    return written
+    return BronzeWrite(rows_written=written)
 
 
 @task(name="write-bronze-exchange-holiday")
@@ -130,7 +138,7 @@ def write_bronze_exchange_holiday(
     details: ExchangeSchedule,
     snapshot_date: date,
     source_uri: str | None = None,
-) -> int:
+) -> BronzeWrite:
     """Write holiday rows for one exchange to bronze.exchange_holiday."""
     from core.clients.lake import get_lake_client
 
@@ -143,7 +151,7 @@ def write_bronze_exchange_holiday(
             provider_schedule_exchange_code=provider_schedule_exchange_code,
             snapshot_date=snapshot_date,
         )
-        return 0
+        return BronzeWrite(rows_written=0, reason="no_holiday")
 
     lake = get_lake_client()
     if EXCHANGE_HOLIDAY_DATASET.already_ingested(
@@ -157,7 +165,7 @@ def write_bronze_exchange_holiday(
             provider_schedule_exchange_code=provider_schedule_exchange_code,
             snapshot_date=snapshot_date,
         )
-        return 0
+        return BronzeWrite(rows_written=0, reason="already_ingested")
 
     written = EXCHANGE_HOLIDAY_DATASET.write_bronze(lake, holiday, source_uri=source_uri)
     log.info(
@@ -166,7 +174,7 @@ def write_bronze_exchange_holiday(
         snapshot_date=snapshot_date,
         rows=written,
     )
-    return written
+    return BronzeWrite(rows_written=written)
 
 
 @task(name="schedule-already-ingested")

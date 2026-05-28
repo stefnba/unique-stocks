@@ -21,6 +21,7 @@ INSTRUMENT_LANDING = LandingTarget.partitioned(
     domain=LandingDomain.INSTRUMENT,
     partition_fields=InstrumentLandingPartition,
     file_format="jsonl",
+    audit_dataset="instrument.catalog",
 )
 
 

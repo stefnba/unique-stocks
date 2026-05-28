@@ -6,6 +6,7 @@ import structlog
 from prefect import task
 
 from config.blocks import BlockRegistry
+from core.ingestion import BronzeWrite, LandingWrite
 from domains.exchange.datasets import EXCHANGE_DATASET
 from domains.exchange.parsers import parse_exchange_snapshots
 from providers.eodhd.models import SupportedExchange
@@ -30,7 +31,7 @@ async def fetch_supported_exchange() -> list[SupportedExchange]:
 async def write_to_landing_zone(
     exchange: list[SupportedExchange],
     snapshot_date: date,
-) -> str:
+) -> LandingWrite:
     """Write supported exchange to the S3 landing zone as JSONL."""
     from core.clients.storage.s3 import S3StorageClient
 
@@ -41,7 +42,7 @@ async def write_to_landing_zone(
         data=exchange,
         snapshot_date=snapshot_date,
     )
-    return ref.uri
+    return EXCHANGE_DATASET.landings.catalog.landing_write(ref, snapshot_date=snapshot_date, rows_raw=len(exchange))
 
 
 @task()
@@ -49,7 +50,7 @@ def write_bronze_exchange(
     exchange: list[SupportedExchange],
     snapshot_date: date,
     source_uri: str | None = None,
-) -> int:
+) -> BronzeWrite:
     """Write validated exchange to bronze.exchange.
 
     Skips the insert when a snapshot for this date and provider already exists
@@ -59,7 +60,7 @@ def write_bronze_exchange(
 
     if not exchange:
         log.info("exchange.write_skipped", reason="no_data", snapshot_date=snapshot_date)
-        return 0
+        return BronzeWrite(rows_written=0, reason="no_data")
 
     lake = get_lake_client()
     if EXCHANGE_DATASET.already_ingested(lake, snapshot_date=snapshot_date):
@@ -68,7 +69,7 @@ def write_bronze_exchange(
             reason="already_ingested",
             snapshot_date=snapshot_date,
         )
-        return 0
+        return BronzeWrite(rows_written=0, reason="already_ingested")
 
     sources = parse_exchange_snapshots(exchange, snapshot_date)
     written = EXCHANGE_DATASET.write_bronze(lake, sources, source_uri=source_uri)
@@ -77,4 +78,4 @@ def write_bronze_exchange(
         snapshot_date=snapshot_date,
         rows=written,
     )
-    return written
+    return BronzeWrite(rows_written=written)

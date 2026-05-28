@@ -15,6 +15,7 @@ from core.clients.storage.s3.base import S3ObjectRef, S3StorageClient
 from core.ingestion import (
     BronzeDataset,
     BronzeParseResult,
+    BronzeWrite,
     LandingDomain,
     LandingTarget,
 )
@@ -153,10 +154,12 @@ class FakeLake:
 DAILY_LANDING = LandingTarget.partitioned(
     LandingDomain.EOD_PRICE,
     partition_fields=DailyPricePartition,
+    audit_dataset="eod_price.daily",
 )
 BACKFILL_LANDING = LandingTarget.partitioned(
     LandingDomain.EOD_PRICE,
     partition_fields=BackfillPricePartition,
+    audit_dataset="eod_price.backfill",
 )
 PRICE_DATASET = BronzeDataset(
     provider="eodhd",
@@ -231,6 +234,28 @@ def test_landing_target_save_uses_key_format_and_provider_aliases() -> None:
     assert s3.saved_key == expected_key
     assert s3.saved_format == "jsonl"
     assert s3.saved_data == {"ProviderName": "EODHD", "Close": "190.75"}
+
+
+def test_landing_target_builds_audit_metadata() -> None:
+    """Landing targets own the landing-object audit dataset and logical partition."""
+    ref = S3ObjectRef(
+        bucket="landing-bucket",
+        key="landing/eodhd/eod_price/provider_exchange_code=US/bar_date=2026-05-24/data.jsonl",
+    )
+
+    landing = PRICE_DATASET.landings.daily.landing_write(
+        ref,
+        partitions=DailyPricePartition(provider_exchange_code="US", bar_date=date(2026, 5, 24)),
+        rows_raw=42,
+    )
+
+    assert landing.dataset == "eod_price.daily"
+    assert landing.source_uri == ref.uri
+    assert landing.partition == {
+        "provider_exchange_code": "US",
+        "bar_date": date(2026, 5, 24),
+    }
+    assert landing.rows_raw == 42
 
 
 def test_bronze_dataset_uses_typed_landing_group() -> None:
@@ -358,6 +383,13 @@ def test_write_bronze_skips_empty_sources() -> None:
 
     assert PRICE_DATASET.write_bronze(cast(DataLakeClient, lake), []) == 0
     assert lake.inserted_rows == []
+
+
+def test_bronze_write_result_marks_intentional_skips() -> None:
+    """Domain write tasks can return a reason when no Bronze rows were written."""
+    assert BronzeWrite(rows_written=0, reason="already_ingested").skipped
+    assert not BronzeWrite(rows_written=0).skipped
+    assert not BronzeWrite(rows_written=3).skipped
 
 
 def test_already_ingested_checks_idempotency_partition_and_provider() -> None:
