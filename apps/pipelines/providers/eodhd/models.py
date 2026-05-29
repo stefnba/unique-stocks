@@ -47,6 +47,34 @@ class EODPriceBarRaw(EODHDProviderModel):
     adjusted_close: float | None = None
 
 
+class FundamentalRaw(EODHDProviderModel):
+    """One fundamentals document from GET /v1.1/fundamentals/{symbol}.
+
+    The Fundamentals API is a large, instrument-family-specific JSON document:
+    common stocks, ETFs, mutual funds, and indices expose different nested
+    sections. This model validates the provider's top-level section contract
+    while leaving family-specific nested validation to domain parsers.
+    """
+
+    general: dict[str, Any] = Field(alias="General")
+    highlights: dict[str, Any] | None = Field(alias="Highlights", default=None)
+    valuation: dict[str, Any] | None = Field(alias="Valuation", default=None)
+    shares_stats: dict[str, Any] | None = Field(alias="SharesStats", default=None)
+    technicals: dict[str, Any] | None = Field(alias="Technicals", default=None)
+    splits_dividends: dict[str, Any] | None = Field(alias="SplitsDividends", default=None)
+    analyst_ratings: dict[str, Any] | None = Field(alias="AnalystRatings", default=None)
+    holders: dict[str, Any] | None = Field(alias="Holders", default=None)
+    insider_transactions: dict[str, Any] | None = Field(alias="InsiderTransactions", default=None)
+    esg_scores: dict[str, Any] | None = Field(alias="ESGScores", default=None)
+    outstanding_shares: dict[str, Any] | None = Field(alias="outstandingShares", default=None)
+    earnings: dict[str, Any] | None = Field(alias="Earnings", default=None)
+    financials: dict[str, Any] | None = Field(alias="Financials", default=None)
+    etf_data: dict[str, Any] | None = Field(alias="ETF_Data", default=None)
+    mutual_fund_data: dict[str, Any] | None = Field(alias="MutualFund_Data", default=None)
+    components: dict[str, Any] | None = Field(alias="Components", default=None)
+    historical_components: dict[str, Any] | None = Field(alias="HistoricalComponents", default=None)
+
+
 class SupportedExchange(EODHDProviderModel):
     """One exchange from the EODHD supported exchanges endpoint.
 

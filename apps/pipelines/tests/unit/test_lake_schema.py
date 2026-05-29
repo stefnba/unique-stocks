@@ -22,6 +22,9 @@ def test_lake_schema_registers_current_bronze_tables() -> None:
         "bronze.exchange_schedule",
         "bronze.exchange_holiday",
         "bronze.instrument",
+        "bronze.fundamental_document",
+        "bronze.fundamental_stock_identity",
+        "bronze.fundamental_statement_fact",
         "pipeline.runs",
         "pipeline.run_units",
         "pipeline.landing_objects",
@@ -40,6 +43,9 @@ def test_lake_schema_uses_singular_domain_names() -> None:
         "exchange_schedule",
         "exchange_holiday",
         "instrument",
+        "fundamental_document",
+        "fundamental_stock_identity",
+        "fundamental_statement_fact",
     )
     assert tuple(domain.value for domain in LandingDomain) == (
         "exchange",

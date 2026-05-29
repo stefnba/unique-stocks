@@ -216,3 +216,157 @@ sources:
             description: S3 URI of the landing object that produced the row.
           - name: ingested_at
             description: Timestamp when the row was written to Bronze.
+
+      - name: fundamental_document
+        description: Fundamentals document snapshots with stable metadata and full provider payloads in raw_json.
+        columns:
+          - name: ingestion_id
+            description: Unique ingestion row identifier.
+          - name: snapshot_date
+            description: Date the fundamentals document snapshot was ingested.
+          - name: provider_exchange_code
+            description: Provider exchange code from the exchange-qualified ticker.
+          - name: ticker
+            description: Exchange-qualified ticker requested from the fundamentals endpoint.
+          - name: code
+            description: Provider ticker code without exchange suffix.
+          - name: name
+            description: Instrument display name from the fundamentals General section.
+          - name: instrument_type
+            description: Provider instrument type from the fundamentals General section.
+          - name: instrument_family
+            description: Stable broad instrument family derived from the provider instrument type.
+          - name: primary_ticker
+            description: Provider primary ticker when supplied.
+          - name: provider_listing_exchange_code
+            description: Provider listing exchange value from the fundamentals General section.
+          - name: provider_updated_at
+            description: Provider-reported date when the fundamentals document was updated.
+          - name: top_level_sections
+            description: Top-level JSON sections present in the provider payload.
+          - name: payload_hash
+            description: Stable hash of the canonical provider fundamentals document.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: fundamental_stock_identity
+        description: Stock-specific identity snapshots parsed from fundamentals documents.
+        columns:
+          - name: ingestion_id
+            description: Unique ingestion row identifier.
+          - name: snapshot_date
+            description: Date the stock identity snapshot was ingested.
+          - name: provider_exchange_code
+            description: Provider exchange code from the exchange-qualified ticker.
+          - name: ticker
+            description: Exchange-qualified ticker requested from the fundamentals endpoint.
+          - name: code
+            description: Provider ticker code without exchange suffix.
+          - name: name
+            description: Stock display name.
+          - name: primary_ticker
+            description: Provider primary ticker when supplied.
+          - name: provider_listing_exchange_code
+            description: Provider listing exchange value from the fundamentals General section.
+          - name: currency_code
+            description: Trading or reporting currency code from the provider.
+          - name: currency_name
+            description: Currency display name from the provider.
+          - name: country_name
+            description: Issuer country name from the provider.
+          - name: country_iso
+            description: Issuer country ISO code from the provider.
+          - name: isin
+            description: International Securities Identification Number when supplied.
+          - name: cusip
+            description: Committee on Uniform Securities Identification Procedures identifier when supplied.
+          - name: cik
+            description: SEC Central Index Key when supplied.
+          - name: lei
+            description: Legal Entity Identifier when supplied.
+          - name: open_figi
+            description: OpenFIGI identifier when supplied.
+          - name: employer_id_number
+            description: Employer Identification Number when supplied.
+          - name: fiscal_year_end
+            description: Fiscal year-end month or label from the provider.
+          - name: ipo_date
+            description: Initial public offering date when supplied.
+          - name: sector
+            description: Provider sector classification.
+          - name: industry
+            description: Provider industry classification.
+          - name: gic_sector
+            description: GICS sector classification when supplied.
+          - name: gic_group
+            description: GICS group classification when supplied.
+          - name: gic_industry
+            description: GICS industry classification when supplied.
+          - name: gic_sub_industry
+            description: GICS sub-industry classification when supplied.
+          - name: home_category
+            description: Provider domestic or ADR classification when supplied.
+          - name: is_delisted
+            description: Whether the provider marks the stock as delisted.
+          - name: delisted_date
+            description: Delisting date when supplied.
+          - name: full_time_employees
+            description: Reported number of full-time employees when supplied.
+          - name: web_url
+            description: Company website URL when supplied.
+          - name: logo_url
+            description: Provider logo path or URL when supplied.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload fragment captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: fundamental_statement_fact
+        description: Long-form stock financial-statement facts parsed from fundamentals documents.
+        columns:
+          - name: ingestion_id
+            description: Unique ingestion row identifier.
+          - name: snapshot_date
+            description: Date the statement fact snapshot was ingested.
+          - name: provider_exchange_code
+            description: Provider exchange code from the exchange-qualified ticker.
+          - name: ticker
+            description: Exchange-qualified ticker requested from the fundamentals endpoint.
+          - name: statement_type
+            description: Statement family such as balance_sheet, cash_flow, or income_statement.
+          - name: period_type
+            description: Reporting cadence, either annual or quarterly.
+          - name: period_end_date
+            description: Financial reporting period end date.
+          - name: filing_date
+            description: Filing date associated with the report when supplied.
+          - name: currency_symbol
+            description: Statement currency symbol when supplied by the provider.
+          - name: metric_name
+            description: Provider metric name from the financial statement payload.
+          - name: metric_value
+            description: Numeric value of the statement metric.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload fragment captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.

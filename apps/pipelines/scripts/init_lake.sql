@@ -138,6 +138,89 @@ CREATE TABLE IF NOT EXISTS bronze.instrument (
     UNIQUE (snapshot_date, provider_exchange_code, ticker, data_provider)
 );
 
+CREATE TABLE IF NOT EXISTS bronze.fundamental_document (
+    ingestion_id UUID DEFAULT GEN_RANDOM_UUID(),
+    snapshot_date DATE NOT NULL,
+    provider_exchange_code VARCHAR NOT NULL,
+    ticker VARCHAR NOT NULL,
+    code VARCHAR NOT NULL,
+    name VARCHAR,
+    instrument_type VARCHAR NOT NULL,
+    instrument_family VARCHAR NOT NULL,
+    primary_ticker VARCHAR,
+    provider_listing_exchange_code VARCHAR,
+    provider_updated_at DATE,
+    top_level_sections JSON NOT NULL,
+    payload_hash VARCHAR NOT NULL,
+    data_provider VARCHAR NOT NULL,
+    raw_json JSON NOT NULL,
+    row_hash VARCHAR NOT NULL,
+    source_uri VARCHAR,
+    ingested_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (snapshot_date, ticker, data_provider)
+);
+
+CREATE TABLE IF NOT EXISTS bronze.fundamental_stock_identity (
+    ingestion_id UUID DEFAULT GEN_RANDOM_UUID(),
+    snapshot_date DATE NOT NULL,
+    provider_exchange_code VARCHAR NOT NULL,
+    ticker VARCHAR NOT NULL,
+    code VARCHAR NOT NULL,
+    name VARCHAR,
+    primary_ticker VARCHAR,
+    provider_listing_exchange_code VARCHAR,
+    currency_code VARCHAR,
+    currency_name VARCHAR,
+    country_name VARCHAR,
+    country_iso VARCHAR,
+    isin VARCHAR,
+    cusip VARCHAR,
+    cik VARCHAR,
+    lei VARCHAR,
+    open_figi VARCHAR,
+    employer_id_number VARCHAR,
+    fiscal_year_end VARCHAR,
+    ipo_date DATE,
+    sector VARCHAR,
+    industry VARCHAR,
+    gic_sector VARCHAR,
+    gic_group VARCHAR,
+    gic_industry VARCHAR,
+    gic_sub_industry VARCHAR,
+    home_category VARCHAR,
+    is_delisted BOOLEAN,
+    delisted_date DATE,
+    full_time_employees BIGINT,
+    web_url VARCHAR,
+    logo_url VARCHAR,
+    data_provider VARCHAR NOT NULL,
+    raw_json JSON NOT NULL,
+    row_hash VARCHAR NOT NULL,
+    source_uri VARCHAR,
+    ingested_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (snapshot_date, ticker, data_provider)
+);
+
+CREATE TABLE IF NOT EXISTS bronze.fundamental_statement_fact (
+    ingestion_id UUID DEFAULT GEN_RANDOM_UUID(),
+    snapshot_date DATE NOT NULL,
+    provider_exchange_code VARCHAR NOT NULL,
+    ticker VARCHAR NOT NULL,
+    statement_type VARCHAR NOT NULL,
+    period_type VARCHAR NOT NULL,
+    period_end_date DATE NOT NULL,
+    filing_date DATE,
+    currency_symbol VARCHAR,
+    metric_name VARCHAR NOT NULL,
+    metric_value DECIMAL NOT NULL,
+    data_provider VARCHAR NOT NULL,
+    raw_json JSON NOT NULL,
+    row_hash VARCHAR NOT NULL,
+    source_uri VARCHAR,
+    ingested_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (snapshot_date, ticker, statement_type, period_type, period_end_date, metric_name, data_provider)
+);
+
 -- -----------------------------------------------------------------------
 -- Pipeline run tracking
 -- -----------------------------------------------------------------------

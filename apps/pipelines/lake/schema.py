@@ -11,6 +11,11 @@ from core.schema import UUID as SQL_UUID
 from domains.eod_price.tables import EOD_PRICE_TABLE
 from domains.exchange.tables import EXCHANGE_CATALOG_TABLE, EXCHANGE_MIC_REGISTRY_TABLE
 from domains.exchange_schedule.tables import EXCHANGE_HOLIDAY_TABLE, EXCHANGE_SCHEDULE_TABLE
+from domains.fundamental.tables import (
+    FUNDAMENTAL_DOCUMENT_TABLE,
+    FUNDAMENTAL_STATEMENT_FACT_TABLE,
+    FUNDAMENTAL_STOCK_IDENTITY_TABLE,
+)
 from domains.instrument.tables import INSTRUMENT_TABLE
 
 
@@ -214,6 +219,9 @@ BRONZE_TABLES = (
     EXCHANGE_SCHEDULE_TABLE,
     EXCHANGE_HOLIDAY_TABLE,
     INSTRUMENT_TABLE,
+    FUNDAMENTAL_DOCUMENT_TABLE,
+    FUNDAMENTAL_STOCK_IDENTITY_TABLE,
+    FUNDAMENTAL_STATEMENT_FACT_TABLE,
 )
 
 PIPELINE_TABLES = (

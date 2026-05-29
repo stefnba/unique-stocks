@@ -19,6 +19,7 @@ from .models import (
     ExchangeDetails,
     ExchangeDetailsCode,
     ExchangeSchedule,
+    FundamentalRaw,
     Instrument,
     SupportedExchange,
 )
@@ -96,6 +97,22 @@ class EODHDClient(HttpClientBase):
         if to_date:
             params["to"] = to_date.isoformat()
         return await self._get_list(f"/eod/{symbol}", model=EODPriceBarRaw, params=params)
+
+    async def get_fundamental(
+        self,
+        symbol: str,
+        filters: list[str] | None = None,
+    ) -> FundamentalRaw:
+        """Full or filtered fundamentals document for one instrument.
+
+        ``symbol`` is the exchange-qualified identifier, e.g. ``AAPL.US`` or
+        ``SPY.US``. ``filters`` maps to EODHD's comma-separated ``filter`` query
+        parameter and can target whole sections or nested paths.
+        """
+        params: dict[str, str] = {}
+        if filters:
+            params["filter"] = ",".join(filters)
+        return await self._get(f"/v1.1/fundamentals/{symbol}", model=FundamentalRaw, params=params)
 
     async def get_exchange(self) -> list[SupportedExchange]:
         """Get the EODHD exchange catalog with provider codes and MIC metadata."""

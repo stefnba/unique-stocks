@@ -1,10 +1,11 @@
 """Tests for pipeline audit tracking helpers."""
 
 from collections.abc import Iterable, Mapping, Sequence
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
+from core.clients.lake import DataLakeClient
 from core.ingestion.landing import LandingWrite
 from core.ingestion.run_tracking import (
     LandingObjectRecord,
@@ -44,10 +45,15 @@ class FakeLake:
         return []
 
 
+def _tracker(lake: FakeLake) -> PipelineRunTracker:
+    """Build a tracker against the test fake lake."""
+    return PipelineRunTracker(cast(DataLakeClient, lake))
+
+
 def test_tracker_records_run_unit_and_landing_object() -> None:
     """Tracker rows should include stable ids, JSON keys, counters, and lineage."""
     lake = FakeLake()
-    tracker = PipelineRunTracker(lake)  # type: ignore[arg-type]
+    tracker = _tracker(lake)
 
     run_id = tracker.start_run(
         flow_name="eod-price-daily",
@@ -135,7 +141,7 @@ def test_run_unit_tally_counts_recorded_unit_statuses() -> None:
 def test_track_run_fails_on_exception() -> None:
     """A scoped run should never remain running after an exception."""
     lake = FakeLake()
-    tracker = PipelineRunTracker(lake)  # type: ignore[arg-type]
+    tracker = _tracker(lake)
 
     with (
         pytest.raises(ValueError, match="bad provider response"),
@@ -152,7 +158,7 @@ def test_track_run_fails_on_exception() -> None:
 def test_track_run_allows_explicit_completion() -> None:
     """A scoped run should preserve an explicit successful terminal state."""
     lake = FakeLake()
-    tracker = PipelineRunTracker(lake)  # type: ignore[arg-type]
+    tracker = _tracker(lake)
 
     with tracker.track_run(flow_name="flow", domain="domain", run_kind="daily") as run:
         run.complete(counters=RunCounters(units_total=0), summary={"ok": True})
@@ -167,7 +173,7 @@ def test_track_run_allows_explicit_completion() -> None:
 def test_track_unit_binds_run_context_and_landing_object() -> None:
     """Unit scopes should remove repeated run/domain/provider audit arguments."""
     lake = FakeLake()
-    tracker = PipelineRunTracker(lake)  # type: ignore[arg-type]
+    tracker = _tracker(lake)
 
     with tracker.track_run(
         flow_name="exchange-catalog-refresh", domain="exchange", run_kind="snapshot", provider="eodhd"
@@ -199,7 +205,7 @@ def test_track_unit_binds_run_context_and_landing_object() -> None:
 def test_track_unit_records_failure_on_exception() -> None:
     """A failing unit scope should create a failed unit before the run fails."""
     lake = FakeLake()
-    tracker = PipelineRunTracker(lake)  # type: ignore[arg-type]
+    tracker = _tracker(lake)
 
     with (
         pytest.raises(ValueError, match="fetch failed"),
@@ -219,7 +225,7 @@ def test_track_unit_records_failure_on_exception() -> None:
 def test_run_scope_records_unit_with_landing_object() -> None:
     """Run scopes should support loop-friendly unit + landing recording."""
     lake = FakeLake()
-    tracker = PipelineRunTracker(lake)  # type: ignore[arg-type]
+    tracker = _tracker(lake)
     landing = LandingWrite(
         dataset="instrument.catalog",
         source_uri="s3://bucket/instrument.jsonl",
@@ -246,7 +252,7 @@ def test_run_scope_records_unit_with_landing_object() -> None:
 def test_run_scope_builds_batched_unit_and_landing_records() -> None:
     """Run scopes should bind batch records without inserting each row eagerly."""
     lake = FakeLake()
-    tracker = PipelineRunTracker(lake)  # type: ignore[arg-type]
+    tracker = _tracker(lake)
     landing = LandingWrite(
         dataset="eod_price.backfill",
         source_uri="s3://bucket/aapl.jsonl",
@@ -281,7 +287,7 @@ def test_run_scope_builds_batched_unit_and_landing_records() -> None:
 def test_run_scope_builds_and_records_rejections() -> None:
     """Run scopes should bind rejection rows to the active run/domain."""
     lake = FakeLake()
-    tracker = PipelineRunTracker(lake)  # type: ignore[arg-type]
+    tracker = _tracker(lake)
 
     with tracker.track_run(flow_name="backfill", domain="eod_price", run_kind="historical_backfill") as run:
         inserted = run.record_rejections(
@@ -309,7 +315,7 @@ def test_run_scope_builds_and_records_rejections() -> None:
 def test_track_run_requires_terminal_state() -> None:
     """Exiting a scope without complete/fail should become a failed run and a test-visible error."""
     lake = FakeLake()
-    tracker = PipelineRunTracker(lake)  # type: ignore[arg-type]
+    tracker = _tracker(lake)
 
     with (
         pytest.raises(RuntimeError, match="terminal state"),
@@ -324,7 +330,7 @@ def test_track_run_requires_terminal_state() -> None:
 def test_tracker_batches_units_landing_objects_and_rejections() -> None:
     """High-volume audit paths should support batched lake writes."""
     lake = FakeLake()
-    tracker = PipelineRunTracker(lake)  # type: ignore[arg-type]
+    tracker = _tracker(lake)
     run_id = tracker.start_run(flow_name="flow", domain="eod_price", run_kind="backfill")
 
     unit_ids = tracker.record_units(
@@ -390,7 +396,7 @@ def test_tracker_batches_units_landing_objects_and_rejections() -> None:
 def test_rejection_hash_includes_entity_context() -> None:
     """Identical raw fragments for different entities should both be recordable."""
     lake = FakeLake()
-    tracker = PipelineRunTracker(lake)  # type: ignore[arg-type]
+    tracker = _tracker(lake)
     run_id = tracker.start_run(flow_name="flow", domain="eod_price", run_kind="backfill")
     raw_fragment = {"date": "2026-05-22", "close": None}
 

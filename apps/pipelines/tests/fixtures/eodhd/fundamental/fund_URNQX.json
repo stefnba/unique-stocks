@@ -1,0 +1,427 @@
+{
+    "General": {
+        "Code": "URNQX",
+        "Type": "FUND",
+        "Name": "Victory Nasdaq 100 Index Fund R6 Shares",
+        "Exchange": "NMFQS",
+        "CurrencyCode": "USD",
+        "CurrencyName": "US Dollar",
+        "CurrencySymbol": "$",
+        "CountryName": "USA",
+        "CountryISO": "US",
+        "OpenFigi": "BBG00G6DX0H4",
+        "ISIN": "US90291A7000",
+        "CUSIP": "90291A700",
+        "Fund_Summary": "The fund's principal investment strategy is, under normal market conditions, to invest at least 80% of the fund's assets in the common stocks of companies composing the Nasdaq-100 Index. The Nasdaq-100 Index composed of 100 of the largest nonfinancial domestic and international companies listed on The Nasdaq Stock Market based on market capitalization. The fund is non-diversified.",
+        "Fund_Family": "USAA",
+        "Fund_Category": "Large Growth",
+        "Fund_Style": "Large Growth",
+        "Fiscal_Year_End": null,
+        "MarketCapitalization": 0
+    },
+    "MutualFund_Data": {
+        "Fund_Category": "Large Growth",
+        "Fund_Style": "Large Growth",
+        "Nav": "70.77",
+        "Prev_Close_Price": "70.47",
+        "Update_Date": "2026-03-31",
+        "Portfolio_Net_Assets": "2125183744",
+        "Share_Class_Net_Assets": null,
+        "Morning_Star_Rating": null,
+        "Morning_Star_Risk_Rating": null,
+        "Morning_Star_Category": null,
+        "Inception_Date": null,
+        "Currency": null,
+        "Domicile": null,
+        "Yield": "0.0027",
+        "Yield_YTD": "16.9366",
+        "Yield_1Year_YTD": "40.2570",
+        "Yield_3Year_YTD": "29.2663",
+        "Yield_5Year_YTD": "17.6327",
+        "Expense_Ratio": "0.2900",
+        "Expense_Ratio_Date": null,
+        "Asset_Allocation": {
+            "0": {
+                "Net_%": "0.04058",
+                "Long_%": "0.04058",
+                "Type": "Cash",
+                "Short_%": null,
+                "Category_Average": "1.78523",
+                "Benchmark": "0.00000"
+            },
+            "1": {
+                "Net_%": "0.0",
+                "Long_%": "0.0",
+                "Type": "Not Classified",
+                "Short_%": null,
+                "Category_Average": "0.024",
+                "Benchmark": "0.0"
+            },
+            "2": {
+                "Net_%": "3.37053",
+                "Long_%": "3.37053",
+                "Type": "Non US Stock",
+                "Short_%": null,
+                "Category_Average": "4.54972",
+                "Benchmark": "0.59268"
+            },
+            "3": {
+                "Net_%": "0.00000",
+                "Long_%": "0.00000",
+                "Type": "Other",
+                "Short_%": null,
+                "Category_Average": "0.65781",
+                "Benchmark": "0.00000"
+            },
+            "4": {
+                "Net_%": "96.58889",
+                "Long_%": "96.58889",
+                "Type": "US Stock",
+                "Short_%": null,
+                "Category_Average": "93.34432",
+                "Benchmark": "99.40737"
+            },
+            "5": {
+                "Net_%": "0.00000",
+                "Long_%": "0.00000",
+                "Type": "Bond",
+                "Short_%": null,
+                "Category_Average": "0.05387",
+                "Benchmark": "0.00000"
+            }
+        },
+        "Value_Growth": {
+            "0": {
+                "Name": "Price\/Prospective Earnings",
+                "Category_Average": 25.95127,
+                "Benchmark": 26.88627,
+                "Stock_Portfolio": 23.09579
+            },
+            "1": {
+                "Name": "Price\/Book",
+                "Category_Average": 7.57988,
+                "Benchmark": 7.99701,
+                "Stock_Portfolio": 6.33485
+            },
+            "2": {
+                "Name": "Price\/Sales",
+                "Category_Average": 5.4473,
+                "Benchmark": 5.35197,
+                "Stock_Portfolio": 4.64755
+            },
+            "3": {
+                "Name": "Price\/Cash Flow",
+                "Category_Average": 14.12157,
+                "Benchmark": 18.0363,
+                "Stock_Portfolio": 13.18577
+            },
+            "4": {
+                "Name": "Dividend Yield %",
+                "Category_Average": 0.5838,
+                "Benchmark": 0.54363,
+                "Stock_Portfolio": 0.75447
+            },
+            "5": {
+                "Name": "Long-Term Earnings %",
+                "Category_Average": 13.05986,
+                "Benchmark": 14.72317,
+                "Stock_Portfolio": 13.5337
+            },
+            "6": {
+                "Name": "Historical Earnings %",
+                "Category_Average": 21.52895,
+                "Benchmark": 23.90804,
+                "Stock_Portfolio": 16.29116
+            },
+            "7": {
+                "Name": "Book-Value Growth %",
+                "Category_Average": 16.16928,
+                "Benchmark": 17.15412,
+                "Stock_Portfolio": 12.36297
+            },
+            "8": {
+                "Name": "Sales Growth %",
+                "Category_Average": 10.20471,
+                "Benchmark": 11.6226,
+                "Stock_Portfolio": 8.69896
+            },
+            "9": {
+                "Name": "Cash-Flow Growth %",
+                "Category_Average": 20.17711,
+                "Benchmark": 22.89987,
+                "Stock_Portfolio": 17.68204
+            }
+        },
+        "Top_Holdings": {
+            "0": {
+                "Name": "NVIDIA CORP",
+                "Weight": "8.90%"
+            },
+            "1": {
+                "Name": "APPLE INC",
+                "Weight": "7.35%"
+            },
+            "2": {
+                "Name": "MICROSOFT CORP",
+                "Weight": "6.13%"
+            },
+            "3": {
+                "Name": "AMAZON COM INC",
+                "Weight": "4.90%"
+            },
+            "4": {
+                "Name": "META PLATFORMS INC",
+                "Weight": "4.01%"
+            },
+            "5": {
+                "Name": "ALPHABET INC CLASS A",
+                "Weight": "3.77%"
+            },
+            "6": {
+                "Name": "TESLA INC",
+                "Weight": "3.65%"
+            },
+            "7": {
+                "Name": "ALPHABET INC CLASS C",
+                "Weight": "3.51%"
+            },
+            "8": {
+                "Name": "WALMART INC",
+                "Weight": "3.08%"
+            },
+            "9": {
+                "Name": "BROADCOM INC",
+                "Weight": "3.00%"
+            }
+        },
+        "Market_Capitalization": {
+            "0": {
+                "Size": "AverageMarketCap",
+                "Category_Average": 728682.60189,
+                "Benchmark": 722714.05562,
+                "Portfolio_%": 567795.80824
+            },
+            "1": {
+                "Size": "Giant",
+                "Category_Average": 60.95709,
+                "Benchmark": 60.86787,
+                "Portfolio_%": 51.13135
+            },
+            "2": {
+                "Size": "Large",
+                "Category_Average": 17.78141,
+                "Benchmark": 20.16242,
+                "Portfolio_%": 35.87397
+            },
+            "3": {
+                "Size": "Medium",
+                "Category_Average": 15.84873,
+                "Benchmark": 18.20919,
+                "Portfolio_%": 11.73806
+            },
+            "4": {
+                "Size": "Small",
+                "Category_Average": 2.69812,
+                "Benchmark": 0.76057,
+                "Portfolio_%": 0
+            },
+            "5": {
+                "Size": "Micro",
+                "Category_Average": 0.02709,
+                "Benchmark": 0,
+                "Portfolio_%": 0
+            }
+        },
+        "Sector_Weights": {
+            "Cyclical": {
+                "0": {
+                    "Name": "Basic Materials",
+                    "Category_Average": 1.09424,
+                    "Amount_%": 1.30413,
+                    "Benchmark": 1.08621
+                },
+                "1": {
+                    "Name": "Consumer Cyclical",
+                    "Category_Average": 12.27495,
+                    "Amount_%": 12.61636,
+                    "Benchmark": 10.62031
+                },
+                "2": {
+                    "Name": "Financial Services",
+                    "Category_Average": 7.68007,
+                    "Amount_%": 0.23639,
+                    "Benchmark": 5.97168
+                },
+                "3": {
+                    "Name": "Real Estate",
+                    "Category_Average": 0.58393,
+                    "Amount_%": 0.09613,
+                    "Benchmark": 1.41899
+                }
+            },
+            "Defensive": {
+                "0": {
+                    "Name": "Consumer Defensive",
+                    "Category_Average": 2.51565,
+                    "Amount_%": 8.57534,
+                    "Benchmark": 1.63443
+                },
+                "1": {
+                    "Name": "Healthcare",
+                    "Category_Average": 9.02439,
+                    "Amount_%": 5.11244,
+                    "Benchmark": 5.33264
+                },
+                "2": {
+                    "Name": "Utilities",
+                    "Category_Average": 0.58925,
+                    "Amount_%": 1.54228,
+                    "Benchmark": 0.80617
+                }
+            },
+            "Sensitive": {
+                "0": {
+                    "Name": "Communication Services",
+                    "Category_Average": 13.96663,
+                    "Amount_%": 16.05596,
+                    "Benchmark": 14.49658
+                },
+                "1": {
+                    "Name": "Energy",
+                    "Category_Average": 0.92463,
+                    "Amount_%": 0.6592,
+                    "Benchmark": 0.46918
+                },
+                "2": {
+                    "Name": "Industrials",
+                    "Category_Average": 8.26296,
+                    "Amount_%": 3.26349,
+                    "Benchmark": 8.34528
+                },
+                "3": {
+                    "Name": "Technology",
+                    "Category_Average": 43.08331,
+                    "Amount_%": 50.53827,
+                    "Benchmark": 49.81854
+                }
+            },
+            "Bond Sector": {
+                "0": {
+                    "Name": "Government",
+                    "Category_Average": 6.4855,
+                    "Amount_%": 1.54228,
+                    "Stocks_%": 0,
+                    "Benchmark": null
+                },
+                "1": {
+                    "Name": "Municipal",
+                    "Category_Average": 0.00966,
+                    "Amount_%": 1.54228,
+                    "Stocks_%": 0,
+                    "Benchmark": null
+                },
+                "2": {
+                    "Name": "Corporate",
+                    "Category_Average": 1.8609,
+                    "Amount_%": 1.54228,
+                    "Stocks_%": 0,
+                    "Benchmark": null
+                },
+                "3": {
+                    "Name": "Securitized",
+                    "Category_Average": 0.55929,
+                    "Amount_%": 1.54228,
+                    "Stocks_%": 0,
+                    "Benchmark": null
+                },
+                "4": {
+                    "Name": "Cash and Equivalents",
+                    "Category_Average": 91.08251,
+                    "Amount_%": 1.54228,
+                    "Stocks_%": 100,
+                    "Benchmark": null
+                },
+                "5": {
+                    "Name": "Derivative",
+                    "Category_Average": 0.00215,
+                    "Amount_%": 1.54228,
+                    "Stocks_%": 0,
+                    "Benchmark": null
+                }
+            }
+        },
+        "World_Regions": {
+            "Americas": {
+                "0": {
+                    "Name": "North America",
+                    "Category_Average": 96.674,
+                    "Stocks_%": 97.678,
+                    "Benchmark": 99.407
+                },
+                "1": {
+                    "Name": "Latin America",
+                    "Category_Average": 0.346,
+                    "Stocks_%": 0.496,
+                    "Benchmark": 0.237
+                }
+            },
+            "Greater Asia": {
+                "0": {
+                    "Name": "Japan",
+                    "Category_Average": 0.038,
+                    "Stocks_%": 0,
+                    "Benchmark": 0
+                },
+                "1": {
+                    "Name": "Australasia",
+                    "Category_Average": 0.002,
+                    "Stocks_%": 0,
+                    "Benchmark": 0
+                },
+                "2": {
+                    "Name": "Asia Developed",
+                    "Category_Average": 1.303,
+                    "Stocks_%": 0,
+                    "Benchmark": 0
+                },
+                "3": {
+                    "Name": "Asia Emerging",
+                    "Category_Average": 0.189,
+                    "Stocks_%": 0.386,
+                    "Benchmark": 0.125
+                }
+            },
+            "Greater Europe": {
+                "0": {
+                    "Name": "United Kingdom",
+                    "Category_Average": 0.30214,
+                    "Stocks_%": 0.23521,
+                    "Benchmark": 0.07404
+                },
+                "1": {
+                    "Name": "Europe Developed",
+                    "Category_Average": 1.111,
+                    "Stocks_%": 1.204,
+                    "Benchmark": 0.156
+                },
+                "2": {
+                    "Name": "Europe Emerging",
+                    "Category_Average": 0,
+                    "Stocks_%": 0,
+                    "Benchmark": 0
+                },
+                "3": {
+                    "Name": "Africa\/Middle East",
+                    "Category_Average": 0.034,
+                    "Stocks_%": 0,
+                    "Benchmark": 0
+                }
+            }
+        },
+        "Top_Countries": {},
+        "market_capitalization": null,
+        "world_regions": null,
+        "sector_weights": null,
+        "asset_allocation": null
+    }
+}
