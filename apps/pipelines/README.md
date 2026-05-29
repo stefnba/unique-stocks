@@ -185,7 +185,13 @@ cd apps/pipelines
 make lake-init                              # local DuckDB, or MotherDuck when MOTHERDUCK_TOKEN is set
 ```
 
-The SQL script (`scripts/init_lake.sql`) is idempotent — safe to re-run. For MotherDuck organization, token, CLI, and security setup, see [docs/motherduck_setup_guide.md](docs/motherduck_setup_guide.md).
+The SQL script (`scripts/init_lake.sql`) is idempotent and safe to re-run, but it does not migrate or reshape existing tables. During greenfield schema rewrites, reset the local DuckDB lake with:
+
+```bash
+make lake-reset-local
+```
+
+For MotherDuck organization, token, CLI, and security setup, see [docs/motherduck_setup_guide.md](docs/motherduck_setup_guide.md).
 
 ## dbt transformations
 
