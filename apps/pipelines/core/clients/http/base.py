@@ -15,7 +15,7 @@ from typing import Any, ClassVar, Literal, Self, TypeVar
 
 import httpx
 import structlog
-from pydantic import BaseModel, TypeAdapter
+from pydantic import BaseModel
 
 log = structlog.get_logger(__name__)
 
@@ -176,4 +176,6 @@ class HttpClientBase(ABC):
             List of validated items.
         """
         data = await self._request(path, params=params)
-        return TypeAdapter(list[model]).validate_python(data)
+        if not isinstance(data, list):
+            raise TypeError(f"Expected list response from {path}, got {type(data).__name__}")
+        return [model.model_validate(item) for item in data]

@@ -348,9 +348,9 @@ class S3StorageClient:
     @classmethod
     def from_s3_bucket_block(
         cls,
-        block: "S3Bucket",
+        block: S3Bucket,
         **kwargs: Any,
-    ) -> "S3StorageClient":
+    ) -> S3StorageClient:
         """Build a client from a loaded ``S3Bucket`` Prefect block.
 
         Credentials and bucket name are taken from the block so that tasks
@@ -371,9 +371,9 @@ class S3StorageClient:
     @classmethod
     async def from_block_entry(
         cls,
-        entry: "BlockEntry[S3Bucket]",
+        entry: BlockEntry[S3Bucket],
         **kwargs: Any,
-    ) -> "S3StorageClient":
+    ) -> S3StorageClient:
         """Load an ``S3Bucket`` block entry and build a client from it.
 
         Combines the ``BlockEntry.load_async`` and :meth:`from_s3_bucket_block`

@@ -31,6 +31,8 @@ def by_env[T](
         return f"{default}-{env_tag}" if add_env == "suffix" else f"{env_tag}-{default}"
 
     if dev is not None or prod is not None:
-        return prod if SETTINGS.is_production else dev  # type: ignore[return-value]
+        if dev is None or prod is None:
+            raise ValueError("Provide both dev and prod values.")
+        return prod if SETTINGS.is_production else dev
 
     raise ValueError("Provide either (dev, prod) or (default, add_env).")

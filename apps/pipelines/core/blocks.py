@@ -88,7 +88,7 @@ class BlockEntry[T: Block]:
 
     async def load_async(self) -> T:
         """Load and return the block from the Prefect registry (async)."""
-        return cast(T, await self.block.aload(name=self.name))
+        return await self.block.aload(name=self.name)
 
     # ------------------------------------------------------------------
     # Internal helpers
