@@ -26,7 +26,7 @@ def _header() -> str:
     return "\n".join(
         (
             "-- Initialise unique_stocks schemas and tables.",
-            "-- Safe to run multiple times (all statements are idempotent).",
+            "-- Safe to run multiple times, but existing tables are not migrated.",
             "-- Generated from Python table specs. Do not edit by hand.",
             "-- Regenerate with: uv run python scripts/render_init_lake_sql.py > scripts/init_lake.sql",
         )

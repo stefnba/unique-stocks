@@ -73,6 +73,7 @@ class FundamentalRaw(EODHDProviderModel):
     mutual_fund_data: dict[str, Any] | None = Field(alias="MutualFund_Data", default=None)
     components: dict[str, Any] | None = Field(alias="Components", default=None)
     historical_components: dict[str, Any] | None = Field(alias="HistoricalComponents", default=None)
+    historical_ticker_components: dict[str, Any] | None = Field(alias="HistoricalTickerComponents", default=None)
 
 
 class SupportedExchange(EODHDProviderModel):

@@ -13,17 +13,65 @@ from core.ingestion import BronzeParseResult, BronzeWrite, LandingWrite
 from domains.eod_price.symbols import exchange_from_qualified_ticker
 from domains.fundamental.datasets import (
     FUNDAMENTAL_DOCUMENT_DATASET,
+    FUNDAMENTAL_ETF_HOLDING_DATASET,
+    FUNDAMENTAL_ETF_IDENTITY_DATASET,
+    FUNDAMENTAL_FUND_METRIC_FACT_DATASET,
+    FUNDAMENTAL_INDEX_COMPONENT_DATASET,
+    FUNDAMENTAL_INDEX_HISTORICAL_COMPONENT_DATASET,
+    FUNDAMENTAL_INDEX_IDENTITY_DATASET,
+    FUNDAMENTAL_MUTUAL_FUND_HOLDING_DATASET,
+    FUNDAMENTAL_MUTUAL_FUND_IDENTITY_DATASET,
     FUNDAMENTAL_STATEMENT_FACT_DATASET,
+    FUNDAMENTAL_STOCK_DIVIDEND_COUNT_DATASET,
+    FUNDAMENTAL_STOCK_EARNINGS_FACT_DATASET,
+    FUNDAMENTAL_STOCK_ESG_ACTIVITY_DATASET,
+    FUNDAMENTAL_STOCK_HOLDER_DATASET,
     FUNDAMENTAL_STOCK_IDENTITY_DATASET,
+    FUNDAMENTAL_STOCK_METRIC_FACT_DATASET,
+    FUNDAMENTAL_STOCK_OUTSTANDING_SHARES_DATASET,
+    FUNDAMENTAL_STOCK_SHARES_STATS_DATASET,
+    FUNDAMENTAL_STOCK_SPLITS_DIVIDENDS_DATASET,
 )
 from domains.fundamental.models import (
     FundamentalDocument,
+    FundamentalEtfHolding,
+    FundamentalEtfIdentitySnapshot,
+    FundamentalFundMetricFact,
+    FundamentalIndexComponent,
+    FundamentalIndexHistoricalComponent,
+    FundamentalIndexIdentitySnapshot,
+    FundamentalMutualFundHolding,
+    FundamentalMutualFundIdentitySnapshot,
     FundamentalStatementFact,
+    FundamentalStockDividendCount,
+    FundamentalStockEarningsFact,
+    FundamentalStockEsgActivity,
+    FundamentalStockHolder,
     FundamentalStockIdentitySnapshot,
+    FundamentalStockMetricFact,
+    FundamentalStockOutstandingShares,
+    FundamentalStockSharesStatsSnapshot,
+    FundamentalStockSplitsDividendsSnapshot,
 )
 from domains.fundamental.parsers import (
+    parse_etf_holdings,
+    parse_etf_identity_snapshot,
+    parse_fund_metric_facts,
     parse_fundamental_document,
+    parse_index_components,
+    parse_index_historical_components,
+    parse_index_identity_snapshot,
+    parse_mutual_fund_holdings,
+    parse_mutual_fund_identity_snapshot,
+    parse_stock_dividend_counts,
+    parse_stock_earnings_facts,
+    parse_stock_esg_activities,
+    parse_stock_holders,
     parse_stock_identity_snapshot,
+    parse_stock_metric_facts,
+    parse_stock_outstanding_shares,
+    parse_stock_shares_stats_snapshot,
+    parse_stock_splits_dividends_snapshot,
     parse_stock_statement_facts,
 )
 from providers.eodhd.models import FundamentalRaw
@@ -127,6 +175,22 @@ def delete_fundamental_snapshot_rows(ticker: str, snapshot_date: date) -> int:
     lake = get_lake_client()
     deleted_tables = 0
     for dataset in (
+        FUNDAMENTAL_INDEX_HISTORICAL_COMPONENT_DATASET,
+        FUNDAMENTAL_INDEX_COMPONENT_DATASET,
+        FUNDAMENTAL_FUND_METRIC_FACT_DATASET,
+        FUNDAMENTAL_MUTUAL_FUND_HOLDING_DATASET,
+        FUNDAMENTAL_ETF_HOLDING_DATASET,
+        FUNDAMENTAL_INDEX_IDENTITY_DATASET,
+        FUNDAMENTAL_MUTUAL_FUND_IDENTITY_DATASET,
+        FUNDAMENTAL_ETF_IDENTITY_DATASET,
+        FUNDAMENTAL_STOCK_ESG_ACTIVITY_DATASET,
+        FUNDAMENTAL_STOCK_METRIC_FACT_DATASET,
+        FUNDAMENTAL_STOCK_DIVIDEND_COUNT_DATASET,
+        FUNDAMENTAL_STOCK_SPLITS_DIVIDENDS_DATASET,
+        FUNDAMENTAL_STOCK_HOLDER_DATASET,
+        FUNDAMENTAL_STOCK_OUTSTANDING_SHARES_DATASET,
+        FUNDAMENTAL_STOCK_SHARES_STATS_DATASET,
+        FUNDAMENTAL_STOCK_EARNINGS_FACT_DATASET,
         FUNDAMENTAL_STATEMENT_FACT_DATASET,
         FUNDAMENTAL_STOCK_IDENTITY_DATASET,
         FUNDAMENTAL_DOCUMENT_DATASET,
@@ -210,21 +274,114 @@ def parse_fundamental_stock(
     BronzeParseResult[FundamentalDocument],
     BronzeParseResult[FundamentalStockIdentitySnapshot] | None,
     list[BronzeParseResult[FundamentalStatementFact]],
+    list[BronzeParseResult[FundamentalStockEarningsFact]],
+    BronzeParseResult[FundamentalStockSharesStatsSnapshot] | None,
+    list[BronzeParseResult[FundamentalStockOutstandingShares]],
+    list[BronzeParseResult[FundamentalStockHolder]],
+    BronzeParseResult[FundamentalStockSplitsDividendsSnapshot] | None,
+    list[BronzeParseResult[FundamentalStockDividendCount]],
+    list[BronzeParseResult[FundamentalStockMetricFact]],
+    list[BronzeParseResult[FundamentalStockEsgActivity]],
+    BronzeParseResult[FundamentalEtfIdentitySnapshot] | None,
+    BronzeParseResult[FundamentalMutualFundIdentitySnapshot] | None,
+    BronzeParseResult[FundamentalIndexIdentitySnapshot] | None,
+    list[BronzeParseResult[FundamentalEtfHolding]],
+    list[BronzeParseResult[FundamentalMutualFundHolding]],
+    list[BronzeParseResult[FundamentalFundMetricFact]],
+    list[BronzeParseResult[FundamentalIndexComponent]],
+    list[BronzeParseResult[FundamentalIndexHistoricalComponent]],
     list[dict[str, object]],
 ]:
     """Parse the stock fundamentals slice currently supported by this domain."""
     document = parse_fundamental_document(raw, ticker=ticker, snapshot_date=snapshot_date)
     identity = parse_stock_identity_snapshot(raw, ticker=ticker, snapshot_date=snapshot_date)
-    facts, rejected = parse_stock_statement_facts(raw, ticker=ticker, snapshot_date=snapshot_date)
+    statement_facts, statement_rejected = parse_stock_statement_facts(raw, ticker=ticker, snapshot_date=snapshot_date)
+    earnings_facts, earnings_rejected = parse_stock_earnings_facts(raw, ticker=ticker, snapshot_date=snapshot_date)
+    shares_stats = parse_stock_shares_stats_snapshot(raw, ticker=ticker, snapshot_date=snapshot_date)
+    outstanding_shares, outstanding_rejected = parse_stock_outstanding_shares(
+        raw,
+        ticker=ticker,
+        snapshot_date=snapshot_date,
+    )
+    holders, holders_rejected = parse_stock_holders(raw, ticker=ticker, snapshot_date=snapshot_date)
+    splits_dividends = parse_stock_splits_dividends_snapshot(raw, ticker=ticker, snapshot_date=snapshot_date)
+    dividend_counts, dividend_rejected = parse_stock_dividend_counts(raw, ticker=ticker, snapshot_date=snapshot_date)
+    metric_facts = parse_stock_metric_facts(raw, ticker=ticker, snapshot_date=snapshot_date)
+    esg_activities, esg_rejected = parse_stock_esg_activities(raw, ticker=ticker, snapshot_date=snapshot_date)
+    etf_identity = parse_etf_identity_snapshot(raw, ticker=ticker, snapshot_date=snapshot_date)
+    mutual_fund_identity = parse_mutual_fund_identity_snapshot(raw, ticker=ticker, snapshot_date=snapshot_date)
+    index_identity = parse_index_identity_snapshot(raw, ticker=ticker, snapshot_date=snapshot_date)
+    etf_holdings, etf_rejected = parse_etf_holdings(raw, ticker=ticker, snapshot_date=snapshot_date)
+    mutual_fund_holdings, mutual_fund_rejected = parse_mutual_fund_holdings(
+        raw,
+        ticker=ticker,
+        snapshot_date=snapshot_date,
+    )
+    fund_metric_facts = parse_fund_metric_facts(raw, ticker=ticker, snapshot_date=snapshot_date)
+    index_components, index_rejected = parse_index_components(raw, ticker=ticker, snapshot_date=snapshot_date)
+    index_historical_components, index_historical_rejected = parse_index_historical_components(
+        raw,
+        ticker=ticker,
+        snapshot_date=snapshot_date,
+    )
+    rejected: list[dict[str, object]] = [
+        *statement_rejected,
+        *earnings_rejected,
+        *outstanding_rejected,
+        *holders_rejected,
+        *dividend_rejected,
+        *esg_rejected,
+        *etf_rejected,
+        *mutual_fund_rejected,
+        *index_rejected,
+        *index_historical_rejected,
+    ]
     log.info(
         "fundamental.parsed",
         ticker=ticker,
         family=document.row.instrument_family,
         stock_identity=identity is not None,
-        statement_facts=len(facts),
+        statement_facts=len(statement_facts),
+        earnings_facts=len(earnings_facts),
+        shares_stats=shares_stats is not None,
+        outstanding_shares=len(outstanding_shares),
+        holders=len(holders),
+        splits_dividends=splits_dividends is not None,
+        dividend_counts=len(dividend_counts),
+        metric_facts=len(metric_facts),
+        esg_activities=len(esg_activities),
+        etf_identity=etf_identity is not None,
+        mutual_fund_identity=mutual_fund_identity is not None,
+        index_identity=index_identity is not None,
+        etf_holdings=len(etf_holdings),
+        mutual_fund_holdings=len(mutual_fund_holdings),
+        fund_metric_facts=len(fund_metric_facts),
+        index_components=len(index_components),
+        index_historical_components=len(index_historical_components),
         rejected=len(rejected),
     )
-    return document, identity, facts, rejected
+    return (
+        document,
+        identity,
+        statement_facts,
+        earnings_facts,
+        shares_stats,
+        outstanding_shares,
+        holders,
+        splits_dividends,
+        dividend_counts,
+        metric_facts,
+        esg_activities,
+        etf_identity,
+        mutual_fund_identity,
+        index_identity,
+        etf_holdings,
+        mutual_fund_holdings,
+        fund_metric_facts,
+        index_components,
+        index_historical_components,
+        rejected,
+    )
 
 
 @task(name="write-bronze-fundamental-document")
@@ -288,4 +445,362 @@ def write_bronze_fundamental_statement_facts(
         return BronzeWrite(rows_written=0, reason="already_ingested")
     written = FUNDAMENTAL_STATEMENT_FACT_DATASET.write_bronze(lake, sources, source_uri=source_uri)
     log.info("fundamental.statement_facts_written", ticker=ticker, rows=written)
+    return BronzeWrite(rows_written=written)
+
+
+@task(name="write-bronze-fundamental-stock-earnings-facts")
+def write_bronze_fundamental_stock_earnings_facts(
+    sources: list[BronzeParseResult[FundamentalStockEarningsFact]],
+    ticker: str,
+    snapshot_date: date,
+    source_uri: str | None = None,
+) -> BronzeWrite:
+    """Write stock earnings facts to ``bronze.fundamental_stock_earnings_fact``."""
+    from core.clients.lake import get_lake_client
+
+    if not sources:
+        return BronzeWrite(rows_written=0, reason="no_earnings_facts")
+
+    lake = get_lake_client()
+    if FUNDAMENTAL_STOCK_EARNINGS_FACT_DATASET.already_ingested(
+        lake,
+        snapshot_date=snapshot_date,
+        ticker=ticker,
+    ):
+        return BronzeWrite(rows_written=0, reason="already_ingested")
+    written = FUNDAMENTAL_STOCK_EARNINGS_FACT_DATASET.write_bronze(lake, sources, source_uri=source_uri)
+    log.info("fundamental.stock_earnings_facts_written", ticker=ticker, rows=written)
+    return BronzeWrite(rows_written=written)
+
+
+@task(name="write-bronze-fundamental-stock-shares-stats")
+def write_bronze_fundamental_stock_shares_stats(
+    source: BronzeParseResult[FundamentalStockSharesStatsSnapshot] | None,
+    source_uri: str | None = None,
+) -> BronzeWrite:
+    """Write one stock shares-statistics row to ``bronze.fundamental_stock_shares_stats``."""
+    from core.clients.lake import get_lake_client
+
+    if source is None:
+        return BronzeWrite(rows_written=0, reason="no_shares_stats")
+
+    lake = get_lake_client()
+    if FUNDAMENTAL_STOCK_SHARES_STATS_DATASET.already_ingested(
+        lake,
+        snapshot_date=source.row.snapshot_date,
+        ticker=source.row.ticker,
+    ):
+        return BronzeWrite(rows_written=0, reason="already_ingested")
+    written = FUNDAMENTAL_STOCK_SHARES_STATS_DATASET.write_bronze(lake, [source], source_uri=source_uri)
+    log.info("fundamental.stock_shares_stats_written", ticker=source.row.ticker, rows=written)
+    return BronzeWrite(rows_written=written)
+
+
+@task(name="write-bronze-fundamental-stock-outstanding-shares")
+def write_bronze_fundamental_stock_outstanding_shares(
+    sources: list[BronzeParseResult[FundamentalStockOutstandingShares]],
+    ticker: str,
+    snapshot_date: date,
+    source_uri: str | None = None,
+) -> BronzeWrite:
+    """Write stock outstanding-shares history to ``bronze.fundamental_stock_outstanding_shares``."""
+    from core.clients.lake import get_lake_client
+
+    if not sources:
+        return BronzeWrite(rows_written=0, reason="no_outstanding_shares")
+
+    lake = get_lake_client()
+    if FUNDAMENTAL_STOCK_OUTSTANDING_SHARES_DATASET.already_ingested(
+        lake,
+        snapshot_date=snapshot_date,
+        ticker=ticker,
+    ):
+        return BronzeWrite(rows_written=0, reason="already_ingested")
+    written = FUNDAMENTAL_STOCK_OUTSTANDING_SHARES_DATASET.write_bronze(lake, sources, source_uri=source_uri)
+    log.info("fundamental.stock_outstanding_shares_written", ticker=ticker, rows=written)
+    return BronzeWrite(rows_written=written)
+
+
+@task(name="write-bronze-fundamental-stock-holders")
+def write_bronze_fundamental_stock_holders(
+    sources: list[BronzeParseResult[FundamentalStockHolder]],
+    ticker: str,
+    snapshot_date: date,
+    source_uri: str | None = None,
+) -> BronzeWrite:
+    """Write stock holder rows to ``bronze.fundamental_stock_holder``."""
+    from core.clients.lake import get_lake_client
+
+    if not sources:
+        return BronzeWrite(rows_written=0, reason="no_holders")
+
+    lake = get_lake_client()
+    if FUNDAMENTAL_STOCK_HOLDER_DATASET.already_ingested(lake, snapshot_date=snapshot_date, ticker=ticker):
+        return BronzeWrite(rows_written=0, reason="already_ingested")
+    written = FUNDAMENTAL_STOCK_HOLDER_DATASET.write_bronze(lake, sources, source_uri=source_uri)
+    log.info("fundamental.stock_holders_written", ticker=ticker, rows=written)
+    return BronzeWrite(rows_written=written)
+
+
+@task(name="write-bronze-fundamental-stock-splits-dividends")
+def write_bronze_fundamental_stock_splits_dividends(
+    source: BronzeParseResult[FundamentalStockSplitsDividendsSnapshot] | None,
+    source_uri: str | None = None,
+) -> BronzeWrite:
+    """Write one stock splits/dividends row to ``bronze.fundamental_stock_splits_dividends``."""
+    from core.clients.lake import get_lake_client
+
+    if source is None:
+        return BronzeWrite(rows_written=0, reason="no_splits_dividends")
+
+    lake = get_lake_client()
+    if FUNDAMENTAL_STOCK_SPLITS_DIVIDENDS_DATASET.already_ingested(
+        lake,
+        snapshot_date=source.row.snapshot_date,
+        ticker=source.row.ticker,
+    ):
+        return BronzeWrite(rows_written=0, reason="already_ingested")
+    written = FUNDAMENTAL_STOCK_SPLITS_DIVIDENDS_DATASET.write_bronze(lake, [source], source_uri=source_uri)
+    log.info("fundamental.stock_splits_dividends_written", ticker=source.row.ticker, rows=written)
+    return BronzeWrite(rows_written=written)
+
+
+@task(name="write-bronze-fundamental-stock-dividend-counts")
+def write_bronze_fundamental_stock_dividend_counts(
+    sources: list[BronzeParseResult[FundamentalStockDividendCount]],
+    ticker: str,
+    snapshot_date: date,
+    source_uri: str | None = None,
+) -> BronzeWrite:
+    """Write yearly dividend-count rows to ``bronze.fundamental_stock_dividend_count``."""
+    from core.clients.lake import get_lake_client
+
+    if not sources:
+        return BronzeWrite(rows_written=0, reason="no_dividend_counts")
+
+    lake = get_lake_client()
+    if FUNDAMENTAL_STOCK_DIVIDEND_COUNT_DATASET.already_ingested(lake, snapshot_date=snapshot_date, ticker=ticker):
+        return BronzeWrite(rows_written=0, reason="already_ingested")
+    written = FUNDAMENTAL_STOCK_DIVIDEND_COUNT_DATASET.write_bronze(lake, sources, source_uri=source_uri)
+    log.info("fundamental.stock_dividend_counts_written", ticker=ticker, rows=written)
+    return BronzeWrite(rows_written=written)
+
+
+@task(name="write-bronze-fundamental-stock-metric-facts")
+def write_bronze_fundamental_stock_metric_facts(
+    sources: list[BronzeParseResult[FundamentalStockMetricFact]],
+    ticker: str,
+    snapshot_date: date,
+    source_uri: str | None = None,
+) -> BronzeWrite:
+    """Write compact stock numeric metrics to ``bronze.fundamental_stock_metric_fact``."""
+    from core.clients.lake import get_lake_client
+
+    if not sources:
+        return BronzeWrite(rows_written=0, reason="no_metric_facts")
+
+    lake = get_lake_client()
+    if FUNDAMENTAL_STOCK_METRIC_FACT_DATASET.already_ingested(lake, snapshot_date=snapshot_date, ticker=ticker):
+        return BronzeWrite(rows_written=0, reason="already_ingested")
+    written = FUNDAMENTAL_STOCK_METRIC_FACT_DATASET.write_bronze(lake, sources, source_uri=source_uri)
+    log.info("fundamental.stock_metric_facts_written", ticker=ticker, rows=written)
+    return BronzeWrite(rows_written=written)
+
+
+@task(name="write-bronze-fundamental-stock-esg-activities")
+def write_bronze_fundamental_stock_esg_activities(
+    sources: list[BronzeParseResult[FundamentalStockEsgActivity]],
+    ticker: str,
+    snapshot_date: date,
+    source_uri: str | None = None,
+) -> BronzeWrite:
+    """Write ESG activity involvement rows to ``bronze.fundamental_stock_esg_activity``."""
+    from core.clients.lake import get_lake_client
+
+    if not sources:
+        return BronzeWrite(rows_written=0, reason="no_esg_activities")
+
+    lake = get_lake_client()
+    if FUNDAMENTAL_STOCK_ESG_ACTIVITY_DATASET.already_ingested(lake, snapshot_date=snapshot_date, ticker=ticker):
+        return BronzeWrite(rows_written=0, reason="already_ingested")
+    written = FUNDAMENTAL_STOCK_ESG_ACTIVITY_DATASET.write_bronze(lake, sources, source_uri=source_uri)
+    log.info("fundamental.stock_esg_activities_written", ticker=ticker, rows=written)
+    return BronzeWrite(rows_written=written)
+
+
+@task(name="write-bronze-fundamental-etf-identity")
+def write_bronze_fundamental_etf_identity(
+    source: BronzeParseResult[FundamentalEtfIdentitySnapshot] | None,
+    source_uri: str | None = None,
+) -> BronzeWrite:
+    """Write one ETF identity row to ``bronze.fundamental_etf_identity``."""
+    from core.clients.lake import get_lake_client
+
+    if source is None:
+        return BronzeWrite(rows_written=0, reason="not_etf")
+
+    lake = get_lake_client()
+    if FUNDAMENTAL_ETF_IDENTITY_DATASET.already_ingested(
+        lake,
+        snapshot_date=source.row.snapshot_date,
+        ticker=source.row.ticker,
+    ):
+        return BronzeWrite(rows_written=0, reason="already_ingested")
+    written = FUNDAMENTAL_ETF_IDENTITY_DATASET.write_bronze(lake, [source], source_uri=source_uri)
+    log.info("fundamental.etf_identity_written", ticker=source.row.ticker, rows=written)
+    return BronzeWrite(rows_written=written)
+
+
+@task(name="write-bronze-fundamental-mutual-fund-identity")
+def write_bronze_fundamental_mutual_fund_identity(
+    source: BronzeParseResult[FundamentalMutualFundIdentitySnapshot] | None,
+    source_uri: str | None = None,
+) -> BronzeWrite:
+    """Write one mutual fund identity row to ``bronze.fundamental_mutual_fund_identity``."""
+    from core.clients.lake import get_lake_client
+
+    if source is None:
+        return BronzeWrite(rows_written=0, reason="not_mutual_fund")
+
+    lake = get_lake_client()
+    if FUNDAMENTAL_MUTUAL_FUND_IDENTITY_DATASET.already_ingested(
+        lake,
+        snapshot_date=source.row.snapshot_date,
+        ticker=source.row.ticker,
+    ):
+        return BronzeWrite(rows_written=0, reason="already_ingested")
+    written = FUNDAMENTAL_MUTUAL_FUND_IDENTITY_DATASET.write_bronze(lake, [source], source_uri=source_uri)
+    log.info("fundamental.mutual_fund_identity_written", ticker=source.row.ticker, rows=written)
+    return BronzeWrite(rows_written=written)
+
+
+@task(name="write-bronze-fundamental-index-identity")
+def write_bronze_fundamental_index_identity(
+    source: BronzeParseResult[FundamentalIndexIdentitySnapshot] | None,
+    source_uri: str | None = None,
+) -> BronzeWrite:
+    """Write one index identity row to ``bronze.fundamental_index_identity``."""
+    from core.clients.lake import get_lake_client
+
+    if source is None:
+        return BronzeWrite(rows_written=0, reason="not_index")
+
+    lake = get_lake_client()
+    if FUNDAMENTAL_INDEX_IDENTITY_DATASET.already_ingested(
+        lake,
+        snapshot_date=source.row.snapshot_date,
+        ticker=source.row.ticker,
+    ):
+        return BronzeWrite(rows_written=0, reason="already_ingested")
+    written = FUNDAMENTAL_INDEX_IDENTITY_DATASET.write_bronze(lake, [source], source_uri=source_uri)
+    log.info("fundamental.index_identity_written", ticker=source.row.ticker, rows=written)
+    return BronzeWrite(rows_written=written)
+
+
+@task(name="write-bronze-fundamental-etf-holdings")
+def write_bronze_fundamental_etf_holdings(
+    sources: list[BronzeParseResult[FundamentalEtfHolding]],
+    ticker: str,
+    snapshot_date: date,
+    source_uri: str | None = None,
+) -> BronzeWrite:
+    """Write ETF holdings to ``bronze.fundamental_etf_holding``."""
+    from core.clients.lake import get_lake_client
+
+    if not sources:
+        return BronzeWrite(rows_written=0, reason="no_etf_holdings")
+
+    lake = get_lake_client()
+    if FUNDAMENTAL_ETF_HOLDING_DATASET.already_ingested(lake, snapshot_date=snapshot_date, ticker=ticker):
+        return BronzeWrite(rows_written=0, reason="already_ingested")
+    written = FUNDAMENTAL_ETF_HOLDING_DATASET.write_bronze(lake, sources, source_uri=source_uri)
+    log.info("fundamental.etf_holdings_written", ticker=ticker, rows=written)
+    return BronzeWrite(rows_written=written)
+
+
+@task(name="write-bronze-fundamental-mutual-fund-holdings")
+def write_bronze_fundamental_mutual_fund_holdings(
+    sources: list[BronzeParseResult[FundamentalMutualFundHolding]],
+    ticker: str,
+    snapshot_date: date,
+    source_uri: str | None = None,
+) -> BronzeWrite:
+    """Write mutual fund holdings to ``bronze.fundamental_mutual_fund_holding``."""
+    from core.clients.lake import get_lake_client
+
+    if not sources:
+        return BronzeWrite(rows_written=0, reason="no_mutual_fund_holdings")
+
+    lake = get_lake_client()
+    if FUNDAMENTAL_MUTUAL_FUND_HOLDING_DATASET.already_ingested(lake, snapshot_date=snapshot_date, ticker=ticker):
+        return BronzeWrite(rows_written=0, reason="already_ingested")
+    written = FUNDAMENTAL_MUTUAL_FUND_HOLDING_DATASET.write_bronze(lake, sources, source_uri=source_uri)
+    log.info("fundamental.mutual_fund_holdings_written", ticker=ticker, rows=written)
+    return BronzeWrite(rows_written=written)
+
+
+@task(name="write-bronze-fundamental-fund-metric-facts")
+def write_bronze_fundamental_fund_metric_facts(
+    sources: list[BronzeParseResult[FundamentalFundMetricFact]],
+    ticker: str,
+    snapshot_date: date,
+    source_uri: str | None = None,
+) -> BronzeWrite:
+    """Write ETF/fund metric facts to ``bronze.fundamental_fund_metric_fact``."""
+    from core.clients.lake import get_lake_client
+
+    if not sources:
+        return BronzeWrite(rows_written=0, reason="no_fund_metric_facts")
+
+    lake = get_lake_client()
+    if FUNDAMENTAL_FUND_METRIC_FACT_DATASET.already_ingested(lake, snapshot_date=snapshot_date, ticker=ticker):
+        return BronzeWrite(rows_written=0, reason="already_ingested")
+    written = FUNDAMENTAL_FUND_METRIC_FACT_DATASET.write_bronze(lake, sources, source_uri=source_uri)
+    log.info("fundamental.fund_metric_facts_written", ticker=ticker, rows=written)
+    return BronzeWrite(rows_written=written)
+
+
+@task(name="write-bronze-fundamental-index-components")
+def write_bronze_fundamental_index_components(
+    sources: list[BronzeParseResult[FundamentalIndexComponent]],
+    ticker: str,
+    snapshot_date: date,
+    source_uri: str | None = None,
+) -> BronzeWrite:
+    """Write current index components to ``bronze.fundamental_index_component``."""
+    from core.clients.lake import get_lake_client
+
+    if not sources:
+        return BronzeWrite(rows_written=0, reason="no_index_components")
+
+    lake = get_lake_client()
+    if FUNDAMENTAL_INDEX_COMPONENT_DATASET.already_ingested(lake, snapshot_date=snapshot_date, ticker=ticker):
+        return BronzeWrite(rows_written=0, reason="already_ingested")
+    written = FUNDAMENTAL_INDEX_COMPONENT_DATASET.write_bronze(lake, sources, source_uri=source_uri)
+    log.info("fundamental.index_components_written", ticker=ticker, rows=written)
+    return BronzeWrite(rows_written=written)
+
+
+@task(name="write-bronze-fundamental-index-historical-components")
+def write_bronze_fundamental_index_historical_components(
+    sources: list[BronzeParseResult[FundamentalIndexHistoricalComponent]],
+    ticker: str,
+    snapshot_date: date,
+    source_uri: str | None = None,
+) -> BronzeWrite:
+    """Write historical index components to ``bronze.fundamental_index_historical_component``."""
+    from core.clients.lake import get_lake_client
+
+    if not sources:
+        return BronzeWrite(rows_written=0, reason="no_index_historical_components")
+
+    lake = get_lake_client()
+    if FUNDAMENTAL_INDEX_HISTORICAL_COMPONENT_DATASET.already_ingested(
+        lake,
+        snapshot_date=snapshot_date,
+        ticker=ticker,
+    ):
+        return BronzeWrite(rows_written=0, reason="already_ingested")
+    written = FUNDAMENTAL_INDEX_HISTORICAL_COMPONENT_DATASET.write_bronze(lake, sources, source_uri=source_uri)
+    log.info("fundamental.index_historical_components_written", ticker=ticker, rows=written)
     return BronzeWrite(rows_written=written)

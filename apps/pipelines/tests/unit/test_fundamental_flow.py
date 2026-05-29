@@ -130,6 +130,22 @@ async def test_skip_existing_false_uses_changed_payload_refresh(monkeypatch: pyt
     monkeypatch.setattr(flows, "write_bronze_fundamental_document", fail_if_called)
     monkeypatch.setattr(flows, "write_bronze_fundamental_stock_identity", fail_if_called)
     monkeypatch.setattr(flows, "write_bronze_fundamental_statement_facts", fail_if_called)
+    monkeypatch.setattr(flows, "write_bronze_fundamental_stock_earnings_facts", fail_if_called)
+    monkeypatch.setattr(flows, "write_bronze_fundamental_stock_shares_stats", fail_if_called)
+    monkeypatch.setattr(flows, "write_bronze_fundamental_stock_outstanding_shares", fail_if_called)
+    monkeypatch.setattr(flows, "write_bronze_fundamental_stock_holders", fail_if_called)
+    monkeypatch.setattr(flows, "write_bronze_fundamental_stock_splits_dividends", fail_if_called)
+    monkeypatch.setattr(flows, "write_bronze_fundamental_stock_dividend_counts", fail_if_called)
+    monkeypatch.setattr(flows, "write_bronze_fundamental_stock_metric_facts", fail_if_called)
+    monkeypatch.setattr(flows, "write_bronze_fundamental_stock_esg_activities", fail_if_called)
+    monkeypatch.setattr(flows, "write_bronze_fundamental_etf_identity", fail_if_called)
+    monkeypatch.setattr(flows, "write_bronze_fundamental_mutual_fund_identity", fail_if_called)
+    monkeypatch.setattr(flows, "write_bronze_fundamental_index_identity", fail_if_called)
+    monkeypatch.setattr(flows, "write_bronze_fundamental_etf_holdings", fail_if_called)
+    monkeypatch.setattr(flows, "write_bronze_fundamental_mutual_fund_holdings", fail_if_called)
+    monkeypatch.setattr(flows, "write_bronze_fundamental_fund_metric_facts", fail_if_called)
+    monkeypatch.setattr(flows, "write_bronze_fundamental_index_components", fail_if_called)
+    monkeypatch.setattr(flows, "write_bronze_fundamental_index_historical_components", fail_if_called)
 
     summary = await flows.fundamental_flow.fn(
         tickers=["AAPL.US"],
@@ -157,8 +173,24 @@ def test_delete_fundamental_snapshot_rows_deletes_child_tables_before_document(
 
     deleted_tables = tasks.delete_fundamental_snapshot_rows.fn("AAPL.US", SNAPSHOT_DATE)
 
-    assert deleted_tables == 3
+    assert deleted_tables == 19
     assert [sql.split("DELETE FROM ", maxsplit=1)[1].split()[0] for sql, _ in lake.executed] == [
+        "bronze.fundamental_index_historical_component",
+        "bronze.fundamental_index_component",
+        "bronze.fundamental_fund_metric_fact",
+        "bronze.fundamental_mutual_fund_holding",
+        "bronze.fundamental_etf_holding",
+        "bronze.fundamental_index_identity",
+        "bronze.fundamental_mutual_fund_identity",
+        "bronze.fundamental_etf_identity",
+        "bronze.fundamental_stock_esg_activity",
+        "bronze.fundamental_stock_metric_fact",
+        "bronze.fundamental_stock_dividend_count",
+        "bronze.fundamental_stock_splits_dividends",
+        "bronze.fundamental_stock_holder",
+        "bronze.fundamental_stock_outstanding_shares",
+        "bronze.fundamental_stock_shares_stats",
+        "bronze.fundamental_stock_earnings_fact",
         "bronze.fundamental_statement_fact",
         "bronze.fundamental_stock_identity",
         "bronze.fundamental_document",

@@ -3,8 +3,24 @@
 from core.schema import BronzeTableModel
 from domains.fundamental.models import (
     FundamentalDocument,
+    FundamentalEtfHolding,
+    FundamentalEtfIdentitySnapshot,
+    FundamentalFundMetricFact,
+    FundamentalIndexComponent,
+    FundamentalIndexHistoricalComponent,
+    FundamentalIndexIdentitySnapshot,
+    FundamentalMutualFundHolding,
+    FundamentalMutualFundIdentitySnapshot,
     FundamentalStatementFact,
+    FundamentalStockDividendCount,
+    FundamentalStockEarningsFact,
+    FundamentalStockEsgActivity,
+    FundamentalStockHolder,
     FundamentalStockIdentitySnapshot,
+    FundamentalStockMetricFact,
+    FundamentalStockOutstandingShares,
+    FundamentalStockSharesStatsSnapshot,
+    FundamentalStockSplitsDividendsSnapshot,
 )
 
 
@@ -43,15 +59,236 @@ class FundamentalStatementFactTable(BronzeTableModel):
     idempotency_columns = ("snapshot_date", "ticker")
 
 
+class FundamentalStockEarningsFactTable(BronzeTableModel):
+    """Physical schema for ``bronze.fundamental_stock_earnings_fact``."""
+
+    table_name = "fundamental_stock_earnings_fact"
+    row_model = FundamentalStockEarningsFact
+    unique_columns = (
+        "snapshot_date",
+        "ticker",
+        "earnings_section",
+        "period_type",
+        "fiscal_period_end",
+        "metric_name",
+        "data_provider",
+    )
+    idempotency_columns = ("snapshot_date", "ticker")
+
+
+class FundamentalStockSharesStatsTable(BronzeTableModel):
+    """Physical schema for ``bronze.fundamental_stock_shares_stats``."""
+
+    table_name = "fundamental_stock_shares_stats"
+    row_model = FundamentalStockSharesStatsSnapshot
+    unique_columns = ("snapshot_date", "ticker", "data_provider")
+    idempotency_columns = ("snapshot_date", "ticker")
+
+
+class FundamentalStockOutstandingSharesTable(BronzeTableModel):
+    """Physical schema for ``bronze.fundamental_stock_outstanding_shares``."""
+
+    table_name = "fundamental_stock_outstanding_shares"
+    row_model = FundamentalStockOutstandingShares
+    unique_columns = (
+        "snapshot_date",
+        "ticker",
+        "period_type",
+        "period_end_date",
+        "data_provider",
+    )
+    idempotency_columns = ("snapshot_date", "ticker")
+
+
+class FundamentalStockHolderTable(BronzeTableModel):
+    """Physical schema for ``bronze.fundamental_stock_holder``."""
+
+    table_name = "fundamental_stock_holder"
+    row_model = FundamentalStockHolder
+    unique_columns = (
+        "snapshot_date",
+        "ticker",
+        "holder_type",
+        "holder_name",
+        "report_date",
+        "data_provider",
+    )
+    idempotency_columns = ("snapshot_date", "ticker")
+
+
+class FundamentalStockSplitsDividendsTable(BronzeTableModel):
+    """Physical schema for ``bronze.fundamental_stock_splits_dividends``."""
+
+    table_name = "fundamental_stock_splits_dividends"
+    row_model = FundamentalStockSplitsDividendsSnapshot
+    unique_columns = ("snapshot_date", "ticker", "data_provider")
+    idempotency_columns = ("snapshot_date", "ticker")
+
+
+class FundamentalStockDividendCountTable(BronzeTableModel):
+    """Physical schema for ``bronze.fundamental_stock_dividend_count``."""
+
+    table_name = "fundamental_stock_dividend_count"
+    row_model = FundamentalStockDividendCount
+    unique_columns = ("snapshot_date", "ticker", "year", "data_provider")
+    idempotency_columns = ("snapshot_date", "ticker")
+
+
+class FundamentalStockMetricFactTable(BronzeTableModel):
+    """Physical schema for ``bronze.fundamental_stock_metric_fact``."""
+
+    table_name = "fundamental_stock_metric_fact"
+    row_model = FundamentalStockMetricFact
+    unique_columns = ("snapshot_date", "ticker", "metric_group", "metric_name", "data_provider")
+    idempotency_columns = ("snapshot_date", "ticker")
+
+
+class FundamentalStockEsgActivityTable(BronzeTableModel):
+    """Physical schema for ``bronze.fundamental_stock_esg_activity``."""
+
+    table_name = "fundamental_stock_esg_activity"
+    row_model = FundamentalStockEsgActivity
+    unique_columns = ("snapshot_date", "ticker", "activity", "data_provider")
+    idempotency_columns = ("snapshot_date", "ticker")
+
+
+class FundamentalEtfIdentityTable(BronzeTableModel):
+    """Physical schema for ``bronze.fundamental_etf_identity``."""
+
+    table_name = "fundamental_etf_identity"
+    row_model = FundamentalEtfIdentitySnapshot
+    unique_columns = ("snapshot_date", "ticker", "data_provider")
+    idempotency_columns = ("snapshot_date", "ticker")
+
+
+class FundamentalMutualFundIdentityTable(BronzeTableModel):
+    """Physical schema for ``bronze.fundamental_mutual_fund_identity``."""
+
+    table_name = "fundamental_mutual_fund_identity"
+    row_model = FundamentalMutualFundIdentitySnapshot
+    unique_columns = ("snapshot_date", "ticker", "data_provider")
+    idempotency_columns = ("snapshot_date", "ticker")
+
+
+class FundamentalIndexIdentityTable(BronzeTableModel):
+    """Physical schema for ``bronze.fundamental_index_identity``."""
+
+    table_name = "fundamental_index_identity"
+    row_model = FundamentalIndexIdentitySnapshot
+    unique_columns = ("snapshot_date", "ticker", "data_provider")
+    idempotency_columns = ("snapshot_date", "ticker")
+
+
+class FundamentalEtfHoldingTable(BronzeTableModel):
+    """Physical schema for ``bronze.fundamental_etf_holding``."""
+
+    table_name = "fundamental_etf_holding"
+    row_model = FundamentalEtfHolding
+    unique_columns = ("snapshot_date", "ticker", "holding_symbol", "data_provider")
+    idempotency_columns = ("snapshot_date", "ticker")
+
+
+class FundamentalMutualFundHoldingTable(BronzeTableModel):
+    """Physical schema for ``bronze.fundamental_mutual_fund_holding``."""
+
+    table_name = "fundamental_mutual_fund_holding"
+    row_model = FundamentalMutualFundHolding
+    unique_columns = ("snapshot_date", "ticker", "provider_position", "holding_name", "data_provider")
+    idempotency_columns = ("snapshot_date", "ticker")
+
+
+class FundamentalFundMetricFactTable(BronzeTableModel):
+    """Physical schema for ``bronze.fundamental_fund_metric_fact``."""
+
+    table_name = "fundamental_fund_metric_fact"
+    row_model = FundamentalFundMetricFact
+    unique_columns = (
+        "snapshot_date",
+        "ticker",
+        "instrument_family",
+        "metric_group",
+        "metric_category",
+        "metric_name",
+        "data_provider",
+    )
+    idempotency_columns = ("snapshot_date", "ticker")
+
+
+class FundamentalIndexComponentTable(BronzeTableModel):
+    """Physical schema for ``bronze.fundamental_index_component``."""
+
+    table_name = "fundamental_index_component"
+    row_model = FundamentalIndexComponent
+    unique_columns = ("snapshot_date", "ticker", "component_code", "component_exchange", "data_provider")
+    idempotency_columns = ("snapshot_date", "ticker")
+
+
+class FundamentalIndexHistoricalComponentTable(BronzeTableModel):
+    """Physical schema for ``bronze.fundamental_index_historical_component``."""
+
+    table_name = "fundamental_index_historical_component"
+    row_model = FundamentalIndexHistoricalComponent
+    unique_columns = ("snapshot_date", "ticker", "component_code", "start_date", "data_provider")
+    idempotency_columns = ("snapshot_date", "ticker")
+
+
 FUNDAMENTAL_DOCUMENT_TABLE = FundamentalDocumentTable
 FUNDAMENTAL_STOCK_IDENTITY_TABLE = FundamentalStockIdentityTable
 FUNDAMENTAL_STATEMENT_FACT_TABLE = FundamentalStatementFactTable
+FUNDAMENTAL_STOCK_EARNINGS_FACT_TABLE = FundamentalStockEarningsFactTable
+FUNDAMENTAL_STOCK_SHARES_STATS_TABLE = FundamentalStockSharesStatsTable
+FUNDAMENTAL_STOCK_OUTSTANDING_SHARES_TABLE = FundamentalStockOutstandingSharesTable
+FUNDAMENTAL_STOCK_HOLDER_TABLE = FundamentalStockHolderTable
+FUNDAMENTAL_STOCK_SPLITS_DIVIDENDS_TABLE = FundamentalStockSplitsDividendsTable
+FUNDAMENTAL_STOCK_DIVIDEND_COUNT_TABLE = FundamentalStockDividendCountTable
+FUNDAMENTAL_STOCK_METRIC_FACT_TABLE = FundamentalStockMetricFactTable
+FUNDAMENTAL_STOCK_ESG_ACTIVITY_TABLE = FundamentalStockEsgActivityTable
+FUNDAMENTAL_ETF_IDENTITY_TABLE = FundamentalEtfIdentityTable
+FUNDAMENTAL_MUTUAL_FUND_IDENTITY_TABLE = FundamentalMutualFundIdentityTable
+FUNDAMENTAL_INDEX_IDENTITY_TABLE = FundamentalIndexIdentityTable
+FUNDAMENTAL_ETF_HOLDING_TABLE = FundamentalEtfHoldingTable
+FUNDAMENTAL_MUTUAL_FUND_HOLDING_TABLE = FundamentalMutualFundHoldingTable
+FUNDAMENTAL_FUND_METRIC_FACT_TABLE = FundamentalFundMetricFactTable
+FUNDAMENTAL_INDEX_COMPONENT_TABLE = FundamentalIndexComponentTable
+FUNDAMENTAL_INDEX_HISTORICAL_COMPONENT_TABLE = FundamentalIndexHistoricalComponentTable
 
 __all__ = [
+    "FUNDAMENTAL_ETF_HOLDING_TABLE",
+    "FUNDAMENTAL_ETF_IDENTITY_TABLE",
     "FUNDAMENTAL_DOCUMENT_TABLE",
+    "FUNDAMENTAL_FUND_METRIC_FACT_TABLE",
+    "FUNDAMENTAL_INDEX_COMPONENT_TABLE",
+    "FUNDAMENTAL_INDEX_HISTORICAL_COMPONENT_TABLE",
+    "FUNDAMENTAL_INDEX_IDENTITY_TABLE",
+    "FUNDAMENTAL_MUTUAL_FUND_HOLDING_TABLE",
+    "FUNDAMENTAL_MUTUAL_FUND_IDENTITY_TABLE",
     "FUNDAMENTAL_STATEMENT_FACT_TABLE",
+    "FUNDAMENTAL_STOCK_DIVIDEND_COUNT_TABLE",
+    "FUNDAMENTAL_STOCK_EARNINGS_FACT_TABLE",
+    "FUNDAMENTAL_STOCK_ESG_ACTIVITY_TABLE",
+    "FUNDAMENTAL_STOCK_HOLDER_TABLE",
     "FUNDAMENTAL_STOCK_IDENTITY_TABLE",
+    "FUNDAMENTAL_STOCK_METRIC_FACT_TABLE",
+    "FUNDAMENTAL_STOCK_OUTSTANDING_SHARES_TABLE",
+    "FUNDAMENTAL_STOCK_SHARES_STATS_TABLE",
+    "FUNDAMENTAL_STOCK_SPLITS_DIVIDENDS_TABLE",
+    "FundamentalEtfHoldingTable",
+    "FundamentalEtfIdentityTable",
     "FundamentalDocumentTable",
+    "FundamentalFundMetricFactTable",
+    "FundamentalIndexComponentTable",
+    "FundamentalIndexHistoricalComponentTable",
+    "FundamentalIndexIdentityTable",
+    "FundamentalMutualFundHoldingTable",
+    "FundamentalMutualFundIdentityTable",
     "FundamentalStatementFactTable",
+    "FundamentalStockDividendCountTable",
+    "FundamentalStockEarningsFactTable",
+    "FundamentalStockEsgActivityTable",
+    "FundamentalStockHolderTable",
     "FundamentalStockIdentityTable",
+    "FundamentalStockMetricFactTable",
+    "FundamentalStockOutstandingSharesTable",
+    "FundamentalStockSharesStatsTable",
+    "FundamentalStockSplitsDividendsTable",
 ]

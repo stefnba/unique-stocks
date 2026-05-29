@@ -16,8 +16,24 @@ from domains.fundamental.tasks import (
     load_fundamental_stock_tickers,
     parse_fundamental_stock,
     write_bronze_fundamental_document,
+    write_bronze_fundamental_etf_holdings,
+    write_bronze_fundamental_etf_identity,
+    write_bronze_fundamental_fund_metric_facts,
+    write_bronze_fundamental_index_components,
+    write_bronze_fundamental_index_historical_components,
+    write_bronze_fundamental_index_identity,
+    write_bronze_fundamental_mutual_fund_holdings,
+    write_bronze_fundamental_mutual_fund_identity,
     write_bronze_fundamental_statement_facts,
+    write_bronze_fundamental_stock_dividend_counts,
+    write_bronze_fundamental_stock_earnings_facts,
+    write_bronze_fundamental_stock_esg_activities,
+    write_bronze_fundamental_stock_holders,
     write_bronze_fundamental_stock_identity,
+    write_bronze_fundamental_stock_metric_facts,
+    write_bronze_fundamental_stock_outstanding_shares,
+    write_bronze_fundamental_stock_shares_stats,
+    write_bronze_fundamental_stock_splits_dividends,
     write_fundamental_to_landing,
 )
 
@@ -100,8 +116,49 @@ async def fundamental_flow(
 
                 try:
                     raw = await fetch_fundamental_ticker(ticker)
-                    document, identity, facts, rejected_rows = parse_fundamental_stock(raw, ticker, snapshot_date)
-                    rows_valid = 1 + (1 if identity is not None else 0) + len(facts)
+                    (
+                        document,
+                        identity,
+                        statement_facts,
+                        earnings_facts,
+                        shares_stats,
+                        outstanding_shares,
+                        holders,
+                        splits_dividends,
+                        dividend_counts,
+                        metric_facts,
+                        esg_activities,
+                        etf_identity,
+                        mutual_fund_identity,
+                        index_identity,
+                        etf_holdings,
+                        mutual_fund_holdings,
+                        fund_metric_facts,
+                        index_components,
+                        index_historical_components,
+                        rejected_rows,
+                    ) = parse_fundamental_stock(raw, ticker, snapshot_date)
+                    rows_valid = (
+                        1
+                        + (1 if identity is not None else 0)
+                        + len(statement_facts)
+                        + len(earnings_facts)
+                        + (1 if shares_stats is not None else 0)
+                        + len(outstanding_shares)
+                        + len(holders)
+                        + (1 if splits_dividends is not None else 0)
+                        + len(dividend_counts)
+                        + len(metric_facts)
+                        + len(esg_activities)
+                        + (1 if etf_identity is not None else 0)
+                        + (1 if mutual_fund_identity is not None else 0)
+                        + (1 if index_identity is not None else 0)
+                        + len(etf_holdings)
+                        + len(mutual_fund_holdings)
+                        + len(fund_metric_facts)
+                        + len(index_components)
+                        + len(index_historical_components)
+                    )
                     rejected = len(rejected_rows)
                     total_raw += 1
                     total_valid += rows_valid
@@ -132,14 +189,120 @@ async def fundamental_flow(
 
                     document_write = write_bronze_fundamental_document(document, source_uri=landing.source_uri)
                     identity_write = write_bronze_fundamental_stock_identity(identity, source_uri=landing.source_uri)
-                    facts_write = write_bronze_fundamental_statement_facts(
-                        facts,
+                    statement_facts_write = write_bronze_fundamental_statement_facts(
+                        statement_facts,
+                        ticker=ticker,
+                        snapshot_date=snapshot_date,
+                        source_uri=landing.source_uri,
+                    )
+                    earnings_facts_write = write_bronze_fundamental_stock_earnings_facts(
+                        earnings_facts,
+                        ticker=ticker,
+                        snapshot_date=snapshot_date,
+                        source_uri=landing.source_uri,
+                    )
+                    shares_stats_write = write_bronze_fundamental_stock_shares_stats(
+                        shares_stats,
+                        source_uri=landing.source_uri,
+                    )
+                    outstanding_shares_write = write_bronze_fundamental_stock_outstanding_shares(
+                        outstanding_shares,
+                        ticker=ticker,
+                        snapshot_date=snapshot_date,
+                        source_uri=landing.source_uri,
+                    )
+                    holders_write = write_bronze_fundamental_stock_holders(
+                        holders,
+                        ticker=ticker,
+                        snapshot_date=snapshot_date,
+                        source_uri=landing.source_uri,
+                    )
+                    splits_dividends_write = write_bronze_fundamental_stock_splits_dividends(
+                        splits_dividends,
+                        source_uri=landing.source_uri,
+                    )
+                    dividend_counts_write = write_bronze_fundamental_stock_dividend_counts(
+                        dividend_counts,
+                        ticker=ticker,
+                        snapshot_date=snapshot_date,
+                        source_uri=landing.source_uri,
+                    )
+                    metric_facts_write = write_bronze_fundamental_stock_metric_facts(
+                        metric_facts,
+                        ticker=ticker,
+                        snapshot_date=snapshot_date,
+                        source_uri=landing.source_uri,
+                    )
+                    esg_activities_write = write_bronze_fundamental_stock_esg_activities(
+                        esg_activities,
+                        ticker=ticker,
+                        snapshot_date=snapshot_date,
+                        source_uri=landing.source_uri,
+                    )
+                    etf_identity_write = write_bronze_fundamental_etf_identity(
+                        etf_identity,
+                        source_uri=landing.source_uri,
+                    )
+                    mutual_fund_identity_write = write_bronze_fundamental_mutual_fund_identity(
+                        mutual_fund_identity,
+                        source_uri=landing.source_uri,
+                    )
+                    index_identity_write = write_bronze_fundamental_index_identity(
+                        index_identity,
+                        source_uri=landing.source_uri,
+                    )
+                    etf_holdings_write = write_bronze_fundamental_etf_holdings(
+                        etf_holdings,
+                        ticker=ticker,
+                        snapshot_date=snapshot_date,
+                        source_uri=landing.source_uri,
+                    )
+                    mutual_fund_holdings_write = write_bronze_fundamental_mutual_fund_holdings(
+                        mutual_fund_holdings,
+                        ticker=ticker,
+                        snapshot_date=snapshot_date,
+                        source_uri=landing.source_uri,
+                    )
+                    fund_metric_facts_write = write_bronze_fundamental_fund_metric_facts(
+                        fund_metric_facts,
+                        ticker=ticker,
+                        snapshot_date=snapshot_date,
+                        source_uri=landing.source_uri,
+                    )
+                    index_components_write = write_bronze_fundamental_index_components(
+                        index_components,
+                        ticker=ticker,
+                        snapshot_date=snapshot_date,
+                        source_uri=landing.source_uri,
+                    )
+                    index_historical_components_write = write_bronze_fundamental_index_historical_components(
+                        index_historical_components,
                         ticker=ticker,
                         snapshot_date=snapshot_date,
                         source_uri=landing.source_uri,
                     )
 
-                    rows_written = document_write.rows_written + identity_write.rows_written + facts_write.rows_written
+                    rows_written = (
+                        document_write.rows_written
+                        + identity_write.rows_written
+                        + statement_facts_write.rows_written
+                        + earnings_facts_write.rows_written
+                        + shares_stats_write.rows_written
+                        + outstanding_shares_write.rows_written
+                        + holders_write.rows_written
+                        + splits_dividends_write.rows_written
+                        + dividend_counts_write.rows_written
+                        + metric_facts_write.rows_written
+                        + esg_activities_write.rows_written
+                        + etf_identity_write.rows_written
+                        + mutual_fund_identity_write.rows_written
+                        + index_identity_write.rows_written
+                        + etf_holdings_write.rows_written
+                        + mutual_fund_holdings_write.rows_written
+                        + fund_metric_facts_write.rows_written
+                        + index_components_write.rows_written
+                        + index_historical_components_write.rows_written
+                    )
                     total_written += rows_written
 
                     unit_id = run.record_unit_with_landing(
@@ -150,7 +313,23 @@ async def fundamental_flow(
                         reason=_write_reason(
                             document_write.reason,
                             identity_write.reason,
-                            facts_write.reason,
+                            statement_facts_write.reason,
+                            earnings_facts_write.reason,
+                            shares_stats_write.reason,
+                            outstanding_shares_write.reason,
+                            holders_write.reason,
+                            splits_dividends_write.reason,
+                            dividend_counts_write.reason,
+                            metric_facts_write.reason,
+                            esg_activities_write.reason,
+                            etf_identity_write.reason,
+                            mutual_fund_identity_write.reason,
+                            index_identity_write.reason,
+                            etf_holdings_write.reason,
+                            mutual_fund_holdings_write.reason,
+                            fund_metric_facts_write.reason,
+                            index_components_write.reason,
+                            index_historical_components_write.reason,
                         ),
                         rows_raw=1,
                         rows_valid=rows_valid,
@@ -158,7 +337,7 @@ async def fundamental_flow(
                         rows_written=rows_written,
                     )
                     run.record_rejections(
-                        _statement_rejection_records(
+                        _fundamental_rejection_records(
                             run=run,
                             unit_id=unit_id,
                             ticker=ticker,
@@ -168,7 +347,20 @@ async def fundamental_flow(
                     )
                     summary["tickers"][ticker] = {
                         "family": document.row.instrument_family,
-                        "statement_facts": len(facts),
+                        "statement_facts": len(statement_facts),
+                        "earnings_facts": len(earnings_facts),
+                        "shares_stats": shares_stats is not None,
+                        "outstanding_shares": len(outstanding_shares),
+                        "holders": len(holders),
+                        "splits_dividends": splits_dividends is not None,
+                        "dividend_counts": len(dividend_counts),
+                        "metric_facts": len(metric_facts),
+                        "esg_activities": len(esg_activities),
+                        "etf_holdings": len(etf_holdings),
+                        "mutual_fund_holdings": len(mutual_fund_holdings),
+                        "fund_metric_facts": len(fund_metric_facts),
+                        "index_components": len(index_components),
+                        "index_historical_components": len(index_historical_components),
                         "rows_written": rows_written,
                     }
 
@@ -246,7 +438,7 @@ def _write_reason(*reasons: str | None) -> str | None:
     return ",".join(reason_set) if reason_set else None
 
 
-def _statement_rejection_records(
+def _fundamental_rejection_records(
     *,
     run: PipelineRunScope,
     unit_id: str,
@@ -260,6 +452,9 @@ def _statement_rejection_records(
             unit_id=unit_id,
             entity_key={
                 "ticker": ticker,
+                "section": row.get("section"),
+                "earnings_section": row.get("earnings_section"),
+                "holder_type": row.get("holder_type"),
                 "statement_type": row.get("statement_type"),
                 "period_type": row.get("period_type"),
                 "period_key": row.get("period_key"),

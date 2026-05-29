@@ -2,7 +2,7 @@
 
 `apps/pipelines` is the Prefect 3 ingestion app for Unique Stocks. It fetches market data from providers, validates provider responses, writes typed Bronze records through the lake client, and coordinates scheduled runs.
 
-The active path is end-of-day price ingestion for the configured market data provider. Exchange and instrument are reference flows; fundamental has an initial stock document, stock identity, and statement-fact ingestion path.
+The active path is end-of-day price ingestion for the configured market data provider. Exchange and instrument are reference flows; fundamental has an initial stock document, stock identity, statement-fact, earnings-fact, shares, holders, dividends, and compact metrics ingestion path.
 
 ## Status
 
