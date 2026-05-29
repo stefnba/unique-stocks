@@ -2,7 +2,7 @@
 
 `apps/pipelines` is the Prefect 3 ingestion app for Unique Stocks. It fetches market data from providers, validates provider responses, writes typed Bronze records through the lake client, and coordinates scheduled runs.
 
-The active path is end-of-day price ingestion for the configured market data provider. Exchange and instrument are reference flows; fundamental has an initial stock document, stock identity, statement-fact, earnings-fact, shares, holders, dividends, and compact metrics ingestion path.
+The active path is end-of-day price ingestion for the configured market data provider. Exchange and instrument are reference flows; fundamental ingests full provider documents plus typed stock, ETF, mutual fund, and index Bronze slices for the fixture-backed EODHD shapes.
 
 ## Status
 
@@ -11,7 +11,7 @@ The active path is end-of-day price ingestion for the configured market data pro
 | `eod_price`   | Active         | Weekdays after market close, plus manual backfill. |
 | `exchange`    | Reference flow | Manual or monthly.                                 |
 | `instrument`  | Reference flow | Weekly.                                            |
-| `fundamental` | Stock v1       | Manual or quarterly.                               |
+| `fundamental` | Active v1      | Manual or quarterly.                               |
 
 ## Exchange reference flow
 

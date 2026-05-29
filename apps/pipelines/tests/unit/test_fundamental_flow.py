@@ -7,7 +7,7 @@ from typing import cast
 
 import pytest
 
-from core.ingestion import RunUnitTally
+from core.ingestion import BronzeWrite, LandingWrite, RunUnitTally
 from core.ingestion.run_tracking import UnitStatus
 from domains.fundamental import flows, tasks
 from domains.fundamental.parsers import parse_fundamental_document
@@ -33,6 +33,17 @@ class FakeRun:
         if isinstance(status, str):
             self.tally.record(cast(UnitStatus, status))
         return "unit-1"
+
+    def record_unit_with_landing(self, landing: LandingWrite, **kwargs: object) -> str:
+        """Capture a completed unit row associated with a landing object."""
+        self.units.append({"source_uri": landing.source_uri, **kwargs})
+        status = kwargs.get("status")
+        if isinstance(status, str):
+            self.tally.record(cast(UnitStatus, status))
+        return "unit-1"
+
+    def record_rejections(self, _: object) -> None:
+        """Accept parser rejection rows."""
 
     def complete(self, *, summary: dict[str, object], **_: object) -> None:
         """Capture run completion."""
@@ -160,6 +171,115 @@ async def test_skip_existing_false_uses_changed_payload_refresh(monkeypatch: pyt
     assert run.units[0]["reason"] == "payload_unchanged"
     assert run.units[0]["rows_raw"] == 1
     assert run.is_terminal is True
+
+
+@pytest.mark.asyncio
+async def test_replay_landing_uses_landed_json_without_provider_fetch(monkeypatch: pytest.MonkeyPatch) -> None:
+    """replay_landing=True reads existing landing JSON and reuses that source URI for Bronze writes."""
+    raw = _raw_stock_payload()
+    run = FakeRun()
+    calls: list[str] = []
+    source_uri = "s3://lake/landing/fundamental/provider=eodhd/provider_exchange_code=US/ticker=AAPL.US/data.json"
+
+    async def load_landing(_: str, __: date, *, source_uri: str | None = None) -> tuple[FundamentalRaw, LandingWrite]:
+        calls.append(f"load:{source_uri}")
+        return raw, LandingWrite(
+            dataset="fundamental.document",
+            source_uri=source_uri or "s3://lake/latest.json",
+            partition={"ticker": "AAPL.US", "snapshot_date": SNAPSHOT_DATE},
+            rows_raw=1,
+        )
+
+    async def fail_fetch(_: str) -> FundamentalRaw:
+        raise AssertionError("replay should not fetch from provider")
+
+    async def fail_landing(*_: object, **__: object) -> None:
+        raise AssertionError("replay should not write a new landing object")
+
+    def write_one(*_: object, **__: object) -> BronzeWrite:
+        return BronzeWrite(rows_written=1)
+
+    def write_none(*_: object, **__: object) -> BronzeWrite:
+        return BronzeWrite(rows_written=0, reason="empty")
+
+    monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
+    monkeypatch.setattr(flows, "fundamental_document_already_ingested", lambda *_: False)
+    monkeypatch.setattr(flows, "fetch_fundamental_ticker", fail_fetch)
+    monkeypatch.setattr(flows, "load_fundamental_from_landing", load_landing)
+    monkeypatch.setattr(flows, "parse_fundamental_stock", tasks.parse_fundamental_stock.fn)
+    monkeypatch.setattr(flows, "load_fundamental_document_payload_hash", lambda *_: None)
+    monkeypatch.setattr(flows, "write_fundamental_to_landing", fail_landing)
+    monkeypatch.setattr(flows, "write_bronze_fundamental_document", write_one)
+    monkeypatch.setattr(flows, "write_bronze_fundamental_stock_identity", write_one)
+    monkeypatch.setattr(flows, "write_bronze_fundamental_statement_facts", write_one)
+    for name in (
+        "write_bronze_fundamental_stock_earnings_facts",
+        "write_bronze_fundamental_stock_shares_stats",
+        "write_bronze_fundamental_stock_outstanding_shares",
+        "write_bronze_fundamental_stock_holders",
+        "write_bronze_fundamental_stock_splits_dividends",
+        "write_bronze_fundamental_stock_dividend_counts",
+        "write_bronze_fundamental_stock_metric_facts",
+        "write_bronze_fundamental_stock_esg_activities",
+        "write_bronze_fundamental_etf_identity",
+        "write_bronze_fundamental_mutual_fund_identity",
+        "write_bronze_fundamental_index_identity",
+        "write_bronze_fundamental_etf_holdings",
+        "write_bronze_fundamental_mutual_fund_holdings",
+        "write_bronze_fundamental_fund_metric_facts",
+        "write_bronze_fundamental_index_components",
+        "write_bronze_fundamental_index_historical_components",
+    ):
+        monkeypatch.setattr(flows, name, write_none)
+
+    summary = await flows.fundamental_flow.fn(
+        tickers=["AAPL.US"],
+        snapshot_date=SNAPSHOT_DATE,
+        replay_landing=True,
+        landing_source_uris_by_ticker={"AAPL.US": source_uri},
+    )
+
+    assert calls == [f"load:{source_uri}"]
+    ticker_summary = cast(dict[str, object], cast(dict[str, object], summary["tickers"])["AAPL.US"])
+    assert ticker_summary["rows_written"] == 3
+    assert run.units[0]["source_uri"] == source_uri
+    assert run.is_terminal is True
+
+
+@pytest.mark.asyncio
+async def test_provider_credit_budget_skips_tickers_before_fetch(monkeypatch: pytest.MonkeyPatch) -> None:
+    """max_provider_credits caps paid fundamentals calls before fetch tasks are submitted."""
+    raw = _raw_stock_payload()
+    payload_hash = parse_fundamental_document(raw, ticker="AAPL.US", snapshot_date=SNAPSHOT_DATE).row.payload_hash
+    run = FakeRun()
+    calls: list[str] = []
+
+    async def fetch(ticker: str) -> FundamentalRaw:
+        calls.append(ticker)
+        return raw
+
+    def fail_if_called(*_: object, **__: object) -> None:
+        raise AssertionError("unchanged refresh should not land, delete, or write")
+
+    monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
+    monkeypatch.setattr(flows, "fetch_fundamental_ticker", fetch)
+    monkeypatch.setattr(flows, "parse_fundamental_stock", tasks.parse_fundamental_stock.fn)
+    monkeypatch.setattr(flows, "load_fundamental_document_payload_hash", lambda *_: payload_hash)
+    monkeypatch.setattr(flows, "write_fundamental_to_landing", fail_if_called)
+    monkeypatch.setattr(flows, "delete_fundamental_snapshot_rows", fail_if_called)
+    monkeypatch.setattr(flows, "write_bronze_fundamental_document", fail_if_called)
+
+    summary = await flows.fundamental_flow.fn(
+        tickers=["AAPL.US", "MSFT.US"],
+        snapshot_date=SNAPSHOT_DATE,
+        skip_existing=False,
+        max_provider_credits=10,
+        provider_credits_per_call=10,
+    )
+
+    assert calls == ["AAPL.US"]
+    assert summary["skipped"] == ["MSFT.US", "AAPL.US"]
+    assert [unit["reason"] for unit in run.units] == ["credit_budget_exhausted", "payload_unchanged"]
 
 
 def test_delete_fundamental_snapshot_rows_deletes_child_tables_before_document(

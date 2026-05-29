@@ -1,6 +1,7 @@
 """Prefect tasks for fundamentals ingestion."""
 
 from datetime import UTC, date, datetime
+from typing import Protocol
 
 import structlog
 from prefect import task
@@ -10,6 +11,7 @@ from pydantic import ValidationError
 
 from config.blocks import BlockRegistry
 from core.ingestion import BronzeParseResult, BronzeWrite, LandingWrite
+from core.ingestion.keys import ObjectStorageKey
 from domains.eod_price.symbols import exchange_from_qualified_ticker
 from domains.fundamental.datasets import (
     FUNDAMENTAL_DOCUMENT_DATASET,
@@ -77,6 +79,14 @@ from domains.fundamental.parsers import (
 from providers.eodhd.models import FundamentalRaw
 
 log = structlog.get_logger(__name__)
+
+
+class _LandingStorage(Protocol):
+    bucket: str | None
+
+    def list_keys(self, prefix: str = "", *, bucket: str | None = None, max_keys: int | None = None) -> list[str]:
+        """Return landing object keys under a prefix."""
+        ...
 
 
 def _is_retryable(task: object, task_run: TaskRun, state: State) -> bool:
@@ -229,6 +239,37 @@ async def fetch_fundamental_ticker(ticker: str) -> FundamentalRaw:
     return raw
 
 
+@task(name="load-fundamental-from-landing")
+async def load_fundamental_from_landing(
+    ticker: str,
+    snapshot_date: date,
+    source_uri: str | None = None,
+) -> tuple[FundamentalRaw, LandingWrite]:
+    """Load one landed fundamentals document without calling the provider.
+
+    If ``source_uri`` is omitted, the latest landing object for the ticker and
+    snapshot date is selected by its path-safe ``ingested_at`` partition.
+    """
+    from core.clients.storage.s3 import S3StorageClient
+
+    s3 = await S3StorageClient.from_block_entry(BlockRegistry.S3_BUCKET)
+    resolved_uri = source_uri or _latest_fundamental_landing_uri(s3, ticker=ticker, snapshot_date=snapshot_date)
+    payload = s3.load(resolved_uri, format="json")
+    raw = FundamentalRaw.model_validate(payload)
+    landing = LandingWrite(
+        dataset=FUNDAMENTAL_DOCUMENT_DATASET.landings.document.audit_dataset_name,
+        source_uri=resolved_uri,
+        partition={
+            "provider_exchange_code": exchange_from_qualified_ticker(ticker),
+            "ticker": ticker,
+            "snapshot_date": snapshot_date,
+        },
+        rows_raw=1,
+    )
+    log.info("fundamental.landing_loaded", ticker=ticker, snapshot_date=snapshot_date, uri=resolved_uri)
+    return raw, landing
+
+
 @task(name="write-fundamental-landing")
 async def write_fundamental_to_landing(
     raw: FundamentalRaw,
@@ -263,6 +304,40 @@ async def write_fundamental_to_landing(
         },
         rows_raw=1,
     )
+
+
+def _latest_fundamental_landing_uri(s3: _LandingStorage, *, ticker: str, snapshot_date: date) -> str:
+    provider_exchange_code = exchange_from_qualified_ticker(ticker)
+    key = ObjectStorageKey.partitioned_from_mapping(
+        FUNDAMENTAL_DOCUMENT_DATASET.provider,
+        FUNDAMENTAL_DOCUMENT_DATASET.landings.document.domain,
+        {
+            "provider_exchange_code": provider_exchange_code,
+            "ticker": ticker,
+            "snapshot_date": snapshot_date,
+            "ingested_at": "",
+        },
+    ).key(FUNDAMENTAL_DOCUMENT_DATASET.landings.document.file_format)
+    prefix = key.rsplit("ingested_at=", maxsplit=1)[0] + "ingested_at="
+    keys = [
+        candidate
+        for candidate in s3.list_keys(prefix=prefix)
+        if candidate.endswith(f".{FUNDAMENTAL_DOCUMENT_DATASET.landings.document.file_format}")
+    ]
+    if not keys:
+        raise FileNotFoundError(
+            f"No landed fundamentals document found for ticker={ticker!r}, snapshot_date={snapshot_date.isoformat()!r}"
+        )
+    latest_key = sorted(keys)[-1]
+    bucket = _landing_bucket(s3)
+    return f"s3://{bucket}/{latest_key}"
+
+
+def _landing_bucket(s3: _LandingStorage) -> str:
+    bucket = getattr(s3, "bucket", None)
+    if not bucket:
+        raise ValueError("S3 storage client has no default bucket; pass an explicit fundamentals source_uri.")
+    return str(bucket)
 
 
 @task(name="parse-fundamental-stock")

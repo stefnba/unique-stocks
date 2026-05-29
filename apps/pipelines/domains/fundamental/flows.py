@@ -1,18 +1,21 @@
 """Fundamentals ingestion flow."""
 
 import asyncio
+from collections.abc import AsyncIterator
 from datetime import date
+from typing import cast
 
 import structlog
 from prefect import flow
 from pydantic import ValidationError
 
-from core.ingestion import PipelineRunScope, PipelineRunTracker, RejectionRecord, terminal_status
+from core.ingestion import LandingWrite, PipelineRunScope, PipelineRunTracker, RejectionRecord, terminal_status
 from domains.fundamental.tasks import (
     delete_fundamental_snapshot_rows,
     fetch_fundamental_ticker,
     fundamental_document_already_ingested,
     load_fundamental_document_payload_hash,
+    load_fundamental_from_landing,
     load_fundamental_stock_tickers,
     parse_fundamental_stock,
     write_bronze_fundamental_document,
@@ -36,6 +39,7 @@ from domains.fundamental.tasks import (
     write_bronze_fundamental_stock_splits_dividends,
     write_fundamental_to_landing,
 )
+from providers.eodhd.models import FundamentalRaw
 
 log = structlog.get_logger(__name__)
 _REJECTION_SAMPLE_LIMIT_PER_TICKER = 100
@@ -52,6 +56,12 @@ async def fundamental_flow(
     limit: int | None = None,
     skip_existing: bool = True,
     refresh_existing: bool = False,
+    replay_landing: bool = False,
+    landing_source_uris_by_ticker: dict[str, str] | None = None,
+    batch_size: int = 1,
+    provider_batch_delay_seconds: float = 0.0,
+    provider_credits_per_call: int = 10,
+    max_provider_credits: int | None = None,
 ) -> dict[str, object]:
     """Ingest fundamentals for explicit tickers or latest stock instruments.
 
@@ -63,11 +73,18 @@ async def fundamental_flow(
     credits. Set ``refresh_existing=True`` to fetch existing ticker snapshots,
     compare payload hashes, and replace same-day Bronze rows only when the
     provider document changed. Passing ``skip_existing=False`` uses the same
-    changed-payload refresh behavior.
+    changed-payload refresh behavior. Set ``replay_landing=True`` to load
+    previously landed JSON documents instead of calling the provider.
+    ``batch_size`` controls concurrent provider fetches only; landing and
+    Bronze writes stay sequential. ``max_provider_credits`` can cap provider
+    calls for fundamentals backfills where each EODHD call costs 10 credits.
     """
     snapshot_date = snapshot_date or date.today()
     requested_tickers = tickers or load_fundamental_stock_tickers(provider_exchange_codes, limit)
     refresh_changed_existing = refresh_existing or not skip_existing
+    fetch_batch_size = max(1, int(batch_size))
+    fetch_batch_delay = max(0.0, float(provider_batch_delay_seconds))
+    provider_credit_cost = max(1, int(provider_credits_per_call))
 
     summary: dict = {
         "snapshot_date": snapshot_date.isoformat(),
@@ -94,15 +111,24 @@ async def fundamental_flow(
             "skip_existing": skip_existing,
             "refresh_existing": refresh_existing,
             "refresh_changed_existing": refresh_changed_existing,
+            "replay_landing": replay_landing,
+            "landing_source_uris_by_ticker": landing_source_uris_by_ticker,
+            "batch_size": fetch_batch_size,
+            "provider_batch_delay_seconds": fetch_batch_delay,
+            "provider_credits_per_call": provider_credit_cost,
+            "max_provider_credits": max_provider_credits,
         },
         target_window_start=snapshot_date,
         target_window_end=snapshot_date,
     ) as run:
         try:
+            pending_tickers: list[str] = []
             for ticker in requested_tickers:
                 unit_key: dict[str, object] = {"ticker": ticker, "snapshot_date": snapshot_date.isoformat()}
-                if skip_existing and not refresh_changed_existing and fundamental_document_already_ingested(
-                    ticker, snapshot_date
+                if (
+                    skip_existing
+                    and not refresh_changed_existing
+                    and fundamental_document_already_ingested(ticker, snapshot_date)
                 ):
                     summary["skipped"].append(ticker)
                     run.record_unit(
@@ -113,9 +139,69 @@ async def fundamental_flow(
                         rows_written=0,
                     )
                     continue
+                pending_tickers.append(ticker)
+
+            if not replay_landing and max_provider_credits is not None:
+                max_provider_calls = max(0, int(max_provider_credits) // provider_credit_cost)
+                skipped_for_budget = pending_tickers[max_provider_calls:]
+                pending_tickers = pending_tickers[:max_provider_calls]
+                for ticker in skipped_for_budget:
+                    summary["skipped"].append(ticker)
+                    run.record_unit(
+                        unit_type="ticker_snapshot",
+                        unit_key={"ticker": ticker, "snapshot_date": snapshot_date.isoformat()},
+                        status="skipped",
+                        reason="credit_budget_exhausted",
+                        rows_written=0,
+                    )
+
+            async for ticker, result in _fundamental_raw_results(
+                pending_tickers,
+                snapshot_date=snapshot_date,
+                replay_landing=replay_landing,
+                landing_source_uris_by_ticker=landing_source_uris_by_ticker,
+                fetch_batch_size=fetch_batch_size,
+                fetch_batch_delay=fetch_batch_delay,
+            ):
+                unit_key = {"ticker": ticker, "snapshot_date": snapshot_date.isoformat()}
+                if isinstance(result, ValidationError):
+                    summary["failed"].append(ticker)
+                    run.record_unit(
+                        unit_type="ticker_snapshot",
+                        unit_key=unit_key,
+                        status="failed",
+                        error=result,
+                        rows_written=0,
+                    )
+                    run.fail(
+                        result,
+                        counters=run.tally.counters(
+                            rows_raw=total_raw,
+                            rows_valid=total_valid,
+                            rows_rejected=total_rejected,
+                            rows_written=total_written,
+                        ),
+                        summary=summary,
+                    )
+                    raise result
+                if isinstance(result, BaseException):
+                    log.error("fundamental.ticker_failed", ticker=ticker, error=str(result))
+                    summary["failed"].append(ticker)
+                    run.record_unit(
+                        unit_type="ticker_snapshot",
+                        unit_key=unit_key,
+                        status="failed",
+                        error=result,
+                        rows_written=0,
+                    )
+                    continue
 
                 try:
-                    raw = await fetch_fundamental_ticker(ticker)
+                    if replay_landing:
+                        raw, landing = cast(tuple[FundamentalRaw, LandingWrite], result)
+                    else:
+                        raw = cast(FundamentalRaw, result)
+                        landing = None
                     (
                         document,
                         identity,
@@ -183,7 +269,8 @@ async def fundamental_flow(
                         )
                         continue
 
-                    landing = await write_fundamental_to_landing(raw, ticker, snapshot_date)
+                    if landing is None:
+                        landing = await write_fundamental_to_landing(raw, ticker, snapshot_date)
                     if existing_payload_hash is not None:
                         delete_fundamental_snapshot_rows(ticker, snapshot_date)
 
@@ -431,6 +518,43 @@ async def fundamental_flow(
             raise
 
     return summary
+
+
+async def _fundamental_raw_results(
+    tickers: list[str],
+    *,
+    snapshot_date: date,
+    replay_landing: bool,
+    landing_source_uris_by_ticker: dict[str, str] | None,
+    fetch_batch_size: int,
+    fetch_batch_delay: float,
+) -> AsyncIterator[tuple[str, FundamentalRaw | tuple[FundamentalRaw, LandingWrite] | BaseException]]:
+    """Yield fetched or replayed fundamentals payloads one batch at a time."""
+    for i in range(0, len(tickers), fetch_batch_size):
+        batch_tickers = tickers[i : i + fetch_batch_size]
+        if replay_landing:
+            raw_results = await asyncio.gather(
+                *[
+                    load_fundamental_from_landing(
+                        ticker,
+                        snapshot_date,
+                        source_uri=(landing_source_uris_by_ticker or {}).get(ticker),
+                    )
+                    for ticker in batch_tickers
+                ],
+                return_exceptions=True,
+            )
+        else:
+            raw_results = await asyncio.gather(
+                *[fetch_fundamental_ticker(ticker) for ticker in batch_tickers],
+                return_exceptions=True,
+            )
+
+        for ticker, result in zip(batch_tickers, raw_results, strict=True):
+            yield ticker, result
+
+        if not replay_landing and fetch_batch_delay > 0 and i + fetch_batch_size < len(tickers):
+            await asyncio.sleep(fetch_batch_delay)
 
 
 def _write_reason(*reasons: str | None) -> str | None:

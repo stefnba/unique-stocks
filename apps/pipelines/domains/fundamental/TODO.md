@@ -8,10 +8,10 @@
 - [x] Flatten stock financial statements into `bronze.fundamental_statement_fact`.
 - [x] Complete fixture-backed stock fundamentals Bronze coverage.
 - [x] Add dbt staging models for each Bronze fundamentals table.
-- [ ] Add async batching and provider-credit-aware rate limits for larger backfills.
+- [x] Add async batching and provider-credit-aware rate limits for larger backfills.
 - [x] Add ETF, fund, and index identity tables from the current fixtures.
 - [x] Add ETF/fund holdings and index constituents as separate edge-table grains.
-- [ ] Add replay from landed fundamentals JSON without spending provider credits.
+- [x] Add replay from landed fundamentals JSON without spending provider credits.
 
 ## Stock Bronze Coverage
 
@@ -44,6 +44,6 @@
 ## Production Hardening
 
 - [x] dbt staging for all Bronze fundamentals tables.
-- [ ] Async batching with configurable batch size.
-- [ ] Provider-credit-aware throttling.
-- [ ] Replay from landed fundamentals JSON.
+- [x] Async batching with configurable batch size.
+- [x] Provider-credit-aware throttling.
+- [x] Replay from landed fundamentals JSON.
