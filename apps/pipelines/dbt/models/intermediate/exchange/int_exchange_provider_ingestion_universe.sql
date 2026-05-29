@@ -30,5 +30,5 @@ SELECT
     mapped_mic_count,
     unmatched_mic_count,
     includes_provider_bucket,
-    TRUE AS is_enabled_for_ingestion
+    data_provider = 'eodhd' AS is_enabled_for_ingestion
 FROM rolled_up

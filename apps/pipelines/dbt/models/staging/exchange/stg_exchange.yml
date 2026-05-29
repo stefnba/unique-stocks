@@ -123,10 +123,6 @@ models:
         description: Date the MIC was deactivated, when applicable.
       - name: comments
         description: Registry comments supplied by the source.
-      - name: provider_supported
-        description: Whether this row is present in the source provider registry.
-        data_tests:
-          - not_null
       - name: data_provider
         description: Provider that supplied the registry row.
         data_tests:

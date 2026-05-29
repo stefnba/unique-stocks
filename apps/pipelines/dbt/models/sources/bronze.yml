@@ -108,8 +108,6 @@ sources:
             description: Date the MIC was deactivated, when applicable.
           - name: comments
             description: Registry comments supplied by the source.
-          - name: provider_supported
-            description: Whether this row is present in the source provider registry.
           - name: data_provider
             description: Provider that supplied the record.
           - name: raw_json

@@ -98,6 +98,32 @@ deployments:
     work_pool: *default_pool
 
   # ── dbt — transform current price models ─────────────────────────────────
+  - name: exchange-build
+    flow_name: dbt-build
+    description: >
+      Run dbt build for exchange staging and intermediate models, including
+      the provider ingestion universe consumed by instrument and price flows.
+    entrypoint: core.transforms.dbt:dbt_build_flow
+    tags:
+      - dbt
+      - transform
+      - exchange
+    parameters:
+      command: build
+      select:
+        - path:models/staging/exchange
+        - path:models/intermediate/exchange
+      exclude: null
+      project_dir: dbt
+      profiles_dir: dbt
+      target: null
+      parent_run_id: null
+    enforce_parameter_schema: true
+    concurrency_limit:
+      limit: 1
+      collision_strategy: CANCEL_NEW
+    work_pool: *default_pool
+
   - name: price-build
     flow_name: dbt-build
     description: >

@@ -43,4 +43,3 @@ class ExchangeMicRegistrySnapshot(BronzeModel):
     last_validation_date: date | None = None
     expiry_date: date | None = None
     comments: str | None = None
-    provider_supported: bool = True

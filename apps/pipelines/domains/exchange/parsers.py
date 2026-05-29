@@ -76,6 +76,5 @@ def parse_exchange_mic_registry_snapshots(
             last_validation_date=raw.last_validation_date,
             expiry_date=raw.expiry_date,
             comments=raw.comments,
-            provider_supported=True,
         ),
     )

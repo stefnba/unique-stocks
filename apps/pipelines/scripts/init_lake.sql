@@ -72,7 +72,6 @@ CREATE TABLE IF NOT EXISTS bronze.exchange_mic_registry (
     last_validation_date DATE,
     expiry_date DATE,
     comments VARCHAR,
-    provider_supported BOOLEAN NOT NULL,
     data_provider VARCHAR NOT NULL,
     raw_json JSON NOT NULL,
     row_hash VARCHAR NOT NULL,

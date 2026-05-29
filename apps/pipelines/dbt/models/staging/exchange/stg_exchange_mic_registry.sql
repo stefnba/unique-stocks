@@ -24,7 +24,6 @@ renamed AS (
         CAST(source_data.last_validation_date AS DATE) AS last_validation_date,
         CAST(source_data.expiry_date AS DATE) AS expiry_date,
         NULLIF(TRIM(CAST(source_data.comments AS VARCHAR)), '') AS comments,
-        CAST(source_data.provider_supported AS BOOLEAN) AS provider_supported,
         LOWER(TRIM(CAST(source_data.data_provider AS VARCHAR))) AS data_provider,
         CAST(source_data.row_hash AS VARCHAR) AS row_hash,
         CAST(source_data.source_uri AS VARCHAR) AS source_uri,

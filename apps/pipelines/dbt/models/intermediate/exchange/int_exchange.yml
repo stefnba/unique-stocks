@@ -211,6 +211,6 @@ models:
         data_tests:
           - not_null
       - name: is_enabled_for_ingestion
-        description: True when downstream ingestion flows should use this provider code.
+        description: True when downstream ingestion flows should use this provider code. Currently enabled for EODHD catalog codes.
         data_tests:
           - not_null

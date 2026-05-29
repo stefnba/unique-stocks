@@ -13,6 +13,24 @@ The active path is end-of-day price ingestion for the configured market data pro
 | `instrument`  | Reference flow | Weekly.                                            |
 | `fundamental` | Planned stub   | Manual or quarterly.                               |
 
+## Exchange reference flow
+
+The exchange domain has two Bronze sources:
+
+- `bronze.exchange_catalog`: provider-supported exchange/API codes, such as EODHD `US`, `LSE`, or `XETRA`.
+- `bronze.exchange_mic_registry`: ISO 10383 MIC registry rows, used as the canonical exchange universe backbone.
+
+dbt builds these into Silver exchange models. Downstream ingestion flows read provider codes from `silver.int_exchange_provider_ingestion_universe`, not directly from provider APIs or raw Bronze tables. On a fresh environment before this dbt model exists, instrument and price flows fall back to `["US"]`.
+
+Operational order:
+
+```text
+exchange-catalog-refresh
+exchange-mic-registry-refresh
+dbt-build/exchange-build
+instrument-refresh and eod-price flows
+```
+
 ## Exchange identifiers
 
 Providers can return several exchange-like identifiers. Keep them distinct in Python models, Bronze columns, dbt models, and logs:
@@ -195,7 +213,12 @@ make dbt-run-marts
 
 `dbt/profiles.yml` is committed because it contains only environment-variable references, not secrets. Use `DBT_TARGET=prod` with `MOTHERDUCK_TOKEN` set to run against MotherDuck.
 
-Production dbt execution is also available as a Prefect deployment: `dbt-build/price-build`. It runs the current price staging and mart paths, reads `dbt/target/run_results.json`, and writes dbt invocation/node-result audit rows to the lake.
+Production dbt execution is also available as Prefect deployments:
+
+- `dbt-build/exchange-build`: builds exchange staging/intermediate models, including the provider ingestion universe consumed by instrument and price flows.
+- `dbt-build/price-build`: builds current price staging and mart paths.
+
+Both deployments read `dbt/target/run_results.json` and write dbt invocation/node-result audit rows to the lake.
 
 DuckDB allows one writer at a time. If `make lake-init` or `make dbt-build` reports a database lock, close any local DuckDB/Cursor/VS Code database viewer connected to `unique_stocks.duckdb` and rerun the command.
 

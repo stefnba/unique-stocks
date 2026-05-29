@@ -67,7 +67,6 @@ def test_parse_iso10383_mic_registry_rows() -> None:
     assert valid[1].mic_type == "SGMT"
 
     sources = parse_exchange_mic_registry_snapshots(valid, date(2026, 5, 24))
-    assert sources[0].row.provider_supported is True
     assert sources[1].row.operating_mic == "XCNQ"
     record = EXCHANGE_MIC_REGISTRY_DATASET.bronze_record(sources[0])
     assert record["data_provider"] == "iso10383"
