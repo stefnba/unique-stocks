@@ -71,6 +71,13 @@ def normalize_partitions(
 ) -> dict[str, PartitionValue]:
     """Validate and order typed partition values for object-key building.
 
+    ``LandingPartitionSchema`` is a ``TypedDict``, so static type checkers enforce
+    field names and value types at compile time only. At runtime, tasks can still
+    pass ``None``, floats, or other unexpected objects. This function validates
+    every partition value before landing keys or audit metadata are built so bad
+    inputs fail fast with ``TypeError`` instead of silently stringifying into
+    malformed object-store paths (for example ``bar_date=None``).
+
     Args:
         schema: TypedDict partition schema that declares required fields.
         partitions: Runtime partition values.
@@ -82,13 +89,26 @@ def normalize_partitions(
 
     Raises:
         ValueError: If a declared partition field is missing.
+        TypeError: If a partition or ``ingested_at`` value is not a
+            ``date``, ``datetime``, ``str``, or ``int``.
     """
     fields = partition_field_names(schema)
     missing = [field for field in fields if field not in partitions]
     if missing:
         raise ValueError(f"Missing landing partition fields for {schema.__name__}: {missing}")
 
-    values = {field: partitions[field] for field in fields}
+    provided = dict(partitions.items())
+    values: dict[str, PartitionValue] = {}
+    for field in fields:
+        value = provided[field]
+        if not isinstance(value, date | datetime | str | int):
+            raise TypeError(f"Invalid landing partition value for {schema.__name__}.{field}: {value!r}")
+        values[field] = value
     if include_ingested_at:
-        values["ingested_at"] = ingested_at or datetime.now(UTC).replace(microsecond=0)
+        resolved_ingested_at = ingested_at or datetime.now(UTC).replace(microsecond=0)
+        if not isinstance(resolved_ingested_at, date | datetime | str | int):
+            raise TypeError(
+                f"Invalid landing partition value for {schema.__name__}.ingested_at: {resolved_ingested_at!r}"
+            )
+        values["ingested_at"] = resolved_ingested_at
     return values

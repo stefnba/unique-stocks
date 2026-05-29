@@ -213,6 +213,29 @@ def test_partitioned_landing_key_requires_declared_fields() -> None:
         )
 
 
+def test_partitioned_landing_key_rejects_invalid_partition_types() -> None:
+    """Invalid partition runtime types fail before building a storage key."""
+    with pytest.raises(TypeError, match=r"DailyPricePartition\.bar_date"):
+        PRICE_DATASET.landings.daily.key(
+            provider="eodhd",
+            partitions=cast(
+                DailyPricePartition,
+                {"provider_exchange_code": "US", "bar_date": None},
+            ),
+            ingested_at=date(2026, 5, 24),
+        )
+
+
+def test_partitioned_landing_key_rejects_invalid_ingested_at_type() -> None:
+    """Invalid ingested_at runtime types fail before building a storage key."""
+    with pytest.raises(TypeError, match=r"DailyPricePartition\.ingested_at"):
+        PRICE_DATASET.landings.daily.key(
+            provider="eodhd",
+            partitions=DailyPricePartition(provider_exchange_code="US", bar_date=date(2026, 5, 24)),
+            ingested_at=cast(datetime, 1.5),
+        )
+
+
 def test_landing_target_save_uses_key_format_and_provider_aliases() -> None:
     """Landing saves pass an explicit format and preserve provider aliases."""
     s3 = FakeS3()
