@@ -111,6 +111,7 @@ deployments:
     parameters:
       command: build
       select:
+        - eodhd_provider_namespaces
         - path:models/staging/exchange
         - path:models/intermediate/exchange
       exclude: null

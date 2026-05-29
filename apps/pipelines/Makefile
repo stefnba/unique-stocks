@@ -4,7 +4,7 @@
         docker-up docker-down docker-down-volumes docker-logs docker-logs-worker docker-ps \
         lake-init lake-reset-local lake-render-sql blocks-save setup s3-landing-zone \
         deploy deploy-dry \
-        dbt-install dbt-debug dbt-compile dbt-run dbt-test dbt-build dbt-clean dbt-run-staging dbt-run-marts \
+        dbt-install dbt-debug dbt-compile dbt-seed dbt-run dbt-test dbt-build dbt-clean dbt-run-staging dbt-run-marts \
         lake-ui
 
 # Load .env if it exists so PREFECT_API_URL etc. are available to Make targets
@@ -168,7 +168,10 @@ dbt-debug: ## Validate dbt project config and lake connection
 dbt-compile: ## Compile dbt models without writing lake tables
 	$(DBT) compile $(DBT_FLAGS)
 
-dbt-run: ## Run all dbt models
+dbt-seed: ## Load dbt seed reference data
+	$(DBT) seed $(DBT_FLAGS)
+
+dbt-run: dbt-seed ## Load seeds, then run all dbt models
 	$(DBT) run $(DBT_FLAGS)
 
 dbt-test: ## Run dbt data tests

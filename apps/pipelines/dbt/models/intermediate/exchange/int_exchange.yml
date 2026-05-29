@@ -168,32 +168,49 @@ models:
         description: Timestamp when the matched registry row was written to Bronze.
 
   - name: int_exchange_provider_ingestion_universe
-    description: Operational provider exchange/API code universe consumed by downstream ingestion flows.
+    description: Operational provider code universe consumed by downstream ingestion flows, including provider catalog exchanges and curated symbol namespaces accepted by provider endpoints.
     columns:
       - name: data_provider
         description: Market data provider that supplies the catalog code.
         data_tests:
           - not_null
       - name: provider_exchange_code
-        description: Provider exchange/API code approved for downstream ingestion.
+        description: Provider endpoint path and ticker suffix code approved for downstream ingestion.
         data_tests:
           - not_null
+      - name: provider_code_kind
+        description: Classification of the provider code, distinguishing real exchange mappings from provider-owned symbol namespaces.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - exchange
+                  - provider_bucket
+                  - index_namespace
+      - name: source_kind
+        description: Source of the provider code in the operational universe.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - provider_catalog
+                  - curated_seed
       - name: exchange_catalog_name
-        description: Provider display name for the catalog row.
+        description: Provider display name for the catalog row or curated namespace.
         data_tests:
           - not_null
+      - name: asset_type_hint
+        description: Expected dominant provider asset type for curated namespaces, when applicable.
       - name: country_iso2
-        description: Country code from the provider catalog row.
-        data_tests:
-          - not_null
+        description: Country code from the provider catalog row, or null for global curated namespaces.
       - name: currency
-        description: Currency from the provider catalog row.
-        data_tests:
-          - not_null
+        description: Currency from the provider catalog row, or null for multi-currency curated namespaces.
       - name: catalog_snapshot_date
-        description: Provider catalog snapshot date used for this operational row.
-        data_tests:
-          - not_null
+        description: Provider catalog snapshot date used for provider-catalog rows; null for curated namespaces.
+      - name: catalog_code_count
+        description: Count of provider catalog codes behind the provider-catalog portion of this universe.
       - name: coverage_candidate_count
         description: Number of provider coverage candidate rows behind this provider code.
         data_tests:
@@ -210,7 +227,21 @@ models:
         description: True when this provider code has no MIC token and represents a provider bucket.
         data_tests:
           - not_null
-      - name: is_enabled_for_ingestion
-        description: True when downstream ingestion flows should use this provider code. Currently enabled for EODHD catalog codes.
+      - name: is_enabled_for_instrument
+        description: True when instrument reference flows should use this provider code.
         data_tests:
           - not_null
+      - name: is_enabled_for_eod_price
+        description: True when EOD price flows should use this provider code.
+        data_tests:
+          - not_null
+      - name: is_enabled_for_ingestion
+        description: Backward-compatible aggregate ingestion flag used by current Python readers.
+        data_tests:
+          - not_null
+      - name: verification_symbol
+        description: Representative exchange-qualified symbol used to verify curated namespace endpoint support.
+      - name: last_verified_on
+        description: Date curated namespace endpoint support was last manually verified.
+      - name: notes
+        description: Human-readable source and verification notes for curated namespaces.

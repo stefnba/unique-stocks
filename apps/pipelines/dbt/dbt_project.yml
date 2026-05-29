@@ -35,3 +35,10 @@ models:
       +materialized: table
       +tags:
         - gold
+
+seeds:
+  unique_stocks:
+    +schema: silver
+    +quote_columns: false
+    +tags:
+      - silver

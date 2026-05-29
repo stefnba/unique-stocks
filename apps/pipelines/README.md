@@ -22,6 +22,8 @@ The exchange domain has two Bronze sources:
 
 dbt builds these into Silver exchange models. Downstream ingestion flows read provider codes from `silver.int_exchange_provider_ingestion_universe`, not directly from provider APIs or raw Bronze tables. On a fresh environment before this dbt model exists, instrument and price flows fall back to `["US"]`.
 
+Some provider endpoint codes are valid symbol namespaces but are not returned by the provider exchange catalog. For EODHD, `INDX` is accepted by `/exchange-symbol-list/INDX`, `/eod/GDAXI.INDX`, and `/eod-bulk-last-day/INDX`, but is omitted from `/exchanges-list`. Keep those cases in dbt seeds under `dbt/seeds/reference/` and union them into the Silver ingestion universe with `source_kind = 'curated_seed'`; do not backfill synthetic rows into `bronze.exchange_catalog`.
+
 Operational order:
 
 ```text
@@ -35,12 +37,13 @@ instrument-refresh and eod-price flows
 
 Providers can return several exchange-like identifiers. Keep them distinct in Python models, Bronze columns, dbt models, and logs:
 
-| Name                              | Meaning                                                                                                                                                      | Example              |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------- |
-| `provider_exchange_code`          | Provider catalog/API code, used in endpoint paths and ticker suffixes when the provider uses exchange-qualified symbols.                                     | `US`, `LSE`, `XETRA` |
-| `operating_mic_codes`             | Official MIC value or comma-separated MIC values supplied by provider metadata. Do not use this as a request code unless an endpoint explicitly asks for it. | `XNAS,XNYS`, `XLON`  |
-| `provider_schedule_exchange_code` | Provider schedule/calendar endpoint code. Some values look like MICs, but this is still the provider-specific request code for that endpoint.                | `US`, `XHKG`, `XETR` |
-| `provider_listing_exchange_code`  | Exchange-like code returned on an individual instrument row from `/exchange-symbol-list/{EXCHANGE_CODE}`.                                                    | `NASDAQ`, `WAR`      |
+| Name                              | Meaning                                                                                                                                                      | Example                       |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------- |
+| `provider_exchange_code`          | Provider catalog/API code, used in endpoint paths and ticker suffixes when the provider uses exchange-qualified symbols.                                     | `US`, `LSE`, `XETRA`          |
+| `provider_code_kind`              | Silver classification for provider request codes, including exchange-backed codes, provider buckets, and curated symbol namespaces.                          | `exchange`, `index_namespace` |
+| `operating_mic_codes`             | Official MIC value or comma-separated MIC values supplied by provider metadata. Do not use this as a request code unless an endpoint explicitly asks for it. | `XNAS,XNYS`, `XLON`           |
+| `provider_schedule_exchange_code` | Provider schedule/calendar endpoint code. Some values look like MICs, but this is still the provider-specific request code for that endpoint.                | `US`, `XHKG`, `XETR`          |
+| `provider_listing_exchange_code`  | Exchange-like code returned on an individual instrument row from `/exchange-symbol-list/{EXCHANGE_CODE}`.                                                    | `NASDAQ`, `WAR`               |
 
 ## Project structure
 

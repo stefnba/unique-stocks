@@ -16,15 +16,16 @@ log = structlog.get_logger(__name__)
 
 @task(name="fetch-instrument-provider-exchange-codes")
 async def fetch_instrument_provider_exchange_codes() -> list[str]:
-    """All provider exchange codes from the exchange catalog, including virtual asset classes.
+    """Provider request codes approved for instrument ingestion.
 
     Pass ``provider_exchange_codes`` to the flow to restrict ingestion to a
-    subset (e.g. equities only, or crypto only). Use separate flow deployments
-    to run different asset classes on different schedule.
+    subset, such as equities only, crypto only, or curated index namespaces.
+    Use separate flow deployments to run different asset classes on different
+    schedule.
     """
     from domains.exchange.provider_universe import load_provider_exchange_codes
 
-    codes = load_provider_exchange_codes("eodhd", fallback=("US", "XETRA"))
+    codes = load_provider_exchange_codes("eodhd", fallback=("US", "XETRA"), purpose="instrument")
     log.info("instrument.provider_exchange_codes_loaded", count=len(codes))
     return codes
 

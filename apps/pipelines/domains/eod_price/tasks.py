@@ -27,15 +27,15 @@ log = structlog.get_logger(__name__)
 
 @task(name="fetch-eod-provider-exchange-codes")
 async def fetch_eod_provider_exchange_codes() -> list[str]:
-    """Provider exchange codes eligible for bulk EOD ingestion.
+    """Provider request codes eligible for bulk EOD ingestion.
 
-    Loads provider catalog/API codes from the dbt-built exchange ingestion
-    universe. Falls back to ["US"] on a fresh environment before exchange
-    reference models have been built.
+    Loads provider catalog/API codes and curated provider namespaces from the
+    dbt-built exchange ingestion universe. Falls back to ["US"] on a fresh
+    environment before exchange reference models have been built.
     """
     from domains.exchange.provider_universe import load_provider_exchange_codes
 
-    codes = load_provider_exchange_codes("eodhd", fallback=("US",))
+    codes = load_provider_exchange_codes("eodhd", fallback=("US",), purpose="eod_price")
     log.info("price.provider_exchange_codes_loaded", count=len(codes))
     return codes
 

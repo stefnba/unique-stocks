@@ -1,0 +1,2 @@
+data_provider,provider_exchange_code,provider_code_kind,display_name,asset_type_hint,country_iso2,currency,is_enabled_for_instrument,is_enabled_for_eod_price,verification_symbol,last_verified_on,notes
+eodhd,INDX,index_namespace,Global Indices,INDEX,,,true,true,GDAXI.INDX,2026-05-29,"Not returned by /exchanges-list; verified via /exchange-symbol-list/INDX, /eod/GDAXI.INDX, and /eod-bulk-last-day/INDX."
