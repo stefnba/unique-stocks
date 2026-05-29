@@ -28,7 +28,6 @@ dev = [
     "basedpyright",
     "pre-commit>=4.2",
     "sqlfluff>=4.1",
-    "ty>=0.0.29",
 ]
 
 [build-system]
