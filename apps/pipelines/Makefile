@@ -2,7 +2,7 @@
 .PHONY: help install test test-unit test-integration lint lint-fix format format-check typecheck check \
         prefect-server prefect-worker \
         docker-up docker-down docker-down-volumes docker-logs docker-logs-worker docker-ps \
-        lake-init lake-reset-local lake-render-sql db-init blocks-save setup s3-landing-zone \
+        lake-init lake-reset-local lake-render-sql blocks-save setup s3-landing-zone \
         deploy deploy-dry \
         dbt-install dbt-debug dbt-compile dbt-run dbt-test dbt-build dbt-clean dbt-run-staging dbt-run-marts \
         lake-ui
@@ -32,24 +32,38 @@ help: ## Show this help
 	@echo ""
 	@echo "  $(BOLD)unique-stocks / apps/pipelines$(RESET)"
 	@echo ""
-	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z0-9_-]+:.*?##/ { printf "  $(CYAN)%-22s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"} /^##@ / { printf "\n  $(BOLD)%s$(RESET)\n", substr($$0, 5); next } /^[a-zA-Z0-9_-]+:.*?##/ { printf "  $(CYAN)%-22s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 	@echo ""
 
-# ── Dependencies ───────────────────────────────────────────────────────────
+##@ Setup
 install: ## Install all deps including dev
 	uv sync
 
-# ── Testing ────────────────────────────────────────────────────────────────
+setup: ## Full one-time setup: wait for server, init lake, save blocks, create pool, deploy
+	@echo "Waiting for Prefect server at $(PREFECT_API_URL)..."
+	@until curl -sf "$(PREFECT_API_URL)/health" > /dev/null 2>&1; do \
+		printf "."; sleep 2; \
+	done; echo " ready."
+	$(MAKE) lake-init
+	$(MAKE) blocks-save
+	uv run prefect work-pool create default-process-pool --type process --overwrite
+	uv run prefect --no-prompt deploy --all
+
+blocks-save: ## Register Prefect blocks on the server defined in config/blocks.py (idempotent)
+	uv run python -c "from config.blocks import BlockRegistry; BlockRegistry.save_all(if_exists='overwrite')"
+
+s3-landing-zone: ## Create/update AWS S3 landing-zone resources (pass ARGS="--dry-run")
+	uv run python scripts/setup_s3_landing_zone.py $(ARGS)
+
+##@ Quality
+check: format-check lint typecheck test ## Run full quality gate (CI equivalent)
+
 test: ## Run all tests
 	uv run pytest tests/ -v
 
 test-unit: ## Run unit tests only
 	uv run pytest tests/unit/ -v
 
-test-integration: ## Run integration tests only
-	uv run pytest tests/integration/ -v
-
-# ── Linting & formatting ───────────────────────────────────────────────────
 lint: ## Check code style (ruff)
 	uv run ruff check .
 
@@ -65,10 +79,10 @@ format-check: ## Check formatting without modifying files
 typecheck: ## Run static type checks (basedpyright)
 	uv run basedpyright
 
-# ── CI gate ────────────────────────────────────────────────────────────────
-check: format-check lint typecheck test ## Run full quality gate (CI equivalent)
+test-integration: ## Run integration tests only
+	uv run pytest tests/integration/ -v
 
-# ── Prefect — local dev ────────────────────────────────────────────────────
+##@ Local Services
 prefect-server: ## Start a local Prefect server (no Docker)
 	@while lsof -ti :4200 > /dev/null 2>&1; do \
 		echo "Port 4200 still in use, waiting..."; sleep 2; \
@@ -78,7 +92,6 @@ prefect-server: ## Start a local Prefect server (no Docker)
 prefect-worker: ## Start a Prefect worker connected to PREFECT_API_URL
 	uv run prefect worker start --pool default-process-pool
 
-# ── Docker (docker-dev only) ───────────────────────────────────────────────
 DEPLOY_DIR   := deploy
 COMPOSE_BASE := docker compose -f $(DEPLOY_DIR)/docker-compose.yml
 COMPOSE_DEV  := $(COMPOSE_BASE) -f $(DEPLOY_DIR)/docker-compose.dev.yml
@@ -101,7 +114,7 @@ docker-logs-worker: ## Tail pipelines worker logs only
 docker-ps: ## Show docker-dev service status
 	$(COMPOSE_DEV) ps
 
-# ── One-time setup ─────────────────────────────────────────────────────────
+##@ Lake
 # dev:        make prefect-server  (terminal 1)
 #             make setup           (terminal 2)
 # docker-dev: make docker-up, then make setup
@@ -127,24 +140,14 @@ lake-reset-local: ## Delete and recreate the local DuckDB lake (destructive; dev
 lake-render-sql: ## Regenerate scripts/init_lake.sql from Python table specs
 	uv run python scripts/render_init_lake_sql.py > scripts/init_lake.sql
 
+lake-ui: ## Open DuckDB local UI (MotherDuck if MOTHERDUCK_TOKEN is set, else local lake)
+	@if [ -n "$(MOTHERDUCK_TOKEN)" ]; then \
+		MOTHERDUCK_TOKEN="$(MOTHERDUCK_TOKEN)" duckdb -ui "md:unique_stocks"; \
+	else \
+		duckdb -ui "$(LOCAL_LAKE_PATH)"; \
+	fi
 
-blocks-save: ## Register Prefect blocks on the server defined in config/blocks.py (idempotent)
-	uv run python -c "from config.blocks import BlockRegistry; BlockRegistry.save_all(if_exists='overwrite')"
-
-s3-landing-zone: ## Create/update AWS S3 landing-zone resources (pass ARGS="--dry-run")
-	uv run python scripts/setup_s3_landing_zone.py $(ARGS)
-
-setup: ## Full one-time setup: wait for server, init lake, save blocks, create pool, deploy
-	@echo "Waiting for Prefect server at $(PREFECT_API_URL)..."
-	@until curl -sf "$(PREFECT_API_URL)/health" > /dev/null 2>&1; do \
-		printf "."; sleep 2; \
-	done; echo " ready."
-	$(MAKE) lake-init
-	$(MAKE) blocks-save
-	uv run prefect work-pool create default-process-pool --type process --overwrite
-	uv run prefect --no-prompt deploy --all
-
-# ── Prefect — deployments ──────────────────────────────────────────────────
+##@ Deployments
 deploy: ## Register all deployments with the Prefect server
 	uv run prefect --no-prompt deploy --all
 
@@ -155,15 +158,7 @@ d = yaml.safe_load(open('prefect.yaml')); \
 print('Deployments in prefect.yaml:'); \
 [print(f'  {x[\"name\"]:20s}  {x[\"entrypoint\"]}') for x in d['deployments']]"
 
-# ── DuckDB UI ──────────────────────────────────────────────────────────────
-lake-ui: ## Open DuckDB local UI (MotherDuck if MOTHERDUCK_TOKEN is set, else local lake)
-	@if [ -n "$(MOTHERDUCK_TOKEN)" ]; then \
-		MOTHERDUCK_TOKEN="$(MOTHERDUCK_TOKEN)" duckdb -ui "md:unique_stocks"; \
-	else \
-		duckdb -ui "$(LOCAL_LAKE_PATH)"; \
-	fi
-
-# ── dbt ────────────────────────────────────────────────────────────────────
+##@ dbt
 dbt-install: ## Install app deps including dbt
 	$(UV) sync
 
