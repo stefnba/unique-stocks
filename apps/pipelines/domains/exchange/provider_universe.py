@@ -12,7 +12,7 @@ INGESTION_UNIVERSE_SCHEMA = "silver"
 INGESTION_UNIVERSE_TABLE = "int_exchange_provider_ingestion_universe"
 
 
-def load_provider_exchange_codes(data_provider: str, fallback: Sequence[str] = ("US",)) -> list[str]:
+def load_provider_exchange_codes(data_provider: str, fallback: Sequence[str] = ("US", "XETRA")) -> list[str]:
     """Load provider exchange/API codes approved for downstream ingestion flows."""
     lake = get_lake_client()
     if not lake.table_exists(INGESTION_UNIVERSE_SCHEMA, INGESTION_UNIVERSE_TABLE):
