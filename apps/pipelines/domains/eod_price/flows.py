@@ -26,11 +26,9 @@ from core.ingestion import (
     terminal_status,
 )
 from core.ingestion.parser import attach_source_uri
-from providers.eodhd.models import EODBulkPriceRaw, EODPriceBarRaw
-
-from .models import EODBar
-from .parsers import infer_bulk_bar_date, parse_ticker_bars
-from .tasks import (
+from domains.eod_price.models import EODBar
+from domains.eod_price.parsers import infer_bulk_bar_date, parse_ticker_bars
+from domains.eod_price.tasks import (
     fetch_eod_price_bulk,
     fetch_eod_provider_exchange_codes,
     fetch_ticker_eod_history,
@@ -41,6 +39,7 @@ from .tasks import (
     write_eod_price_to_landing,
     write_ticker_eod_history_to_landing,
 )
+from providers.eodhd.models import EODBulkPriceRaw, EODPriceBarRaw
 
 log = structlog.get_logger(__name__)
 _REJECTION_SAMPLE_LIMIT_PER_UNIT = 100
