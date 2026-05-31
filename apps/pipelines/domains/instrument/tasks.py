@@ -25,7 +25,7 @@ async def fetch_instrument_provider_exchange_codes() -> list[str]:
     """
     from domains.exchange.provider_universe import load_provider_exchange_codes
 
-    codes = load_provider_exchange_codes("eodhd", fallback=("US", "XETRA"), purpose="instrument")
+    codes = load_provider_exchange_codes("eodhd", purpose="instrument")
     log.info("instrument.provider_exchange_codes_loaded", count=len(codes))
     return codes
 

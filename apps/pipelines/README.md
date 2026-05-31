@@ -20,11 +20,11 @@ The exchange domain has two Bronze sources:
 - `bronze.exchange_catalog`: provider-supported exchange/API codes, such as EODHD `US`, `LSE`, or `XETRA`.
 - `bronze.exchange_mic_registry`: ISO 10383 MIC registry rows, used as the canonical exchange universe backbone.
 
-dbt builds these into Silver exchange models. Downstream ingestion flows read provider codes from `silver.int_exchange_provider_ingestion_universe`, not directly from provider APIs or raw Bronze tables. On a fresh environment before this dbt model exists, flows use their configured fallback codes.
+dbt builds these into Silver exchange models. Downstream ingestion flows read provider codes from `silver.int_exchange_provider_ingestion_universe`, not directly from provider APIs or raw Bronze tables. Build the exchange Silver models before running flows that auto-select provider codes.
 
 Some provider endpoint codes are valid symbol namespaces but are not returned by the provider exchange catalog. For EODHD, `INDX` is accepted by `/exchange-symbol-list/INDX`, `/eod/GDAXI.INDX`, and `/eod-bulk-last-day/INDX`, but is omitted from `/exchanges-list`. Keep those cases in dbt seeds under `dbt/seeds/reference/` and union them into the Silver ingestion universe with `source_kind = 'curated_seed'`; do not backfill synthetic rows into `bronze.exchange_catalog`.
 
-Python flows read the Silver provider universe with purpose-specific flags. Explicit tickers or `provider_exchange_codes` can still target a narrower fundamentals backfill when needed.
+Python flows read the Silver provider universe with purpose-specific flags. When Silver exists, pass explicit `provider_exchange_codes` to restrict a manual run to one or two provider namespaces.
 
 Operational order:
 
@@ -33,6 +33,24 @@ exchange-catalog-refresh
 exchange-mic-registry-refresh
 dbt-build/exchange-build
 instrument-refresh and eod-price flows
+```
+
+## Local Smoke Runs
+
+Use the smoke runner for narrow local checks instead of changing production flow defaults:
+
+```bash
+uv run python scripts/run_smoke.py fundamental
+uv run python scripts/run_smoke.py instrument
+uv run python scripts/run_smoke.py eod-price
+```
+
+The Make target passes `FLOW` through to the smoke runner, which owns preset validation:
+
+```bash
+make smoke FLOW=fundamental
+make smoke FLOW=instrument
+make smoke FLOW=eod_price
 ```
 
 ## Exchange identifiers
@@ -57,7 +75,7 @@ apps/pipelines/
 ├── providers/          Provider-specific clients and raw response models
 ├── dbt/                dbt Core project: Bronze -> Silver -> Gold transformations
 ├── docs/               Pipeline runbooks, including AWS/S3 setup
-├── scripts/            SQL scripts (init_lake.sql — DuckDB/MotherDuck lake setup)
+├── scripts/            Local helpers and SQL scripts
 ├── tests/              Unit and integration tests
 ├── deploy/             Docker Compose files: base, dev override, prod override
 ├── prefect.yaml        Prefect deployment definitions

@@ -8,8 +8,7 @@ namespace codes, not always real exchanges. Examples include ``US`` and
 index namespace.
 """
 
-from collections.abc import Sequence
-from typing import Any, Literal
+from typing import Literal
 
 import structlog
 
@@ -26,12 +25,16 @@ _PURPOSE_FILTER_COLUMNS: dict[ProviderCodePurpose, str] = {
     "ingestion": "is_enabled_for_ingestion",
     "instrument": "is_enabled_for_instrument",
     "eod_price": "is_enabled_for_eod_price",
+    "fundamental": "is_enabled_for_fundamental",
 }
+
+
+class ProviderUniverseContractError(RuntimeError):
+    """Raised when the dbt-built provider universe contract is unavailable."""
 
 
 def load_provider_exchange_codes(
     data_provider: str,
-    fallback: Sequence[str] = ("US", "XETRA"),
     *,
     purpose: ProviderCodePurpose = "ingestion",
 ) -> list[str]:
@@ -61,24 +64,22 @@ def load_provider_exchange_codes(
     otherwise its instruments will not exist in Bronze for fundamentals to
     discover.
 
-    When the Silver table is missing, empty, or still on an older contract that
-    lacks a purpose-specific flag, the function falls back conservatively:
-    missing/empty tables return the caller-provided ``fallback`` codes, and old
-    contracts use ``is_enabled_for_ingestion``.
+    The Silver view is a required dbt contract. Run the exchange reference
+    ingestion and exchange dbt build before using flows that depend on this
+    helper. Pass ``provider_exchange_codes`` to the flow itself when you want to
+    restrict a manual run to one or two provider namespaces.
     """
     lake = get_lake_client()
     if not lake.table_exists(INGESTION_UNIVERSE_SCHEMA, INGESTION_UNIVERSE_TABLE):
-        fallback_codes = list(fallback)
-        log.warning(
-            "exchange.provider_codes_fallback",
-            reason="ingestion_universe_missing",
-            data_provider=data_provider,
-            fallback_count=len(fallback_codes),
+        msg = (
+            f"Missing required dbt model "
+            f"{INGESTION_UNIVERSE_SCHEMA}.{INGESTION_UNIVERSE_TABLE}; "
+            "run exchange-build before loading provider exchange codes."
         )
-        return fallback_codes
+        raise ProviderUniverseContractError(msg)
 
     qualified = lake.qualified_name(INGESTION_UNIVERSE_SCHEMA, INGESTION_UNIVERSE_TABLE)
-    filter_column = _purpose_filter_column(lake, purpose)
+    filter_column = _PURPOSE_FILTER_COLUMNS[purpose]
     rows = lake.query(
         f"""
         SELECT provider_exchange_code
@@ -91,42 +92,11 @@ def load_provider_exchange_codes(
     )
     codes = [str(row["provider_exchange_code"]) for row in rows]
     if not codes:
-        fallback_codes = list(fallback)
-        log.warning(
-            "exchange.provider_codes_fallback",
-            reason="no_enabled_provider_codes",
-            data_provider=data_provider,
-            fallback_count=len(fallback_codes),
+        msg = (
+            f"No provider exchange codes enabled for data_provider={data_provider!r}, "
+            f"purpose={purpose!r} in {INGESTION_UNIVERSE_SCHEMA}.{INGESTION_UNIVERSE_TABLE}."
         )
-        return fallback_codes
+        raise ProviderUniverseContractError(msg)
 
-    log.info("exchange.provider_codes_loaded", data_provider=data_provider, count=len(codes))
+    log.info("exchange.provider_codes_loaded", data_provider=data_provider, purpose=purpose, count=len(codes))
     return codes
-
-
-def _purpose_filter_column(lake: Any, purpose: ProviderCodePurpose) -> str:
-    """Return the Silver flag column for a provider-code purpose."""
-    column = _PURPOSE_FILTER_COLUMNS[purpose]
-    if column == _PURPOSE_FILTER_COLUMNS["ingestion"]:
-        return column
-
-    row = lake.query_one(
-        """
-        SELECT 1
-        FROM information_schema.columns
-        WHERE table_schema = ?
-          AND table_name = ?
-          AND column_name = ?
-        """,
-        [INGESTION_UNIVERSE_SCHEMA, INGESTION_UNIVERSE_TABLE, column],
-    )
-    if row is not None:
-        return column
-
-    log.warning(
-        "exchange.provider_codes_purpose_column_missing",
-        requested_purpose=purpose,
-        missing_column=column,
-        fallback_column=_PURPOSE_FILTER_COLUMNS["ingestion"],
-    )
-    return _PURPOSE_FILTER_COLUMNS["ingestion"]

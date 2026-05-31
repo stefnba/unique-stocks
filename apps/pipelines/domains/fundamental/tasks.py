@@ -100,7 +100,7 @@ def fetch_fundamental_provider_exchange_codes() -> list[str]:
     """Load provider request codes approved for automatic fundamentals selection."""
     from domains.exchange.provider_universe import load_provider_exchange_codes
 
-    codes = load_provider_exchange_codes("eodhd", fallback=("US",), purpose="fundamental")
+    codes = load_provider_exchange_codes("eodhd", purpose="fundamental")
     log.info("fundamental.provider_exchange_codes_loaded", count=len(codes))
     return codes
 

@@ -1,5 +1,6 @@
 .DEFAULT_GOAL := help
 .PHONY: help install test test-unit test-integration lint lint-fix format format-check typecheck check \
+        smoke \
         prefect-server prefect-worker \
         docker-up docker-down docker-down-volumes docker-logs docker-logs-worker docker-ps \
         lake-init lake-reset-local lake-render-sql blocks-save setup s3-landing-zone \
@@ -81,6 +82,14 @@ typecheck: ## Run static type checks (basedpyright)
 
 test-integration: ## Run integration tests only
 	uv run pytest tests/integration/ -v
+
+##@ Smoke
+smoke: ## Run local smoke preset (FLOW=<preset>, pass ARGS="...")
+	@if [ -z "$(FLOW)" ]; then \
+		$(UV) run python scripts/run_smoke.py --help; \
+		exit 2; \
+	fi
+	$(UV) run python scripts/run_smoke.py $(FLOW) $(ARGS)
 
 ##@ Local Services
 prefect-server: ## Start a local Prefect server (no Docker)
