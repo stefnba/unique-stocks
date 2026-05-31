@@ -57,6 +57,8 @@ make smoke FLOW=instrument
 make smoke FLOW=eod_price
 ```
 
+The scoped smoke presets (`fundamental`, `exchange_schedule`, `instrument`, and `eod_price`) pass explicit flow parameters and do not need the Silver provider universe. The `exchange` preset is broader: it refreshes the full exchange catalog and MIC registry because those reference snapshots bootstrap the exchange Silver models.
+
 ## Exchange identifiers
 
 Providers can return several exchange-like identifiers. Keep them distinct in Python models, Bronze columns, dbt models, and logs:

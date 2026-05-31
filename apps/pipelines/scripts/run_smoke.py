@@ -6,8 +6,10 @@ explicit small parameters so a quick check does not expand to the full dbt-built
 provider universe.
 
 Use it for questions like "does this flow still run end-to-end for one ticker or
-one provider namespace from my current checkout?" Do not use it as a production
-scheduler or as a replacement for Prefect deployment parameters.
+one provider namespace from my current checkout?" Scoped presets pass explicit
+flow parameters, so they do not require the dbt provider-universe view. Do not
+use this script as a production scheduler or as a replacement for Prefect
+deployment parameters.
 
 Default presets:
 
@@ -15,7 +17,10 @@ Default presets:
   one-call credit cap.
 - ``instrument`` fetches one provider namespace, ``XETRA``.
 - ``eod-price`` / ``eod_price`` fetches one provider namespace, ``XETRA``.
-- ``exchange`` refreshes the provider exchange catalog and ISO MIC registry.
+- ``exchange`` refreshes the full provider exchange catalog and ISO MIC
+  registry. It is intentionally broader than the one-namespace presets because
+  these reference snapshots are the bootstrap inputs for the exchange Silver
+  universe.
 - ``exchange-schedule`` / ``exchange_schedule`` fetches one provider schedule
   namespace, ``US``.
 
