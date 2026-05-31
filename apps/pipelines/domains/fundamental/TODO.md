@@ -21,7 +21,7 @@
 - [x] Splits and dividends.
 - [x] Compact numeric metrics from Highlights, Valuation, Technicals, AnalystRatings, and ESGScores.
 - [x] ESG activity involvement rows.
-- [ ] Insider transactions, once a non-empty real fixture is available.
+- [x] Insider transactions.
 
 ## Notes
 

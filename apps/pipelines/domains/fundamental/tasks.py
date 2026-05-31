@@ -29,6 +29,7 @@ from domains.fundamental.datasets import (
     FUNDAMENTAL_STOCK_ESG_ACTIVITY_DATASET,
     FUNDAMENTAL_STOCK_HOLDER_DATASET,
     FUNDAMENTAL_STOCK_IDENTITY_DATASET,
+    FUNDAMENTAL_STOCK_INSIDER_TRANSACTION_DATASET,
     FUNDAMENTAL_STOCK_METRIC_FACT_DATASET,
     FUNDAMENTAL_STOCK_OUTSTANDING_SHARES_DATASET,
     FUNDAMENTAL_STOCK_SHARES_STATS_DATASET,
@@ -50,6 +51,7 @@ from domains.fundamental.models import (
     FundamentalStockEsgActivity,
     FundamentalStockHolder,
     FundamentalStockIdentitySnapshot,
+    FundamentalStockInsiderTransaction,
     FundamentalStockMetricFact,
     FundamentalStockOutstandingShares,
     FundamentalStockSharesStatsSnapshot,
@@ -70,6 +72,7 @@ from domains.fundamental.parsers import (
     parse_stock_esg_activities,
     parse_stock_holders,
     parse_stock_identity_snapshot,
+    parse_stock_insider_transactions,
     parse_stock_metric_facts,
     parse_stock_outstanding_shares,
     parse_stock_shares_stats_snapshot,
@@ -207,6 +210,7 @@ def delete_fundamental_snapshot_rows(ticker: str, snapshot_date: date) -> int:
         FUNDAMENTAL_STOCK_METRIC_FACT_DATASET,
         FUNDAMENTAL_STOCK_DIVIDEND_COUNT_DATASET,
         FUNDAMENTAL_STOCK_SPLITS_DIVIDENDS_DATASET,
+        FUNDAMENTAL_STOCK_INSIDER_TRANSACTION_DATASET,
         FUNDAMENTAL_STOCK_HOLDER_DATASET,
         FUNDAMENTAL_STOCK_OUTSTANDING_SHARES_DATASET,
         FUNDAMENTAL_STOCK_SHARES_STATS_DATASET,
@@ -363,6 +367,7 @@ def parse_fundamental_stock(
     BronzeParseResult[FundamentalStockSharesStatsSnapshot] | None,
     list[BronzeParseResult[FundamentalStockOutstandingShares]],
     list[BronzeParseResult[FundamentalStockHolder]],
+    list[BronzeParseResult[FundamentalStockInsiderTransaction]],
     BronzeParseResult[FundamentalStockSplitsDividendsSnapshot] | None,
     list[BronzeParseResult[FundamentalStockDividendCount]],
     list[BronzeParseResult[FundamentalStockMetricFact]],
@@ -389,6 +394,11 @@ def parse_fundamental_stock(
         snapshot_date=snapshot_date,
     )
     holders, holders_rejected = parse_stock_holders(raw, ticker=ticker, snapshot_date=snapshot_date)
+    insider_transactions, insider_transactions_rejected = parse_stock_insider_transactions(
+        raw,
+        ticker=ticker,
+        snapshot_date=snapshot_date,
+    )
     splits_dividends = parse_stock_splits_dividends_snapshot(raw, ticker=ticker, snapshot_date=snapshot_date)
     dividend_counts, dividend_rejected = parse_stock_dividend_counts(raw, ticker=ticker, snapshot_date=snapshot_date)
     metric_facts = parse_stock_metric_facts(raw, ticker=ticker, snapshot_date=snapshot_date)
@@ -414,6 +424,7 @@ def parse_fundamental_stock(
         *earnings_rejected,
         *outstanding_rejected,
         *holders_rejected,
+        *insider_transactions_rejected,
         *dividend_rejected,
         *esg_rejected,
         *etf_rejected,
@@ -431,6 +442,7 @@ def parse_fundamental_stock(
         shares_stats=shares_stats is not None,
         outstanding_shares=len(outstanding_shares),
         holders=len(holders),
+        insider_transactions=len(insider_transactions),
         splits_dividends=splits_dividends is not None,
         dividend_counts=len(dividend_counts),
         metric_facts=len(metric_facts),
@@ -453,6 +465,7 @@ def parse_fundamental_stock(
         shares_stats,
         outstanding_shares,
         holders,
+        insider_transactions,
         splits_dividends,
         dividend_counts,
         metric_facts,
@@ -624,6 +637,31 @@ def write_bronze_fundamental_stock_holders(
         return BronzeWrite(rows_written=0, reason="already_ingested")
     written = FUNDAMENTAL_STOCK_HOLDER_DATASET.write_bronze(lake, sources, source_uri=source_uri)
     log.info("fundamental.stock_holders_written", ticker=ticker, rows=written)
+    return BronzeWrite(rows_written=written)
+
+
+@task(name="write-bronze-fundamental-stock-insider-transactions")
+def write_bronze_fundamental_stock_insider_transactions(
+    sources: list[BronzeParseResult[FundamentalStockInsiderTransaction]],
+    ticker: str,
+    snapshot_date: date,
+    source_uri: str | None = None,
+) -> BronzeWrite:
+    """Write stock insider transaction rows to ``bronze.fundamental_stock_insider_transaction``."""
+    from core.clients.lake import get_lake_client
+
+    if not sources:
+        return BronzeWrite(rows_written=0, reason="no_insider_transactions")
+
+    lake = get_lake_client()
+    if FUNDAMENTAL_STOCK_INSIDER_TRANSACTION_DATASET.already_ingested(
+        lake,
+        snapshot_date=snapshot_date,
+        ticker=ticker,
+    ):
+        return BronzeWrite(rows_written=0, reason="already_ingested")
+    written = FUNDAMENTAL_STOCK_INSIDER_TRANSACTION_DATASET.write_bronze(lake, sources, source_uri=source_uri)
+    log.info("fundamental.stock_insider_transactions_written", ticker=ticker, rows=written)
     return BronzeWrite(rows_written=written)
 
 

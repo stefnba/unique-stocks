@@ -486,6 +486,78 @@ models:
         data_tests:
           - not_null
 
+  - name: stg_fundamental_stock_insider_transaction
+    description: Cleaned and deduplicated stock insider transaction rows.
+    columns:
+      - name: ingestion_id
+        description: Unique ingestion row identifier from Bronze.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Date the insider transaction snapshot was ingested.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider exchange code from the exchange-qualified ticker.
+        data_tests:
+          - not_null
+      - name: ticker
+        description: Exchange-qualified stock ticker.
+        data_tests:
+          - not_null
+      - name: provider_position
+        description: Provider order position within the InsiderTransactions map.
+      - name: filing_date
+        description: Provider filing date for the insider transaction row.
+      - name: owner_cik
+        description: Insider owner CIK when supplied.
+      - name: owner_name
+        description: Insider owner display name supplied by the provider.
+        data_tests:
+          - not_null
+      - name: transaction_date
+        description: Date the insider transaction occurred.
+        data_tests:
+          - not_null
+      - name: transaction_code
+        description: Provider transaction code, such as P for purchase or S for sale.
+        data_tests:
+          - not_null
+      - name: transaction_amount
+        description: Provider-reported transaction share amount.
+      - name: transaction_price
+        description: Provider-reported transaction price.
+      - name: transaction_acquired_disposed
+        description: Provider acquired or disposed flag.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - A
+                  - D
+      - name: post_transaction_amount
+        description: Provider-reported post-transaction share amount.
+      - name: sec_link
+        description: SEC filing link supplied by the provider.
+      - name: data_provider
+        description: Provider that supplied the record.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the row.
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null
+
   - name: stg_fundamental_stock_splits_dividends
     description: Cleaned and deduplicated stock splits/dividends snapshots.
     columns:

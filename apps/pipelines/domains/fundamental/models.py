@@ -160,6 +160,27 @@ class FundamentalStockHolder(BronzeModel):
     shares_change_percent: Decimal | None = None
 
 
+class FundamentalStockInsiderTransaction(BronzeModel):
+    """One stock insider transaction row from fundamentals."""
+
+    model_config = ConfigDict(strict=True)
+
+    snapshot_date: date
+    provider_exchange_code: str
+    ticker: str
+    provider_position: int | None = None
+    filing_date: date | None = None
+    owner_cik: str | None = None
+    owner_name: str
+    transaction_date: date
+    transaction_code: str
+    transaction_amount: Decimal | None = None
+    transaction_price: Decimal | None = None
+    transaction_acquired_disposed: str | None = None
+    post_transaction_amount: Decimal | None = None
+    sec_link: str | None = None
+
+
 class FundamentalStockSplitsDividendsSnapshot(BronzeModel):
     """One stock splits/dividends snapshot from fundamentals."""
 

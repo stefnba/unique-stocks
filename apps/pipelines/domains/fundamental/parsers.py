@@ -28,6 +28,7 @@ from domains.fundamental.models import (
     FundamentalStockEsgActivity,
     FundamentalStockHolder,
     FundamentalStockIdentitySnapshot,
+    FundamentalStockInsiderTransaction,
     FundamentalStockMetricFact,
     FundamentalStockOutstandingShares,
     FundamentalStockSharesStatsSnapshot,
@@ -433,6 +434,90 @@ def parse_stock_holders(
             valid=valid,
             rejected=rejected,
         )
+
+    return valid, rejected
+
+
+def parse_stock_insider_transactions(
+    raw: FundamentalRaw,
+    *,
+    ticker: str,
+    snapshot_date: date,
+) -> tuple[list[BronzeParseResult[FundamentalStockInsiderTransaction]], list[dict[str, Any]]]:
+    """Parse stock insider transaction rows from fundamentals."""
+    general = raw.general
+    instrument_type = _optional_str(general.get("Type")) or "Unknown"
+    if instrument_family_from_type(instrument_type) != "stock" or raw.insider_transactions is None:
+        return [], []
+
+    if not isinstance(raw.insider_transactions, Mapping):
+        return [], [
+            _insider_transaction_rejection(
+                ticker=ticker,
+                period_key="insider_transactions",
+                reason="section_not_object",
+                raw_value=raw.insider_transactions,
+            )
+        ]
+
+    provider_exchange_code = exchange_from_qualified_ticker(ticker)
+    valid: list[BronzeParseResult[FundamentalStockInsiderTransaction]] = []
+    rejected: list[dict[str, Any]] = []
+    for period_key, transaction_payload in raw.insider_transactions.items():
+        if not isinstance(transaction_payload, Mapping):
+            rejected.append(
+                _insider_transaction_rejection(
+                    ticker=ticker,
+                    period_key=str(period_key),
+                    reason="report_not_object",
+                    raw_value=transaction_payload,
+                )
+            )
+            continue
+
+        transaction = dict(transaction_payload.items())
+        raw_fragment = {
+            "ticker": ticker,
+            "section": "insider_transactions",
+            "period_key": str(period_key),
+            "owner_name": transaction.get("ownerName"),
+            "transaction_date": transaction.get("transactionDate"),
+            "transaction_code": transaction.get("transactionCode"),
+        }
+        try:
+            owner_name = _optional_str(transaction.get("ownerName"))
+            if owner_name is None:
+                raise ValueError("Missing owner name")
+            transaction_code = _optional_str(transaction.get("transactionCode"))
+            if transaction_code is None:
+                raise ValueError("Missing transaction code")
+            row = FundamentalStockInsiderTransaction(
+                snapshot_date=snapshot_date,
+                provider_exchange_code=provider_exchange_code,
+                ticker=ticker,
+                provider_position=_optional_int(period_key),
+                filing_date=_optional_date(transaction.get("date")),
+                owner_cik=_optional_str(transaction.get("ownerCik")),
+                owner_name=owner_name,
+                transaction_date=parse_date(transaction.get("transactionDate")),
+                transaction_code=transaction_code,
+                transaction_amount=_optional_decimal(transaction.get("transactionAmount")),
+                transaction_price=_optional_decimal(transaction.get("transactionPrice")),
+                transaction_acquired_disposed=_optional_str(transaction.get("transactionAcquiredDisposed")),
+                post_transaction_amount=_optional_decimal(transaction.get("postTransactionAmount")),
+                sec_link=_optional_str(transaction.get("secLink")),
+            )
+        except Exception as exc:
+            log.warning(
+                "fundamental.insider_transaction_rejected",
+                ticker=ticker,
+                period_key=str(period_key),
+                error=str(exc),
+            )
+            rejected.append({**raw_fragment, "reason": "parse_error", "error": str(exc)})
+            continue
+
+        valid.append(parse_result(row, raw_fragment))
 
     return valid, rejected
 
@@ -1510,6 +1595,22 @@ def _shares_rejection(
         "ticker": ticker,
         "section": "outstanding_shares",
         "period_type": period_type,
+        "period_key": period_key,
+        "reason": reason,
+        "raw_value": raw_value,
+    }
+
+
+def _insider_transaction_rejection(
+    *,
+    ticker: str,
+    period_key: str,
+    reason: str,
+    raw_value: object,
+) -> dict[str, Any]:
+    return {
+        "ticker": ticker,
+        "section": "insider_transactions",
         "period_key": period_key,
         "reason": reason,
         "raw_value": raw_value,

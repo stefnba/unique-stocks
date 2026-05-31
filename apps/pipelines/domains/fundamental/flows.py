@@ -34,6 +34,7 @@ from domains.fundamental.tasks import (
     write_bronze_fundamental_stock_esg_activities,
     write_bronze_fundamental_stock_holders,
     write_bronze_fundamental_stock_identity,
+    write_bronze_fundamental_stock_insider_transactions,
     write_bronze_fundamental_stock_metric_facts,
     write_bronze_fundamental_stock_outstanding_shares,
     write_bronze_fundamental_stock_shares_stats,
@@ -215,6 +216,7 @@ async def fundamental_flow(
                         shares_stats,
                         outstanding_shares,
                         holders,
+                        insider_transactions,
                         splits_dividends,
                         dividend_counts,
                         metric_facts,
@@ -237,6 +239,7 @@ async def fundamental_flow(
                         + (1 if shares_stats is not None else 0)
                         + len(outstanding_shares)
                         + len(holders)
+                        + len(insider_transactions)
                         + (1 if splits_dividends is not None else 0)
                         + len(dividend_counts)
                         + len(metric_facts)
@@ -305,6 +308,12 @@ async def fundamental_flow(
                     )
                     holders_write = write_bronze_fundamental_stock_holders(
                         holders,
+                        ticker=ticker,
+                        snapshot_date=snapshot_date,
+                        source_uri=landing.source_uri,
+                    )
+                    insider_transactions_write = write_bronze_fundamental_stock_insider_transactions(
+                        insider_transactions,
                         ticker=ticker,
                         snapshot_date=snapshot_date,
                         source_uri=landing.source_uri,
@@ -382,6 +391,7 @@ async def fundamental_flow(
                         + shares_stats_write.rows_written
                         + outstanding_shares_write.rows_written
                         + holders_write.rows_written
+                        + insider_transactions_write.rows_written
                         + splits_dividends_write.rows_written
                         + dividend_counts_write.rows_written
                         + metric_facts_write.rows_written
@@ -410,6 +420,7 @@ async def fundamental_flow(
                             shares_stats_write.reason,
                             outstanding_shares_write.reason,
                             holders_write.reason,
+                            insider_transactions_write.reason,
                             splits_dividends_write.reason,
                             dividend_counts_write.reason,
                             metric_facts_write.reason,
@@ -444,6 +455,7 @@ async def fundamental_flow(
                         "shares_stats": shares_stats is not None,
                         "outstanding_shares": len(outstanding_shares),
                         "holders": len(holders),
+                        "insider_transactions": len(insider_transactions),
                         "splits_dividends": splits_dividends is not None,
                         "dividend_counts": len(dividend_counts),
                         "metric_facts": len(metric_facts),

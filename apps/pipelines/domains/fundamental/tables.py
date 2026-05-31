@@ -17,6 +17,7 @@ from domains.fundamental.models import (
     FundamentalStockEsgActivity,
     FundamentalStockHolder,
     FundamentalStockIdentitySnapshot,
+    FundamentalStockInsiderTransaction,
     FundamentalStockMetricFact,
     FundamentalStockOutstandingShares,
     FundamentalStockSharesStatsSnapshot,
@@ -111,6 +112,23 @@ class FundamentalStockHolderTable(BronzeTableModel):
         "holder_type",
         "holder_name",
         "report_date",
+        "data_provider",
+    )
+    idempotency_columns = ("snapshot_date", "ticker")
+
+
+class FundamentalStockInsiderTransactionTable(BronzeTableModel):
+    """Physical schema for ``bronze.fundamental_stock_insider_transaction``."""
+
+    table_name = "fundamental_stock_insider_transaction"
+    row_model = FundamentalStockInsiderTransaction
+    unique_columns = (
+        "snapshot_date",
+        "ticker",
+        "provider_position",
+        "owner_name",
+        "transaction_date",
+        "transaction_code",
         "data_provider",
     )
     idempotency_columns = ("snapshot_date", "ticker")
@@ -239,6 +257,7 @@ FUNDAMENTAL_STOCK_EARNINGS_FACT_TABLE = FundamentalStockEarningsFactTable
 FUNDAMENTAL_STOCK_SHARES_STATS_TABLE = FundamentalStockSharesStatsTable
 FUNDAMENTAL_STOCK_OUTSTANDING_SHARES_TABLE = FundamentalStockOutstandingSharesTable
 FUNDAMENTAL_STOCK_HOLDER_TABLE = FundamentalStockHolderTable
+FUNDAMENTAL_STOCK_INSIDER_TRANSACTION_TABLE = FundamentalStockInsiderTransactionTable
 FUNDAMENTAL_STOCK_SPLITS_DIVIDENDS_TABLE = FundamentalStockSplitsDividendsTable
 FUNDAMENTAL_STOCK_DIVIDEND_COUNT_TABLE = FundamentalStockDividendCountTable
 FUNDAMENTAL_STOCK_METRIC_FACT_TABLE = FundamentalStockMetricFactTable
@@ -268,6 +287,7 @@ __all__ = [
     "FUNDAMENTAL_STOCK_ESG_ACTIVITY_TABLE",
     "FUNDAMENTAL_STOCK_HOLDER_TABLE",
     "FUNDAMENTAL_STOCK_IDENTITY_TABLE",
+    "FUNDAMENTAL_STOCK_INSIDER_TRANSACTION_TABLE",
     "FUNDAMENTAL_STOCK_METRIC_FACT_TABLE",
     "FUNDAMENTAL_STOCK_OUTSTANDING_SHARES_TABLE",
     "FUNDAMENTAL_STOCK_SHARES_STATS_TABLE",
@@ -287,6 +307,7 @@ __all__ = [
     "FundamentalStockEsgActivityTable",
     "FundamentalStockHolderTable",
     "FundamentalStockIdentityTable",
+    "FundamentalStockInsiderTransactionTable",
     "FundamentalStockMetricFactTable",
     "FundamentalStockOutstandingSharesTable",
     "FundamentalStockSharesStatsTable",

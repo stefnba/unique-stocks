@@ -306,6 +306,30 @@ CREATE TABLE IF NOT EXISTS bronze.fundamental_stock_holder (
     UNIQUE (snapshot_date, ticker, holder_type, holder_name, report_date, data_provider)
 );
 
+CREATE TABLE IF NOT EXISTS bronze.fundamental_stock_insider_transaction (
+    ingestion_id UUID DEFAULT GEN_RANDOM_UUID(),
+    snapshot_date DATE NOT NULL,
+    provider_exchange_code VARCHAR NOT NULL,
+    ticker VARCHAR NOT NULL,
+    provider_position BIGINT,
+    filing_date DATE,
+    owner_cik VARCHAR,
+    owner_name VARCHAR NOT NULL,
+    transaction_date DATE NOT NULL,
+    transaction_code VARCHAR NOT NULL,
+    transaction_amount DECIMAL,
+    transaction_price DECIMAL,
+    transaction_acquired_disposed VARCHAR,
+    post_transaction_amount DECIMAL,
+    sec_link VARCHAR,
+    data_provider VARCHAR NOT NULL,
+    raw_json JSON NOT NULL,
+    row_hash VARCHAR NOT NULL,
+    source_uri VARCHAR,
+    ingested_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE (snapshot_date, ticker, provider_position, owner_name, transaction_date, transaction_code, data_provider)
+);
+
 CREATE TABLE IF NOT EXISTS bronze.fundamental_stock_splits_dividends (
     ingestion_id UUID DEFAULT GEN_RANDOM_UUID(),
     snapshot_date DATE NOT NULL,

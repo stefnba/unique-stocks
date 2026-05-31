@@ -25,6 +25,7 @@ from domains.fundamental.parsers import (
     parse_stock_esg_activities,
     parse_stock_holders,
     parse_stock_identity_snapshot,
+    parse_stock_insider_transactions,
     parse_stock_metric_facts,
     parse_stock_outstanding_shares,
     parse_stock_shares_stats_snapshot,
@@ -257,6 +258,21 @@ def _stock_remaining_payload() -> dict[str, Any]:
                 "1": "bad-row",
             },
         },
+        "InsiderTransactions": {
+            "0": {
+                "date": "2026-03-30",
+                "ownerCik": None,
+                "ownerName": "Jane Director",
+                "transactionDate": "2026-03-30",
+                "transactionCode": "S",
+                "transactionAmount": 25809,
+                "transactionPrice": 359.33,
+                "transactionAcquiredDisposed": "D",
+                "postTransactionAmount": None,
+                "secLink": "https://www.sec.gov/example.xml",
+            },
+            "1": "bad-row",
+        },
         "SplitsDividends": {
             "ForwardAnnualDividendRate": 1.08,
             "ForwardAnnualDividendYield": 0.0035,
@@ -350,9 +366,7 @@ def test_parse_stock_earnings_facts_long_form_with_rejections() -> None:
     assert rejected[0]["metric_name"] == "badMetric"
 
     history_actual = next(
-        fact.row
-        for fact in facts
-        if fact.row.earnings_section == "history" and fact.row.metric_name == "epsActual"
+        fact.row for fact in facts if fact.row.earnings_section == "history" and fact.row.metric_name == "epsActual"
     )
     assert history_actual.period_type is None
     assert history_actual.fiscal_period_end == date(2026, 3, 31)
@@ -406,10 +420,15 @@ def test_parse_stock_shares_stats_and_outstanding_shares() -> None:
 
 
 def test_parse_remaining_stock_sections() -> None:
-    """Holders, splits/dividends, compact metrics, and ESG activities parse cleanly."""
+    """Holders, insider transactions, splits/dividends, compact metrics, and ESG activities parse cleanly."""
     raw = FundamentalRaw.model_validate(_stock_remaining_payload())
 
     holders, holder_rejected = parse_stock_holders(raw, ticker="AAPL.US", snapshot_date=SNAPSHOT_DATE)
+    insider_transactions, insider_rejected = parse_stock_insider_transactions(
+        raw,
+        ticker="AAPL.US",
+        snapshot_date=SNAPSHOT_DATE,
+    )
     splits = parse_stock_splits_dividends_snapshot(raw, ticker="AAPL.US", snapshot_date=SNAPSHOT_DATE)
     dividend_counts, dividend_rejected = parse_stock_dividend_counts(
         raw,
@@ -430,6 +449,18 @@ def test_parse_remaining_stock_sections() -> None:
     assert institution.report_date == date(2025, 12, 31)
     assert institution.current_shares == Decimal("1426283914")
     assert institution.shares_change_percent == Decimal("1.9191")
+    assert len(insider_transactions) == 1
+    assert len(insider_rejected) == 1
+    insider = insider_transactions[0].row
+    assert insider.provider_position == 0
+    assert insider.filing_date == date(2026, 3, 30)
+    assert insider.owner_name == "Jane Director"
+    assert insider.transaction_date == date(2026, 3, 30)
+    assert insider.transaction_code == "S"
+    assert insider.transaction_amount == Decimal("25809")
+    assert insider.transaction_price == Decimal("359.33")
+    assert insider.transaction_acquired_disposed == "D"
+    assert insider.sec_link == "https://www.sec.gov/example.xml"
 
     assert splits is not None
     assert splits.row.forward_annual_dividend_rate == Decimal("1.08")
@@ -473,6 +504,11 @@ def test_aapl_fixture_slice_parses_balance_sheet_and_preserves_earnings_trend() 
         snapshot_date=SNAPSHOT_DATE,
     )
     holders, holder_rejected = parse_stock_holders(raw, ticker="AAPL.US", snapshot_date=SNAPSHOT_DATE)
+    insider_transactions, insider_rejected = parse_stock_insider_transactions(
+        raw,
+        ticker="AAPL.US",
+        snapshot_date=SNAPSHOT_DATE,
+    )
     splits = parse_stock_splits_dividends_snapshot(raw, ticker="AAPL.US", snapshot_date=SNAPSHOT_DATE)
     dividend_counts, dividend_rejected = parse_stock_dividend_counts(
         raw,
@@ -498,6 +534,8 @@ def test_aapl_fixture_slice_parses_balance_sheet_and_preserves_earnings_trend() 
     assert outstanding_rejected == []
     assert len(holders) == 40
     assert holder_rejected == []
+    assert insider_transactions == []
+    assert insider_rejected == []
     assert splits is not None
     assert splits.row.last_split_factor == "4:1"
     assert len(dividend_counts) == 24
@@ -534,6 +572,7 @@ def test_aapl_fixture_slice_parses_balance_sheet_and_preserves_earnings_trend() 
     [
         ("common_stock_AAPL.json", "stock", True),
         ("common_stock_SIE.json", "stock", True),
+        ("common_stock_TSLA.json", "stock", True),
         ("etf_DAXEX.json", "etf", False),
         ("fund_URNQX.json", "fund", False),
         ("index_GDAXI.json", "index", False),
@@ -560,6 +599,11 @@ def test_real_fundamental_fixtures_validate_and_route(
         snapshot_date=SNAPSHOT_DATE,
     )
     holders, holder_rejected = parse_stock_holders(raw, ticker=ticker, snapshot_date=SNAPSHOT_DATE)
+    insider_transactions, insider_rejected = parse_stock_insider_transactions(
+        raw,
+        ticker=ticker,
+        snapshot_date=SNAPSHOT_DATE,
+    )
     splits = parse_stock_splits_dividends_snapshot(raw, ticker=ticker, snapshot_date=SNAPSHOT_DATE)
     dividend_counts, dividend_rejected = parse_stock_dividend_counts(raw, ticker=ticker, snapshot_date=SNAPSHOT_DATE)
     metric_facts = parse_stock_metric_facts(raw, ticker=ticker, snapshot_date=SNAPSHOT_DATE)
@@ -577,6 +621,7 @@ def test_real_fundamental_fixtures_validate_and_route(
     assert earnings_rejected == []
     assert outstanding_rejected == []
     assert holder_rejected == []
+    assert insider_rejected == []
     assert dividend_rejected == []
     assert esg_rejected == []
 
@@ -587,9 +632,12 @@ def test_real_fundamental_fixtures_validate_and_route(
         assert shares_stats is not None
         assert len(outstanding_shares) > 0
         assert splits is not None
-        assert len(dividend_counts) > 0
+        if fixture_name != "common_stock_TSLA.json":
+            assert len(dividend_counts) > 0
         assert len(metric_facts) > 0
         assert len(esg_activities) > 0
+        if fixture_name == "common_stock_TSLA.json":
+            assert len(insider_transactions) == 20
     else:
         assert identity is None
         assert facts == []
@@ -597,6 +645,7 @@ def test_real_fundamental_fixtures_validate_and_route(
         assert shares_stats is None
         assert outstanding_shares == []
         assert holders == []
+        assert insider_transactions == []
         assert splits is None
         assert dividend_counts == []
         assert metric_facts == []
@@ -690,6 +739,26 @@ def test_index_fixtures_parse_identity_and_components() -> None:
     assert historical[0].row.is_active_now is True
 
 
+def test_tsla_fixture_parses_insider_transactions() -> None:
+    """TSLA fixture emits stock insider transaction rows."""
+    raw = FundamentalRaw.model_validate(_real_fixture_payload("common_stock_TSLA.json"))
+
+    transactions, rejected = parse_stock_insider_transactions(raw, ticker="TSLA.US", snapshot_date=SNAPSHOT_DATE)
+
+    assert len(transactions) == 20
+    assert rejected == []
+    first = transactions[0].row
+    assert first.provider_position == 0
+    assert first.filing_date == date(2026, 3, 30)
+    assert first.owner_name == "Kathleen Wilson-Thompson"
+    assert first.transaction_date == date(2026, 3, 30)
+    assert first.transaction_code == "S"
+    assert first.transaction_amount == Decimal("25809")
+    assert first.transaction_price == Decimal("359.33")
+    assert first.transaction_acquired_disposed == "D"
+    assert first.sec_link is not None
+
+
 def test_non_stock_document_does_not_emit_stock_rows() -> None:
     """ETF/fund/index documents are routed without pretending they are stocks."""
     payload = {
@@ -719,6 +788,11 @@ def test_non_stock_document_does_not_emit_stock_rows() -> None:
         snapshot_date=SNAPSHOT_DATE,
     )
     holders, holder_rejected = parse_stock_holders(raw, ticker="SPY.US", snapshot_date=SNAPSHOT_DATE)
+    insider_transactions, insider_rejected = parse_stock_insider_transactions(
+        raw,
+        ticker="SPY.US",
+        snapshot_date=SNAPSHOT_DATE,
+    )
     splits = parse_stock_splits_dividends_snapshot(raw, ticker="SPY.US", snapshot_date=SNAPSHOT_DATE)
     dividend_counts, dividend_rejected = parse_stock_dividend_counts(
         raw,
@@ -743,6 +817,8 @@ def test_non_stock_document_does_not_emit_stock_rows() -> None:
     assert outstanding_rejected == []
     assert holders == []
     assert holder_rejected == []
+    assert insider_transactions == []
+    assert insider_rejected == []
     assert splits is None
     assert dividend_counts == []
     assert dividend_rejected == []
