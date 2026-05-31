@@ -171,13 +171,3 @@ def _combined_bronze_reason(*reasons: str | None) -> str | None:
     """Return a compact reason when all Bronze writes skipped."""
     distinct = list(dict.fromkeys(reason for reason in reasons if reason))
     return "+".join(distinct) if distinct else None
-
-
-# ---------------------------------------------------------------------------
-# Entry point for manual runs / local testing
-# ---------------------------------------------------------------------------
-
-if __name__ == "__main__":
-    import asyncio
-
-    asyncio.run(exchange_schedule_flow())

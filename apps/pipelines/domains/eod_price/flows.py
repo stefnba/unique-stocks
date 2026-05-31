@@ -592,9 +592,3 @@ async def eod_price_backfill_flow(
             raise
 
     return summary
-
-
-if __name__ == "__main__":
-    import asyncio
-
-    asyncio.run(eod_price_flow())

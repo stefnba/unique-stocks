@@ -148,7 +148,3 @@ def _instrument_counters(*, tally: RunUnitTally, summary: dict) -> RunCounters:
         rows_raw=rows_raw,
         rows_written=rows_written,
     )
-
-
-if __name__ == "__main__":
-    asyncio.run(instrument_flow())

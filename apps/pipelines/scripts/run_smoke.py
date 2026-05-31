@@ -15,10 +15,15 @@ Default presets:
   one-call credit cap.
 - ``instrument`` fetches one provider namespace, ``XETRA``.
 - ``eod-price`` / ``eod_price`` fetches one provider namespace, ``XETRA``.
+- ``exchange`` refreshes the provider exchange catalog and ISO MIC registry.
+- ``exchange-schedule`` / ``exchange_schedule`` fetches one provider schedule
+  namespace, ``US``.
 
 Examples:
     uv run python scripts/run_smoke.py fundamental
     uv run python scripts/run_smoke.py fundamental --ticker MSFT.US
+    uv run python scripts/run_smoke.py exchange
+    uv run python scripts/run_smoke.py exchange_schedule --exchange XETR
     uv run python scripts/run_smoke.py instrument --exchange US
     uv run python scripts/run_smoke.py eod_price --exchange US
 """
@@ -32,24 +37,31 @@ from typing import Literal
 import structlog
 
 from domains.eod_price.flows import eod_price_flow
+from domains.exchange.flows import exchange_catalog_flow, exchange_mic_registry_flow
+from domains.exchange_schedule.flows import exchange_schedule_flow
 from domains.fundamental.flows import fundamental_flow
 from domains.instrument.flows import instrument_flow
 
-type SmokePreset = Literal["fundamental", "instrument", "eod-price"]
+type SmokePreset = Literal["fundamental", "instrument", "eod-price", "exchange", "exchange-schedule"]
 
 DEFAULT_FUNDAMENTAL_TICKER = "AAPL.US"
 DEFAULT_PROVIDER_EXCHANGE_CODE = "XETRA"
+DEFAULT_SCHEDULE_EXCHANGE_CODE = "US"
 
 log = structlog.get_logger(__name__)
 
 _EXAMPLES = """examples:
   uv run python scripts/run_smoke.py fundamental
   uv run python scripts/run_smoke.py fundamental --ticker MSFT.US
+  uv run python scripts/run_smoke.py exchange
+  uv run python scripts/run_smoke.py exchange_schedule --exchange XETR
   uv run python scripts/run_smoke.py instrument --exchange US
   uv run python scripts/run_smoke.py eod_price --exchange US
 
 make aliases:
   make smoke FLOW=fundamental
+  make smoke FLOW=exchange
+  make smoke FLOW=exchange_schedule ARGS="--exchange XETR"
   make smoke FLOW=instrument ARGS="--exchange US"
   make smoke FLOW=eod_price ARGS="--exchange US"
 """
@@ -86,6 +98,25 @@ def build_parser() -> argparse.ArgumentParser:
     fundamental.add_argument("--ticker", default=DEFAULT_FUNDAMENTAL_TICKER, help="Exchange-qualified ticker.")
     fundamental.add_argument("--snapshot-date", type=parse_iso_date, default=None, help="Optional YYYY-MM-DD date.")
 
+    subparsers.add_parser("exchange", help="Run exchange catalog and MIC registry refreshes.")
+
+    exchange_schedule = subparsers.add_parser(
+        "exchange-schedule",
+        aliases=["exchange_schedule"],
+        help="Run one provider exchange schedule namespace.",
+    )
+    exchange_schedule.add_argument(
+        "--exchange",
+        default=DEFAULT_SCHEDULE_EXCHANGE_CODE,
+        help="Provider schedule namespace code.",
+    )
+    exchange_schedule.add_argument(
+        "--snapshot-date",
+        type=parse_iso_date,
+        default=None,
+        help="Optional YYYY-MM-DD date.",
+    )
+
     instrument = subparsers.add_parser("instrument", help="Run one provider instrument namespace.")
     instrument.add_argument("--exchange", default=DEFAULT_PROVIDER_EXCHANGE_CODE, help="Provider namespace code.")
     instrument.add_argument("--snapshot-date", type=parse_iso_date, default=None, help="Optional YYYY-MM-DD date.")
@@ -104,14 +135,20 @@ def build_parser() -> argparse.ArgumentParser:
 def normalize_preset(value: str) -> SmokePreset:
     """Normalize common domain spelling variants to smoke preset names.
 
-    The canonical CLI subcommand uses a hyphen, ``eod-price``, while the Python
-    domain package is named ``eod_price``. Accepting both keeps the Makefile and
-    direct CLI calls natural for different contexts.
+    Canonical CLI subcommands use hyphens, while Python domain packages use
+    underscores. Accepting both keeps the Makefile and direct CLI calls natural
+    for different contexts.
     """
     if value == "eod_price":
         return "eod-price"
+    if value == "exchange_schedule":
+        return "exchange-schedule"
     if value == "fundamental":
         return "fundamental"
+    if value == "exchange":
+        return "exchange"
+    if value == "exchange-schedule":
+        return "exchange-schedule"
     if value == "instrument":
         return "instrument"
     if value == "eod-price":
@@ -125,6 +162,8 @@ async def run_preset(args: argparse.Namespace) -> dict[str, object]:
     Each branch passes explicit scoping parameters to the real flow:
 
     - fundamentals uses ``tickers`` rather than provider-universe discovery;
+    - exchange runs the two reference refreshes directly;
+    - exchange schedule uses ``provider_schedule_exchange_codes`` with one code;
     - instrument uses ``provider_exchange_codes`` with one namespace;
     - EOD price uses ``provider_exchange_codes`` with one namespace.
 
@@ -140,6 +179,18 @@ async def run_preset(args: argparse.Namespace) -> dict[str, object]:
             snapshot_date=args.snapshot_date,
             batch_size=1,
             max_provider_credits=10,
+        )
+    elif preset == "exchange":
+        catalog_rows_written = await exchange_catalog_flow()
+        mic_summary = await exchange_mic_registry_flow()
+        summary = {
+            "exchange_catalog_rows_written": catalog_rows_written,
+            "exchange_mic_registry": mic_summary,
+        }
+    elif preset == "exchange-schedule":
+        summary = await exchange_schedule_flow(
+            provider_schedule_exchange_codes=[str(args.exchange)],
+            snapshot_date=args.snapshot_date,
         )
     elif preset == "instrument":
         summary = await instrument_flow(

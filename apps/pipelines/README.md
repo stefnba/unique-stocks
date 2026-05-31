@@ -41,6 +41,8 @@ Use the smoke runner for narrow local checks instead of changing production flow
 
 ```bash
 uv run python scripts/run_smoke.py fundamental
+uv run python scripts/run_smoke.py exchange
+uv run python scripts/run_smoke.py exchange_schedule
 uv run python scripts/run_smoke.py instrument
 uv run python scripts/run_smoke.py eod-price
 ```
@@ -49,6 +51,8 @@ The Make target passes `FLOW` through to the smoke runner, which owns preset val
 
 ```bash
 make smoke FLOW=fundamental
+make smoke FLOW=exchange
+make smoke FLOW=exchange_schedule
 make smoke FLOW=instrument
 make smoke FLOW=eod_price
 ```

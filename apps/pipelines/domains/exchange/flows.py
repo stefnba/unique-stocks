@@ -153,14 +153,3 @@ async def exchange_mic_registry_flow(snapshot_date: date | None = None) -> dict[
             raise
 
     return summary
-
-
-# ---------------------------------------------------------------------------
-# Entry point for manual runs / local testing
-# ---------------------------------------------------------------------------
-
-if __name__ == "__main__":
-    import asyncio
-
-    asyncio.run(exchange_catalog_flow())
-    asyncio.run(exchange_mic_registry_flow())

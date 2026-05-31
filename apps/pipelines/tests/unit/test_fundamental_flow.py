@@ -118,6 +118,31 @@ def _raw_stock_payload() -> FundamentalRaw:
 
 
 @pytest.mark.asyncio
+async def test_fundamental_flow_uses_provider_universe_for_default_tickers(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Automatic fundamentals selection should use fundamentals-approved provider codes."""
+    run = FakeRun()
+    loaded_codes: list[list[str]] = []
+
+    def fetch_codes() -> list[str]:
+        return ["US"]
+
+    def load_tickers(provider_exchange_codes: list[str] | None, limit: int | None = None) -> list[str]:
+        loaded_codes.append(list(provider_exchange_codes or []))
+        assert limit == 5
+        return []
+
+    monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
+    monkeypatch.setattr(flows, "fetch_fundamental_provider_exchange_codes", fetch_codes)
+    monkeypatch.setattr(flows, "load_fundamental_stock_tickers", load_tickers)
+
+    summary = await flows.fundamental_flow.fn(snapshot_date=SNAPSHOT_DATE, limit=5)
+
+    assert loaded_codes == [["US"]]
+    assert summary["tickers"] == {}
+    assert run.completed_summary == summary
+
+
+@pytest.mark.asyncio
 async def test_skip_existing_false_uses_changed_payload_refresh(monkeypatch: pytest.MonkeyPatch) -> None:
     """skip_existing=False fetches and skips unchanged same-day payloads."""
     raw = _raw_stock_payload()

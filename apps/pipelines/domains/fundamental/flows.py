@@ -595,7 +595,3 @@ def _fundamental_rejection_records(
         )
         for row in rejected_rows[:_REJECTION_SAMPLE_LIMIT_PER_TICKER]
     ]
-
-
-if __name__ == "__main__":
-    asyncio.run(fundamental_flow(tickers=["AAPL.US"], limit=1))
