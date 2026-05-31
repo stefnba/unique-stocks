@@ -79,3 +79,7 @@ pythonVersion = "3.14"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "integration: tests that exercise live integrations or external services",
+    "live_provider: tests that call a live market-data provider API",
+]
