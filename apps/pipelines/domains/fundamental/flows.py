@@ -49,7 +49,10 @@ _REJECTION_SAMPLE_LIMIT_PER_TICKER = 100
 
 @flow(
     name="fundamental-quarterly",
-    description="Ingest stock fundamentals documents and normalized statement facts from EODHD.",
+    description=(
+        "Ingest EODHD fundamental JSON per ticker: identity, statements, metrics, holders, "
+        "insider transactions, dividends, and more. Writes S3 landing + multiple bronze.fundamental_* tables."
+    ),
 )
 async def fundamental_flow(
     tickers: list[str] | None = None,

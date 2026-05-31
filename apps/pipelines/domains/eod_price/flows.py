@@ -47,7 +47,10 @@ _REJECTION_SAMPLE_LIMIT_PER_UNIT = 100
 
 @flow(
     name="eod-price-daily",
-    description="Ingest EOD OHLCV price for all exchange from the provider bulk endpoint.",
+    description=(
+        "Daily EOD OHLCV ingestion via the provider bulk endpoint (one API call per exchange). "
+        "Writes S3 landing JSON, then bronze.eod_price. Use deployment backfill for a single past date."
+    ),
 )
 async def eod_price_flow(
     trade_date: date | None = None,
@@ -319,7 +322,10 @@ def _all_units_skipped(*, total: int, skipped: int) -> bool:
 
 @flow(
     name="eod-price-backfill",
-    description="Historical EOD backfill for all instrument using the per-ticker endpoint.",
+    description=(
+        "Historical EOD backfill via the per-ticker endpoint (one API call per symbol, any date range). "
+        "Requires from_date at run time. Skips symbols already present in bronze.eod_price."
+    ),
 )
 async def eod_price_backfill_flow(
     from_date: date,

@@ -21,7 +21,10 @@ log = structlog.get_logger(__name__)
 
 @flow(
     name="exchange-schedule-refresh",
-    description="Ingest trading hours and holiday for all provider-supported exchange.",
+    description=(
+        "Ingest trading hours and holidays for provider schedule API codes. "
+        "Writes bronze.exchange_schedule and bronze.exchange_holiday. Skips exchanges already ingested for snapshot_date."
+    ),
 )
 async def exchange_schedule_flow(
     snapshot_date: date | None = None,

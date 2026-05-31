@@ -20,7 +20,10 @@ log = structlog.get_logger(__name__)
 
 @flow(
     name="instrument-refresh",
-    description="Ingest active instrument for all provider exchange codes.",
+    description=(
+        "Ingest active instruments (equities, ETFs, funds, FX, crypto, etc.) per provider exchange code. "
+        "Writes S3 landing + bronze.instrument. Skips exchanges already ingested for snapshot_date."
+    ),
 )
 async def instrument_flow(
     snapshot_date: date | None = None,

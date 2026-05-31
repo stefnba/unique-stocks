@@ -21,7 +21,10 @@ from domains.exchange.tasks.iso10383 import (
 
 @flow(
     name="exchange-catalog-refresh",
-    description="Ingest the list of supported exchange from the configured provider.",
+    description=(
+        "Fetch the provider exchange catalog (supported MICs/codes) and write "
+        "S3 landing + bronze.exchange_catalog for today's snapshot."
+    ),
 )
 async def exchange_catalog_flow() -> int:
     """Fetch the provider exchange catalog and write landing + bronze snapshots."""
@@ -63,7 +66,12 @@ async def exchange_catalog_flow() -> int:
         return bronze.rows_written
 
 
-@flow(name="exchange-mic-registry-refresh", description="Ingest the ISO 10383 MIC registry CSV.")
+@flow(
+    name="exchange-mic-registry-refresh",
+    description=(
+        "Download the ISO 10383 MIC registry CSV and write S3 landing + bronze.exchange_mic_registry."
+    ),
+)
 async def exchange_mic_registry_flow(snapshot_date: date | None = None) -> dict[str, object]:
     """Fetch the ISO MIC registry CSV and write landing + bronze snapshots."""
     snapshot_date = snapshot_date or date.today()

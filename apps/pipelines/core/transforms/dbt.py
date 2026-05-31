@@ -40,7 +40,13 @@ class DbtCommandResult(BaseModel):
     artifact_path: str | None
 
 
-@flow(name="dbt-build", description="Run dbt transformations/tests and audit dbt artifacts in the lake.")
+@flow(
+    name="dbt-build",
+    description=(
+        "Run dbt (build/run/test/compile) against the lake, then persist run_results.json "
+        "to pipeline.dbt_invocations and pipeline.dbt_node_results for audit."
+    ),
+)
 async def dbt_build_flow(
     command: DbtCommand = "build",
     select: list[str] | None = None,
