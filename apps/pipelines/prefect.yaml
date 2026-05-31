@@ -90,9 +90,6 @@ deployments:
       - eod-price
       - backfill
     parameters:
-      from_date: null
-      to_date: null
-      provider_exchange_codes: null
       batch_size: 50
     enforce_parameter_schema: true
     work_pool: *default_pool
