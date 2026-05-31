@@ -250,10 +250,11 @@ make dbt-run-marts
 
 Production dbt execution is also available as Prefect deployments:
 
-- `dbt-build/exchange-build`: builds exchange staging/intermediate models, including the provider ingestion universe consumed by instrument and price flows.
-- `dbt-build/price-build`: builds current price staging and mart paths.
+- `dbt-build/exchange-build`: exchange staging/intermediate + provider ingestion universe.
+- `dbt-build/price-build`: price staging and mart models.
+- `dbt-build/fundamental-build`: fundamental staging models.
 
-Both deployments read `dbt/target/run_results.json` and write dbt invocation/node-result audit rows to the lake.
+Both price and exchange builds read `dbt/target/run_results.json` and write dbt audit rows to the lake.
 
 DuckDB allows one writer at a time. If `make lake-init` or `make dbt-build` reports a database lock, close any local DuckDB/Cursor/VS Code database viewer connected to `unique_stocks.duckdb` and rerun the command.
 
@@ -282,15 +283,33 @@ make dbt-build
 
 ## Prefect deployments
 
-`prefect.yaml` defines the app deployments and schedule.
+`prefect.yaml` registers one deployment per operational mode (scheduled, manual, backfill, build).
+Each mode maps to the same domain flow with different default parameters.
+
+| Domain                 | Deployments                                                               | Mode                     |
+| ---------------------- | ------------------------------------------------------------------------- | ------------------------ |
+| EOD price (bulk)       | `eod-price-daily/daily`, `/backfill`                                      | scheduled, backfill      |
+| EOD price (per-ticker) | `eod-price-backfill/historical-backfill`                                  | backfill                 |
+| Exchange catalog / MIC | `exchange-catalog-refresh/manual`, `exchange-mic-registry-refresh/manual` | bootstrap                |
+| Exchange schedule      | `exchange-schedule-refresh/manual`                                        | manual                   |
+| Instrument             | `instrument-refresh/weekly`, `/manual`                                    | scheduled, manual        |
+| Fundamental            | `fundamental-quarterly/manual`, `/backfill`, `/replay`                    | manual, backfill, replay |
+| dbt                    | `dbt-build/exchange-build`, `/price-build`, `/fundamental-build`          | build                    |
+
+Bootstrap order for a new environment: exchange manual → exchange-build → instrument → ingest → matching `*-build`.
+
+`make deploy` is the source-of-truth sync: it removes orphaned deployments owned by this app
+(entrypoints under `domains.*` or `core.transforms.*`), then applies `prefect.yaml`.
+Manual UI experiments with unrelated entrypoints are left untouched.
 
 ```bash
 cd apps/pipelines
-make deploy-dry
-make deploy
+make deploy-dry        # preview manifest + orphan deletions
+make deploy            # prune orphans, then apply prefect.yaml
+make deploy-upsert     # apply only — keep orphaned app deployments
 ```
 
-`make setup` runs this once per new environment. Use `make deploy` for subsequent deployment definition changes.
+`make setup` runs `make deploy` once per new environment.
 
 ## Production (`prod`)
 

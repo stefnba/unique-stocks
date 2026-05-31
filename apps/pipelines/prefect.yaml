@@ -1,8 +1,25 @@
 # Prefect deployment configuration for the unique-stocks pipelines app.
 #
-# Deploy all:        uv run prefect deploy --all
-# Deploy one:        uv run prefect deploy --name eod-price/daily
-# Dry-run (no push): uv run prefect deploy --all --no-prompt
+# Deploy all:        make deploy
+# Preview sync:      make deploy-dry
+# Upsert only:       make deploy-upsert
+# Deploy one:        uv run prefect deploy --name daily
+#
+# Deployment naming convention (one flow, multiple operational modes):
+#   daily / weekly     — scheduled production runs
+#   manual             — on-demand refresh with flow defaults
+#   backfill           — scoped or credit-capped replay
+#   historical-backfill — heavy multi-day per-unit backfill (eod_price only)
+#   replay             — re-parse from S3 landing, no provider calls
+#   *-build            — dbt transform for a bronze domain
+#
+# Bootstrap order (new environments):
+#   1. exchange-catalog-refresh/manual
+#   2. exchange-mic-registry-refresh/manual
+#   3. dbt-build/exchange-build
+#   4. exchange-schedule-refresh/manual   (optional)
+#   5. instrument-refresh/manual or /weekly
+#   6. ingest domains → matching dbt *-build deployment
 #
 # Workers read PREFECT_API_URL from the environment (.env / docker-compose).
 # The pull step uses PREFECT_WORK_DIR so both local dev (.) and Docker (/app)
@@ -11,259 +28,258 @@
 prefect-version: "3.7.0"
 name: unique-stocks-pipelines
 
-# ---------------------------------------------------------------------------
-# Build / push
-# ---------------------------------------------------------------------------
-# Code ships inside the Docker image — no build or push steps needed here.
-# The Coolify deployment pipeline handles image builds separately.
 build: null
 push: null
 
-# ---------------------------------------------------------------------------
-# Pull (runs on the worker before each flow run)
-# ---------------------------------------------------------------------------
-# PREFECT_WORK_DIR:
-#   Docker / Coolify  → /app   (set in docker-compose)
-#   Local dev         → .      (set in shell or .env)
 pull:
   - prefect.deployments.steps.set_working_directory:
       directory: "{{ $PREFECT_WORK_DIR }}"
 
-# ---------------------------------------------------------------------------
-# Shared definitions (YAML anchors — not a Prefect concept, just YAML)
-# ---------------------------------------------------------------------------
 definitions:
   work_pool: &default_pool
     name: default-process-pool
     work_queue_name: default
 
-  # Paused stub used for domains that are not yet implemented.
-  # Registered in the UI so the full domain list is visible, but will not run.
-  stub_deployment: &stub
-    paused: true
+  manual: &manual
+    enforce_parameter_schema: true
     work_pool: *default_pool
 
-# ---------------------------------------------------------------------------
-# Deployments
-# ---------------------------------------------------------------------------
+  scheduled: &scheduled
+    enforce_parameter_schema: true
+    work_pool: *default_pool
+
+  dbt_build: &dbt_build
+    entrypoint: core.transforms.dbt:dbt_build_flow
+    flow_name: dbt-build
+    enforce_parameter_schema: true
+    concurrency_limit:
+      limit: 1
+      collision_strategy: CANCEL_NEW
+    work_pool: *default_pool
+    parameters:
+      command: build
+      exclude: null
+      project_dir: dbt
+      profiles_dir: dbt
+      target: null
+      parent_run_id: null
+
 deployments:
-  # ── EOD price — daily scheduled run ──────────────────────────────────────
+  # ═══════════════════════════════════════════════════════════════════════════
+  # EOD price — bulk endpoint (one API call per exchange per date)
+  # ═══════════════════════════════════════════════════════════════════════════
+
   - name: daily
     description: >
       Scheduled daily EOD OHLCV ingestion for all provider exchange codes in the ingestion universe.
 
-      What it does: one bulk API call per exchange → S3 landing → bronze.eod_price.
-      Schedule: Mon–Fri 4:30pm America/New_York (after US close; Europe already closed).
-      Parameters (all optional): trade_date (defaults to provider latest day),
-      provider_exchange_codes (e.g. ["US"] to limit scope).
-
-      Trigger manually: Deployments → eod-price-daily / daily → Run.
+      One bulk API call per exchange → S3 landing → bronze.eod_price.
+      Schedule: Mon–Fri 4:30pm America/New_York.
+      Optional: trade_date, provider_exchange_codes (e.g. ["US"]).
     entrypoint: domains.eod_price.flows:eod_price_flow
-    tags:
-      - eod-price
-      - scheduled
+    tags: [eod-price, scheduled]
     schedule:
-      cron: "30 16 * * 1-5" # 4:30pm — interpreted in America/New_York (Prefect handles DST)
+      cron: "30 16 * * 1-5"
       timezone: America/New_York
     concurrency_limit:
       limit: 1
-      collision_strategy: CANCEL_NEW # a late trigger should not stack on a running one
-    enforce_parameter_schema: true
-    work_pool: *default_pool
+      collision_strategy: CANCEL_NEW
+    <<: *scheduled
 
-  # ── EOD price — manual date backfill (single day via bulk endpoint) ───────
   - name: backfill
     description: >
-      Single-day EOD backfill using the bulk endpoint (same code path as daily, no schedule).
+      Single-day EOD backfill via the bulk endpoint (same code path as daily, no schedule).
 
-      What it does: fetches one trade_date for all (or selected) exchanges → S3 landing → bronze.eod_price.
-      Parameters: trade_date (optional — omit for provider latest day),
-      provider_exchange_codes (optional subset, e.g. ["US"]).
-
-      Trigger: Deployments → eod-price-daily / backfill → Run → set trade_date if needed.
+      Optional: trade_date (omit for provider latest day), provider_exchange_codes.
     entrypoint: domains.eod_price.flows:eod_price_flow
-    tags:
-      - eod-price
-      - backfill
+    tags: [eod-price, backfill]
     parameters:
       trade_date: null
-    enforce_parameter_schema: true
-    work_pool: *default_pool
+    <<: *manual
 
-  # ── EOD price — historical backfill (per-ticker, multi-day range) ─────────
+  # ═══════════════════════════════════════════════════════════════════════════
+  # EOD price — per-ticker endpoint (one API call per symbol, any date range)
+  # ═══════════════════════════════════════════════════════════════════════════
+
   - name: historical-backfill
     description: >
-      Full historical EOD backfill using the per-ticker endpoint (one API call per symbol, any date range).
+      Historical EOD backfill via the per-ticker endpoint. Requires from_date at run time.
 
-      What it does: for each instrument in bronze.instrument, fetches OHLCV from from_date through to_date
-      → S3 landing → bronze.eod_price. Processes exchanges sequentially; batch_size symbols in parallel
-      per exchange. Skips symbols that already have bronze rows (safe to resume after failure).
-
-      Required at run time: from_date (YYYY-MM-DD).
-      Optional: to_date (defaults to today), provider_exchange_codes (e.g. ["LSE"]),
-      batch_size (default 50 — lower if hitting rate limits).
-
-      Trigger: Deployments → eod-price-backfill / historical-backfill → Run (top-right) → fill from_date.
+      For each instrument in bronze.instrument: OHLCV from from_date→to_date
+      → S3 landing → bronze.eod_price. Skips symbols already in bronze (resume-safe).
+      Optional: to_date, provider_exchange_codes, batch_size (default 50).
     entrypoint: domains.eod_price.flows:eod_price_backfill_flow
-    tags:
-      - eod-price
-      - backfill
+    tags: [eod-price, backfill]
     parameters:
       batch_size: 50
-    enforce_parameter_schema: true
-    work_pool: *default_pool
+    concurrency_limit:
+      limit: 1
+      collision_strategy: CANCEL_NEW
+    <<: *manual
 
-  # ── dbt — transform current price models ─────────────────────────────────
-  - name: exchange-build
-    flow_name: dbt-build
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Exchange reference — bootstrap before dbt exchange-build
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - name: manual
+    flow_name: exchange-catalog-refresh
     description: >
-      dbt build for exchange reference models consumed by instrument and price flows.
+      Fetch the EODHD exchange catalog → S3 landing → bronze.exchange_catalog.
+      Bootstrap step 1. Run before exchange-build.
+    entrypoint: domains.exchange.flows:exchange_catalog_flow
+    tags: [exchange, bootstrap, manual]
+    <<: *manual
 
-      What it runs: seed eodhd_provider_namespaces + staging/exchange + intermediate/exchange models.
-      Persists dbt run_results to pipeline audit tables.
+  - name: manual
+    flow_name: exchange-mic-registry-refresh
+    description: >
+      Download ISO 10383 MIC registry CSV → S3 landing → bronze.exchange_mic_registry.
+      Bootstrap step 2. Run before exchange-build.
+    entrypoint: domains.exchange.flows:exchange_mic_registry_flow
+    tags: [exchange, bootstrap, manual]
+    <<: *manual
 
-      Parameters are pre-set; usually run as-is after exchange ingestion changes.
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Exchange schedule — trading hours and holidays
+  # ═══════════════════════════════════════════════════════════════════════════
 
-      Trigger: Deployments → dbt-build / exchange-build → Run.
-    entrypoint: core.transforms.dbt:dbt_build_flow
-    tags:
-      - dbt
-      - transform
-      - exchange
+  - name: manual
+    flow_name: exchange-schedule-refresh
+    description: >
+      Ingest trading hours and holidays for provider schedule API codes.
+
+      One API call per exchange → bronze.exchange_schedule + bronze.exchange_holiday.
+      Skips exchanges already ingested for snapshot_date.
+      Optional: snapshot_date, provider_schedule_exchange_codes.
+    entrypoint: domains.exchange_schedule.flows:exchange_schedule_flow
+    tags: [exchange, schedule, manual]
     parameters:
-      command: build
+      snapshot_date: null
+      provider_schedule_exchange_codes: null
+    <<: *manual
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Instrument — symbol lists per exchange (requires exchange-build first)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - name: weekly
+    flow_name: instrument-refresh
+    description: >
+      Scheduled weekly instrument refresh for all provider exchange codes.
+
+      Fetches symbol lists per exchange → S3 landing → bronze.instrument.
+      Skips exchanges already ingested for snapshot_date.
+      Schedule: Monday 8am America/New_York.
+    entrypoint: domains.instrument.flows:instrument_flow
+    tags: [instrument, scheduled]
+    schedule:
+      cron: "0 8 * * 1"
+      timezone: America/New_York
+    concurrency_limit:
+      limit: 1
+      collision_strategy: CANCEL_NEW
+    <<: *scheduled
+
+  - name: manual
+    flow_name: instrument-refresh
+    description: >
+      On-demand instrument refresh. Use for bootstrap or a subset of exchanges.
+
+      Optional: snapshot_date, provider_exchange_codes (e.g. ["US", "XETRA"]).
+    entrypoint: domains.instrument.flows:instrument_flow
+    tags: [instrument, manual]
+    parameters:
+      snapshot_date: null
+      provider_exchange_codes: null
+    <<: *manual
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Fundamental — per-ticker EODHD documents (requires instrument bronze)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - name: manual
+    flow_name: fundamental-quarterly
+    description: >
+      On-demand fundamentals ingestion with skip-existing enabled (default flow behaviour).
+
+      Per-ticker API fetch → S3 landing → bronze.fundamental_* tables.
+      Optional: tickers, provider_exchange_codes, limit, snapshot_date.
+    entrypoint: domains.fundamental.flows:fundamental_flow
+    tags: [fundamental, manual]
+    parameters:
+      batch_size: 1
+    <<: *manual
+
+  - name: backfill
+    flow_name: fundamental-quarterly
+    description: >
+      Credit-aware fundamentals backfill. Re-fetches changed provider documents.
+
+      Set limit and max_provider_credits at run time to cap provider spend.
+      Optional: provider_exchange_codes, batch_size, provider_batch_delay_seconds.
+    entrypoint: domains.fundamental.flows:fundamental_flow
+    tags: [fundamental, backfill]
+    parameters:
+      skip_existing: false
+      refresh_existing: true
+      batch_size: 5
+      provider_batch_delay_seconds: 1.0
+      provider_credits_per_call: 10
+    concurrency_limit:
+      limit: 1
+      collision_strategy: CANCEL_NEW
+    <<: *manual
+
+  - name: replay
+    flow_name: fundamental-quarterly
+    description: >
+      Re-parse fundamentals from S3 landing JSON — no provider API calls.
+
+      Use after parser changes or to rebuild bronze from landed documents.
+      Optional: tickers, landing_source_uris_by_ticker, provider_exchange_codes, limit.
+    entrypoint: domains.fundamental.flows:fundamental_flow
+    tags: [fundamental, replay]
+    parameters:
+      replay_landing: true
+      skip_existing: false
+    concurrency_limit:
+      limit: 1
+      collision_strategy: CANCEL_NEW
+    <<: *manual
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # dbt — bronze → staging → marts (run after matching ingestion)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - name: exchange-build
+    description: >
+      dbt build for exchange reference models (bootstrap step 3).
+
+      Seeds eodhd_provider_namespaces + staging/exchange + intermediate/exchange.
+      Required before instrument and price ingestion universes resolve correctly.
+    tags: [dbt, build, exchange]
+    parameters:
       select:
         - eodhd_provider_namespaces
         - path:models/staging/exchange
         - path:models/intermediate/exchange
-      exclude: null
-      project_dir: dbt
-      profiles_dir: dbt
-      target: null
-      parent_run_id: null
-    enforce_parameter_schema: true
-    concurrency_limit:
-      limit: 1
-      collision_strategy: CANCEL_NEW
-    work_pool: *default_pool
+    <<: *dbt_build
 
   - name: price-build
-    flow_name: dbt-build
     description: >
-      dbt build for price staging and mart models after bronze.eod_price ingestion.
-
-      What it runs: models/staging/price + models/marts/price.
-      Persists dbt run_results to pipeline audit tables.
-
-      Trigger: Deployments → dbt-build / price-build → Run.
-    entrypoint: core.transforms.dbt:dbt_build_flow
-    tags:
-      - dbt
-      - transform
-      - price
+      dbt build for price staging and marts. Run after bronze.eod_price ingestion.
+    tags: [dbt, build, price]
     parameters:
-      command: build
       select:
         - path:models/staging/price
         - path:models/marts/price
-      exclude: null
-      project_dir: dbt
-      profiles_dir: dbt
-      target: null
-      parent_run_id: null
-    enforce_parameter_schema: true
-    concurrency_limit:
-      limit: 1
-      collision_strategy: CANCEL_NEW
-    work_pool: *default_pool
+    <<: *dbt_build
 
-  # ── Exchange — manual / monthly refresh ─────────────────────────────────
-  - name: catalog-refresh
-    flow_name: exchange-catalog-refresh
+  - name: fundamental-build
     description: >
-      Fetch the EODHD exchange catalog and write bronze.exchange_catalog.
-
-      Status: PAUSED stub — not yet on a schedule. Unpause in the deployment detail page before running.
-
-      Trigger: Deployments → exchange-catalog-refresh / catalog-refresh → Run (after unpausing).
-    entrypoint: domains.exchange.flows:exchange_catalog_flow
-    tags:
-      - exchange
-      - stub
-    <<: *stub
-
-  - name: mic-registry-refresh
-    flow_name: exchange-mic-registry-refresh
-    description: >
-      Download the ISO 10383 MIC registry CSV and write bronze.exchange_mic_registry.
-
-      Status: PAUSED stub — not yet on a schedule. Unpause before running.
-
-      Trigger: Deployments → exchange-mic-registry-refresh / mic-registry-refresh → Run (after unpausing).
-    entrypoint: domains.exchange.flows:exchange_mic_registry_flow
-    tags:
-      - exchange
-      - stub
-    <<: *stub
-
-  # ── Exchange schedule — manual / monthly refresh ───────────────────────────
-  - name: schedule-refresh
-    flow_name: exchange-schedule-refresh
-    description: >
-      Ingest trading hours and holidays for all provider schedule API codes.
-
-      What it does: one API call per exchange → S3 landing → bronze.exchange_schedule + bronze.exchange_holiday.
-      Skips exchanges already ingested for snapshot_date.
-
-      Parameters (all optional): snapshot_date (defaults to today),
-      provider_schedule_exchange_codes (defaults to full schedule universe).
-
-      Trigger: Deployments → exchange-schedule-refresh / schedule-refresh → Run.
-    entrypoint: domains.exchange_schedule.flows:exchange_schedule_flow
-    tags:
-      - exchange
-      - schedule
+      dbt build for fundamental staging models. Run after bronze.fundamental_* ingestion.
+    tags: [dbt, build, fundamental]
     parameters:
-      snapshot_date: null
-      provider_schedule_exchange_codes: null
-    enforce_parameter_schema: true
-    work_pool: *default_pool
-
-  # ── Instrument — weekly refresh ──────────────────────────────────────────
-  - name: weekly
-    flow_name: instrument-refresh
-    description: >
-      Refresh active instruments across all provider exchange codes (equities, ETFs, funds, FX, crypto, etc.).
-
-      What it does: fetches symbol lists per exchange → S3 landing → bronze.instrument.
-      Schedule (when activated): Monday 8am America/New_York.
-
-      Status: PAUSED stub — unpause before running manually.
-
-      Trigger: Deployments → instrument-refresh / weekly → Run (after unpausing).
-    entrypoint: domains.instrument.flows:instrument_flow
-    tags:
-      - instrument
-      - stub
-    schedule:
-      cron: "0 8 * * 1"
-      timezone: America/New_York
-    <<: *stub
-
-  # ── Fundamental — quarterly ───────────────────────────────────────────────
-  - name: quarterly
-    flow_name: fundamental-quarterly
-    description: >
-      Ingest EODHD fundamental documents per ticker (statements, ratios, holders, insider trades, etc.).
-
-      What it does: per-ticker API fetch → S3 landing → multiple bronze.fundamental_* tables.
-      Supports tickers, provider_exchange_codes, limit, skip_existing, refresh_existing, replay_landing.
-
-      Status: PAUSED stub — unpause before running during earnings/backfill work.
-
-      Trigger: Deployments → fundamental-quarterly / quarterly → Run (after unpausing).
-    entrypoint: domains.fundamental.flows:fundamental_flow
-    tags:
-      - fundamental
-      - stub
-    <<: *stub
+      select:
+        - path:models/staging/fundamental
+    <<: *dbt_build

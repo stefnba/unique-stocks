@@ -1,0 +1,78 @@
+"""Tests for Prefect deployment sync helpers."""
+
+from pathlib import Path
+from uuid import UUID
+
+import pytest
+
+from scripts.sync_prefect_deployments import (
+    DEFAULT_PREFECT_YAML,
+    DeploymentKey,
+    expected_deployment_keys,
+    find_orphaned_deployments,
+    is_managed_entrypoint,
+    load_prefect_yaml_deployments,
+)
+
+APPS_PIPELINES = Path(__file__).resolve().parents[2]
+
+
+def test_load_prefect_yaml_deployments() -> None:
+    """The repo manifest should declare the current deployment set."""
+    deployments = load_prefect_yaml_deployments(APPS_PIPELINES / DEFAULT_PREFECT_YAML)
+    assert len(deployments) == 14
+
+
+def test_expected_deployment_keys_matches_manifest() -> None:
+    """Expected keys should include the canonical eod and dbt deployment slugs."""
+    deployments = load_prefect_yaml_deployments(APPS_PIPELINES / DEFAULT_PREFECT_YAML)
+    keys = expected_deployment_keys(deployments)
+
+    assert DeploymentKey("eod-price-daily", "daily") in keys
+    assert DeploymentKey("dbt-build", "fundamental-build") in keys
+    assert DeploymentKey("fundamental-quarterly", "replay") in keys
+    assert len(keys) == 14
+
+
+@pytest.mark.parametrize(
+    ("entrypoint", "expected"),
+    [
+        ("domains.eod_price.flows:eod_price_flow", True),
+        ("core.transforms.dbt:dbt_build_flow", True),
+        ("some.other.module:flow_fn", False),
+        (None, False),
+    ],
+)
+def test_is_managed_entrypoint(entrypoint: str | None, expected: bool) -> None:
+    """Managed entrypoint detection should scope pruning to this app."""
+    assert is_managed_entrypoint(entrypoint) is expected
+
+
+def test_find_orphaned_deployments_only_prunes_managed_entries() -> None:
+    """Orphans should exclude yaml entries and unrelated UI deployments."""
+    expected = {DeploymentKey("eod-price-daily", "daily")}
+    delete_id = UUID("00000000-0000-0000-0000-000000000001")
+    keep_id = UUID("00000000-0000-0000-0000-000000000002")
+    ignore_id = UUID("00000000-0000-0000-0000-000000000003")
+
+    class _Deployment:
+        def __init__(self, deployment_id: UUID, entrypoint: str | None) -> None:
+            self.id = deployment_id
+            self.entrypoint = entrypoint
+
+    server = [
+        (DeploymentKey("eod-price-daily", "daily"), _Deployment(keep_id, "domains.eod_price.flows:eod_price_flow")),
+        (
+            DeploymentKey("eod-price-daily", "legacy-backfill"),
+            _Deployment(delete_id, "domains.eod_price.flows:eod_price_flow"),
+        ),
+        (
+            DeploymentKey("experimental-flow", "try"),
+            _Deployment(ignore_id, "experiments.flows:try_flow"),
+        ),
+    ]
+
+    orphans = find_orphaned_deployments(expected=expected, server=server)
+
+    assert [orphan.key.slug for orphan in orphans] == ["eod-price-daily/legacy-backfill"]
+    assert orphans[0].deployment_id == delete_id

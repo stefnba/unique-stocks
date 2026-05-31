@@ -4,7 +4,7 @@
         prefect-server prefect-worker \
         docker-up docker-down docker-down-volumes docker-logs docker-logs-worker docker-ps \
         lake-init lake-reset-local lake-render-sql blocks-save setup s3-landing-zone \
-        deploy deploy-dry \
+        deploy deploy-dry deploy-upsert \
         dbt-install dbt-debug dbt-compile dbt-seed dbt-run dbt-test dbt-build dbt-clean dbt-run-staging dbt-run-marts \
         lake-ui
 
@@ -48,7 +48,7 @@ setup: ## Full one-time setup: wait for server, init lake, save blocks, create p
 	$(MAKE) lake-init
 	$(MAKE) blocks-save
 	uv run prefect work-pool create default-process-pool --type process --overwrite
-	uv run prefect --no-prompt deploy --all
+	$(MAKE) deploy
 
 blocks-save: ## Register Prefect blocks on the server defined in config/blocks.py (idempotent)
 	uv run python -c "from config.blocks import BlockRegistry; BlockRegistry.save_all(if_exists='overwrite')"
@@ -157,10 +157,16 @@ lake-ui: ## Open DuckDB local UI (MotherDuck if MOTHERDUCK_TOKEN is set, else lo
 	fi
 
 ##@ Deployments
-deploy: ## Register all deployments with the Prefect server
-	uv run prefect --no-prompt deploy --all
+deploy: ## Sync deployments: prune app orphans, then apply prefect.yaml
+	$(UV) run python scripts/sync_prefect_deployments.py
 
-deploy-dry: ## List deployments defined in prefect.yaml without registering
+deploy-dry: ## Preview manifest entries and orphaned deployments to remove
+	$(UV) run python scripts/sync_prefect_deployments.py --dry-run
+
+deploy-upsert: ## Apply prefect.yaml without removing orphaned deployments
+	$(UV) run prefect --no-prompt deploy --all
+
+deploy-dry-manifest: ## List deployments declared in prefect.yaml (entrypoints only)
 	@uv run python -c "\
 import yaml; \
 d = yaml.safe_load(open('prefect.yaml')); \

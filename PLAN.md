@@ -103,7 +103,7 @@ Bronze is the handoff point between Python ingestion and dbt. Python should not 
 | `eod_price`   | Daily OHLCV bars                                  | Weekdays after market close | Active first path.                      |
 | `exchange`    | Exchange reference list                           | Manual or monthly           | Landing + Bronze ingestion complete.    |
 | `instrument`  | Tradable instruments per exchange and asset class | Weekly                      | Landing + Bronze ingestion implemented. |
-| `fundamental` | Financial statements, ratios, dividends, splits   | Quarterly or manual         | Stubbed / planned.                      |
+| `fundamental` | Financial statements, ratios, dividends, splits   | Manual / backfill           | Landing + Bronze ingestion implemented. |
 
 Implementation order:
 
