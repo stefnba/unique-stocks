@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from core.ingestion import LandingWrite, PipelineRunScope, PipelineRunTracker, RejectionRecord, terminal_status
 from domains.fundamental.tasks import (
     delete_fundamental_snapshot_rows,
+    fetch_fundamental_provider_exchange_codes,
     fetch_fundamental_ticker,
     fundamental_document_already_ingested,
     load_fundamental_document_payload_hash,
@@ -80,7 +81,11 @@ async def fundamental_flow(
     calls for fundamentals backfills where each EODHD call costs 10 credits.
     """
     snapshot_date = snapshot_date or date.today()
-    requested_tickers = tickers or load_fundamental_stock_tickers(provider_exchange_codes, limit)
+    if tickers:
+        requested_tickers = tickers
+    else:
+        selected_provider_exchange_codes = provider_exchange_codes or fetch_fundamental_provider_exchange_codes()
+        requested_tickers = load_fundamental_stock_tickers(selected_provider_exchange_codes, limit)
     refresh_changed_existing = refresh_existing or not skip_existing
     fetch_batch_size = max(1, int(batch_size))
     fetch_batch_delay = max(0.0, float(provider_batch_delay_seconds))

@@ -95,6 +95,16 @@ def _is_retryable(task: object, task_run: TaskRun, state: State) -> bool:
     return not isinstance(exc, ValidationError)
 
 
+@task(name="fetch-fundamental-provider-exchange-codes")
+def fetch_fundamental_provider_exchange_codes() -> list[str]:
+    """Load provider request codes approved for automatic fundamentals selection."""
+    from domains.exchange.provider_universe import load_provider_exchange_codes
+
+    codes = load_provider_exchange_codes("eodhd", fallback=("US",), purpose="fundamental")
+    log.info("fundamental.provider_exchange_codes_loaded", count=len(codes))
+    return codes
+
+
 @task(name="load-fundamental-stock-tickers")
 def load_fundamental_stock_tickers(
     provider_exchange_codes: list[str] | None = None,

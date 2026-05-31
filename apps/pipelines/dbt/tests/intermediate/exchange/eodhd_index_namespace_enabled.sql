@@ -8,5 +8,6 @@ WHERE NOT EXISTS (
             AND source_kind = 'curated_seed'
             AND is_enabled_for_instrument
             AND is_enabled_for_eod_price
+            AND is_enabled_for_fundamental
             AND is_enabled_for_ingestion
     )

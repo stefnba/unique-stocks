@@ -19,8 +19,8 @@ catalog_mics AS (
         catalog.ingested_at AS catalog_ingested_at
     FROM catalog
     LEFT JOIN UNNEST(
-        string_split(COALESCE(catalog.operating_mic_codes, ''), ',')
-    ) AS split_mics(operating_mic) ON TRUE
+        STRING_SPLIT(COALESCE(catalog.operating_mic_codes, ''), ',')
+    ) AS split_mics (operating_mic) ON TRUE
 ),
 
 mapped AS (

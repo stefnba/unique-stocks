@@ -57,6 +57,7 @@ provider_catalog_codes AS (
         includes_provider_bucket,
         data_provider = 'eodhd' AS is_enabled_for_instrument,
         data_provider = 'eodhd' AS is_enabled_for_eod_price,
+        data_provider = 'eodhd' AND mapped_mic_count > 0 AS is_enabled_for_fundamental,
         data_provider = 'eodhd' AS is_enabled_for_ingestion,
         CAST(NULL AS VARCHAR) AS verification_symbol,
         CAST(NULL AS DATE) AS last_verified_on,
@@ -82,7 +83,11 @@ curated_namespace_codes AS (
         FALSE AS includes_provider_bucket,
         is_enabled_for_instrument,
         is_enabled_for_eod_price,
-        is_enabled_for_instrument OR is_enabled_for_eod_price AS is_enabled_for_ingestion,
+        provider_code_kind = 'index_namespace' AS is_enabled_for_fundamental,
+        is_enabled_for_instrument
+        OR is_enabled_for_eod_price
+        OR provider_code_kind = 'index_namespace'
+            AS is_enabled_for_ingestion,
         verification_symbol,
         last_verified_on,
         notes
@@ -106,6 +111,7 @@ SELECT
     includes_provider_bucket,
     is_enabled_for_instrument,
     is_enabled_for_eod_price,
+    is_enabled_for_fundamental,
     is_enabled_for_ingestion,
     verification_symbol,
     last_verified_on,
@@ -131,6 +137,7 @@ SELECT
     includes_provider_bucket,
     is_enabled_for_instrument,
     is_enabled_for_eod_price,
+    is_enabled_for_fundamental,
     is_enabled_for_ingestion,
     verification_symbol,
     last_verified_on,

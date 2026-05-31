@@ -235,8 +235,12 @@ models:
         description: True when EOD price flows should use this provider code.
         data_tests:
           - not_null
+      - name: is_enabled_for_fundamental
+        description: True when fundamentals flows may use this provider code for automatic ticker discovery.
+        data_tests:
+          - not_null
       - name: is_enabled_for_ingestion
-        description: Backward-compatible aggregate ingestion flag used by current Python readers.
+        description: Backward-compatible aggregate ingestion flag used by generic and legacy Python readers.
         data_tests:
           - not_null
       - name: verification_symbol

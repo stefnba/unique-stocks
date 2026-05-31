@@ -20,7 +20,7 @@ log = structlog.get_logger(__name__)
 INGESTION_UNIVERSE_SCHEMA = "silver"
 INGESTION_UNIVERSE_TABLE = "int_exchange_provider_ingestion_universe"
 
-type ProviderCodePurpose = Literal["ingestion", "instrument", "eod_price"]
+type ProviderCodePurpose = Literal["ingestion", "instrument", "eod_price", "fundamental"]
 
 _PURPOSE_FILTER_COLUMNS: dict[ProviderCodePurpose, str] = {
     "ingestion": "is_enabled_for_ingestion",
@@ -49,15 +49,17 @@ def load_provider_exchange_codes(
       instrument reference flow.
     - ``"eod_price"`` uses ``is_enabled_for_eod_price`` and is used by the
       bulk EOD price flow.
+    - ``"fundamental"`` uses ``is_enabled_for_fundamental`` and is used by the
+      fundamentals flow when it auto-selects tickers from ``bronze.instrument``.
     - ``"ingestion"`` uses the aggregate ``is_enabled_for_ingestion`` flag and
       is kept as a backward-compatible default for generic callers.
 
-    Fundamental ingestion does not call this helper today. It either receives
-    explicit exchange-qualified tickers, or derives stock-like tickers from the
-    latest ``bronze.instrument`` snapshot. This universe still affects
-    fundamentals indirectly: if a provider namespace is not enabled for
-    instrument ingestion, its instruments will not be available for later
-    fundamentals selection from Bronze.
+    Fundamental ingestion still works with explicit exchange-qualified tickers
+    regardless of this universe. The ``fundamental`` purpose applies only to
+    automatic ticker discovery from the latest ``bronze.instrument`` snapshot.
+    A provider namespace must still be enabled for instrument ingestion first,
+    otherwise its instruments will not exist in Bronze for fundamentals to
+    discover.
 
     When the Silver table is missing, empty, or still on an older contract that
     lacks a purpose-specific flag, the function falls back conservatively:
