@@ -4,7 +4,7 @@
 
 services:
 
-  prefect-server:
+  pipelines-server:
     ports:
       - "4200:4200"
     environment:
@@ -12,11 +12,14 @@ services:
       PREFECT_UI_API_URL: http://localhost:4200/api
     restart: unless-stopped
 
-  postgres:
+  pipelines-db:
     restart: unless-stopped
 
-  pipelines:
+  pipelines-worker:
     env_file:
       - path: ../.env
         required: false   # cp .env.example .env to start
+    environment:
+      ENVIRONMENT: docker_dev
+      LOCAL_LAKE_PATH: unique_stocks.duckdb
     restart: unless-stopped

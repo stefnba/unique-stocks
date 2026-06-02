@@ -154,7 +154,7 @@ See [docs/pipeline_audit.md](docs/pipeline_audit.md) for table semantics, status
 | docker-dev      | `docker_dev`        | Postgres in Docker | `LOCAL_LAKE_PATH` | Full stack validation, mirrors production topology |
 | prod            | `prod`              | Postgres on VPS    | MotherDuck        | Live production deployment                         |
 
-All three environments use the same `make setup` command — env vars drive which backend is targeted.
+Host development uses `make setup`. Docker development uses `make docker-setup` so lake initialization and deployment registration run inside the `pipelines-worker` container.
 
 ## Local development without Docker (`dev`)
 
@@ -183,16 +183,18 @@ uv run prefect deployment run 'eod-price-daily/backfill' -p trade_date=2026-05-0
 
 ## Local development with Docker (`docker_dev`)
 
-Full stack in containers — Prefect server backed by Postgres, pipelines worker as a Docker service. Use this to validate env-var wiring and Docker image builds before deploying.
+Full stack in containers — `pipelines-server` backed by `pipelines-db`, with `pipelines-worker` as the worker service. Use this to validate env-var wiring and Docker image builds before deploying.
 
-Set `ENVIRONMENT=docker_dev` in `.env`, then from `apps/pipelines/`:
+Docker Compose sets `ENVIRONMENT=docker_dev` for `pipelines-worker`. Set it in `.env` too if you want host commands in the same shell to use docker-dev settings, then from `apps/pipelines/`:
 
 ```bash
 cp .env.example .env
 # edit .env: set ENVIRONMENT=docker_dev and any provider keys
-make docker-up             # start Prefect server, Postgres, and pipelines worker
-make setup                 # init lake, save blocks, create work pool, register deployments
+make docker-up             # start pipelines-server, pipelines-db, and pipelines-worker
+make docker-setup          # init container lake, save blocks, create work pool, register deployments
 ```
+
+The default docker-dev lake is isolated inside the `pipelines-worker` container at `/app/unique_stocks.duckdb`. It does not share the host DuckDB file, which avoids local file-lock and path drift between host smoke runs and container worker runs. If `MOTHERDUCK_TOKEN` is set in `.env`, docker-dev intentionally targets MotherDuck instead for integration testing.
 
 Useful commands:
 
@@ -213,6 +215,8 @@ Prefect UI runs at <http://localhost:4200>.
 cd apps/pipelines
 make lake-init                              # local DuckDB, or MotherDuck when MOTHERDUCK_TOKEN is set
 ```
+
+For docker-dev, use `make docker-setup` instead so initialization runs in the same container filesystem as the worker.
 
 The SQL script (`scripts/init_lake.sql`) is idempotent and safe to re-run, but it does not migrate or reshape existing tables. During greenfield schema rewrites, reset the local DuckDB lake with:
 
@@ -318,7 +322,7 @@ Production runs through Docker Compose on a VPS, with Coolify handling builds, d
 Keep these two addresses distinct — they serve different clients:
 
 - `PREFECT_UI_API_URL`: browser-facing public URL used by the Prefect UI JavaScript app.
-- `PREFECT_API_URL`: internal worker-facing URL used by the pipelines container.
+- `PREFECT_API_URL`: internal worker-facing URL used by the `pipelines-worker` container.
 
 Set all secrets in the deployment platform (Coolify environment variables), never in git:
 

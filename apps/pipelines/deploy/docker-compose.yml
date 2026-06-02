@@ -8,17 +8,17 @@ name: unique-stocks
 services:
 
   # ── Prefect server (API + UI) ──────────────────────────────────────────────
-  prefect-server:
+  pipelines-server:
     image: prefecthq/prefect:3.7.0-python3.14
     command: prefect server start --host 0.0.0.0
     environment:
-      PREFECT_SERVER_DATABASE_CONNECTION_URL: postgresql+asyncpg://prefect:prefect@postgres:5432/prefect
+      PREFECT_SERVER_DATABASE_CONNECTION_URL: postgresql+asyncpg://prefect:prefect@pipelines-db:5432/prefect
     depends_on:
-      postgres:
+      pipelines-db:
         condition: service_healthy
 
   # ── Postgres (Prefect persistence) ────────────────────────────────────────
-  postgres:
+  pipelines-db:
     image: postgres:17
     environment:
       POSTGRES_USER: prefect
@@ -33,16 +33,16 @@ services:
       retries: 10
 
   # ── Pipelines worker ───────────────────────────────────────────────────────
-  pipelines:
+  pipelines-worker:
     build:
       context: ..
       dockerfile: Dockerfile
     environment:
-      PREFECT_API_URL: http://prefect-server:4200/api
+      PREFECT_API_URL: http://pipelines-server:4200/api
       PREFECT_WORK_DIR: /app
     depends_on:
-      - prefect-server
-    command: uv run prefect worker start --pool default-process-pool
+      - pipelines-server
+    command: uv run --no-dev --frozen prefect worker start --pool default-process-pool
 
 volumes:
   prefect-db:

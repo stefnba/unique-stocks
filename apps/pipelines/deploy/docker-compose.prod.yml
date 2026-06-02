@@ -3,7 +3,7 @@
 
 services:
 
-  prefect-server:
+  pipelines-server:
     ports:
       - "4200:4200"
     environment:
@@ -11,12 +11,15 @@ services:
       PREFECT_UI_API_URL: ${PREFECT_UI_API_URL}
     restart: always
 
-  postgres:
+  pipelines-db:
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     restart: always
 
-  pipelines:
+  pipelines-worker:
+    environment:
+      ENVIRONMENT: prod
+      MOTHERDUCK_TOKEN: ${MOTHERDUCK_TOKEN:?MOTHERDUCK_TOKEN is required in production}
     restart: always
     deploy:
       resources:

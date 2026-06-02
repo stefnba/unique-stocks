@@ -3,6 +3,7 @@
         smoke \
         prefect-server prefect-worker \
         docker-up docker-down docker-down-volumes docker-logs docker-logs-worker docker-ps \
+        docker-setup \
         lake-init lake-reset-local lake-render-sql blocks-save setup s3-landing-zone \
         deploy deploy-dry deploy-upsert \
         dbt-install dbt-debug dbt-compile dbt-seed dbt-run dbt-test dbt-build dbt-clean dbt-run-staging dbt-run-marts \
@@ -105,8 +106,8 @@ DEPLOY_DIR   := deploy
 COMPOSE_BASE := docker compose -f $(DEPLOY_DIR)/docker-compose.yml
 COMPOSE_DEV  := $(COMPOSE_BASE) -f $(DEPLOY_DIR)/docker-compose.dev.yml
 
-docker-up: ## Start the docker-dev stack (Prefect server + Postgres + worker)
-	$(COMPOSE_DEV) up -d
+docker-up: ## Build and start the docker-dev stack (Prefect server + Postgres + worker)
+	$(COMPOSE_DEV) up -d --build --remove-orphans
 
 docker-down: ## Stop the docker-dev stack
 	$(COMPOSE_DEV) down
@@ -118,20 +119,30 @@ docker-logs: ## Tail logs for all services
 	$(COMPOSE_DEV) logs -f
 
 docker-logs-worker: ## Tail pipelines worker logs only
-	$(COMPOSE_DEV) logs -f pipelines
+	$(COMPOSE_DEV) logs -f pipelines-worker
 
 docker-ps: ## Show docker-dev service status
 	$(COMPOSE_DEV) ps
 
+docker-setup: ## Run one-time setup inside the docker-dev pipelines container
+	@echo "Waiting for docker-dev Prefect server at http://localhost:4200/api..."
+	@until curl -sf "http://localhost:4200/api/health" > /dev/null 2>&1; do \
+		printf "."; sleep 2; \
+	done; echo " ready."
+	$(COMPOSE_DEV) exec pipelines-worker sh -lc 'LAKE_INIT_SQL=scripts/init_lake.sql uv run --no-dev --frozen python -c "import os, duckdb; from config.settings import get_settings; settings = get_settings(); conn_str = f\"md:unique_stocks?motherduck_token={settings.motherduck_token.get_secret_value()}\" if settings.lake_backend() == \"motherduck\" else settings.resolved_local_lake_path(); conn = duckdb.connect(conn_str); conn.execute(open(os.environ[\"LAKE_INIT_SQL\"]).read())"'
+	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python -c "from config.blocks import BlockRegistry; BlockRegistry.save_all(if_exists='overwrite')"
+	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen prefect work-pool create default-process-pool --type process --overwrite
+	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python scripts/sync_prefect_deployments.py
+
 ##@ Lake
 # dev:        make prefect-server  (terminal 1)
 #             make setup           (terminal 2)
-# docker-dev: make docker-up, then make setup
+# docker-dev: make docker-up, then make docker-setup
 # prod:       PREFECT_API_URL=... MOTHERDUCK_TOKEN=... make setup
 lake-init: ## Initialise DuckDB/MotherDuck lake schemas (idempotent)
 	@if [ -n "$(MOTHERDUCK_TOKEN)" ]; then \
 		echo "Initialising MotherDuck (md:unique_stocks)..."; \
-		LAKE_INIT_SQL="$(LAKE_INIT_SQL)" uv run python -c "import os, duckdb; conn = duckdb.connect('md:unique_stocks'); conn.execute(open(os.environ['LAKE_INIT_SQL']).read())"; \
+		LAKE_INIT_SQL="$(LAKE_INIT_SQL)" uv run python -c "import os, duckdb; token = os.environ['MOTHERDUCK_TOKEN']; conn = duckdb.connect(f'md:unique_stocks?motherduck_token={token}'); conn.execute(open(os.environ['LAKE_INIT_SQL']).read())"; \
 	else \
 		echo "Initialising local DuckDB lake ($(LOCAL_LAKE_PATH))..."; \
 		LOCAL_LAKE_PATH="$(LOCAL_LAKE_PATH)" LAKE_INIT_SQL="$(LAKE_INIT_SQL)" uv run python -c "import os, duckdb; conn = duckdb.connect(os.environ['LOCAL_LAKE_PATH']); conn.execute(open(os.environ['LAKE_INIT_SQL']).read())"; \
