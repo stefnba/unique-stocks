@@ -324,6 +324,10 @@ Keep these two addresses distinct — they serve different clients:
 - `PREFECT_UI_API_URL`: browser-facing public URL used by the Prefect UI JavaScript app.
 - `PREFECT_API_URL`: internal worker-facing URL used by the `pipelines-worker` container.
 
+The production compose file binds the host Prefect port to `127.0.0.1` by default. Keep that default when a local
+reverse proxy can reach the service on the VPS. Set `PREFECT_HOST_BIND_IP=0.0.0.0` only when the deployment platform
+requires a public host bind, and put the Prefect UI/API behind TLS plus access control.
+
 Set all secrets in the deployment platform (Coolify environment variables), never in git:
 
 - `POSTGRES_PASSWORD`
@@ -332,6 +336,10 @@ Set all secrets in the deployment platform (Coolify environment variables), neve
 - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` (when S3 is enabled)
 - `PREFECT_UI_API_URL`, `PREFECT_API_URL`
 - `ENVIRONMENT=prod`
+
+Optional production infrastructure configuration:
+
+- `PREFECT_HOST_BIND_IP` — defaults to `127.0.0.1`; use `0.0.0.0` only behind a protected reverse proxy.
 
 Production fails closed when `ENVIRONMENT=prod` is set without `MOTHERDUCK_TOKEN`; set the token or use `ENVIRONMENT=dev` for local work.
 

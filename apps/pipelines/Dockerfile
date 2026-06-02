@@ -1,5 +1,9 @@
 FROM python:3.14-slim
 
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_CACHE_DIR=/tmp/uv-cache
+
 WORKDIR /app
 
 # Install uv
@@ -20,6 +24,11 @@ RUN uv sync --no-dev --frozen --no-install-project
 COPY . .
 
 RUN uv sync --no-dev --frozen
+
+RUN useradd --create-home --uid 10001 app \
+    && chown -R app:app /app
+
+USER app
 
 # Default: start a Prefect worker. Override in docker-compose for other commands.
 CMD ["uv", "run", "--no-dev", "--frozen", "prefect", "worker", "start", "--pool", "default-process-pool"]

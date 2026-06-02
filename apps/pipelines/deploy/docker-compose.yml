@@ -12,17 +12,29 @@ services:
     image: prefecthq/prefect:3.7.0-python3.14
     command: prefect server start --host 0.0.0.0
     environment:
-      PREFECT_SERVER_DATABASE_CONNECTION_URL: postgresql+asyncpg://prefect:prefect@pipelines-db:5432/prefect
+      PREFECT_SERVER_DATABASE_CONNECTION_URL: postgresql+asyncpg://prefect:${POSTGRES_PASSWORD:-prefect}@pipelines-db:5432/prefect
     depends_on:
       pipelines-db:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4200/api/health', timeout=5).read()",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
 
   # ── Postgres (Prefect persistence) ────────────────────────────────────────
   pipelines-db:
     image: postgres:17
     environment:
       POSTGRES_USER: prefect
-      POSTGRES_PASSWORD: prefect
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-prefect}
       POSTGRES_DB: prefect
     volumes:
       - prefect-db:/var/lib/postgresql/data
@@ -41,8 +53,25 @@ services:
       PREFECT_API_URL: http://pipelines-server:4200/api
       PREFECT_WORK_DIR: /app
     depends_on:
-      - pipelines-server
+      pipelines-server:
+        condition: service_healthy
     command: uv run --no-dev --frozen prefect worker start --pool default-process-pool
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "uv",
+          "run",
+          "--no-dev",
+          "--frozen",
+          "python",
+          "-c",
+          "import os, urllib.request; urllib.request.urlopen(os.environ['PREFECT_API_URL'] + '/health', timeout=5).read()",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
 volumes:
   prefect-db:

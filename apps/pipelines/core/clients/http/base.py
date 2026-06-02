@@ -10,8 +10,9 @@ Usage:
         data = await client._request("/some/path", params={"foo": "bar"})
 """
 
+import re
 from abc import ABC
-from typing import Any, ClassVar, Literal, Self, TypeVar
+from typing import Any, ClassVar, Final, Literal, Self, TypeVar
 
 import httpx
 import structlog
@@ -22,6 +23,17 @@ log = structlog.get_logger(__name__)
 type HttpMethod = Literal["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"]
 
 T = TypeVar("T", bound=BaseModel)
+
+REDACTED_QUERY_VALUE: Final[str] = "[redacted]"
+_SENSITIVE_QUERY_PARAM_PATTERN: Final[re.Pattern[str]] = re.compile(
+    r"(?i)([?&](?:api[_-]?key|api[_-]?token|apikey|access[_-]?token|auth[_-]?token|token|secret|password)=)"
+    r"([^&#\s\"']*)"
+)
+
+
+def redact_sensitive_query_params(value: str) -> str:
+    """Redact sensitive query parameter values from loggable text."""
+    return _SENSITIVE_QUERY_PARAM_PATTERN.sub(rf"\1{REDACTED_QUERY_VALUE}", value)
 
 
 class HttpClientBase(ABC):
@@ -113,25 +125,26 @@ class HttpClientBase(ABC):
         if self._http is None:
             raise RuntimeError(f"{type(self).__name__} must be used as an async context manager")
 
-        log.debug(f"http.client.{self.PROVIDER}.request", method=method, path=path)
+        safe_path = redact_sensitive_query_params(path)
+        log.debug(f"http.client.{self.PROVIDER}.request", method=method, path=safe_path)
         try:
             response = await self._http.request(method, path, params=params, json=json)
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
             log.error(
                 f"http.client.{self.PROVIDER}.http_error",
-                path=path,
+                path=safe_path,
                 status=exc.response.status_code,
-                body=exc.response.text[:300],
+                body=redact_sensitive_query_params(exc.response.text[:300]),
             )
             raise
         except httpx.TimeoutException:
-            log.error(f"http.client.{self.PROVIDER}.timeout", path=path, method=method)
+            log.error(f"http.client.{self.PROVIDER}.timeout", path=safe_path, method=method)
             raise
 
         log.info(
             f"http.client.{self.PROVIDER}.response",
-            path=path,
+            path=safe_path,
             method=method,
             status=response.status_code,
             elapsed_seconds=response.elapsed.total_seconds(),
