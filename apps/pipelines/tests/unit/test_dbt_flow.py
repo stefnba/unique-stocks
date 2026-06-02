@@ -93,6 +93,54 @@ def test_run_dbt_command_rejects_explicit_target_conflict(monkeypatch: MonkeyPat
         )
 
 
+def test_release_local_lake_lock_skips_motherduck(monkeypatch: MonkeyPatch) -> None:
+    """MotherDuck backends should not reset a local DuckDB singleton."""
+    calls: list[str] = []
+
+    def record_reset() -> None:
+        calls.append("reset")
+
+    monkeypatch.setattr(dbt, "reset_lake_client", record_reset)
+    monkeypatch.setattr(dbt, "get_settings", lambda: Settings(motherduck_token=SecretStr("token")))
+
+    dbt._release_local_lake_lock()
+
+    assert calls == []
+
+
+def test_release_local_lake_lock_resets_local_backend(monkeypatch: MonkeyPatch) -> None:
+    """Local lake runs must drop cached handles before dbt opens the file."""
+    calls: list[str] = []
+
+    def record_reset() -> None:
+        calls.append("reset")
+
+    monkeypatch.setattr(dbt, "reset_lake_client", record_reset)
+    monkeypatch.setattr(dbt, "get_settings", lambda: Settings(motherduck_token=SecretStr("")))
+
+    dbt._release_local_lake_lock()
+
+    assert calls == ["reset"]
+
+
+def test_dbt_error_message_prefixes_duckdb_lock_errors() -> None:
+    """Lock failures should surface an actionable hint before the dbt traceback tail."""
+    result = dbt.DbtCommandResult(
+        command_args=["dbt", "build"],
+        return_code=2,
+        stdout="",
+        stderr="IO Error: Could not set lock on file unique_stocks.duckdb",
+        started_at=dbt._now(),
+        completed_at=dbt._now(),
+        elapsed_seconds=1.0,
+        artifact_path=None,
+    )
+
+    message = dbt._dbt_error_message(result)
+
+    assert message.startswith("DuckDB file lock conflict")
+
+
 def test_read_dbt_run_results_uses_resolved_project_path(tmp_path: Path) -> None:
     """Dbt artifact reads should use the resolved project path."""
     target_dir = tmp_path / "target"

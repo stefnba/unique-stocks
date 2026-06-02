@@ -17,7 +17,7 @@ from prefect import flow, task
 from pydantic import BaseModel, ConfigDict
 
 from config.settings import APP_ROOT, DbtTarget, get_settings
-from core.clients.lake import get_lake_client
+from core.clients.lake import get_lake_client, reset_lake_client
 from core.ingestion import PipelineRunTracker, RunCounters, terminal_status
 from core.ingestion.serialization import jsonable
 
@@ -84,6 +84,7 @@ async def dbt_build_flow(
         parent_run_id=parent_run_id,
     ) as run:
         try:
+            _release_local_lake_lock()
             result = run_dbt_command(
                 command=command,
                 select=select,
@@ -92,6 +93,7 @@ async def dbt_build_flow(
                 profiles_dir=str(profiles_path),
                 target=resolved_target,
             )
+            _refresh_tracker_lake(tracker)
             artifact = read_dbt_run_results(project_dir=str(project_path))
             summary.update(
                 {
@@ -339,9 +341,27 @@ def _node_result_count(artifact: dict[str, Any] | None) -> int | None:
     return sum(1 for result in artifact.get("results", []) if isinstance(result, dict))
 
 
+def _release_local_lake_lock() -> None:
+    """Close cached lake handles so the dbt subprocess can lock the local DuckDB file."""
+    if get_settings().lake_backend() != "local":
+        return
+    reset_lake_client()
+
+
+def _refresh_tracker_lake(tracker: PipelineRunTracker) -> None:
+    """Point run tracking at the process-wide lake client after a release."""
+    tracker.lake = get_lake_client()
+
+
 def _dbt_error_message(result: DbtCommandResult) -> str:
     """Return a compact dbt error message suitable for audit rows."""
     text = result.stderr.strip() or result.stdout.strip() or f"dbt exited with return code {result.return_code}"
+    if "Could not set lock on file" in text:
+        prefix = (
+            "DuckDB file lock conflict on the local lake database. "
+            "Close other writers (ingestion flows, DB viewers) and retry. "
+        )
+        text = prefix + text
     return text[-2000:]
 
 
