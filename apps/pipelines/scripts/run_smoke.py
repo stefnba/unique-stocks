@@ -41,6 +41,7 @@ from typing import Literal
 
 import structlog
 
+from config.settings import get_settings
 from domains.eod_price.flows import eod_price_flow
 from domains.exchange.flows import exchange_catalog_flow, exchange_mic_registry_flow
 from domains.exchange_schedule.flows import exchange_schedule_flow
@@ -175,6 +176,7 @@ async def run_preset(args: argparse.Namespace) -> dict[str, object]:
     That separation is intentional: the flow code stays production-oriented,
     while this script carries local smoke defaults.
     """
+    _ensure_not_production()
     preset = normalize_preset(str(args.preset))
     log.info("smoke.run_start", preset=preset)
 
@@ -212,6 +214,12 @@ async def run_preset(args: argparse.Namespace) -> dict[str, object]:
 
     log.info("smoke.run_done", preset=preset, summary=summary)
     return summary
+
+
+def _ensure_not_production() -> None:
+    """Reject smoke presets in production environments."""
+    if get_settings().is_production:
+        raise RuntimeError("run_smoke.py is a local/dev tool and cannot run with ENVIRONMENT=prod.")
 
 
 async def main_async(argv: Sequence[str] | None = None) -> int:

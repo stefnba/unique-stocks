@@ -16,6 +16,7 @@ import structlog
 from prefect import flow, task
 from pydantic import BaseModel, ConfigDict
 
+from config.settings import APP_ROOT, DbtTarget, get_settings
 from core.clients.lake import get_lake_client
 from core.ingestion import PipelineRunTracker, RunCounters, terminal_status
 from core.ingestion.serialization import jsonable
@@ -59,7 +60,10 @@ async def dbt_build_flow(
     """Run dbt as a transformation flow and persist its ``run_results.json`` artifact."""
     select = select or []
     exclude = exclude or []
-    target = target or os.getenv("DBT_TARGET")
+    settings = get_settings()
+    resolved_target = _resolve_dbt_target(target, settings.resolved_dbt_target(), settings.lake_backend())
+    project_path = _resolve_app_path(project_dir)
+    profiles_path = _resolve_app_path(profiles_dir)
     tracker = PipelineRunTracker()
     artifact: dict[str, Any] | None = None
     result: DbtCommandResult | None = None
@@ -73,9 +77,9 @@ async def dbt_build_flow(
             "command": command,
             "select": select,
             "exclude": exclude,
-            "project_dir": project_dir,
-            "profiles_dir": profiles_dir,
-            "target": target,
+            "project_dir": str(project_path),
+            "profiles_dir": str(profiles_path),
+            "target": resolved_target,
         },
         parent_run_id=parent_run_id,
     ) as run:
@@ -84,11 +88,11 @@ async def dbt_build_flow(
                 command=command,
                 select=select,
                 exclude=exclude,
-                project_dir=project_dir,
-                profiles_dir=profiles_dir,
-                target=target,
+                project_dir=str(project_path),
+                profiles_dir=str(profiles_path),
+                target=resolved_target,
             )
-            artifact = read_dbt_run_results(project_dir=project_dir)
+            artifact = read_dbt_run_results(project_dir=str(project_path))
             summary.update(
                 {
                     "return_code": result.return_code,
@@ -99,7 +103,7 @@ async def dbt_build_flow(
                 run_id=run.run_id,
                 result=result,
                 artifact=artifact,
-                project_dir=project_dir,
+                project_dir=str(project_path),
             )
             node_count = _record_dbt_node_results(dbt_run_id=dbt_run_id, artifact=artifact)
             failed_nodes = _failed_node_count(artifact)
@@ -151,21 +155,31 @@ def run_dbt_command(
     target: str | None,
 ) -> DbtCommandResult:
     """Run dbt in a subprocess and return captured process metadata."""
+    settings = get_settings()
+    resolved_target = _resolve_dbt_target(target, settings.resolved_dbt_target(), settings.lake_backend())
+    project_path = _resolve_app_path(project_dir)
+    profiles_path = _resolve_app_path(profiles_dir)
     args = _dbt_base_command()
-    args.extend([command, "--project-dir", project_dir, "--profiles-dir", profiles_dir])
-    if target:
-        args.extend(["--target", target])
+    args.extend([command, "--project-dir", str(project_path), "--profiles-dir", str(profiles_path)])
+    args.extend(["--target", resolved_target])
     if select:
         args.extend(["--select", *select])
     if exclude:
         args.extend(["--exclude", *exclude])
 
     started = _now()
-    log.info("dbt.command_start", command=command, project_dir=project_dir, target=target, select=select)
-    completed_process = subprocess.run(args, check=False, capture_output=True, text=True)
+    log.info("dbt.command_start", command=command, project_dir=str(project_path), target=resolved_target, select=select)
+    completed_process = subprocess.run(
+        args,
+        check=False,
+        capture_output=True,
+        text=True,
+        cwd=APP_ROOT,
+        env={**os.environ, **settings.dbt_env_overlay()},
+    )
     completed = _now()
     elapsed = max(0.0, (completed - started).total_seconds())
-    artifact_path = str(Path(project_dir) / "target" / "run_results.json")
+    artifact_path = str(project_path / "target" / "run_results.json")
     log.info("dbt.command_done", command=command, return_code=completed_process.returncode, elapsed_seconds=elapsed)
     return DbtCommandResult(
         command_args=args,
@@ -182,7 +196,7 @@ def run_dbt_command(
 @task(name="read-dbt-run-results")
 def read_dbt_run_results(*, project_dir: str) -> dict[str, Any] | None:
     """Read dbt's ``run_results.json`` artifact when dbt produced one."""
-    path = Path(project_dir) / "target" / "run_results.json"
+    path = _resolve_app_path(project_dir) / "target" / "run_results.json"
     if not path.exists():
         log.warning("dbt.run_results_missing", path=str(path))
         return None
@@ -265,6 +279,21 @@ def _dbt_base_command() -> list[str]:
     if dbt_path := shutil.which("dbt"):
         return [dbt_path]
     return [sys.executable, "-m", "dbt.cli.main"]
+
+
+def _resolve_app_path(value: str) -> Path:
+    """Resolve an app-relative path against the pipelines app root."""
+    path = Path(value)
+    if path.is_absolute():
+        return path
+    return APP_ROOT / path
+
+
+def _resolve_dbt_target(target: str | None, expected: DbtTarget, backend: str) -> DbtTarget:
+    """Return the derived dbt target, rejecting explicit target drift."""
+    if target is not None and target != expected:
+        raise ValueError(f"dbt target {target!r} conflicts with lake backend {backend!r}; expected {expected!r}.")
+    return expected
 
 
 def _command_from_args(args: list[str]) -> str:

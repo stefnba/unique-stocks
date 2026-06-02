@@ -9,6 +9,22 @@ from scripts import run_smoke
 
 
 @pytest.mark.asyncio
+async def test_run_preset_rejects_production(monkeypatch: MonkeyPatch) -> None:
+    """Smoke presets should not run in production environments."""
+
+    class FakeSettings:
+        @property
+        def is_production(self) -> bool:
+            return True
+
+    monkeypatch.setattr(run_smoke, "get_settings", lambda: FakeSettings())
+
+    args = run_smoke.build_parser().parse_args(["fundamental"])
+    with pytest.raises(RuntimeError, match="local/dev tool"):
+        await run_smoke.run_preset(args)
+
+
+@pytest.mark.asyncio
 async def test_run_preset_fundamental_defaults(monkeypatch: MonkeyPatch) -> None:
     """Fundamental smoke should run one explicit ticker with a one-call credit cap."""
     calls: list[dict[str, object]] = []
@@ -44,9 +60,7 @@ async def test_run_preset_fundamental_overrides(monkeypatch: MonkeyPatch) -> Non
 
     monkeypatch.setattr(run_smoke, "fundamental_flow", fake_fundamental_flow)
 
-    args = run_smoke.build_parser().parse_args(
-        ["fundamental", "--ticker", "MSFT.US", "--snapshot-date", "2026-05-31"]
-    )
+    args = run_smoke.build_parser().parse_args(["fundamental", "--ticker", "MSFT.US", "--snapshot-date", "2026-05-31"])
     summary = await run_smoke.run_preset(args)
 
     assert summary == {"ok": True}

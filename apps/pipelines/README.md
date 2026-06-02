@@ -112,18 +112,18 @@ cp .env.example .env
 
 Set at least the active provider API key shown in `.env.example` for live provider runs. Leave `MOTHERDUCK_TOKEN` blank to use local DuckDB.
 
-| Variable                | Required          | Description                                                                 |
-| ----------------------- | ----------------- | --------------------------------------------------------------------------- |
-| Provider API key(s)     | Yes for live runs | Current market data provider credentials; see `.env.example`.               |
-| `MOTHERDUCK_TOKEN`      | No                | Blank uses local DuckDB; set for MotherDuck.                                |
-| `LOCAL_LAKE_PATH`       | No                | Local DuckDB file path when `MOTHERDUCK_TOKEN` is blank.                    |
-| `DBT_TARGET`            | No                | dbt target name, usually `dev` locally and `prod` for MotherDuck.           |
-| `DBT_DUCKDB_PATH`       | No                | dbt DuckDB path, relative to the command working directory unless absolute. |
-| `AWS_ACCESS_KEY_ID`     | No                | AWS access key when S3 is enabled.                                          |
-| `AWS_SECRET_ACCESS_KEY` | No                | AWS secret key when S3 is enabled.                                          |
-| `PREFECT_API_URL`       | Yes               | Prefect API URL for workers and deploy commands.                            |
-| `PREFECT_WORK_DIR`      | Yes               | `.` locally, `/app` in Docker.                                              |
-| `ENVIRONMENT`           | No                | `dev` (default), `docker_dev`, or `prod`.                                   |
+| Variable                | Required          | Description                                                                |
+| ----------------------- | ----------------- | -------------------------------------------------------------------------- |
+| Provider API key(s)     | Yes for live runs | Current market data provider credentials; see `.env.example`.              |
+| `MOTHERDUCK_TOKEN`      | No                | Blank uses local DuckDB; set for MotherDuck.                               |
+| `LOCAL_LAKE_PATH`       | No                | Local DuckDB file path when `MOTHERDUCK_TOKEN` is blank.                   |
+| `DBT_TARGET`            | No                | Direct dbt CLI target; app flows derive this from the active lake backend. |
+| `DBT_DUCKDB_PATH`       | No                | Direct dbt CLI DuckDB path; app flows derive this from `LOCAL_LAKE_PATH`.  |
+| `AWS_ACCESS_KEY_ID`     | No                | AWS access key when S3 is enabled.                                         |
+| `AWS_SECRET_ACCESS_KEY` | No                | AWS secret key when S3 is enabled.                                         |
+| `PREFECT_API_URL`       | Yes               | Prefect API URL for workers and deploy commands.                           |
+| `PREFECT_WORK_DIR`      | Yes               | `.` locally, `/app` in Docker.                                             |
+| `ENVIRONMENT`           | No                | `dev` (default), `docker_dev`, or `prod`.                                  |
 
 ## S3 landing zone
 
@@ -224,7 +224,7 @@ For MotherDuck organization, token, CLI, and security setup, see [docs/motherduc
 
 ## dbt transformations
 
-The dbt project lives inside this app at `dbt/`. It uses `dbt-duckdb` from the main pipelines uv environment against the same local DuckDB file in development and MotherDuck in production.
+The dbt project lives inside this app at `dbt/`. App-run dbt flows derive their target from the same settings as Python ingestion: local DuckDB when `MOTHERDUCK_TOKEN` is blank, MotherDuck when it is set. Direct dbt CLI commands can still use `DBT_TARGET` and `DBT_DUCKDB_PATH`.
 
 Local dbt workflow:
 
@@ -328,6 +328,8 @@ Set all secrets in the deployment platform (Coolify environment variables), neve
 - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` (when S3 is enabled)
 - `PREFECT_UI_API_URL`, `PREFECT_API_URL`
 - `ENVIRONMENT=prod`
+
+Production fails closed when `ENVIRONMENT=prod` is set without `MOTHERDUCK_TOKEN`; set the token or use `ENVIRONMENT=dev` for local work.
 
 After the first production deploy, SSH into the VPS and run one-time setup:
 

@@ -1,12 +1,20 @@
 """Application settings loaded from environment variables and .env files."""
 
 from functools import lru_cache
-from typing import Literal
+from pathlib import Path
+from typing import Final, Literal
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 type Environment = Literal["dev", "prod", "docker_dev"]
+type LakeBackend = Literal["local", "motherduck"]
+type DbtTarget = Literal["dev", "prod"]
+
+APP_ROOT: Final[Path] = Path(__file__).resolve().parents[1]
+PROD_MOTHERDUCK_ERROR: Final[str] = (
+    "ENVIRONMENT=prod requires MOTHERDUCK_TOKEN; set MOTHERDUCK_TOKEN or use ENVIRONMENT=dev"
+)
 
 
 class Settings(BaseSettings):
@@ -16,7 +24,7 @@ class Settings(BaseSettings):
     Secrets are stored as ``SecretStr`` to prevent accidental logging.
     """
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(env_file=str(APP_ROOT / ".env"), env_file_encoding="utf-8", extra="ignore")
 
     # Data provider
     eodhd_api_key: SecretStr = Field(default=SecretStr(""), description="API key for EODHD.")
@@ -44,6 +52,40 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         """Return ``True`` when running in the production environment."""
         return self.environment == "prod"
+
+    @model_validator(mode="after")
+    def validate_environment(self) -> Settings:
+        """Reject unsafe production settings before any runtime work starts."""
+        if self.is_production and self.lake_backend() != "motherduck":
+            raise ValueError(PROD_MOTHERDUCK_ERROR)
+        return self
+
+    def lake_backend(self) -> LakeBackend:
+        """Return the active lake backend selected by runtime credentials."""
+        if self.motherduck_token.get_secret_value().strip():
+            return "motherduck"
+        return "local"
+
+    def resolved_local_lake_path(self) -> str:
+        """Return an absolute DuckDB path so workers and CLI share the same lake file."""
+        path = Path(self.local_lake_path)
+        if path.is_absolute():
+            return str(path)
+        return str((APP_ROOT / path).resolve())
+
+    def resolved_dbt_target(self) -> DbtTarget:
+        """Return the dbt target matching the selected lake backend."""
+        if self.lake_backend() == "motherduck":
+            return "prod"
+        return "dev"
+
+    def dbt_env_overlay(self) -> dict[str, str]:
+        """Return dbt env vars that keep dbt and Python lake writes aligned."""
+        target = self.resolved_dbt_target()
+        overlay = {"DBT_TARGET": target}
+        if target == "dev":
+            overlay["DBT_DUCKDB_PATH"] = self.resolved_local_lake_path()
+        return overlay
 
 
 @lru_cache(maxsize=1)
