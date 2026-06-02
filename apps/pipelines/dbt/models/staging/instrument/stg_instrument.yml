@@ -1,0 +1,56 @@
+version: 2
+
+models:
+  - name: stg_instrument
+    description: Cleaned and snapshot-grain instrument reference rows from Bronze.
+    columns:
+      - name: ingestion_id
+        description: Unique ingestion row identifier from Bronze.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Date the instrument reference snapshot was ingested.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider exchange code used for the instrument-list request.
+        data_tests:
+          - not_null
+      - name: ticker
+        description: Provider ticker code without the provider exchange suffix.
+        data_tests:
+          - not_null
+      - name: instrument_name
+        description: Provider display name for the instrument.
+        data_tests:
+          - not_null
+      - name: country
+        description: Provider country label when supplied.
+      - name: provider_listing_exchange_code
+        description: Exchange-like code supplied on the individual instrument row.
+      - name: currency
+        description: Trading or quote currency when supplied.
+      - name: asset_type
+        description: Provider asset type label.
+      - name: normalized_asset_type
+        description: Lowercase provider asset type label.
+      - name: isin
+        description: International Securities Identification Number when supplied.
+      - name: data_provider
+        description: Provider that supplied the instrument row.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the row.
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null

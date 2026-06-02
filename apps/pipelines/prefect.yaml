@@ -255,14 +255,30 @@ deployments:
     description: >
       dbt build for exchange reference models (bootstrap step 3).
 
-      Seeds eodhd_provider_namespaces + staging/exchange + intermediate/exchange.
+      Seeds eodhd_provider_namespaces + staging/exchange + schedules + exchange marts.
       Required before instrument and price ingestion universes resolve correctly.
     tags: [dbt, build, exchange]
     parameters:
       select:
         - eodhd_provider_namespaces
         - path:models/staging/exchange
+        - path:models/staging/exchange_schedule
         - path:models/intermediate/exchange
+        - path:models/marts/exchange
+    <<: *dbt_build
+
+  - name: instrument-build
+    description: >
+      dbt build for instrument staging, latest universe, and security dimension.
+      Run after bronze.instrument ingestion and fundamentals when enrichment is desired.
+    tags: [dbt, build, instrument]
+    parameters:
+      select:
+        - path:models/staging/instrument
+        - path:models/staging/fundamental
+        - path:models/intermediate/instrument
+        - path:models/intermediate/fundamental
+        - path:models/marts/security
     <<: *dbt_build
 
   - name: price-build
@@ -277,9 +293,12 @@ deployments:
 
   - name: fundamental-build
     description: >
-      dbt build for fundamental staging models. Run after bronze.fundamental_* ingestion.
+      dbt build for fundamental staging and curated marts. Run after bronze.fundamental_* ingestion.
     tags: [dbt, build, fundamental]
     parameters:
       select:
         - path:models/staging/fundamental
+        - path:models/intermediate/fundamental
+        - path:models/marts/fundamental
+        - path:models/marts/security
     <<: *dbt_build

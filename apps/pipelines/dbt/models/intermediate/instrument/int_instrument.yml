@@ -1,0 +1,94 @@
+version: 2
+
+models:
+  - name: int_latest_instrument_universe
+    description: Latest active provider instrument universe by provider exchange code.
+    columns:
+      - name: instrument_universe_id
+        description: Stable key for one latest active provider instrument row.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Latest instrument snapshot date for the provider exchange code.
+        data_tests:
+          - not_null
+      - name: data_provider
+        description: Provider that supplied the instrument row.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider exchange code used for the instrument-list request.
+        data_tests:
+          - not_null
+      - name: provider_code_kind
+        description: Provider-code classification from the exchange ingestion universe.
+      - name: provider_code_source_kind
+        description: Whether the provider code came from provider catalog data or curated seeds.
+      - name: exchange_catalog_name
+        description: Provider exchange display name from the ingestion universe.
+      - name: exchange_country_iso2
+        description: Provider exchange country ISO code from the ingestion universe.
+      - name: exchange_currency
+        description: Provider exchange currency from the ingestion universe.
+      - name: ticker
+        description: Provider ticker code without the provider exchange suffix.
+        data_tests:
+          - not_null
+      - name: provider_symbol
+        description: Exchange-qualified provider symbol assembled from ticker and provider exchange code.
+        data_tests:
+          - not_null
+      - name: instrument_name
+        description: Provider display name for the instrument.
+        data_tests:
+          - not_null
+      - name: country
+        description: Provider instrument country label when supplied.
+      - name: provider_listing_exchange_code
+        description: Exchange-like code supplied on the individual instrument row.
+      - name: currency
+        description: Trading or quote currency when supplied.
+      - name: asset_type
+        description: Provider asset type label.
+      - name: normalized_asset_type
+        description: Lowercase asset type label used for classification.
+      - name: instrument_family
+        description: Broad dbt classification derived from provider metadata.
+        data_tests:
+          - not_null
+      - name: is_tradable
+        description: True when the row represents a tradable instrument family for the current app.
+        data_tests:
+          - not_null
+      - name: is_stock
+        description: True when the provider asset type maps to a stock-like instrument.
+        data_tests:
+          - not_null
+      - name: is_fund_like
+        description: True when the provider asset type maps to an ETF or fund.
+        data_tests:
+          - not_null
+      - name: is_index
+        description: True when the provider asset type maps to an index.
+        data_tests:
+          - not_null
+      - name: isin
+        description: International Securities Identification Number when supplied.
+      - name: has_isin
+        description: True when an ISIN is present.
+        data_tests:
+          - not_null
+      - name: is_active_in_provider_universe
+        description: True because this model keeps only the latest active provider snapshot per exchange code.
+        data_tests:
+          - not_null
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the row.
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null

@@ -1,0 +1,194 @@
+version: 2
+
+models:
+  - name: exchange_calendar
+    description: Gold latest provider trading-hours calendar by schedule endpoint code.
+    columns:
+      - name: exchange_calendar_id
+        description: Stable key for one latest exchange schedule row.
+        data_tests:
+          - not_null
+      - name: data_provider
+        description: Provider that supplied the exchange schedule.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: provider_schedule_exchange_code
+        description: Provider schedule endpoint code for trading-hours requests.
+        data_tests:
+          - not_null
+      - name: linked_provider_exchange_codes
+        description: Comma-separated provider request codes linked to this schedule code.
+      - name: exchange_schedule_name
+        description: Provider display name for the exchange schedule.
+        data_tests:
+          - not_null
+      - name: timezone
+        description: IANA timezone name supplied by the provider.
+        data_tests:
+          - not_null
+      - name: session_open
+        description: Regular session open time in local exchange time.
+        data_tests:
+          - not_null
+      - name: session_close
+        description: Regular session close time in local exchange time.
+        data_tests:
+          - not_null
+      - name: working_days
+        description: Provider working-day expression for regular sessions.
+        data_tests:
+          - not_null
+      - name: pre_market_open
+        description: Pre-market session open time when supplied.
+      - name: pre_market_close
+        description: Pre-market session close time when supplied.
+      - name: after_hours_open
+        description: After-hours session open time when supplied.
+      - name: after_hours_close
+        description: After-hours session close time when supplied.
+      - name: lunch_break_start
+        description: Lunch break start time when supplied.
+      - name: lunch_break_end
+        description: Lunch break end time when supplied.
+      - name: has_pre_market
+        description: True when any pre-market boundary is present.
+        data_tests:
+          - not_null
+      - name: has_after_hours
+        description: True when any after-hours boundary is present.
+        data_tests:
+          - not_null
+      - name: has_lunch_break
+        description: True when any lunch-break boundary is present.
+        data_tests:
+          - not_null
+      - name: schedule_snapshot_date
+        description: Latest schedule snapshot date for this schedule code.
+        data_tests:
+          - not_null
+      - name: schedule_row_hash
+        description: Stable hash of the normalized Bronze schedule row.
+        data_tests:
+          - not_null
+      - name: schedule_source_uri
+        description: S3 URI of the schedule landing object.
+      - name: schedule_ingested_at
+        description: Timestamp when the schedule row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: exchange_holiday_calendar
+    description: Gold latest provider holiday and early-close calendar by schedule endpoint code.
+    columns:
+      - name: exchange_holiday_calendar_id
+        description: Stable key for one latest holiday or early-close row.
+        data_tests:
+          - not_null
+      - name: data_provider
+        description: Provider that supplied the holiday row.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: provider_schedule_exchange_code
+        description: Provider schedule endpoint code for the holiday calendar.
+        data_tests:
+          - not_null
+      - name: linked_provider_exchange_codes
+        description: Comma-separated provider request codes linked to this schedule code.
+      - name: exchange_schedule_name
+        description: Provider display name for the exchange schedule.
+      - name: timezone
+        description: IANA timezone name supplied by the provider.
+      - name: holiday_date
+        description: Holiday or early-close date in local exchange calendar terms.
+        data_tests:
+          - not_null
+      - name: holiday_name
+        description: Provider holiday display name.
+        data_tests:
+          - not_null
+      - name: holiday_type
+        description: Lowercase provider holiday type.
+        data_tests:
+          - not_null
+      - name: is_early_close
+        description: True when the row represents an early close or has an early close time.
+        data_tests:
+          - not_null
+      - name: early_close_time
+        description: Early close time when supplied.
+      - name: holiday_snapshot_date
+        description: Latest holiday snapshot date for this schedule code.
+        data_tests:
+          - not_null
+      - name: holiday_row_hash
+        description: Stable hash of the normalized Bronze holiday row.
+        data_tests:
+          - not_null
+      - name: holiday_source_uri
+        description: S3 URI of the holiday landing object.
+      - name: holiday_ingested_at
+        description: Timestamp when the holiday row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: provider_code_mapping
+    description: Gold provider request-code mappings to self codes, MICs, and schedule endpoint codes.
+    columns:
+      - name: provider_code_mapping_id
+        description: Stable key for one provider-code mapping row.
+        data_tests:
+          - not_null
+      - name: data_provider
+        description: Provider that owns the mapping.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: provider_exchange_code
+        description: Provider request code used for instrument, price, or fundamentals endpoints.
+        data_tests:
+          - not_null
+      - name: provider_code_kind
+        description: Classification of the provider request code when known.
+      - name: source_kind
+        description: Source of the provider code.
+      - name: exchange_catalog_name
+        description: Provider display name for the exchange code when known.
+      - name: mapping_type
+        description: Mapping target type.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - provider_exchange_code
+                  - mic
+                  - schedule_code
+      - name: mapping_code
+        description: Mapped code value.
+        data_tests:
+          - not_null
+      - name: mapping_method
+        description: Method used to infer the mapping.
+        data_tests:
+          - not_null
+      - name: mapping_confidence
+        description: Confidence level for the mapping.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - high
+                  - medium
+                  - none

@@ -1,0 +1,218 @@
+version: 2
+
+models:
+  - name: int_fundamental_latest_document
+    description: Latest fundamentals document metadata per provider security.
+    columns:
+      - name: latest_fundamental_document_id
+        description: Stable key for the latest fundamentals document row.
+        data_tests:
+          - not_null
+      - name: latest_snapshot_date
+        description: Snapshot date selected as the current fundamentals document.
+        data_tests:
+          - not_null
+      - name: data_provider
+        description: Provider that supplied the fundamentals document.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: provider_exchange_code
+        description: Provider exchange code from the exchange-qualified ticker.
+        data_tests:
+          - not_null
+      - name: ticker
+        description: Exchange-qualified ticker requested from the fundamentals endpoint.
+        data_tests:
+          - not_null
+      - name: code
+        description: Provider ticker code without exchange suffix.
+        data_tests:
+          - not_null
+      - name: instrument_name
+        description: Provider instrument display name.
+      - name: instrument_type
+        description: Provider instrument type.
+        data_tests:
+          - not_null
+      - name: instrument_family
+        description: Broad instrument family from fundamentals staging.
+        data_tests:
+          - not_null
+      - name: primary_ticker
+        description: Provider primary ticker when supplied.
+      - name: provider_listing_exchange_code
+        description: Provider listing exchange value from the fundamentals document.
+      - name: provider_updated_at
+        description: Provider-reported fundamentals update date.
+      - name: top_level_sections
+        description: Top-level JSON sections present in the provider document.
+      - name: payload_hash
+        description: Stable hash of the provider fundamentals payload.
+        data_tests:
+          - not_null
+      - name: row_hash
+        description: Stable hash of the normalized Bronze document row.
+        data_tests:
+          - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the document row.
+      - name: ingested_at
+        description: Timestamp when the document row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: int_fundamental_security_profile
+    description: Curated current fundamentals profile assembled from document, identity, and share-stat snapshots.
+    columns:
+      - name: fundamental_profile_id
+        description: Stable key for one current provider security fundamentals profile.
+        data_tests:
+          - not_null
+      - name: data_provider
+        description: Provider that supplied the profile.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: provider_exchange_code
+        description: Provider exchange code from the exchange-qualified ticker.
+        data_tests:
+          - not_null
+      - name: ticker
+        description: Exchange-qualified ticker represented by this profile.
+        data_tests:
+          - not_null
+      - name: code
+        description: Provider ticker code without exchange suffix.
+        data_tests:
+          - not_null
+      - name: instrument_type
+        description: Provider instrument type.
+        data_tests:
+          - not_null
+      - name: instrument_family
+        description: Broad instrument family from fundamentals staging.
+        data_tests:
+          - not_null
+      - name: security_name
+        description: Best available display name across fundamentals identity sources.
+      - name: primary_ticker
+        description: Provider primary ticker when supplied.
+      - name: provider_listing_exchange_code
+        description: Provider listing exchange value from the best available identity source.
+      - name: currency_code
+        description: Trading or reporting currency code from identity data.
+      - name: currency_name
+        description: Currency display name from identity data.
+      - name: country_name
+        description: Issuer, fund, or index country label.
+      - name: country_iso
+        description: Issuer, fund, or index country ISO code.
+      - name: isin
+        description: International Securities Identification Number.
+      - name: cusip
+        description: Committee on Uniform Securities Identification Procedures identifier.
+      - name: cik
+        description: SEC Central Index Key.
+      - name: lei
+        description: Legal Entity Identifier.
+      - name: open_figi
+        description: OpenFIGI identifier.
+      - name: employer_id_number
+        description: Employer Identification Number for stock issuers.
+      - name: fiscal_year_end
+        description: Fiscal year-end label when supplied.
+      - name: ipo_date
+        description: Initial public offering date for stocks.
+      - name: sector
+        description: Provider sector classification.
+      - name: industry
+        description: Provider industry classification.
+      - name: gic_sector
+        description: GICS sector classification.
+      - name: gic_group
+        description: GICS group classification.
+      - name: gic_industry
+        description: GICS industry classification.
+      - name: gic_sub_industry
+        description: GICS sub-industry classification.
+      - name: home_category
+        description: Provider domestic or ADR classification.
+      - name: is_delisted
+        description: Whether provider identity data marks the stock as delisted.
+        data_tests:
+          - not_null
+      - name: delisted_date
+        description: Delisting date when supplied.
+      - name: full_time_employees
+        description: Reported full-time employee count.
+      - name: web_url
+        description: Company website URL.
+      - name: logo_url
+        description: Provider logo path or URL.
+      - name: shares_outstanding
+        description: Current shares outstanding from fundamentals share statistics.
+      - name: shares_float
+        description: Current share float from fundamentals share statistics.
+      - name: percent_insiders
+        description: Percentage of shares held by insiders.
+      - name: percent_institutions
+        description: Percentage of shares held by institutions.
+      - name: short_ratio
+        description: Short interest ratio from share statistics.
+      - name: short_percent_outstanding
+        description: Short interest as percentage of shares outstanding.
+      - name: short_percent_float
+        description: Short interest as percentage of float.
+      - name: domicile
+        description: Fund domicile when supplied.
+      - name: tracked_index_name
+        description: Fund tracked index or index display name.
+      - name: fund_company_name
+        description: ETF company name.
+      - name: fund_company_url
+        description: ETF company URL.
+      - name: etf_url
+        description: ETF website URL.
+      - name: dividend_paying_frequency
+        description: ETF dividend paying frequency.
+      - name: holdings_count
+        description: ETF holdings count.
+      - name: fund_category
+        description: Mutual fund category.
+      - name: fund_family
+        description: Mutual fund family.
+      - name: fund_style
+        description: Mutual fund style.
+      - name: fund_inception_date
+        description: ETF or mutual fund inception date.
+      - name: fund_update_date
+        description: Mutual fund provider update date.
+      - name: index_market_cap
+        description: Index market capitalization when supplied.
+      - name: provider_updated_at
+        description: Provider-reported fundamentals update date.
+      - name: latest_snapshot_date
+        description: Snapshot date selected for this current profile.
+        data_tests:
+          - not_null
+      - name: payload_hash
+        description: Stable hash of the selected provider fundamentals payload.
+        data_tests:
+          - not_null
+      - name: document_row_hash
+        description: Stable hash of the selected fundamentals document row.
+        data_tests:
+          - not_null
+      - name: document_source_uri
+        description: S3 URI of the landing object that produced the selected document row.
+      - name: document_ingested_at
+        description: Timestamp when the selected document row was written to Bronze.
+        data_tests:
+          - not_null

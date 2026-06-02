@@ -1,0 +1,138 @@
+version: 2
+
+models:
+  - name: dim_security
+    description: Gold current tradable security dimension enriched with latest fundamentals where available.
+    columns:
+      - name: security_id
+        description: Stable key for one active tradable provider security.
+        data_tests:
+          - not_null
+      - name: data_provider
+        description: Provider that supplies the security.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: provider_exchange_code
+        description: Provider exchange code used for instrument and market-data requests.
+        data_tests:
+          - not_null
+      - name: provider_code_kind
+        description: Provider-code classification from the exchange ingestion universe.
+      - name: provider_code_source_kind
+        description: Source of the provider code in the operational universe.
+      - name: exchange_catalog_name
+        description: Provider exchange display name from the ingestion universe.
+      - name: exchange_country_iso2
+        description: Provider exchange country ISO code.
+      - name: exchange_currency
+        description: Provider exchange currency.
+      - name: ticker
+        description: Provider ticker code without exchange suffix.
+        data_tests:
+          - not_null
+      - name: provider_symbol
+        description: Exchange-qualified provider symbol.
+        data_tests:
+          - not_null
+      - name: security_name
+        description: Best available provider display name.
+      - name: primary_ticker
+        description: Provider primary ticker from fundamentals.
+      - name: currency_code
+        description: Best available trading or reporting currency code.
+      - name: country_name
+        description: Best available security country label.
+      - name: country_iso
+        description: Best available security country ISO code.
+      - name: asset_type
+        description: Provider asset type label from the instrument list.
+      - name: normalized_asset_type
+        description: Lowercase provider asset type used for classification.
+      - name: instrument_family
+        description: Broad instrument family from instrument staging.
+        data_tests:
+          - not_null
+      - name: is_stock
+        description: True when the security is stock-like.
+        data_tests:
+          - not_null
+      - name: is_fund_like
+        description: True when the security is ETF or fund-like.
+        data_tests:
+          - not_null
+      - name: has_isin
+        description: True when the instrument list supplied an ISIN.
+        data_tests:
+          - not_null
+      - name: isin
+        description: International Securities Identification Number.
+      - name: cusip
+        description: Committee on Uniform Securities Identification Procedures identifier.
+      - name: cik
+        description: SEC Central Index Key.
+      - name: lei
+        description: Legal Entity Identifier.
+      - name: open_figi
+        description: OpenFIGI identifier.
+      - name: sector
+        description: Provider sector classification.
+      - name: industry
+        description: Provider industry classification.
+      - name: gic_sector
+        description: GICS sector classification.
+      - name: gic_group
+        description: GICS group classification.
+      - name: gic_industry
+        description: GICS industry classification.
+      - name: gic_sub_industry
+        description: GICS sub-industry classification.
+      - name: is_delisted
+        description: True when fundamentals identity marks the security as delisted.
+        data_tests:
+          - not_null
+      - name: delisted_date
+        description: Delisting date when supplied.
+      - name: shares_outstanding
+        description: Current shares outstanding from fundamentals.
+      - name: shares_float
+        description: Current share float from fundamentals.
+      - name: domicile
+        description: Fund domicile when supplied.
+      - name: tracked_index_name
+        description: Fund tracked index or index display name.
+      - name: holdings_count
+        description: ETF holdings count.
+      - name: fund_category
+        description: Mutual fund category.
+      - name: fund_family
+        description: Mutual fund family.
+      - name: fund_style
+        description: Mutual fund style.
+      - name: fund_inception_date
+        description: ETF or mutual fund inception date.
+      - name: fundamentals_provider_updated_at
+        description: Provider-reported fundamentals update date.
+      - name: fundamentals_snapshot_date
+        description: Fundamentals snapshot used for the enrichment.
+      - name: has_fundamentals
+        description: True when a current fundamentals profile matched the provider symbol.
+        data_tests:
+          - not_null
+      - name: instrument_snapshot_date
+        description: Instrument snapshot date used for this current security.
+        data_tests:
+          - not_null
+      - name: instrument_row_hash
+        description: Stable hash of the selected instrument row.
+        data_tests:
+          - not_null
+      - name: instrument_source_uri
+        description: S3 URI of the landing object that produced the selected instrument row.
+      - name: instrument_ingested_at
+        description: Timestamp when the selected instrument row was written to Bronze.
+        data_tests:
+          - not_null

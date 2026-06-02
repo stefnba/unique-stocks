@@ -1,0 +1,132 @@
+version: 2
+
+models:
+  - name: stg_exchange_schedule
+    description: Cleaned and snapshot-grain exchange trading-hours rows from Bronze.
+    columns:
+      - name: ingestion_id
+        description: Unique ingestion row identifier from Bronze.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Date the exchange schedule snapshot was ingested.
+        data_tests:
+          - not_null
+      - name: provider_schedule_exchange_code
+        description: Provider schedule endpoint code for trading-hours requests.
+        data_tests:
+          - not_null
+      - name: exchange_schedule_name
+        description: Provider display name for the exchange schedule row.
+        data_tests:
+          - not_null
+      - name: timezone
+        description: IANA timezone name supplied by the provider.
+        data_tests:
+          - not_null
+      - name: session_open
+        description: Regular session open time in local exchange time.
+        data_tests:
+          - not_null
+      - name: session_close
+        description: Regular session close time in local exchange time.
+        data_tests:
+          - not_null
+      - name: working_days
+        description: Provider working-day expression for regular sessions.
+        data_tests:
+          - not_null
+      - name: pre_market_open
+        description: Pre-market session open time when supplied.
+      - name: pre_market_close
+        description: Pre-market session close time when supplied.
+      - name: after_hours_open
+        description: After-hours session open time when supplied.
+      - name: after_hours_close
+        description: After-hours session close time when supplied.
+      - name: lunch_break_start
+        description: Lunch break start time when supplied.
+      - name: lunch_break_end
+        description: Lunch break end time when supplied.
+      - name: data_provider
+        description: Provider that supplied the schedule row.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the row.
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null
+      - name: has_pre_market
+        description: True when any pre-market boundary is present.
+        data_tests:
+          - not_null
+      - name: has_after_hours
+        description: True when any after-hours boundary is present.
+        data_tests:
+          - not_null
+      - name: has_lunch_break
+        description: True when any lunch-break boundary is present.
+        data_tests:
+          - not_null
+
+  - name: stg_exchange_holiday
+    description: Cleaned and snapshot-grain exchange holiday and early-close rows from Bronze.
+    columns:
+      - name: ingestion_id
+        description: Unique ingestion row identifier from Bronze.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Date the holiday snapshot was ingested.
+        data_tests:
+          - not_null
+      - name: provider_schedule_exchange_code
+        description: Provider schedule endpoint code for the holiday calendar.
+        data_tests:
+          - not_null
+      - name: holiday_date
+        description: Holiday or early-close date in local exchange calendar terms.
+        data_tests:
+          - not_null
+      - name: holiday_name
+        description: Provider holiday display name.
+        data_tests:
+          - not_null
+      - name: holiday_type
+        description: Lowercase provider holiday type.
+        data_tests:
+          - not_null
+      - name: early_close_time
+        description: Early close time when the holiday row represents an early close.
+      - name: data_provider
+        description: Provider that supplied the holiday row.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the row.
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null
+      - name: is_early_close
+        description: True when the row represents an early close or has an early close time.
+        data_tests:
+          - not_null
