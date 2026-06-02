@@ -229,9 +229,7 @@ class S3StorageClient:
 
         resolved_bucket = bucket or self.bucket
         if not resolved_bucket:
-            raise ValueError(
-                "S3 bucket is required; pass bucket=... or set S3StorageClient(bucket=...)"
-            )
+            raise ValueError("S3 bucket is required; pass bucket=... or set S3StorageClient(bucket=...)")
         return resolved_bucket, key.lstrip("/")
 
     def _extra_args(
@@ -279,10 +277,12 @@ class S3StorageClient:
                 rows = self._rows(data)
                 if not rows:
                     return b""
-                return b"\n".join(
-                    json.dumps(row, default=self._json_default, separators=(",", ":")).encode()
-                    for row in rows
-                ) + b"\n"
+                return (
+                    b"\n".join(
+                        json.dumps(row, default=self._json_default, separators=(",", ":")).encode() for row in rows
+                    )
+                    + b"\n"
+                )
             case "csv":
                 return self._csv_dumps(data)
             case "pickle":
@@ -382,9 +382,7 @@ class S3StorageClient:
             s3 = await S3StorageClient.from_block_entry(BlockRegistry.S3_BUCKET)
         """
         if not isinstance(entry.block, S3Bucket):
-            raise TypeError(
-                f"Expected a BlockEntry[S3Bucket], got BlockEntry[{type(entry.block).__name__}]"
-            )
+            raise TypeError(f"Expected a BlockEntry[S3Bucket], got BlockEntry[{type(entry.block).__name__}]")
         block = await entry.load_async()
         return cls.from_s3_bucket_block(block, **kwargs)
 
