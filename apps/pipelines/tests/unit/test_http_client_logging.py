@@ -56,10 +56,13 @@ async def test_http_client_redacts_sensitive_query_params_from_logged_path() -> 
 
     transport = httpx.MockTransport(handler)
 
-    with capture_logs() as logs, pytest.raises(httpx.HTTPStatusError):
+    with capture_logs() as logs, pytest.raises(httpx.HTTPStatusError) as exc_info:
         async with _DemoClient(transport) as client:
             await client._request(f"/prices?api_token={SECRET_TOKEN}&symbol=AAPL.US")
 
+    assert SECRET_TOKEN not in str(exc_info.value)
+    assert SECRET_TOKEN not in str(exc_info.value.request.url)
+    assert SECRET_TOKEN not in str(exc_info.value.response.request.url)
     log_text = repr(logs)
     assert SECRET_TOKEN not in log_text
     assert f"api_token={REDACTED_QUERY_VALUE}" in log_text
@@ -80,11 +83,15 @@ async def test_http_client_redacts_provider_token_echoed_in_error_body() -> None
 
     transport = httpx.MockTransport(handler)
 
-    with capture_logs() as logs, pytest.raises(httpx.HTTPStatusError):
+    with capture_logs() as logs, pytest.raises(httpx.HTTPStatusError) as exc_info:
         async with _DemoClient(transport) as client:
             await client._request("/prices", params={"symbol": "AAPL.US"})
 
     assert SECRET_TOKEN in seen_urls[0]
+    assert SECRET_TOKEN not in str(exc_info.value)
+    assert SECRET_TOKEN not in str(exc_info.value.request.url)
+    assert SECRET_TOKEN not in str(exc_info.value.response.request.url)
+    assert SECRET_TOKEN not in exc_info.value.response.text
     log_text = repr(logs)
     assert SECRET_TOKEN not in log_text
     assert f"api_token={REDACTED_QUERY_VALUE}" in log_text

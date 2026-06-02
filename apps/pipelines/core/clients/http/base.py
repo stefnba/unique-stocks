@@ -36,6 +36,25 @@ def redact_sensitive_query_params(value: str) -> str:
     return _SENSITIVE_QUERY_PARAM_PATTERN.sub(rf"\1{REDACTED_QUERY_VALUE}", value)
 
 
+def redacted_http_status_error(exc: httpx.HTTPStatusError) -> httpx.HTTPStatusError:
+    """Return a status error whose message and request URL are safe for Prefect logs."""
+    safe_request = httpx.Request(
+        exc.request.method,
+        redact_sensitive_query_params(str(exc.request.url)),
+        headers=exc.request.headers,
+    )
+    safe_response = httpx.Response(
+        exc.response.status_code,
+        content=redact_sensitive_query_params(exc.response.text),
+        request=safe_request,
+    )
+    return httpx.HTTPStatusError(
+        redact_sensitive_query_params(str(exc)),
+        request=safe_request,
+        response=safe_response,
+    )
+
+
 class HttpClientBase(ABC):
     """Abstract async HTTP client backed by httpx."""
 
@@ -137,7 +156,7 @@ class HttpClientBase(ABC):
                 status=exc.response.status_code,
                 body=redact_sensitive_query_params(exc.response.text[:300]),
             )
-            raise
+            raise redacted_http_status_error(exc) from None
         except httpx.TimeoutException:
             log.error(f"http.client.{self.PROVIDER}.timeout", path=safe_path, method=method)
             raise
