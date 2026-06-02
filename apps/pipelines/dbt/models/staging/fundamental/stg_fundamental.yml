@@ -1,0 +1,1246 @@
+version: 2
+
+models:
+  - name: stg_fundamental_document
+    description: Cleaned and deduplicated fundamentals document metadata from Bronze.
+    columns:
+      - name: ingestion_id
+        description: Unique ingestion row identifier from Bronze.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Date the fundamentals document snapshot was ingested.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider exchange code from the exchange-qualified ticker.
+        data_tests:
+          - not_null
+      - name: ticker
+        description: Exchange-qualified ticker requested from the fundamentals endpoint.
+        data_tests:
+          - not_null
+      - name: code
+        description: Provider ticker code without exchange suffix.
+        data_tests:
+          - not_null
+      - name: instrument_name
+        description: Instrument display name from the provider.
+      - name: instrument_type
+        description: Provider instrument type from the fundamentals General section.
+        data_tests:
+          - not_null
+      - name: instrument_family
+        description: Stable broad instrument family derived from provider type.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - stock
+                  - etf
+                  - fund
+                  - index
+                  - bond
+                  - unknown
+      - name: primary_ticker
+        description: Provider primary ticker when supplied.
+      - name: provider_listing_exchange_code
+        description: Provider listing exchange value from the fundamentals General section.
+      - name: provider_updated_at
+        description: Provider-reported fundamentals update date.
+      - name: top_level_sections
+        description: Top-level provider JSON sections present in the document.
+      - name: payload_hash
+        description: Stable hash of the canonical provider fundamentals document.
+        data_tests:
+          - not_null
+      - name: data_provider
+        description: Provider that supplied the record.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the row.
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: stg_fundamental_stock_identity
+    description: Cleaned and deduplicated stock identity snapshots from fundamentals.
+    columns:
+      - name: ingestion_id
+        description: Unique ingestion row identifier from Bronze.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Date the stock identity snapshot was ingested.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider exchange code from the exchange-qualified ticker.
+        data_tests:
+          - not_null
+      - name: ticker
+        description: Exchange-qualified stock ticker.
+        data_tests:
+          - not_null
+      - name: code
+        description: Provider ticker code without exchange suffix.
+        data_tests:
+          - not_null
+      - name: stock_name
+        description: Stock display name.
+      - name: primary_ticker
+        description: Provider primary ticker when supplied.
+      - name: provider_listing_exchange_code
+        description: Provider listing exchange value.
+      - name: currency_code
+        description: Trading or reporting currency code.
+      - name: currency_name
+        description: Currency display name.
+      - name: country_name
+        description: Issuer country name.
+      - name: country_iso
+        description: Issuer country ISO code.
+      - name: isin
+        description: International Securities Identification Number.
+      - name: cusip
+        description: Committee on Uniform Securities Identification Procedures identifier.
+      - name: cik
+        description: SEC Central Index Key.
+      - name: lei
+        description: Legal Entity Identifier.
+      - name: open_figi
+        description: OpenFIGI identifier.
+      - name: employer_id_number
+        description: Employer Identification Number.
+      - name: fiscal_year_end
+        description: Fiscal year-end month or provider label.
+      - name: ipo_date
+        description: Initial public offering date.
+      - name: sector
+        description: Provider sector classification.
+      - name: industry
+        description: Provider industry classification.
+      - name: gic_sector
+        description: GICS sector classification.
+      - name: gic_group
+        description: GICS group classification.
+      - name: gic_industry
+        description: GICS industry classification.
+      - name: gic_sub_industry
+        description: GICS sub-industry classification.
+      - name: home_category
+        description: Provider domestic or ADR classification.
+      - name: is_delisted
+        description: Whether the provider marks the stock as delisted.
+      - name: delisted_date
+        description: Delisting date when supplied.
+      - name: full_time_employees
+        description: Reported number of full-time employees.
+      - name: web_url
+        description: Company website URL.
+      - name: logo_url
+        description: Provider logo path or URL.
+      - name: data_provider
+        description: Provider that supplied the record.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the row.
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: stg_fundamental_statement_fact
+    description: Cleaned and deduplicated long-form stock financial statement facts.
+    columns:
+      - name: ingestion_id
+        description: Unique ingestion row identifier from Bronze.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Date the statement fact snapshot was ingested.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider exchange code from the exchange-qualified ticker.
+        data_tests:
+          - not_null
+      - name: ticker
+        description: Exchange-qualified stock ticker.
+        data_tests:
+          - not_null
+      - name: statement_type
+        description: Statement family such as balance_sheet, cash_flow, or income_statement.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - balance_sheet
+                  - cash_flow
+                  - income_statement
+      - name: period_type
+        description: Reporting cadence, either annual or quarterly.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - annual
+                  - quarterly
+      - name: period_end_date
+        description: Financial reporting period end date.
+        data_tests:
+          - not_null
+      - name: filing_date
+        description: Filing date associated with the report when supplied.
+      - name: currency_symbol
+        description: Statement currency symbol when supplied.
+      - name: metric_name
+        description: Provider metric name from the financial statement payload.
+        data_tests:
+          - not_null
+      - name: metric_value
+        description: Numeric value of the statement metric.
+        data_tests:
+          - not_null
+      - name: data_provider
+        description: Provider that supplied the record.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the row.
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: stg_fundamental_stock_earnings_fact
+    description: Cleaned and deduplicated long-form stock earnings facts.
+    columns:
+      - name: ingestion_id
+        description: Unique ingestion row identifier from Bronze.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Date the earnings fact snapshot was ingested.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider exchange code from the exchange-qualified ticker.
+        data_tests:
+          - not_null
+      - name: ticker
+        description: Exchange-qualified stock ticker.
+        data_tests:
+          - not_null
+      - name: earnings_section
+        description: Provider earnings subsection, such as annual, history, or trend.
+        data_tests:
+          - not_null
+      - name: period_type
+        description: Reporting cadence when explicit in the provider payload.
+      - name: fiscal_period_end
+        description: Fiscal period end date associated with the earnings metric.
+        data_tests:
+          - not_null
+      - name: report_date
+        description: Earnings report date when supplied by the provider.
+      - name: before_after_market
+        description: Provider timing label for the earnings announcement.
+      - name: currency_code
+        description: Currency code supplied with the earnings row.
+      - name: fiscal_quarter
+        description: Provider fiscal quarter label.
+      - name: period_offset
+        description: Provider relative period label such as +1q or +1y.
+      - name: metric_name
+        description: Provider metric name from the earnings payload.
+        data_tests:
+          - not_null
+      - name: metric_value
+        description: Numeric value of the earnings metric.
+        data_tests:
+          - not_null
+      - name: data_provider
+        description: Provider that supplied the record.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the row.
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: stg_fundamental_stock_shares_stats
+    description: Cleaned and deduplicated stock share-statistics snapshots.
+    columns:
+      - name: ingestion_id
+        description: Unique ingestion row identifier from Bronze.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Date the share-statistics snapshot was ingested.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider exchange code from the exchange-qualified ticker.
+        data_tests:
+          - not_null
+      - name: ticker
+        description: Exchange-qualified stock ticker.
+        data_tests:
+          - not_null
+      - name: shares_outstanding
+        description: Provider-reported shares outstanding.
+      - name: shares_float
+        description: Provider-reported float shares.
+      - name: percent_insiders
+        description: Provider-reported percentage held by insiders.
+      - name: percent_institutions
+        description: Provider-reported percentage held by institutions.
+      - name: shares_short
+        description: Provider-reported shares sold short.
+      - name: shares_short_prior_month
+        description: Provider-reported shares sold short in the prior month.
+      - name: short_ratio
+        description: Provider-reported short ratio.
+      - name: short_percent_outstanding
+        description: Provider-reported short interest as a percentage of outstanding shares.
+      - name: short_percent_float
+        description: Provider-reported short interest as a percentage of float shares.
+      - name: data_provider
+        description: Provider that supplied the record.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the row.
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: stg_fundamental_stock_outstanding_shares
+    description: Cleaned and deduplicated stock outstanding-share observations.
+    columns:
+      - name: ingestion_id
+        description: Unique ingestion row identifier from Bronze.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Date the outstanding-shares snapshot was ingested.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider exchange code from the exchange-qualified ticker.
+        data_tests:
+          - not_null
+      - name: ticker
+        description: Exchange-qualified stock ticker.
+        data_tests:
+          - not_null
+      - name: period_type
+        description: Provider period family, either annual or quarterly.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - annual
+                  - quarterly
+      - name: provider_period_label
+        description: Provider period label such as 2026 or 2026-Q1.
+        data_tests:
+          - not_null
+      - name: period_end_date
+        description: Period end date supplied or inferred from the provider period label.
+        data_tests:
+          - not_null
+      - name: shares_mln
+        description: Provider-reported shares outstanding in millions.
+      - name: shares
+        description: Provider-reported shares outstanding.
+      - name: data_provider
+        description: Provider that supplied the record.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the row.
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: stg_fundamental_stock_holder
+    description: Cleaned and deduplicated stock holder rows.
+    columns:
+      - name: ingestion_id
+        description: Unique ingestion row identifier from Bronze.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Date the holder snapshot was ingested.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider exchange code from the exchange-qualified ticker.
+        data_tests:
+          - not_null
+      - name: ticker
+        description: Exchange-qualified stock ticker.
+        data_tests:
+          - not_null
+      - name: holder_type
+        description: Holder category, such as institution or fund.
+        data_tests:
+          - not_null
+      - name: provider_position
+        description: Provider order position within the holder category.
+      - name: holder_name
+        description: Holder display name supplied by the provider.
+        data_tests:
+          - not_null
+      - name: report_date
+        description: Provider-reported holder date.
+        data_tests:
+          - not_null
+      - name: total_shares_percent
+        description: Provider-reported holder percentage of shares.
+      - name: total_assets_percent
+        description: Provider-reported percentage of holder assets in the stock.
+      - name: current_shares
+        description: Provider-reported current shares held.
+      - name: shares_change
+        description: Provider-reported share change.
+      - name: shares_change_percent
+        description: Provider-reported percentage share change.
+      - name: data_provider
+        description: Provider that supplied the record.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the row.
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: stg_fundamental_stock_insider_transaction
+    description: Cleaned and deduplicated stock insider transaction rows.
+    columns:
+      - name: ingestion_id
+        description: Unique ingestion row identifier from Bronze.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Date the insider transaction snapshot was ingested.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider exchange code from the exchange-qualified ticker.
+        data_tests:
+          - not_null
+      - name: ticker
+        description: Exchange-qualified stock ticker.
+        data_tests:
+          - not_null
+      - name: provider_position
+        description: Provider order position within the InsiderTransactions map.
+      - name: filing_date
+        description: Provider filing date for the insider transaction row.
+      - name: owner_cik
+        description: Insider owner CIK when supplied.
+      - name: owner_name
+        description: Insider owner display name supplied by the provider.
+        data_tests:
+          - not_null
+      - name: transaction_date
+        description: Date the insider transaction occurred.
+        data_tests:
+          - not_null
+      - name: transaction_code
+        description: Provider transaction code, such as P for purchase or S for sale.
+        data_tests:
+          - not_null
+      - name: transaction_amount
+        description: Provider-reported transaction share amount.
+      - name: transaction_price
+        description: Provider-reported transaction price.
+      - name: transaction_acquired_disposed
+        description: Provider acquired or disposed flag.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - A
+                  - D
+      - name: post_transaction_amount
+        description: Provider-reported post-transaction share amount.
+      - name: sec_link
+        description: SEC filing link supplied by the provider.
+      - name: data_provider
+        description: Provider that supplied the record.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the row.
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: stg_fundamental_stock_splits_dividends
+    description: Cleaned and deduplicated stock splits/dividends snapshots.
+    columns:
+      - name: ingestion_id
+        description: Unique ingestion row identifier from Bronze.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Date the splits/dividends snapshot was ingested.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider exchange code from the exchange-qualified ticker.
+        data_tests:
+          - not_null
+      - name: ticker
+        description: Exchange-qualified stock ticker.
+        data_tests:
+          - not_null
+      - name: forward_annual_dividend_rate
+        description: Provider forward annual dividend rate.
+      - name: forward_annual_dividend_yield
+        description: Provider forward annual dividend yield.
+      - name: payout_ratio
+        description: Provider payout ratio.
+      - name: dividend_date
+        description: Provider dividend payment date.
+      - name: ex_dividend_date
+        description: Provider ex-dividend date.
+      - name: last_split_factor
+        description: Provider last split factor label.
+      - name: last_split_date
+        description: Provider last split date.
+      - name: data_provider
+        description: Provider that supplied the record.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the row.
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: stg_fundamental_stock_dividend_count
+    description: Cleaned and deduplicated yearly stock dividend-count rows.
+    columns:
+      - name: ingestion_id
+        description: Unique ingestion row identifier from Bronze.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Date the dividend-count snapshot was ingested.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider exchange code from the exchange-qualified ticker.
+        data_tests:
+          - not_null
+      - name: ticker
+        description: Exchange-qualified stock ticker.
+        data_tests:
+          - not_null
+      - name: year
+        description: Calendar year supplied by the provider.
+        data_tests:
+          - not_null
+      - name: dividend_count
+        description: Number of dividends reported for the year.
+        data_tests:
+          - not_null
+      - name: data_provider
+        description: Provider that supplied the record.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the row.
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: stg_fundamental_stock_metric_fact
+    description: Cleaned and deduplicated long-form numeric stock metrics.
+    columns:
+      - name: ingestion_id
+        description: Unique ingestion row identifier from Bronze.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Date the metric snapshot was ingested.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider exchange code from the exchange-qualified ticker.
+        data_tests:
+          - not_null
+      - name: ticker
+        description: Exchange-qualified stock ticker.
+        data_tests:
+          - not_null
+      - name: metric_group
+        description: Source section, such as highlights, valuation, technicals, analyst_ratings, or esg_scores.
+        data_tests:
+          - not_null
+      - name: metric_name
+        description: Provider metric name.
+        data_tests:
+          - not_null
+      - name: metric_value
+        description: Numeric value of the metric.
+        data_tests:
+          - not_null
+      - name: metric_date
+        description: Date associated with the metric group when supplied.
+      - name: data_provider
+        description: Provider that supplied the record.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the row.
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: stg_fundamental_stock_esg_activity
+    description: Cleaned and deduplicated stock ESG activity involvement rows.
+    columns:
+      - name: ingestion_id
+        description: Unique ingestion row identifier from Bronze.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Date the ESG activity snapshot was ingested.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider exchange code from the exchange-qualified ticker.
+        data_tests:
+          - not_null
+      - name: ticker
+        description: Exchange-qualified stock ticker.
+        data_tests:
+          - not_null
+      - name: rating_date
+        description: Provider ESG rating date when supplied.
+      - name: activity
+        description: ESG activity name supplied by the provider.
+        data_tests:
+          - not_null
+      - name: involvement
+        description: Provider involvement flag or label.
+      - name: data_provider
+        description: Provider that supplied the record.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the row.
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: stg_fundamental_etf_identity
+    description: Cleaned and deduplicated ETF identity snapshots from fundamentals.
+    columns:
+      - name: ingestion_id
+        description: Unique ingestion row identifier from Bronze.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Date the ETF identity snapshot was ingested.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider exchange code from the exchange-qualified ticker.
+        data_tests:
+          - not_null
+      - name: ticker
+        description: Exchange-qualified ETF ticker.
+        data_tests:
+          - not_null
+      - name: code
+        description: Provider ticker code without exchange suffix.
+        data_tests:
+          - not_null
+      - name: etf_name
+        description: ETF display name.
+      - name: primary_ticker
+        description: Provider primary ticker when supplied.
+      - name: provider_listing_exchange_code
+        description: Provider listing exchange value.
+      - name: currency_code
+        description: Trading or reporting currency code.
+      - name: currency_name
+        description: Currency display name.
+      - name: country_name
+        description: Provider country name.
+      - name: country_iso
+        description: Provider country ISO code.
+      - name: isin
+        description: International Securities Identification Number.
+      - name: open_figi
+        description: OpenFIGI identifier.
+      - name: company_name
+        description: ETF sponsor or company name from ETF_Data.
+      - name: company_url
+        description: ETF sponsor URL.
+      - name: etf_url
+        description: Provider ETF page URL.
+      - name: domicile
+        description: ETF domicile.
+      - name: index_name
+        description: Tracked index name.
+      - name: inception_date
+        description: ETF inception date.
+      - name: dividend_paying_frequency
+        description: Provider dividend-paying frequency label.
+      - name: holdings_count
+        description: Provider-reported number of holdings.
+      - name: data_provider
+        description: Provider that supplied the record.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the row.
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: stg_fundamental_mutual_fund_identity
+    description: Cleaned and deduplicated mutual fund identity snapshots from fundamentals.
+    columns:
+      - name: ingestion_id
+        description: Unique ingestion row identifier from Bronze.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Date the mutual fund identity snapshot was ingested.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider exchange code from the exchange-qualified ticker.
+        data_tests:
+          - not_null
+      - name: ticker
+        description: Exchange-qualified mutual fund ticker.
+        data_tests:
+          - not_null
+      - name: code
+        description: Provider ticker code without exchange suffix.
+        data_tests:
+          - not_null
+      - name: mutual_fund_name
+        description: Mutual fund display name.
+      - name: primary_ticker
+        description: Provider primary ticker when supplied.
+      - name: provider_listing_exchange_code
+        description: Provider listing exchange value.
+      - name: currency_code
+        description: Trading or reporting currency code.
+      - name: currency_name
+        description: Currency display name.
+      - name: country_name
+        description: Provider country name.
+      - name: country_iso
+        description: Provider country ISO code.
+      - name: isin
+        description: International Securities Identification Number.
+      - name: cusip
+        description: Committee on Uniform Securities Identification Procedures identifier.
+      - name: open_figi
+        description: OpenFIGI identifier.
+      - name: fund_category
+        description: Provider fund category.
+      - name: fund_family
+        description: Provider fund family.
+      - name: fund_style
+        description: Provider fund style.
+      - name: fiscal_year_end
+        description: Fund fiscal year-end label.
+      - name: domicile
+        description: Fund domicile.
+      - name: inception_date
+        description: Fund inception date.
+      - name: update_date
+        description: Provider update date for the fund data.
+      - name: data_provider
+        description: Provider that supplied the record.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the row.
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: stg_fundamental_index_identity
+    description: Cleaned and deduplicated index identity snapshots from fundamentals.
+    columns:
+      - name: ingestion_id
+        description: Unique ingestion row identifier from Bronze.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Date the index identity snapshot was ingested.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider exchange code from the exchange-qualified ticker.
+        data_tests:
+          - not_null
+      - name: ticker
+        description: Exchange-qualified index ticker.
+        data_tests:
+          - not_null
+      - name: code
+        description: Provider ticker code without exchange suffix.
+        data_tests:
+          - not_null
+      - name: index_name
+        description: Index display name.
+      - name: provider_listing_exchange_code
+        description: Provider listing exchange value.
+      - name: currency_code
+        description: Index currency code.
+      - name: currency_name
+        description: Index currency display name.
+      - name: country_name
+        description: Provider country name.
+      - name: country_iso
+        description: Provider country ISO code.
+      - name: open_figi
+        description: OpenFIGI identifier.
+      - name: market_cap
+        description: Provider-reported index market capitalization.
+      - name: data_provider
+        description: Provider that supplied the record.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the row.
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: stg_fundamental_etf_holding
+    description: Cleaned and deduplicated ETF holding edges.
+    columns:
+      - name: ingestion_id
+        description: Unique ingestion row identifier from Bronze.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Date the ETF holdings snapshot was ingested.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider exchange code from the exchange-qualified ticker.
+        data_tests:
+          - not_null
+      - name: ticker
+        description: Exchange-qualified ETF ticker.
+        data_tests:
+          - not_null
+      - name: holding_symbol
+        description: Provider holding symbol key.
+        data_tests:
+          - not_null
+      - name: holding_code
+        description: Provider holding code without exchange suffix.
+      - name: holding_exchange
+        description: Provider holding exchange code.
+      - name: holding_name
+        description: Holding display name.
+      - name: sector
+        description: Provider sector classification for the holding.
+      - name: industry
+        description: Provider industry classification for the holding.
+      - name: country
+        description: Provider country classification for the holding.
+      - name: region
+        description: Provider region classification for the holding.
+      - name: assets_percent
+        description: Holding weight as a percentage of ETF assets.
+      - name: is_top_10
+        description: True when the holding also appears in the provider top-10 holdings map.
+        data_tests:
+          - not_null
+      - name: data_provider
+        description: Provider that supplied the record.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the row.
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: stg_fundamental_mutual_fund_holding
+    description: Cleaned and deduplicated mutual fund top-holding rows.
+    columns:
+      - name: ingestion_id
+        description: Unique ingestion row identifier from Bronze.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Date the mutual fund holdings snapshot was ingested.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider exchange code from the exchange-qualified ticker.
+        data_tests:
+          - not_null
+      - name: ticker
+        description: Exchange-qualified mutual fund ticker.
+        data_tests:
+          - not_null
+      - name: provider_position
+        description: Provider order position within the top-holdings map.
+      - name: holding_name
+        description: Holding display name.
+        data_tests:
+          - not_null
+      - name: weight_percent
+        description: Holding weight as a percentage of fund assets.
+      - name: data_provider
+        description: Provider that supplied the record.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the row.
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: stg_fundamental_fund_metric_fact
+    description: Cleaned and deduplicated long-form numeric ETF and mutual fund metrics.
+    columns:
+      - name: ingestion_id
+        description: Unique ingestion row identifier from Bronze.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Date the fund metric snapshot was ingested.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider exchange code from the exchange-qualified ticker.
+        data_tests:
+          - not_null
+      - name: ticker
+        description: Exchange-qualified ETF or fund ticker.
+        data_tests:
+          - not_null
+      - name: instrument_family
+        description: Stable instrument family, either etf or fund.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - etf
+                  - fund
+      - name: metric_group
+        description: Provider metric group, such as Performance, Asset_Allocation, or Sector_Weights.
+        data_tests:
+          - not_null
+      - name: metric_category
+        description: Nested provider category when the metric comes from a map.
+      - name: metric_name
+        description: Provider metric name.
+        data_tests:
+          - not_null
+      - name: metric_value
+        description: Numeric value of the metric.
+        data_tests:
+          - not_null
+      - name: metric_date
+        description: Date associated with the metric group when supplied by the provider.
+      - name: data_provider
+        description: Provider that supplied the record.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the row.
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: stg_fundamental_index_component
+    description: Cleaned and deduplicated current index constituent edges.
+    columns:
+      - name: ingestion_id
+        description: Unique ingestion row identifier from Bronze.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Date the index component snapshot was ingested.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider exchange code from the exchange-qualified ticker.
+        data_tests:
+          - not_null
+      - name: ticker
+        description: Exchange-qualified index ticker.
+        data_tests:
+          - not_null
+      - name: provider_position
+        description: Provider order position within the Components map.
+      - name: component_code
+        description: Provider component ticker code.
+        data_tests:
+          - not_null
+      - name: component_exchange
+        description: Provider component exchange code.
+      - name: component_ticker
+        description: Exchange-qualified component ticker assembled from code and exchange.
+      - name: component_name
+        description: Component display name.
+      - name: sector
+        description: Provider sector classification for the component.
+      - name: industry
+        description: Provider industry classification for the component.
+      - name: weight
+        description: Provider-reported component index weight.
+      - name: data_provider
+        description: Provider that supplied the record.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the row.
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: stg_fundamental_index_historical_component
+    description: Cleaned and deduplicated historical index constituent membership rows.
+    columns:
+      - name: ingestion_id
+        description: Unique ingestion row identifier from Bronze.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Date the historical index component snapshot was ingested.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider exchange code from the exchange-qualified ticker.
+        data_tests:
+          - not_null
+      - name: ticker
+        description: Exchange-qualified index ticker.
+        data_tests:
+          - not_null
+      - name: provider_position
+        description: Provider order position within the HistoricalTickerComponents map.
+      - name: component_code
+        description: Provider component ticker code.
+        data_tests:
+          - not_null
+      - name: component_name
+        description: Component display name.
+      - name: start_date
+        description: Date the component entered the index when supplied.
+      - name: end_date
+        description: Date the component left the index when supplied.
+      - name: is_active_now
+        description: Provider flag indicating current active membership.
+      - name: is_delisted
+        description: Provider flag indicating whether the component is delisted.
+      - name: data_provider
+        description: Provider that supplied the record.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the row.
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null

@@ -1,0 +1,285 @@
+# Prefect deployment configuration for the unique-stocks pipelines app.
+#
+# Deploy all:        make deploy
+# Preview sync:      make deploy-dry
+# Upsert only:       make deploy-upsert
+# Deploy one:        uv run prefect deploy --name daily
+#
+# Deployment naming convention (one flow, multiple operational modes):
+#   daily / weekly     — scheduled production runs
+#   manual             — on-demand refresh with flow defaults
+#   backfill           — scoped or credit-capped replay
+#   historical-backfill — heavy multi-day per-unit backfill (eod_price only)
+#   replay             — re-parse from S3 landing, no provider calls
+#   *-build            — dbt transform for a bronze domain
+#
+# Bootstrap order (new environments):
+#   1. exchange-catalog-refresh/manual
+#   2. exchange-mic-registry-refresh/manual
+#   3. dbt-build/exchange-build
+#   4. exchange-schedule-refresh/manual   (optional)
+#   5. instrument-refresh/manual or /weekly
+#   6. ingest domains → matching dbt *-build deployment
+#
+# Workers read PREFECT_API_URL from the environment (.env / docker-compose).
+# The pull step uses PREFECT_WORK_DIR so both local dev (.) and Docker (/app)
+# work without changing this file.
+
+prefect-version: "3.7.0"
+name: unique-stocks-pipelines
+
+build: null
+push: null
+
+pull:
+  - prefect.deployments.steps.set_working_directory:
+      directory: "{{ $PREFECT_WORK_DIR }}"
+
+definitions:
+  work_pool: &default_pool
+    name: default-process-pool
+    work_queue_name: default
+
+  manual: &manual
+    enforce_parameter_schema: true
+    work_pool: *default_pool
+
+  scheduled: &scheduled
+    enforce_parameter_schema: true
+    work_pool: *default_pool
+
+  dbt_build: &dbt_build
+    entrypoint: core.transforms.dbt:dbt_build_flow
+    flow_name: dbt-build
+    enforce_parameter_schema: true
+    concurrency_limit:
+      limit: 1
+      collision_strategy: CANCEL_NEW
+    work_pool: *default_pool
+    parameters:
+      command: build
+      exclude: null
+      project_dir: dbt
+      profiles_dir: dbt
+      target: null
+      parent_run_id: null
+
+deployments:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # EOD price — bulk endpoint (one API call per exchange per date)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - name: daily
+    description: >
+      Scheduled daily EOD OHLCV ingestion for all provider exchange codes in the ingestion universe.
+
+      One bulk API call per exchange → S3 landing → bronze.eod_price.
+      Schedule: Mon–Fri 4:30pm America/New_York.
+      Optional: trade_date, provider_exchange_codes (e.g. ["US"]).
+    entrypoint: domains.eod_price.flows:eod_price_flow
+    tags: [eod-price, scheduled]
+    schedule:
+      cron: "30 16 * * 1-5"
+      timezone: America/New_York
+    concurrency_limit:
+      limit: 1
+      collision_strategy: CANCEL_NEW
+    <<: *scheduled
+
+  - name: backfill
+    description: >
+      Single-day EOD backfill via the bulk endpoint (same code path as daily, no schedule).
+
+      Optional: trade_date (omit for provider latest day), provider_exchange_codes.
+    entrypoint: domains.eod_price.flows:eod_price_flow
+    tags: [eod-price, backfill]
+    parameters:
+      trade_date: null
+    <<: *manual
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # EOD price — per-ticker endpoint (one API call per symbol, any date range)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - name: historical-backfill
+    description: >
+      Historical EOD backfill via the per-ticker endpoint. Requires from_date at run time.
+
+      For each instrument in bronze.instrument: OHLCV from from_date→to_date
+      → S3 landing → bronze.eod_price. Skips symbols already in bronze (resume-safe).
+      Optional: to_date, provider_exchange_codes, batch_size (default 50).
+    entrypoint: domains.eod_price.flows:eod_price_backfill_flow
+    tags: [eod-price, backfill]
+    parameters:
+      batch_size: 50
+    concurrency_limit:
+      limit: 1
+      collision_strategy: CANCEL_NEW
+    <<: *manual
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Exchange reference — bootstrap before dbt exchange-build
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - name: manual
+    flow_name: exchange-catalog-refresh
+    description: >
+      Fetch the EODHD exchange catalog → S3 landing → bronze.exchange_catalog.
+      Bootstrap step 1. Run before exchange-build.
+    entrypoint: domains.exchange.flows:exchange_catalog_flow
+    tags: [exchange, bootstrap, manual]
+    <<: *manual
+
+  - name: manual
+    flow_name: exchange-mic-registry-refresh
+    description: >
+      Download ISO 10383 MIC registry CSV → S3 landing → bronze.exchange_mic_registry.
+      Bootstrap step 2. Run before exchange-build.
+    entrypoint: domains.exchange.flows:exchange_mic_registry_flow
+    tags: [exchange, bootstrap, manual]
+    <<: *manual
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Exchange schedule — trading hours and holidays
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - name: manual
+    flow_name: exchange-schedule-refresh
+    description: >
+      Ingest trading hours and holidays for provider schedule API codes.
+
+      One API call per exchange → bronze.exchange_schedule + bronze.exchange_holiday.
+      Skips exchanges already ingested for snapshot_date.
+      Optional: snapshot_date, provider_schedule_exchange_codes.
+    entrypoint: domains.exchange_schedule.flows:exchange_schedule_flow
+    tags: [exchange, schedule, manual]
+    parameters:
+      snapshot_date: null
+      provider_schedule_exchange_codes: null
+    <<: *manual
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Instrument — symbol lists per exchange (requires exchange-build first)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - name: weekly
+    flow_name: instrument-refresh
+    description: >
+      Scheduled weekly instrument refresh for all provider exchange codes.
+
+      Fetches symbol lists per exchange → S3 landing → bronze.instrument.
+      Skips exchanges already ingested for snapshot_date.
+      Schedule: Monday 8am America/New_York.
+    entrypoint: domains.instrument.flows:instrument_flow
+    tags: [instrument, scheduled]
+    schedule:
+      cron: "0 8 * * 1"
+      timezone: America/New_York
+    concurrency_limit:
+      limit: 1
+      collision_strategy: CANCEL_NEW
+    <<: *scheduled
+
+  - name: manual
+    flow_name: instrument-refresh
+    description: >
+      On-demand instrument refresh. Use for bootstrap or a subset of exchanges.
+
+      Optional: snapshot_date, provider_exchange_codes (e.g. ["US", "XETRA"]).
+    entrypoint: domains.instrument.flows:instrument_flow
+    tags: [instrument, manual]
+    parameters:
+      snapshot_date: null
+      provider_exchange_codes: null
+    <<: *manual
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Fundamental — per-ticker EODHD documents (requires instrument bronze)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - name: manual
+    flow_name: fundamental-quarterly
+    description: >
+      On-demand fundamentals ingestion with skip-existing enabled (default flow behaviour).
+
+      Per-ticker API fetch → S3 landing → bronze.fundamental_* tables.
+      Optional: tickers, provider_exchange_codes, limit, snapshot_date.
+    entrypoint: domains.fundamental.flows:fundamental_flow
+    tags: [fundamental, manual]
+    parameters:
+      batch_size: 1
+    <<: *manual
+
+  - name: backfill
+    flow_name: fundamental-quarterly
+    description: >
+      Credit-aware fundamentals backfill. Re-fetches changed provider documents.
+
+      Set limit and max_provider_credits at run time to cap provider spend.
+      Optional: provider_exchange_codes, batch_size, provider_batch_delay_seconds.
+    entrypoint: domains.fundamental.flows:fundamental_flow
+    tags: [fundamental, backfill]
+    parameters:
+      skip_existing: false
+      refresh_existing: true
+      batch_size: 5
+      provider_batch_delay_seconds: 1.0
+      provider_credits_per_call: 10
+    concurrency_limit:
+      limit: 1
+      collision_strategy: CANCEL_NEW
+    <<: *manual
+
+  - name: replay
+    flow_name: fundamental-quarterly
+    description: >
+      Re-parse fundamentals from S3 landing JSON — no provider API calls.
+
+      Use after parser changes or to rebuild bronze from landed documents.
+      Optional: tickers, landing_source_uris_by_ticker, provider_exchange_codes, limit.
+    entrypoint: domains.fundamental.flows:fundamental_flow
+    tags: [fundamental, replay]
+    parameters:
+      replay_landing: true
+      skip_existing: false
+    concurrency_limit:
+      limit: 1
+      collision_strategy: CANCEL_NEW
+    <<: *manual
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # dbt — bronze → staging → marts (run after matching ingestion)
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - name: exchange-build
+    description: >
+      dbt build for exchange reference models (bootstrap step 3).
+
+      Seeds eodhd_provider_namespaces + staging/exchange + intermediate/exchange.
+      Required before instrument and price ingestion universes resolve correctly.
+    tags: [dbt, build, exchange]
+    parameters:
+      select:
+        - eodhd_provider_namespaces
+        - path:models/staging/exchange
+        - path:models/intermediate/exchange
+    <<: *dbt_build
+
+  - name: price-build
+    description: >
+      dbt build for price staging and marts. Run after bronze.eod_price ingestion.
+    tags: [dbt, build, price]
+    parameters:
+      select:
+        - path:models/staging/price
+        - path:models/marts/price
+    <<: *dbt_build
+
+  - name: fundamental-build
+    description: >
+      dbt build for fundamental staging models. Run after bronze.fundamental_* ingestion.
+    tags: [dbt, build, fundamental]
+    parameters:
+      select:
+        - path:models/staging/fundamental
+    <<: *dbt_build

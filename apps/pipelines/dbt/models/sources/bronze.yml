@@ -1,0 +1,1024 @@
+version: 2
+
+sources:
+  - name: bronze
+    description: Typed Bronze tables written by the Python ingestion app.
+    schema: bronze
+    tables:
+      - name: eod_price
+        description: End-of-day OHLCV bars from market data providers.
+        columns:
+          - name: ingestion_id
+            description: Unique ingestion row identifier.
+          - name: provider_exchange_code
+            description: Provider exchange code for the listed security, used in endpoint paths and ticker suffixes.
+          - name: ticker
+            description: Exchange-qualified ticker, such as AAPL.US.
+          - name: bar_date
+            description: Trading date for the OHLCV bar.
+          - name: open
+            description: Opening price for the trading date.
+          - name: high
+            description: Highest traded price for the trading date.
+          - name: low
+            description: Lowest traded price for the trading date.
+          - name: close
+            description: Closing price for the trading date.
+          - name: volume
+            description: Reported trading volume for the trading date.
+          - name: adjusted_close
+            description: Provider-adjusted close price when available.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: exchange_catalog
+        description: Provider-supported exchange/API catalog snapshots.
+        columns:
+          - name: snapshot_date
+            description: Date the reference snapshot was ingested.
+          - name: provider_exchange_code
+            description: Provider exchange code from the provider exchange catalog, not an official MIC.
+          - name: name
+            description: Exchange display name.
+          - name: operating_mic_codes
+            description: Official operating MIC value or comma-separated MIC values supplied by the provider.
+          - name: country
+            description: Exchange country name.
+          - name: currency
+            description: Primary trading currency for the exchange.
+          - name: country_iso2
+            description: ISO 3166-1 alpha-2 country code.
+          - name: country_iso3
+            description: ISO 3166-1 alpha-3 country code.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: exchange_mic_registry
+        description: ISO 10383 MIC registry snapshots.
+        columns:
+          - name: snapshot_date
+            description: Date the registry snapshot was ingested.
+          - name: mic
+            description: Market Identifier Code allocated to the market.
+          - name: operating_mic
+            description: Operating MIC for this MIC row.
+          - name: mic_type
+            description: MIC type, either OPRT for operating MICs or SGMT for segment MICs.
+          - name: name
+            description: Market name or institution description.
+          - name: legal_entity_name
+            description: Legal name of the entity owning the market.
+          - name: lei
+            description: Legal Entity Identifier when supplied.
+          - name: market_category_code
+            description: ISO 10383 market category code.
+          - name: acronym
+            description: Known market acronym when supplied.
+          - name: country_iso2
+            description: ISO 3166-1 alpha-2 country code.
+          - name: city
+            description: City where the market is located.
+          - name: website
+            description: Market website when supplied.
+          - name: status
+            description: Registry lifecycle status.
+          - name: creation_date
+            description: Date the MIC was originally created.
+          - name: last_update_date
+            description: Date the MIC was last modified.
+          - name: last_validation_date
+            description: Date the MIC was last reviewed for correctness.
+          - name: expiry_date
+            description: Date the MIC was deactivated, when applicable.
+          - name: comments
+            description: Registry comments supplied by the source.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: exchange_schedule
+        description: Trading-hours snapshots from provider schedule endpoints.
+        columns:
+          - name: snapshot_date
+            description: Date the schedule snapshot was ingested.
+          - name: provider_schedule_exchange_code
+            description: Provider schedule endpoint code; not guaranteed to be an official MIC.
+          - name: name
+            description: Exchange display name from the v2 response.
+          - name: timezone
+            description: IANA timezone for the exchange schedule.
+          - name: session_open
+            description: Regular session open time in local exchange time.
+          - name: session_close
+            description: Regular session close time in local exchange time.
+          - name: working_days
+            description: Trading days supplied by the provider.
+          - name: pre_market_open
+            description: Pre-market open time when available.
+          - name: pre_market_close
+            description: Pre-market close time when available.
+          - name: after_hours_open
+            description: After-hours open time when available.
+          - name: after_hours_close
+            description: After-hours close time when available.
+          - name: lunch_break_start
+            description: Lunch-break start time when available.
+          - name: lunch_break_end
+            description: Lunch-break end time when available.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: exchange_holiday
+        description: Exchange holiday snapshots from provider schedule endpoints.
+        columns:
+          - name: snapshot_date
+            description: Date the holiday snapshot was ingested.
+          - name: provider_schedule_exchange_code
+            description: Provider schedule endpoint code; not guaranteed to be an official MIC.
+          - name: holiday_date
+            description: Holiday date in the exchange calendar.
+          - name: holiday_name
+            description: Holiday display name supplied by the provider.
+          - name: holiday_type
+            description: Provider holiday type, such as Official, Bank, or EarlyClose.
+          - name: early_close_time
+            description: Early close time when the holiday type is EarlyClose.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: instrument
+        description: Tradable instrument reference snapshots from market data providers.
+        columns:
+          - name: snapshot_date
+            description: Date the reference snapshot was ingested.
+          - name: provider_exchange_code
+            description: Provider exchange code used for the instrument-list request.
+          - name: ticker
+            description: Provider ticker symbol.
+          - name: name
+            description: Instrument display name.
+          - name: country
+            description: Instrument country when available.
+          - name: provider_listing_exchange_code
+            description: Provider exchange-like code returned on the individual instrument row, when available.
+          - name: currency
+            description: Instrument trading currency when available.
+          - name: asset_type
+            description: Provider asset type classification.
+          - name: isin
+            description: International Securities Identification Number when available.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: fundamental_document
+        description: Fundamentals document snapshots with stable metadata and full provider payloads in raw_json.
+        columns:
+          - name: ingestion_id
+            description: Unique ingestion row identifier.
+          - name: snapshot_date
+            description: Date the fundamentals document snapshot was ingested.
+          - name: provider_exchange_code
+            description: Provider exchange code from the exchange-qualified ticker.
+          - name: ticker
+            description: Exchange-qualified ticker requested from the fundamentals endpoint.
+          - name: code
+            description: Provider ticker code without exchange suffix.
+          - name: name
+            description: Instrument display name from the fundamentals General section.
+          - name: instrument_type
+            description: Provider instrument type from the fundamentals General section.
+          - name: instrument_family
+            description: Stable broad instrument family derived from the provider instrument type.
+          - name: primary_ticker
+            description: Provider primary ticker when supplied.
+          - name: provider_listing_exchange_code
+            description: Provider listing exchange value from the fundamentals General section.
+          - name: provider_updated_at
+            description: Provider-reported date when the fundamentals document was updated.
+          - name: top_level_sections
+            description: Top-level JSON sections present in the provider payload.
+          - name: payload_hash
+            description: Stable hash of the canonical provider fundamentals document.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: fundamental_stock_identity
+        description: Stock-specific identity snapshots parsed from fundamentals documents.
+        columns:
+          - name: ingestion_id
+            description: Unique ingestion row identifier.
+          - name: snapshot_date
+            description: Date the stock identity snapshot was ingested.
+          - name: provider_exchange_code
+            description: Provider exchange code from the exchange-qualified ticker.
+          - name: ticker
+            description: Exchange-qualified ticker requested from the fundamentals endpoint.
+          - name: code
+            description: Provider ticker code without exchange suffix.
+          - name: name
+            description: Stock display name.
+          - name: primary_ticker
+            description: Provider primary ticker when supplied.
+          - name: provider_listing_exchange_code
+            description: Provider listing exchange value from the fundamentals General section.
+          - name: currency_code
+            description: Trading or reporting currency code from the provider.
+          - name: currency_name
+            description: Currency display name from the provider.
+          - name: country_name
+            description: Issuer country name from the provider.
+          - name: country_iso
+            description: Issuer country ISO code from the provider.
+          - name: isin
+            description: International Securities Identification Number when supplied.
+          - name: cusip
+            description: Committee on Uniform Securities Identification Procedures identifier when supplied.
+          - name: cik
+            description: SEC Central Index Key when supplied.
+          - name: lei
+            description: Legal Entity Identifier when supplied.
+          - name: open_figi
+            description: OpenFIGI identifier when supplied.
+          - name: employer_id_number
+            description: Employer Identification Number when supplied.
+          - name: fiscal_year_end
+            description: Fiscal year-end month or label from the provider.
+          - name: ipo_date
+            description: Initial public offering date when supplied.
+          - name: sector
+            description: Provider sector classification.
+          - name: industry
+            description: Provider industry classification.
+          - name: gic_sector
+            description: GICS sector classification when supplied.
+          - name: gic_group
+            description: GICS group classification when supplied.
+          - name: gic_industry
+            description: GICS industry classification when supplied.
+          - name: gic_sub_industry
+            description: GICS sub-industry classification when supplied.
+          - name: home_category
+            description: Provider domestic or ADR classification when supplied.
+          - name: is_delisted
+            description: Whether the provider marks the stock as delisted.
+          - name: delisted_date
+            description: Delisting date when supplied.
+          - name: full_time_employees
+            description: Reported number of full-time employees when supplied.
+          - name: web_url
+            description: Company website URL when supplied.
+          - name: logo_url
+            description: Provider logo path or URL when supplied.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload fragment captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: fundamental_statement_fact
+        description: Long-form stock financial-statement facts parsed from fundamentals documents.
+        columns:
+          - name: ingestion_id
+            description: Unique ingestion row identifier.
+          - name: snapshot_date
+            description: Date the statement fact snapshot was ingested.
+          - name: provider_exchange_code
+            description: Provider exchange code from the exchange-qualified ticker.
+          - name: ticker
+            description: Exchange-qualified ticker requested from the fundamentals endpoint.
+          - name: statement_type
+            description: Statement family such as balance_sheet, cash_flow, or income_statement.
+          - name: period_type
+            description: Reporting cadence, either annual or quarterly.
+          - name: period_end_date
+            description: Financial reporting period end date.
+          - name: filing_date
+            description: Filing date associated with the report when supplied.
+          - name: currency_symbol
+            description: Statement currency symbol when supplied by the provider.
+          - name: metric_name
+            description: Provider metric name from the financial statement payload.
+          - name: metric_value
+            description: Numeric value of the statement metric.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload fragment captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: fundamental_stock_earnings_fact
+        description: Long-form stock earnings facts parsed from fundamentals Annual, History, and Trend sections.
+        columns:
+          - name: ingestion_id
+            description: Unique ingestion row identifier.
+          - name: snapshot_date
+            description: Date the earnings fact snapshot was ingested.
+          - name: provider_exchange_code
+            description: Provider exchange code from the exchange-qualified ticker.
+          - name: ticker
+            description: Exchange-qualified ticker requested from the fundamentals endpoint.
+          - name: earnings_section
+            description: Provider earnings subsection, such as annual, history, or trend.
+          - name: period_type
+            description: Reporting cadence when explicit in the provider payload, such as annual or quarterly.
+          - name: fiscal_period_end
+            description: Fiscal period end date associated with the earnings metric.
+          - name: report_date
+            description: Earnings report date when supplied by the provider.
+          - name: before_after_market
+            description: Provider timing label for the earnings announcement when supplied.
+          - name: currency_code
+            description: Currency code supplied with the earnings history row when available.
+          - name: fiscal_quarter
+            description: Provider fiscal quarter label when supplied.
+          - name: period_offset
+            description: Provider relative period label such as +1q or +1y when supplied.
+          - name: metric_name
+            description: Provider metric name from the earnings payload.
+          - name: metric_value
+            description: Numeric value of the earnings metric.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload fragment captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: fundamental_stock_shares_stats
+        description: Stock share-statistics snapshots parsed from the fundamentals SharesStats section.
+        columns:
+          - name: ingestion_id
+            description: Unique ingestion row identifier.
+          - name: snapshot_date
+            description: Date the share-statistics snapshot was ingested.
+          - name: provider_exchange_code
+            description: Provider exchange code from the exchange-qualified ticker.
+          - name: ticker
+            description: Exchange-qualified ticker requested from the fundamentals endpoint.
+          - name: shares_outstanding
+            description: Provider-reported shares outstanding.
+          - name: shares_float
+            description: Provider-reported float shares.
+          - name: percent_insiders
+            description: Provider-reported percentage held by insiders.
+          - name: percent_institutions
+            description: Provider-reported percentage held by institutions.
+          - name: shares_short
+            description: Provider-reported shares sold short when supplied.
+          - name: shares_short_prior_month
+            description: Provider-reported shares sold short in the prior month when supplied.
+          - name: short_ratio
+            description: Provider-reported short ratio when supplied.
+          - name: short_percent_outstanding
+            description: Provider-reported short interest as a percentage of outstanding shares.
+          - name: short_percent_float
+            description: Provider-reported short interest as a percentage of float shares.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload fragment captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: fundamental_stock_outstanding_shares
+        description: Historical stock outstanding-share observations parsed from fundamentals outstandingShares.
+        columns:
+          - name: ingestion_id
+            description: Unique ingestion row identifier.
+          - name: snapshot_date
+            description: Date the outstanding-shares snapshot was ingested.
+          - name: provider_exchange_code
+            description: Provider exchange code from the exchange-qualified ticker.
+          - name: ticker
+            description: Exchange-qualified ticker requested from the fundamentals endpoint.
+          - name: period_type
+            description: Provider period family, either annual or quarterly.
+          - name: provider_period_label
+            description: Provider period label such as 2026 or 2026-Q1.
+          - name: period_end_date
+            description: Period end date supplied or inferred from the provider period label.
+          - name: shares_mln
+            description: Provider-reported shares outstanding in millions.
+          - name: shares
+            description: Provider-reported shares outstanding.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload fragment captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: fundamental_stock_holder
+        description: Stock fund and institution holder rows parsed from fundamentals Holders.
+        columns:
+          - name: ingestion_id
+            description: Unique ingestion row identifier.
+          - name: snapshot_date
+            description: Date the holder snapshot was ingested.
+          - name: provider_exchange_code
+            description: Provider exchange code from the exchange-qualified ticker.
+          - name: ticker
+            description: Exchange-qualified ticker requested from the fundamentals endpoint.
+          - name: holder_type
+            description: Holder category, such as institution or fund.
+          - name: provider_position
+            description: Provider order position within the holder category.
+          - name: holder_name
+            description: Holder display name supplied by the provider.
+          - name: report_date
+            description: Provider-reported holder date.
+          - name: total_shares_percent
+            description: Provider-reported holder percentage of shares.
+          - name: total_assets_percent
+            description: Provider-reported percentage of holder assets in the stock.
+          - name: current_shares
+            description: Provider-reported current shares held.
+          - name: shares_change
+            description: Provider-reported share change.
+          - name: shares_change_percent
+            description: Provider-reported percentage share change.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload fragment captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: fundamental_stock_insider_transaction
+        description: Stock insider transaction rows parsed from fundamentals InsiderTransactions.
+        columns:
+          - name: ingestion_id
+            description: Unique ingestion row identifier.
+          - name: snapshot_date
+            description: Date the insider transaction snapshot was ingested.
+          - name: provider_exchange_code
+            description: Provider exchange code from the exchange-qualified ticker.
+          - name: ticker
+            description: Exchange-qualified ticker requested from the fundamentals endpoint.
+          - name: provider_position
+            description: Provider order position within the InsiderTransactions map.
+          - name: filing_date
+            description: Provider filing date for the insider transaction row.
+          - name: owner_cik
+            description: Insider owner CIK when supplied.
+          - name: owner_name
+            description: Insider owner display name supplied by the provider.
+          - name: transaction_date
+            description: Date the insider transaction occurred.
+          - name: transaction_code
+            description: Provider transaction code, such as P for purchase or S for sale.
+          - name: transaction_amount
+            description: Provider-reported transaction share amount.
+          - name: transaction_price
+            description: Provider-reported transaction price.
+          - name: transaction_acquired_disposed
+            description: Provider acquired or disposed flag, usually A or D.
+          - name: post_transaction_amount
+            description: Provider-reported post-transaction share amount.
+          - name: sec_link
+            description: SEC filing link supplied by the provider.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload fragment captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: fundamental_stock_splits_dividends
+        description: Stock splits/dividends snapshot parsed from fundamentals SplitsDividends.
+        columns:
+          - name: ingestion_id
+            description: Unique ingestion row identifier.
+          - name: snapshot_date
+            description: Date the splits/dividends snapshot was ingested.
+          - name: provider_exchange_code
+            description: Provider exchange code from the exchange-qualified ticker.
+          - name: ticker
+            description: Exchange-qualified ticker requested from the fundamentals endpoint.
+          - name: forward_annual_dividend_rate
+            description: Provider forward annual dividend rate.
+          - name: forward_annual_dividend_yield
+            description: Provider forward annual dividend yield.
+          - name: payout_ratio
+            description: Provider payout ratio.
+          - name: dividend_date
+            description: Provider dividend payment date when supplied.
+          - name: ex_dividend_date
+            description: Provider ex-dividend date when supplied.
+          - name: last_split_factor
+            description: Provider last split factor label.
+          - name: last_split_date
+            description: Provider last split date.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload fragment captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: fundamental_stock_dividend_count
+        description: Yearly stock dividend-count rows parsed from fundamentals SplitsDividends.
+        columns:
+          - name: ingestion_id
+            description: Unique ingestion row identifier.
+          - name: snapshot_date
+            description: Date the dividend-count snapshot was ingested.
+          - name: provider_exchange_code
+            description: Provider exchange code from the exchange-qualified ticker.
+          - name: ticker
+            description: Exchange-qualified ticker requested from the fundamentals endpoint.
+          - name: year
+            description: Calendar year supplied by the provider.
+          - name: dividend_count
+            description: Number of dividends reported for the year.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload fragment captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: fundamental_stock_metric_fact
+        description: Long-form numeric stock metrics from compact fundamentals sections.
+        columns:
+          - name: ingestion_id
+            description: Unique ingestion row identifier.
+          - name: snapshot_date
+            description: Date the metric snapshot was ingested.
+          - name: provider_exchange_code
+            description: Provider exchange code from the exchange-qualified ticker.
+          - name: ticker
+            description: Exchange-qualified ticker requested from the fundamentals endpoint.
+          - name: metric_group
+            description: Source section, such as highlights, valuation, technicals, analyst_ratings, or esg_scores.
+          - name: metric_name
+            description: Provider metric name.
+          - name: metric_value
+            description: Numeric value of the metric.
+          - name: metric_date
+            description: Date associated with the metric group when supplied.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload fragment captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: fundamental_stock_esg_activity
+        description: Stock ESG activity involvement rows parsed from fundamentals ESGScores.
+        columns:
+          - name: ingestion_id
+            description: Unique ingestion row identifier.
+          - name: snapshot_date
+            description: Date the ESG activity snapshot was ingested.
+          - name: provider_exchange_code
+            description: Provider exchange code from the exchange-qualified ticker.
+          - name: ticker
+            description: Exchange-qualified ticker requested from the fundamentals endpoint.
+          - name: rating_date
+            description: Provider ESG rating date when supplied.
+          - name: activity
+            description: ESG activity name supplied by the provider.
+          - name: involvement
+            description: Provider involvement flag or label.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload fragment captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: fundamental_etf_identity
+        description: ETF-specific identity snapshots parsed from fundamentals ETF_Data.
+        columns:
+          - name: ingestion_id
+            description: Unique ingestion row identifier.
+          - name: snapshot_date
+            description: Date the ETF identity snapshot was ingested.
+          - name: provider_exchange_code
+            description: Provider exchange code from the exchange-qualified ticker.
+          - name: ticker
+            description: Exchange-qualified ETF ticker requested from the fundamentals endpoint.
+          - name: code
+            description: Provider ticker code without exchange suffix.
+          - name: name
+            description: ETF display name from the provider.
+          - name: primary_ticker
+            description: Provider primary ticker when supplied.
+          - name: provider_listing_exchange_code
+            description: Provider listing exchange value from the fundamentals General section.
+          - name: currency_code
+            description: Trading or reporting currency code from the provider.
+          - name: currency_name
+            description: Currency display name from the provider.
+          - name: country_name
+            description: Provider country name.
+          - name: country_iso
+            description: Provider country ISO code.
+          - name: isin
+            description: International Securities Identification Number when supplied.
+          - name: open_figi
+            description: OpenFIGI identifier when supplied.
+          - name: company_name
+            description: ETF sponsor or company name from ETF_Data.
+          - name: company_url
+            description: ETF sponsor URL when supplied.
+          - name: etf_url
+            description: Provider ETF page URL when supplied.
+          - name: domicile
+            description: ETF domicile from ETF_Data.
+          - name: index_name
+            description: Tracked index name from ETF_Data.
+          - name: inception_date
+            description: ETF inception date when supplied.
+          - name: dividend_paying_frequency
+            description: Provider dividend-paying frequency label.
+          - name: holdings_count
+            description: Provider-reported number of holdings.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload fragment captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: fundamental_mutual_fund_identity
+        description: Mutual-fund-specific identity snapshots parsed from fundamentals MutualFund_Data.
+        columns:
+          - name: ingestion_id
+            description: Unique ingestion row identifier.
+          - name: snapshot_date
+            description: Date the mutual fund identity snapshot was ingested.
+          - name: provider_exchange_code
+            description: Provider exchange code from the exchange-qualified ticker.
+          - name: ticker
+            description: Exchange-qualified mutual fund ticker requested from the fundamentals endpoint.
+          - name: code
+            description: Provider ticker code without exchange suffix.
+          - name: name
+            description: Mutual fund display name from the provider.
+          - name: primary_ticker
+            description: Provider primary ticker when supplied.
+          - name: provider_listing_exchange_code
+            description: Provider listing exchange value from the fundamentals General section.
+          - name: currency_code
+            description: Trading or reporting currency code from the provider.
+          - name: currency_name
+            description: Currency display name from the provider.
+          - name: country_name
+            description: Provider country name.
+          - name: country_iso
+            description: Provider country ISO code.
+          - name: isin
+            description: International Securities Identification Number when supplied.
+          - name: cusip
+            description: Committee on Uniform Securities Identification Procedures identifier when supplied.
+          - name: open_figi
+            description: OpenFIGI identifier when supplied.
+          - name: fund_category
+            description: Provider fund category.
+          - name: fund_family
+            description: Provider fund family.
+          - name: fund_style
+            description: Provider fund style.
+          - name: fiscal_year_end
+            description: Fund fiscal year-end label.
+          - name: domicile
+            description: Fund domicile from MutualFund_Data.
+          - name: inception_date
+            description: Fund inception date when supplied.
+          - name: update_date
+            description: Provider update date for the fund data.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload fragment captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: fundamental_index_identity
+        description: Index-specific identity snapshots parsed from fundamentals General sections.
+        columns:
+          - name: ingestion_id
+            description: Unique ingestion row identifier.
+          - name: snapshot_date
+            description: Date the index identity snapshot was ingested.
+          - name: provider_exchange_code
+            description: Provider exchange code from the exchange-qualified ticker.
+          - name: ticker
+            description: Exchange-qualified index ticker requested from the fundamentals endpoint.
+          - name: code
+            description: Provider ticker code without exchange suffix.
+          - name: name
+            description: Index display name from the provider.
+          - name: provider_listing_exchange_code
+            description: Provider listing exchange value from the fundamentals General section.
+          - name: currency_code
+            description: Index currency code from the provider.
+          - name: currency_name
+            description: Index currency display name from the provider.
+          - name: country_name
+            description: Provider country name.
+          - name: country_iso
+            description: Provider country ISO code.
+          - name: open_figi
+            description: OpenFIGI identifier when supplied.
+          - name: market_cap
+            description: Provider-reported index market capitalization when supplied.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload fragment captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: fundamental_etf_holding
+        description: ETF holding edges parsed from fundamentals ETF_Data holdings sections.
+        columns:
+          - name: ingestion_id
+            description: Unique ingestion row identifier.
+          - name: snapshot_date
+            description: Date the ETF holdings snapshot was ingested.
+          - name: provider_exchange_code
+            description: Provider exchange code from the exchange-qualified ticker.
+          - name: ticker
+            description: Exchange-qualified ETF ticker requested from the fundamentals endpoint.
+          - name: holding_symbol
+            description: Provider holding symbol key.
+          - name: holding_code
+            description: Provider holding code without exchange suffix.
+          - name: holding_exchange
+            description: Provider holding exchange code.
+          - name: holding_name
+            description: Holding display name from the provider.
+          - name: sector
+            description: Provider sector classification for the holding.
+          - name: industry
+            description: Provider industry classification for the holding.
+          - name: country
+            description: Provider country classification for the holding.
+          - name: region
+            description: Provider region classification for the holding.
+          - name: assets_percent
+            description: Holding weight as a percentage of ETF assets.
+          - name: is_top_10
+            description: True when the holding also appears in the provider top-10 holdings map.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload fragment captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: fundamental_mutual_fund_holding
+        description: Mutual fund top-holding rows parsed from fundamentals MutualFund_Data.
+        columns:
+          - name: ingestion_id
+            description: Unique ingestion row identifier.
+          - name: snapshot_date
+            description: Date the mutual fund holdings snapshot was ingested.
+          - name: provider_exchange_code
+            description: Provider exchange code from the exchange-qualified ticker.
+          - name: ticker
+            description: Exchange-qualified mutual fund ticker requested from the fundamentals endpoint.
+          - name: provider_position
+            description: Provider order position within the top-holdings map.
+          - name: holding_name
+            description: Holding display name from the provider.
+          - name: weight_percent
+            description: Holding weight as a percentage of fund assets.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload fragment captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: fundamental_fund_metric_fact
+        description: Long-form numeric ETF and mutual fund metrics parsed from nested provider sections.
+        columns:
+          - name: ingestion_id
+            description: Unique ingestion row identifier.
+          - name: snapshot_date
+            description: Date the fund metric snapshot was ingested.
+          - name: provider_exchange_code
+            description: Provider exchange code from the exchange-qualified ticker.
+          - name: ticker
+            description: Exchange-qualified ETF or fund ticker requested from the fundamentals endpoint.
+          - name: instrument_family
+            description: Stable instrument family, either etf or fund.
+          - name: metric_group
+            description: Provider metric group, such as Performance, Asset_Allocation, or Sector_Weights.
+          - name: metric_category
+            description: Nested provider category when the metric comes from a map.
+          - name: metric_name
+            description: Provider metric name.
+          - name: metric_value
+            description: Numeric value of the metric.
+          - name: metric_date
+            description: Date associated with the metric group when supplied by the provider.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload fragment captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: fundamental_index_component
+        description: Current index constituent edges parsed from fundamentals Components.
+        columns:
+          - name: ingestion_id
+            description: Unique ingestion row identifier.
+          - name: snapshot_date
+            description: Date the index component snapshot was ingested.
+          - name: provider_exchange_code
+            description: Provider exchange code from the exchange-qualified ticker.
+          - name: ticker
+            description: Exchange-qualified index ticker requested from the fundamentals endpoint.
+          - name: provider_position
+            description: Provider order position within the Components map.
+          - name: component_code
+            description: Provider component ticker code.
+          - name: component_exchange
+            description: Provider component exchange code.
+          - name: component_ticker
+            description: Exchange-qualified component ticker assembled from code and exchange when available.
+          - name: component_name
+            description: Component display name from the provider.
+          - name: sector
+            description: Provider sector classification for the component.
+          - name: industry
+            description: Provider industry classification for the component.
+          - name: weight
+            description: Provider-reported component index weight.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload fragment captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.
+
+      - name: fundamental_index_historical_component
+        description: Historical index constituent membership rows parsed from fundamentals HistoricalTickerComponents.
+        columns:
+          - name: ingestion_id
+            description: Unique ingestion row identifier.
+          - name: snapshot_date
+            description: Date the historical index component snapshot was ingested.
+          - name: provider_exchange_code
+            description: Provider exchange code from the exchange-qualified ticker.
+          - name: ticker
+            description: Exchange-qualified index ticker requested from the fundamentals endpoint.
+          - name: provider_position
+            description: Provider order position within the HistoricalTickerComponents map.
+          - name: component_code
+            description: Provider component ticker code.
+          - name: component_name
+            description: Component display name from the provider.
+          - name: start_date
+            description: Date the component entered the index when supplied.
+          - name: end_date
+            description: Date the component left the index when supplied.
+          - name: is_active_now
+            description: Provider flag indicating current active membership.
+          - name: is_delisted
+            description: Provider flag indicating whether the component is delisted.
+          - name: data_provider
+            description: Provider that supplied the record.
+          - name: raw_json
+            description: Raw provider payload fragment captured for lineage and replay.
+          - name: row_hash
+            description: Stable hash of the normalized Bronze row.
+          - name: source_uri
+            description: S3 URI of the landing object that produced the row.
+          - name: ingested_at
+            description: Timestamp when the row was written to Bronze.

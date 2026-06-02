@@ -1,0 +1,151 @@
+version: 2
+
+models:
+  - name: stg_exchange_catalog
+    description: Latest provider-supported exchange/API catalog rows from Bronze.
+    columns:
+      - name: ingestion_id
+        description: Unique ingestion row identifier from Bronze.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Date the provider catalog snapshot was ingested.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider exchange/API code used in provider endpoint paths.
+        data_tests:
+          - not_null
+      - name: exchange_catalog_name
+        description: Provider display name for the exchange catalog row.
+        data_tests:
+          - not_null
+      - name: operating_mic_codes
+        description: Comma-separated operating MIC values supplied by the provider.
+      - name: country
+        description: Provider country display name.
+        data_tests:
+          - not_null
+      - name: currency
+        description: Provider primary trading currency.
+        data_tests:
+          - not_null
+      - name: country_iso2
+        description: ISO 3166-1 alpha-2 country code.
+        data_tests:
+          - not_null
+      - name: country_iso3
+        description: ISO 3166-1 alpha-3 country code.
+        data_tests:
+          - not_null
+      - name: data_provider
+        description: Provider that supplied the catalog row.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the row.
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: stg_exchange_mic_registry
+    description: Latest ISO 10383 MIC registry rows from Bronze.
+    columns:
+      - name: ingestion_id
+        description: Unique ingestion row identifier from Bronze.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Date the ISO MIC registry snapshot was ingested.
+        data_tests:
+          - not_null
+      - name: mic
+        description: Market Identifier Code allocated to the market.
+        data_tests:
+          - not_null
+      - name: operating_mic
+        description: Operating MIC for this registry row.
+        data_tests:
+          - not_null
+      - name: mic_type
+        description: MIC type, either OPRT for operating MICs or SGMT for segment MICs.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - OPRT
+                  - SGMT
+      - name: mic_name
+        description: Market name or institution description from the registry.
+        data_tests:
+          - not_null
+      - name: legal_entity_name
+        description: Legal name of the entity owning the market.
+      - name: lei
+        description: Legal Entity Identifier when supplied.
+      - name: market_category_code
+        description: ISO 10383 market category code.
+      - name: acronym
+        description: Known market acronym when supplied.
+      - name: country_iso2
+        description: ISO 3166-1 alpha-2 country code.
+        data_tests:
+          - not_null
+      - name: city
+        description: City where the market is located.
+        data_tests:
+          - not_null
+      - name: website
+        description: Market website when supplied.
+      - name: status
+        description: Lowercase registry lifecycle status.
+        data_tests:
+          - not_null
+      - name: creation_date
+        description: Date the MIC was originally created.
+        data_tests:
+          - not_null
+      - name: last_update_date
+        description: Date the MIC was last modified.
+      - name: last_validation_date
+        description: Date the MIC was last reviewed for correctness.
+      - name: expiry_date
+        description: Date the MIC was deactivated, when applicable.
+      - name: comments
+        description: Registry comments supplied by the source.
+      - name: data_provider
+        description: Provider that supplied the registry row.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - iso10383
+      - name: row_hash
+        description: Stable hash of the normalized Bronze row.
+        data_tests:
+          - not_null
+      - name: source_uri
+        description: S3 URI of the landing object that produced the row.
+      - name: ingested_at
+        description: Timestamp when the row was written to Bronze.
+        data_tests:
+          - not_null
+      - name: is_operating_mic
+        description: True when this row is an operating MIC.
+        data_tests:
+          - not_null
+      - name: is_active
+        description: True when the registry status is active.
+        data_tests:
+          - not_null

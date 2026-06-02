@@ -1,0 +1,27 @@
+# Production overrides.
+# Secrets are injected by the deployment platform (Coolify) — never commit real values here.
+
+services:
+
+  pipelines-server:
+    ports:
+      - "4200:4200"
+    environment:
+      # Set to the public-facing URL of your Prefect deployment
+      PREFECT_UI_API_URL: ${PREFECT_UI_API_URL}
+    restart: always
+
+  pipelines-db:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    restart: always
+
+  pipelines-worker:
+    environment:
+      ENVIRONMENT: prod
+      MOTHERDUCK_TOKEN: ${MOTHERDUCK_TOKEN:?MOTHERDUCK_TOKEN is required in production}
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 512m

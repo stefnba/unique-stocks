@@ -1,0 +1,329 @@
+{
+    "General": {
+        "Code": "GDAXI",
+        "Type": "INDEX",
+        "Name": "DAX Index",
+        "Exchange": "INDX",
+        "MarketCap": null,
+        "CurrencyCode": "EUR",
+        "CurrencyName": "Euro",
+        "CurrencySymbol": "\u20ac",
+        "CountryName": "Germany",
+        "CountryISO": "DE",
+        "OpenFigi": null
+    },
+    "Components": {
+        "0": {
+            "Code": "RWE",
+            "Exchange": "XETRA",
+            "Name": "RWE AG",
+            "Sector": "Utilities",
+            "Industry": "Utilities - Diversified",
+            "Weight": null
+        },
+        "1": {
+            "Code": "FRE",
+            "Exchange": "XETRA",
+            "Name": "Fresenius SE & Co. KGaA",
+            "Sector": "Healthcare",
+            "Industry": "Medical Care Facilities",
+            "Weight": null
+        },
+        "2": {
+            "Code": "DB1",
+            "Exchange": "XETRA",
+            "Name": "Deutsche B\u00f6rse AG",
+            "Sector": "Financial Services",
+            "Industry": "Financial Data & Stock Exchanges",
+            "Weight": null
+        },
+        "3": {
+            "Code": "ALV",
+            "Exchange": "XETRA",
+            "Name": "Allianz SE VNA O.N.",
+            "Sector": "Financial Services",
+            "Industry": "Insurance - Diversified",
+            "Weight": null
+        },
+        "4": {
+            "Code": "DHL",
+            "Exchange": "XETRA",
+            "Name": "Deutsche Post AG",
+            "Sector": "Industrials",
+            "Industry": "Integrated Freight & Logistics",
+            "Weight": null
+        },
+        "5": {
+            "Code": "MUV2",
+            "Exchange": "XETRA",
+            "Name": "M\u00fcnchener R\u00fcck AG",
+            "Sector": "Financial Services",
+            "Industry": "Insurance - Reinsurance",
+            "Weight": null
+        },
+        "6": {
+            "Code": "FME",
+            "Exchange": "XETRA",
+            "Name": "Fresenius Medical Care AG & Co. KGaA",
+            "Sector": "Healthcare",
+            "Industry": "Medical Care Facilities",
+            "Weight": null
+        },
+        "7": {
+            "Code": "ADS",
+            "Exchange": "XETRA",
+            "Name": "adidas AG",
+            "Sector": "Consumer Cyclical",
+            "Industry": "Footwear & Accessories",
+            "Weight": null
+        },
+        "8": {
+            "Code": "MRK",
+            "Exchange": "XETRA",
+            "Name": "Merck KGaA",
+            "Sector": "Healthcare",
+            "Industry": "Drug Manufacturers - Specialty & Generic",
+            "Weight": null
+        },
+        "9": {
+            "Code": "DTE",
+            "Exchange": "XETRA",
+            "Name": "Deutsche Telekom AG",
+            "Sector": "Communication Services",
+            "Industry": "Telecom Services",
+            "Weight": null
+        },
+        "10": {
+            "Code": "DBK",
+            "Exchange": "XETRA",
+            "Name": "Deutsche Bank Aktiengesellschaft",
+            "Sector": "Financial Services",
+            "Industry": "Banks - Regional",
+            "Weight": null
+        },
+        "11": {
+            "Code": "RHM",
+            "Exchange": "XETRA",
+            "Name": "Rheinmetall AG",
+            "Sector": "Industrials",
+            "Industry": "Aerospace & Defense",
+            "Weight": null
+        },
+        "12": {
+            "Code": "SAP",
+            "Exchange": "XETRA",
+            "Name": "SAP SE",
+            "Sector": "Technology",
+            "Industry": "Software - Application",
+            "Weight": null
+        },
+        "13": {
+            "Code": "SY1",
+            "Exchange": "XETRA",
+            "Name": "Symrise AG",
+            "Sector": "Basic Materials",
+            "Industry": "Specialty Chemicals",
+            "Weight": null
+        },
+        "14": {
+            "Code": "CBK",
+            "Exchange": "XETRA",
+            "Name": "Commerzbank AG",
+            "Sector": "Financial Services",
+            "Industry": "Banks - Regional",
+            "Weight": null
+        },
+        "15": {
+            "Code": "SIE",
+            "Exchange": "XETRA",
+            "Name": "Siemens Aktiengesellschaft",
+            "Sector": "Industrials",
+            "Industry": "Specialty Industrial Machinery",
+            "Weight": null
+        },
+        "16": {
+            "Code": "BAYN",
+            "Exchange": "XETRA",
+            "Name": "Bayer AG NA",
+            "Sector": "Healthcare",
+            "Industry": "Drug Manufacturers - General",
+            "Weight": null
+        },
+        "17": {
+            "Code": "G1A",
+            "Exchange": "XETRA",
+            "Name": "GEA GROUP",
+            "Sector": "Industrials",
+            "Industry": "Specialty Industrial Machinery",
+            "Weight": null
+        },
+        "18": {
+            "Code": "BNR",
+            "Exchange": "XETRA",
+            "Name": "Brenntag SE",
+            "Sector": "Basic Materials",
+            "Industry": "Specialty Chemicals",
+            "Weight": null
+        },
+        "19": {
+            "Code": "MBG",
+            "Exchange": "XETRA",
+            "Name": "Mercedes-Benz Group AG",
+            "Sector": "Consumer Cyclical",
+            "Industry": "Auto Manufacturers",
+            "Weight": null
+        },
+        "20": {
+            "Code": "HEI",
+            "Exchange": "XETRA",
+            "Name": "Heidelberg Materials AG",
+            "Sector": "Basic Materials",
+            "Industry": "Building Materials",
+            "Weight": null
+        },
+        "21": {
+            "Code": "CON",
+            "Exchange": "XETRA",
+            "Name": "Continental Aktiengesellschaft",
+            "Sector": "Consumer Cyclical",
+            "Industry": "Auto Parts",
+            "Weight": null
+        },
+        "22": {
+            "Code": "BEI",
+            "Exchange": "XETRA",
+            "Name": "Beiersdorf Aktiengesellschaft",
+            "Sector": "Consumer Defensive",
+            "Industry": "Household & Personal Products",
+            "Weight": null
+        },
+        "23": {
+            "Code": "BAS",
+            "Exchange": "XETRA",
+            "Name": "BASF SE",
+            "Sector": "Basic Materials",
+            "Industry": "Chemicals",
+            "Weight": null
+        },
+        "24": {
+            "Code": "BMW",
+            "Exchange": "XETRA",
+            "Name": "Bayerische Motoren Werke Aktiengesellschaft",
+            "Sector": "Consumer Cyclical",
+            "Industry": "Auto Manufacturers",
+            "Weight": null
+        },
+        "25": {
+            "Code": "IFX",
+            "Exchange": "XETRA",
+            "Name": "Infineon Technologies AG",
+            "Sector": "Technology",
+            "Industry": "Semiconductors",
+            "Weight": null
+        },
+        "26": {
+            "Code": "EOAN",
+            "Exchange": "XETRA",
+            "Name": "E.ON SE",
+            "Sector": "Utilities",
+            "Industry": "Utilities - Diversified",
+            "Weight": null
+        },
+        "27": {
+            "Code": "MTX",
+            "Exchange": "XETRA",
+            "Name": "MTU Aero Engines AG",
+            "Sector": "Industrials",
+            "Industry": "Aerospace & Defense",
+            "Weight": null
+        },
+        "28": {
+            "Code": "HNR1",
+            "Exchange": "XETRA",
+            "Name": "Hannover R\u00fcck SE",
+            "Sector": "Financial Services",
+            "Industry": "Insurance - Reinsurance",
+            "Weight": null
+        },
+        "29": {
+            "Code": "PAH3",
+            "Exchange": "XETRA",
+            "Name": "Porsche Automobil Holding SE",
+            "Sector": "Consumer Cyclical",
+            "Industry": "Auto Manufacturers",
+            "Weight": null
+        },
+        "30": {
+            "Code": "VOW3",
+            "Exchange": "XETRA",
+            "Name": "Volkswagen AG VZO O.N.",
+            "Sector": "Consumer Cyclical",
+            "Industry": "Auto Manufacturers",
+            "Weight": null
+        },
+        "31": {
+            "Code": "HEN3",
+            "Exchange": "XETRA",
+            "Name": "Henkel AG & Co. KGaA vz. (Pref Shares)",
+            "Sector": "Consumer Defensive",
+            "Industry": "Household & Personal Products",
+            "Weight": null
+        },
+        "32": {
+            "Code": "ZAL",
+            "Exchange": "XETRA",
+            "Name": "Zalando SE",
+            "Sector": "Consumer Cyclical",
+            "Industry": "Internet Retail",
+            "Weight": null
+        },
+        "33": {
+            "Code": "VNA",
+            "Exchange": "XETRA",
+            "Name": "Vonovia SE",
+            "Sector": "Real Estate",
+            "Industry": "Real Estate Services",
+            "Weight": null
+        },
+        "34": {
+            "Code": "AIR",
+            "Exchange": "XETRA",
+            "Name": "Airbus SE",
+            "Sector": "Industrials",
+            "Industry": "Aerospace & Defense",
+            "Weight": null
+        },
+        "35": {
+            "Code": "G24",
+            "Exchange": "XETRA",
+            "Name": "Scout24 AG",
+            "Sector": "Communication Services",
+            "Industry": "Internet Content & Information",
+            "Weight": null
+        },
+        "36": {
+            "Code": "SHL",
+            "Exchange": "XETRA",
+            "Name": "Siemens Healthineers AG",
+            "Sector": "Healthcare",
+            "Industry": "Medical Devices",
+            "Weight": null
+        },
+        "37": {
+            "Code": "ENR",
+            "Exchange": "XETRA",
+            "Name": "Siemens Energy AG",
+            "Sector": "Industrials",
+            "Industry": "Specialty Industrial Machinery",
+            "Weight": null
+        },
+        "38": {
+            "Code": "DTG",
+            "Exchange": "XETRA",
+            "Name": "Daimler Truck Holding AG",
+            "Sector": "Industrials",
+            "Industry": "Farm & Heavy Construction Machinery",
+            "Weight": null
+        }
+    }
+}

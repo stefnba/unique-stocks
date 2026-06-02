@@ -1,0 +1,13 @@
+unique_stocks:
+  target: "{{ env_var('DBT_TARGET', 'dev') }}"
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('DBT_DUCKDB_PATH', '../unique_stocks.duckdb') }}"
+      schema: main
+      threads: 4
+    prod:
+      type: duckdb
+      path: "md:unique_stocks?motherduck_token={{ env_var('MOTHERDUCK_TOKEN') }}"
+      schema: main
+      threads: 4

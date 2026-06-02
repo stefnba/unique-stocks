@@ -1,0 +1,48 @@
+# Base service definitions — no environment-specific values.
+# Never use directly. Compose with an override:
+#   docker compose -f .../docker-compose.yml -f .../docker-compose.dev.yml ...
+# Use make infra-* targets from the repo root.
+
+name: unique-stocks
+
+services:
+
+  # ── Prefect server (API + UI) ──────────────────────────────────────────────
+  pipelines-server:
+    image: prefecthq/prefect:3.7.0-python3.14
+    command: prefect server start --host 0.0.0.0
+    environment:
+      PREFECT_SERVER_DATABASE_CONNECTION_URL: postgresql+asyncpg://prefect:prefect@pipelines-db:5432/prefect
+    depends_on:
+      pipelines-db:
+        condition: service_healthy
+
+  # ── Postgres (Prefect persistence) ────────────────────────────────────────
+  pipelines-db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: prefect
+      POSTGRES_PASSWORD: prefect
+      POSTGRES_DB: prefect
+    volumes:
+      - prefect-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prefect"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Pipelines worker ───────────────────────────────────────────────────────
+  pipelines-worker:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    environment:
+      PREFECT_API_URL: http://pipelines-server:4200/api
+      PREFECT_WORK_DIR: /app
+    depends_on:
+      - pipelines-server
+    command: uv run --no-dev --frozen prefect worker start --pool default-process-pool
+
+volumes:
+  prefect-db:

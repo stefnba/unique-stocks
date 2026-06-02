@@ -1,0 +1,61 @@
+[sqlfluff]
+dialect = duckdb
+templater = jinja
+ignore = templating
+max_line_length = 120
+fix_even_unparsable = true
+exclude_rules = AL04, AL09, AM04, AM05, AM06, CP02, ST06, ST11
+large_file_skip_byte_limit = 0
+
+[sqlfluff:templater:jinja]
+# Add dbt or custom jinja variable context here when needed
+
+[sqlfluff:templater:jinja:context]
+
+[sqlfluff:indentation]
+indent_unit = space
+tab_space_size = 4
+implicit_indents = require
+indented_on_contents = false
+
+[sqlfluff:rules:capitalisation.keywords]
+capitalisation_policy = upper
+
+[sqlfluff:rules:capitalisation.literals]
+capitalisation_policy = upper
+
+[sqlfluff:rules:capitalisation.types]
+extended_capitalisation_policy = upper
+
+[sqlfluff:rules:capitalisation.functions]
+extended_capitalisation_policy = upper
+
+[sqlfluff:rules:layout.newlines]
+maximum_empty_lines_inside_statements = 1
+maximum_empty_lines_between_statements = 1
+
+[sqlfluff:rules:aliasing.table]
+aliasing = explicit
+
+[sqlfluff:rules:aliasing.column]
+aliasing = explicit
+
+[sqlfluff:rules:references.qualification]
+subqueries_ignore_external_references = true
+
+[sqlfluff:rules:references.consistent]
+force_enable = true
+
+[sqlfluff:layout:type:comma]
+line_position = trailing
+
+[sqlfluff:layout:type:limit_clause]
+keyword_line_position = leading
+
+[sqlfluff:layout:type:comparison_operator]
+spacing_before = single:inline
+spacing_after = single:inline
+
+[sqlfluff:layout:type:assignment_operator]
+spacing_before = single:inline
+spacing_after = single:inline

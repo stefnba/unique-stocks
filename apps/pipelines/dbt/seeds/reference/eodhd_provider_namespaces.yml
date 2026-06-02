@@ -1,0 +1,50 @@
+version: 2
+
+seeds:
+  - name: eodhd_provider_namespaces
+    description: Curated EODHD symbol namespaces that are accepted by provider endpoints but omitted from /exchanges-list.
+    columns:
+      - name: data_provider
+        description: Market data provider that owns the namespace.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider endpoint path and ticker suffix code, such as INDX in GDAXI.INDX.
+        data_tests:
+          - not_null
+      - name: provider_code_kind
+        description: Classification for the provider code when it is not a normal catalog exchange.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - index_namespace
+      - name: display_name
+        description: Human-readable namespace label.
+        data_tests:
+          - not_null
+      - name: asset_type_hint
+        description: Expected dominant provider asset type for instruments in this namespace.
+      - name: country_iso2
+        description: Optional ISO 3166-1 alpha-2 country when the namespace is country-specific.
+      - name: currency
+        description: Optional currency when the namespace is single-currency.
+      - name: is_enabled_for_instrument
+        description: True when the instrument flow should ingest this namespace.
+        data_tests:
+          - not_null
+      - name: is_enabled_for_eod_price
+        description: True when EOD price flows should ingest this namespace.
+        data_tests:
+          - not_null
+      - name: verification_symbol
+        description: Representative exchange-qualified symbol used to verify endpoint support.
+        data_tests:
+          - not_null
+      - name: last_verified_on
+        description: Date endpoint support was last manually verified.
+        data_tests:
+          - not_null
+      - name: notes
+        description: Short source and verification note for humans reviewing curated provider coverage.

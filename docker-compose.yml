@@ -1,0 +1,12 @@
+# Convenience alias — equivalent to make infra-up.
+# Compose with the appropriate override directly for non-dev environments:
+#
+#   Dev (Docker):  docker compose -f apps/pipelines/deploy/docker-compose.yml \
+#                                 -f apps/pipelines/deploy/docker-compose.dev.yml up -d
+#
+#   Production:    docker compose -f apps/pipelines/deploy/docker-compose.yml \
+#                                 -f apps/pipelines/deploy/docker-compose.prod.yml up -d
+
+include:
+  - apps/pipelines/deploy/docker-compose.yml
+  - apps/pipelines/deploy/docker-compose.dev.yml
