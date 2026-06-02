@@ -20,7 +20,7 @@ APPS_PIPELINES = Path(__file__).resolve().parents[2]
 def test_load_prefect_yaml_deployments() -> None:
     """The repo manifest should declare the current deployment set."""
     deployments = load_prefect_yaml_deployments(APPS_PIPELINES / DEFAULT_PREFECT_YAML)
-    assert len(deployments) == 14
+    assert len(deployments) == 15
 
 
 def test_expected_deployment_keys_matches_manifest() -> None:
@@ -29,9 +29,10 @@ def test_expected_deployment_keys_matches_manifest() -> None:
     keys = expected_deployment_keys(deployments)
 
     assert DeploymentKey("eod-price-daily", "daily") in keys
+    assert DeploymentKey("dbt-build", "instrument-build") in keys
     assert DeploymentKey("dbt-build", "fundamental-build") in keys
     assert DeploymentKey("fundamental-quarterly", "replay") in keys
-    assert len(keys) == 14
+    assert len(keys) == 15
 
 
 @pytest.mark.parametrize(
