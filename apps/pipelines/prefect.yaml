@@ -263,8 +263,8 @@ deployments:
         - eodhd_provider_namespaces
         - path:models/staging/exchange
         - path:models/staging/exchange_schedule
-        - path:models/intermediate/exchange
-        - path:models/marts/exchange
+        - +path:models/intermediate/exchange
+        - +path:models/marts/exchange
     <<: *dbt_build
 
   - name: instrument-build
@@ -276,9 +276,9 @@ deployments:
       select:
         - path:models/staging/instrument
         - path:models/staging/fundamental
-        - path:models/intermediate/instrument
-        - path:models/intermediate/fundamental
-        - path:models/marts/security
+        - +path:models/intermediate/instrument
+        - +path:models/intermediate/fundamental
+        - +path:models/marts/security
     <<: *dbt_build
 
   - name: price-build
@@ -288,7 +288,7 @@ deployments:
     parameters:
       select:
         - path:models/staging/price
-        - path:models/marts/price
+        - +path:models/marts/price
     <<: *dbt_build
 
   - name: fundamental-build
@@ -298,7 +298,7 @@ deployments:
     parameters:
       select:
         - path:models/staging/fundamental
-        - path:models/intermediate/fundamental
-        - path:models/marts/fundamental
-        - path:models/marts/security
+        - +path:models/intermediate/fundamental
+        - +path:models/marts/fundamental
+        - +path:models/marts/security
     <<: *dbt_build
