@@ -30,7 +30,7 @@ def main() -> None:
         st.cache_data.clear()
 
     if route["page"] == RUN_PAGE:
-        render_run_page(route.get("run_id"))
+        render_run_page(route.get("run_id"), preview_unit_id=route.get("preview_unit_id"))
         return
 
     if route["page"] == UNIT_PAGE:

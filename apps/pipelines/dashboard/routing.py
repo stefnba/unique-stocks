@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
 from urllib.parse import quote
 
 import streamlit as st
@@ -14,21 +13,33 @@ def current_route() -> dict[str, str | None]:
     """Read the active dashboard route from Streamlit query params.
 
     Returns:
-        Mapping with ``page``, ``run_id``, and ``unit_id`` keys.
+        Mapping with ``page``, ``run_id``, ``unit_id``, and ``preview_unit_id`` keys.
     """
     page = query_param("page") or OVERVIEW_PAGE
     if page not in {OVERVIEW_PAGE, RUN_PAGE, UNIT_PAGE}:
         page = OVERVIEW_PAGE
-    return {"page": page, "run_id": query_param("run_id"), "unit_id": query_param("unit_id")}
+    return {
+        "page": page,
+        "run_id": query_param("run_id"),
+        "unit_id": query_param("unit_id"),
+        "preview_unit_id": query_param("preview_unit_id"),
+    }
 
 
-def set_route(page: str, *, run_id: str | None = None, unit_id: str | None = None) -> None:
+def set_route(
+    page: str,
+    *,
+    run_id: str | None = None,
+    unit_id: str | None = None,
+    preview_unit_id: str | None = None,
+) -> None:
     """Update Streamlit query params for the requested dashboard route.
 
     Args:
         page: Target page slug such as ``overview``, ``run``, or ``unit``.
         run_id: Optional durable run identifier for drill-down routes.
         unit_id: Optional durable unit identifier for unit drill-down routes.
+        preview_unit_id: Optional unit identifier for inline preview on the run page.
     """
     st.query_params["page"] = page
     if run_id:
@@ -39,6 +50,10 @@ def set_route(page: str, *, run_id: str | None = None, unit_id: str | None = Non
         st.query_params["unit_id"] = unit_id
     elif "unit_id" in st.query_params:
         del st.query_params["unit_id"]
+    if preview_unit_id:
+        st.query_params["preview_unit_id"] = preview_unit_id
+    elif "preview_unit_id" in st.query_params:
+        del st.query_params["preview_unit_id"]
 
 
 def query_param(name: str) -> str | None:
@@ -83,6 +98,35 @@ def unit_detail_href(*, run_id: str, unit_id: object) -> str:
     return f"?page={UNIT_PAGE}&run_id={quote(run_id, safe='')}&unit_id={quote(str(unit_id), safe='')}"
 
 
+def run_unit_preview_href(*, run_id: str, unit_id: object) -> str:
+    """Build a relative href for inline unit preview on the run page.
+
+    Args:
+        run_id: Parent run identifier.
+        unit_id: Durable work-unit identifier to preview.
+
+    Returns:
+        Bookmarkable relative URL that opens the run page with preview active.
+    """
+    return f"?page={RUN_PAGE}&run_id={quote(run_id, safe='')}&preview_unit_id={quote(str(unit_id), safe='')}"
+
+
+def labeled_href(href: str, label: str) -> str:
+    """Append a URL fragment used as per-row LinkColumn display text.
+
+    Streamlit extracts the fragment with a ``display_text`` regex while the browser
+    ignores it when navigating.
+
+    Args:
+        href: Target relative URL.
+        label: Human-readable link label, typically a shortened id.
+
+    Returns:
+        URL with ``#label`` appended for dataframe link columns.
+    """
+    return f"{href}#{label}"
+
+
 def overview_href() -> str:
     """Build a relative href for the overview route.
 
@@ -121,78 +165,3 @@ def render_breadcrumb(*parts: tuple[str, str | None]) -> None:
         else:
             links.append(label)
     st.markdown(" › ".join(links))
-
-
-def navigate_on_row_selection(
-    *,
-    state: object,
-    values: list[Any],
-    key: str,
-    page: str,
-    run_id: str | None = None,
-) -> None:
-    """Navigate when the user selects a different dataframe row.
-
-    Args:
-        state: Streamlit dataframe selection state object.
-        values: Underlying identifier list aligned with dataframe row order.
-        key: Unique widget key used to track the previous selection.
-        page: Target page slug, typically ``run`` or ``unit``.
-        run_id: Parent run identifier required when ``page`` is ``unit``.
-    """
-    selected_index = selected_row_index(state)
-    if selected_index is None:
-        return
-
-    session_key = f"{key}_selection"
-    previous_index = st.session_state.get(session_key)
-    if previous_index == selected_index:
-        return
-
-    st.session_state[session_key] = selected_index
-    selected_value = value_at(values, selected_index)
-    if selected_value is None:
-        return
-
-    if page == UNIT_PAGE:
-        if run_id is None:
-            return
-        set_route(UNIT_PAGE, run_id=run_id, unit_id=str(selected_value))
-    elif page == RUN_PAGE:
-        set_route(RUN_PAGE, run_id=str(selected_value))
-    st.rerun()
-
-
-def selected_row_index(state: object) -> int | None:
-    """Extract the first selected row index from a Streamlit dataframe state.
-
-    Args:
-        state: Streamlit dataframe widget return value.
-
-    Returns:
-        Zero-based selected row index, or ``None`` when nothing is selected.
-    """
-    selection = getattr(state, "selection", None)
-    if selection is None and isinstance(state, dict):
-        selection = state.get("selection")
-    rows = getattr(selection, "rows", None)
-    if rows is None and isinstance(selection, dict):
-        rows = selection.get("rows")
-    if not rows:
-        return None
-    return int(rows[0])
-
-
-def value_at(values: list[Any], index: int | None) -> Any | None:
-    """Return the list value at an index when in bounds.
-
-    Args:
-        values: Source list aligned with dataframe rows.
-        index: Selected row index.
-
-    Returns:
-        Value at ``index``, or ``None`` when the index is invalid.
-    """
-    if index is None or index < 0 or index >= len(values):
-        return None
-    return values[index]

@@ -32,3 +32,4 @@ INTEGER_TABLE_COLUMNS = frozenset(
     }
 )
 FLOAT_TABLE_COLUMNS = frozenset({"execution_time"})
+LINK_COLUMN_LABEL_PATTERN = r"#(.*)$"

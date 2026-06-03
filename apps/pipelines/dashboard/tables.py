@@ -8,7 +8,12 @@ import pandas as pd
 import streamlit as st
 from pandas.io.formats.style import Styler
 
-from dashboard.constants import FLOAT_TABLE_COLUMNS, INTEGER_TABLE_COLUMNS, UNIT_ATTENTION_STATUSES
+from dashboard.constants import (
+    FLOAT_TABLE_COLUMNS,
+    INTEGER_TABLE_COLUMNS,
+    LINK_COLUMN_LABEL_PATTERN,
+    UNIT_ATTENTION_STATUSES,
+)
 from dashboard.formatting import (
     format_datetime,
     format_duration,
@@ -19,7 +24,7 @@ from dashboard.formatting import (
     short_id,
     truncate_text,
 )
-from dashboard.routing import RUN_PAGE, navigate_on_row_selection
+from dashboard.routing import labeled_href, run_detail_href, run_unit_preview_href
 
 
 def frame(rows: list[dict[str, Any]]) -> pd.DataFrame:
@@ -140,7 +145,11 @@ def compact_run_frame(source: pd.DataFrame) -> pd.DataFrame:
         result.insert(
             0,
             "run_id_short",
-            pd.Series([short_id(value) for value in source["run_id"].tolist()], index=result.index, dtype="string"),
+            pd.Series(
+                [labeled_href(run_detail_href(run_id), short_id(run_id)) for run_id in source["run_id"].tolist()],
+                index=result.index,
+                dtype="string",
+            ),
         )
     if "duration_seconds" in result.columns:
         result["duration"] = [format_duration(value) for value in result["duration_seconds"].tolist()]
@@ -169,11 +178,12 @@ def compact_run_frame(source: pd.DataFrame) -> pd.DataFrame:
     return cast(pd.DataFrame, result.loc[:, [column for column in ordered_columns if column in result.columns]])
 
 
-def compact_unit_frame(source: pd.DataFrame) -> pd.DataFrame:
+def compact_unit_frame(source: pd.DataFrame, *, run_id: str) -> pd.DataFrame:
     """Build the compact work-unit table shown on run detail pages.
 
     Args:
         source: Raw unit rows including ``unit_id`` and ``unit_key_json``.
+        run_id: Parent run identifier used for detail and preview links.
 
     Returns:
         Display-ready dataframe with parsed unit-key columns when available.
@@ -198,7 +208,17 @@ def compact_unit_frame(source: pd.DataFrame) -> pd.DataFrame:
         result.insert(
             0,
             "unit_id_short",
-            pd.Series([short_id(value) for value in source["unit_id"].tolist()], index=result.index, dtype="string"),
+            pd.Series(
+                [
+                    labeled_href(
+                        run_unit_preview_href(run_id=run_id, unit_id=unit_id),
+                        short_id(unit_id),
+                    )
+                    for unit_id in source["unit_id"].tolist()
+                ],
+                index=result.index,
+                dtype="string",
+            ),
         )
     unit_key_frame, unit_key_columns = unit_key_columns_frame(source)
     if not unit_key_frame.empty:
@@ -232,41 +252,44 @@ def compact_unit_frame(source: pd.DataFrame) -> pd.DataFrame:
 
 
 def render_run_table(source: pd.DataFrame, *, key: str) -> None:
-    """Render an selectable run table that navigates to run detail on row select.
+    """Render a run table with links to run detail pages.
 
     Args:
         source: Raw run rows including ``run_id``.
         key: Unique Streamlit widget key for the table instance.
     """
     table = compact_run_frame(source)
-    state = st.dataframe(
+    st.dataframe(
         styled_table(table),
         width="stretch",
         hide_index=True,
         key=key,
-        on_select="rerun",
-        selection_mode="single-row",
         column_config=table_column_config(
             table,
-            extra={"run_id_short": st.column_config.TextColumn("Run ID", width="small")},
+            extra={
+                "run_id_short": st.column_config.LinkColumn(
+                    "Run ID",
+                    width="small",
+                    display_text=LINK_COLUMN_LABEL_PATTERN,
+                ),
+            },
         ),
     )
-    run_ids = source["run_id"].tolist() if "run_id" in source.columns else []
-    navigate_on_row_selection(state=state, values=run_ids, key=key, page=RUN_PAGE)
-    st.caption("Select a row to open run detail.")
+    st.caption("Click a run ID to inspect units and evidence.")
 
 
-def render_unit_table(source: pd.DataFrame, *, key: str) -> str | None:
+def render_unit_table(source: pd.DataFrame, *, run_id: str, key: str) -> str | None:
     """Render a selectable unit table and return the selected unit id.
 
     Args:
         source: Filtered unit rows including ``unit_id``.
+        run_id: Parent run identifier used for detail and preview links.
         key: Unique Streamlit widget key for the table instance.
 
     Returns:
         Selected unit id as a string, or ``None`` when no row is selected.
     """
-    table = compact_unit_frame(source)
+    table = compact_unit_frame(source, run_id=run_id)
     state = st.dataframe(
         styled_table(table),
         width="stretch",
@@ -276,13 +299,19 @@ def render_unit_table(source: pd.DataFrame, *, key: str) -> str | None:
         selection_mode="single-row",
         column_config=table_column_config(
             table,
-            extra={"unit_id_short": st.column_config.TextColumn("Unit ID", width="small")},
+            extra={
+                "unit_id_short": st.column_config.LinkColumn(
+                    "Unit ID",
+                    width="small",
+                    display_text=LINK_COLUMN_LABEL_PATTERN,
+                ),
+            },
         ),
     )
     unit_ids = source["unit_id"].tolist() if "unit_id" in source.columns else []
     selected_index = _selected_index_from_state(state)
     selected_unit_id = _value_at(unit_ids, selected_index)
-    st.caption("Select a row to inspect unit evidence below.")
+    st.caption("Click a unit ID or select a row to inspect evidence below.")
     return str(selected_unit_id) if selected_unit_id is not None else None
 
 

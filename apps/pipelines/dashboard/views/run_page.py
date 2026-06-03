@@ -36,11 +36,12 @@ from dashboard.views.components import (
 )
 
 
-def render_run_page(run_id: str | None) -> None:
+def render_run_page(run_id: str | None, *, preview_unit_id: str | None = None) -> None:
     """Render one run's drill-down route.
 
     Args:
         run_id: Durable run identifier from ``pipeline.runs``.
+        preview_unit_id: Optional unit id from query params for inline evidence preview.
     """
     render_breadcrumb(("Pipeline Audit", overview_href()), ("Run", None))
 
@@ -61,7 +62,7 @@ def render_run_page(run_id: str | None) -> None:
         return
 
     _render_run_summary(run)
-    _render_run_detail(run, page["detail"])
+    _render_run_detail(run, page["detail"], preview_unit_id=preview_unit_id)
 
 
 def _render_run_summary(run: dict[str, Any]) -> None:
@@ -105,12 +106,18 @@ def _render_run_summary(run: dict[str, Any]) -> None:
         action_columns[1].link_button("Open parent run", run_detail_href(run["parent_run_id"]))
 
 
-def _render_run_detail(run: dict[str, Any], detail: dict[str, list[dict[str, Any]]]) -> None:
+def _render_run_detail(
+    run: dict[str, Any],
+    detail: dict[str, list[dict[str, Any]]],
+    *,
+    preview_unit_id: str | None = None,
+) -> None:
     """Render investigation tabs for one run.
 
     Args:
         run: Run row from ``pipeline.runs``.
         detail: Nested evidence lists loaded for the run.
+        preview_unit_id: Optional unit id from query params for inline evidence preview.
     """
     st.subheader("Investigation")
     units, rejections, landing, dbt, payload = st.tabs(
@@ -129,6 +136,7 @@ def _render_run_detail(run: dict[str, Any], detail: dict[str, list[dict[str, Any
             landing_rows=detail["landing_objects"],
             rejection_rows=detail["rejections"],
             run_id=str(run["run_id"]),
+            preview_unit_id=preview_unit_id,
         )
 
     with rejections:
@@ -151,6 +159,7 @@ def _render_units_panel(
     landing_rows: list[dict[str, Any]],
     rejection_rows: list[dict[str, Any]],
     run_id: str,
+    preview_unit_id: str | None = None,
 ) -> None:
     """Render the filterable unit table and selected-unit evidence panel.
 
@@ -160,6 +169,7 @@ def _render_units_panel(
         landing_rows: Run-scoped landing-object rows used for inline evidence.
         rejection_rows: Run-scoped rejection rows used for inline evidence.
         run_id: Parent run identifier used for widget keys and unit links.
+        preview_unit_id: Optional unit id from query params for inline evidence preview.
     """
     render_unit_status_summary(unit_status_rows)
 
@@ -196,14 +206,15 @@ def _render_units_panel(
         st.info("No work units match the selected unit filters.")
         return
 
-    selected_unit_id = render_unit_table(filtered, key=f"run_units_{safe_key(run_id)}")
+    selected_unit_id = render_unit_table(filtered, run_id=run_id, key=f"run_units_{safe_key(run_id)}")
     render_units_limit_note(unit_rows)
 
-    if selected_unit_id:
-        st.markdown("**Selected unit evidence**")
-        st.link_button("Open full unit detail", unit_detail_href(run_id=run_id, unit_id=selected_unit_id))
-        unit_landing = [row for row in landing_rows if str(row.get("unit_id")) == selected_unit_id]
-        unit_rejections = [row for row in rejection_rows if str(row.get("unit_id")) == selected_unit_id]
+    active_unit_id = selected_unit_id or preview_unit_id
+    if active_unit_id:
+        st.markdown("**Unit evidence**")
+        st.link_button("Open full unit detail", unit_detail_href(run_id=run_id, unit_id=active_unit_id))
+        unit_landing = [row for row in landing_rows if str(row.get("unit_id")) == active_unit_id]
+        unit_rejections = [row for row in rejection_rows if str(row.get("unit_id")) == active_unit_id]
         evidence_landing, evidence_rejections = st.tabs(
             [
                 f"Landing ({len(unit_landing)})",
