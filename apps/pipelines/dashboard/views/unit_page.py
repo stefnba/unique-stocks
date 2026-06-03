@@ -16,7 +16,8 @@ from dashboard.formatting import (
     short_id,
 )
 from dashboard.loaders import load_unit_page
-from dashboard.routing import landing_objects_href, overview_href, render_breadcrumb, run_detail_href, run_units_href
+from dashboard.routing import landing_objects_href, overview_href, run_detail_href, run_units_href
+from dashboard.views.common import render_breadcrumb_bar
 from dashboard.views.components import (
     render_key_fields,
     render_landing_table,
@@ -33,7 +34,7 @@ def render_unit_page(run_id: str | None, unit_id: str | None) -> None:
         unit_id: Durable work-unit identifier.
     """
     run_href = run_detail_href(run_id) if run_id else None
-    render_breadcrumb(
+    render_breadcrumb_bar(
         ("Pipeline Audit", overview_href()),
         ("Run Units", run_units_href(run_id=run_id)),
         ("Run", run_href),

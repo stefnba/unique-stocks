@@ -18,6 +18,9 @@ def render_dashboard_style() -> None:
         .stApp {
             background: var(--audit-bg);
         }
+        [data-testid="stMainBlockContainer"] {
+            padding-top: 3.5rem;
+        }
         [data-testid="stMetric"] {
             background: #ffffff;
             border: 1px solid var(--audit-border);
@@ -41,6 +44,11 @@ def render_dashboard_style() -> None:
         .stButton > button, .stLinkButton > a {
             border-radius: 6px;
             font-weight: 600;
+        }
+        button[kind="secondary"]:has(span[data-testid="stIconMaterial"]:only-child) {
+            min-width: 2.25rem;
+            padding-left: 0.45rem;
+            padding-right: 0.45rem;
         }
         </style>
         """,

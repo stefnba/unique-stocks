@@ -134,21 +134,6 @@ def landing_object_detail_href(landing_id: object) -> str:
     return _page_href(LANDING_OBJECT_DETAIL_PAGE, landing_id=str(landing_id))
 
 
-def render_breadcrumb(*parts: tuple[str, str | None]) -> None:
-    """Render clickable breadcrumb links from label/href pairs.
-
-    Args:
-        *parts: Sequence of ``(label, href)`` tuples. ``href=None`` renders plain text.
-    """
-    links: list[str] = []
-    for label, href in parts:
-        if href:
-            links.append(f"[{label}]({href})")
-        else:
-            links.append(label)
-    st.markdown(" › ".join(links))
-
-
 def _page_href(path: str, **params: str | None) -> str:
     """Build a Streamlit page-relative URL that preserves app base paths."""
     query = "&".join(

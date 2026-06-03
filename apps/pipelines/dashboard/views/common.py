@@ -10,7 +10,6 @@ import streamlit as st
 
 from dashboard.constants import CACHE_TTL_SECONDS
 from dashboard.formatting import format_datetime
-from dashboard.routing import render_breadcrumb
 
 
 def render_page_header(
@@ -20,9 +19,28 @@ def render_page_header(
     breadcrumb: tuple[tuple[str, str | None], ...],
 ) -> None:
     """Render breadcrumb, title, and caption for a dashboard route."""
-    render_breadcrumb(*breadcrumb)
+    render_breadcrumb_bar(*breadcrumb)
     st.title(title)
     st.caption(caption)
+
+
+def render_breadcrumb_bar(*parts: tuple[str, str | None]) -> None:
+    """Render breadcrumbs and the shared refresh action on one row.
+
+    Args:
+        *parts: Sequence of ``(label, href)`` tuples. ``href=None`` renders plain text.
+    """
+    breadcrumb_column, action_column = st.columns([10, 0.35], vertical_alignment="center")
+    breadcrumb_column.markdown(_breadcrumb_markdown(*parts))
+    if action_column.button(
+        "",
+        icon=":material/refresh:",
+        help="Refresh dashboard data",
+        width="stretch",
+        key="dashboard_refresh",
+    ):
+        st.cache_data.clear()
+        st.rerun()
 
 
 def render_cache_caption(since: datetime) -> None:
@@ -60,3 +78,14 @@ def lake_ready(snapshot: dict[str, Any]) -> bool:
         return True
     render_lake_unavailable()
     return False
+
+
+def _breadcrumb_markdown(*parts: tuple[str, str | None]) -> str:
+    """Return clickable breadcrumb markdown from label/href pairs."""
+    links: list[str] = []
+    for label, href in parts:
+        if href:
+            links.append(f"[{label}]({href})")
+        else:
+            links.append(label)
+    return " › ".join(links)

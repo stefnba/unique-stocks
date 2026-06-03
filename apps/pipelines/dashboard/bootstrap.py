@@ -18,14 +18,6 @@ def configure_dashboard_runtime() -> None:
     )
 
 
-def render_refresh_action() -> None:
-    """Render a shared cache refresh control around every page."""
-    _, action_column = st.columns([8, 1], vertical_alignment="center")
-    if action_column.button("Refresh", icon=":material/refresh:", width="stretch", key="dashboard_refresh"):
-        st.cache_data.clear()
-        st.rerun()
-
-
 def _prefer_dashboard_motherduck_token() -> None:
     """Prefer the read-only dashboard MotherDuck token over the worker token."""
     token = os.getenv("DASHBOARD_MOTHERDUCK_TOKEN", "").strip()

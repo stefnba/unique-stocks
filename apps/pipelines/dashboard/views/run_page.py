@@ -19,7 +19,6 @@ from dashboard.loaders import load_run_page
 from dashboard.routing import (
     landing_objects_href,
     overview_href,
-    render_breadcrumb,
     run_detail_href,
     run_units_href,
     runs_href,
@@ -32,6 +31,7 @@ from dashboard.tables import (
     render_unit_table,
     search_frame,
 )
+from dashboard.views.common import render_breadcrumb_bar
 from dashboard.views.components import (
     prefect_flow_run_url,
     render_dbt_table,
@@ -51,7 +51,7 @@ def render_run_page(run_id: str | None, *, preview_unit_id: str | None = None) -
         run_id: Durable run identifier from ``pipeline.runs``.
         preview_unit_id: Optional unit id from query params for inline evidence preview.
     """
-    render_breadcrumb(("Pipeline Audit", overview_href()), ("Runs", runs_href()), ("Run", None))
+    render_breadcrumb_bar(("Pipeline Audit", overview_href()), ("Runs", runs_href()), ("Run", None))
 
     if not run_id:
         st.title("Run Detail")
