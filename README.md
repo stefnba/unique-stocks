@@ -8,7 +8,7 @@ The goal is a lean, reliable stack that can run cheaply on a single VPS while st
 
 | Area                 | Status               | Notes                                                          |
 | -------------------- | -------------------- | -------------------------------------------------------------- |
-| `apps/pipelines`     | Active               | Prefect 3 ingestion app for EODHD market data.                 |
+| `apps/pipelines`     | Active               | Prefect 3 ingestion app for EODHD market data and run monitoring. |
 | `apps/pipelines/dbt` | Initial scaffold     | dbt Core project for Bronze -> Silver -> Gold transformations. |
 | `apps/api`           | Not implemented      | API boundary is still an open decision.                        |
 | `apps/studio`        | Not implemented      | Studio stack is still an open decision.                        |
@@ -40,7 +40,7 @@ S3 is the replayable landing zone for raw provider responses. MotherDuck is the 
 ```text
 unique-stocks/
 ├── apps/
-│   ├── pipelines/      Prefect ingestion app and dbt transformations
+│   ├── pipelines/      Prefect ingestion app, dbt transformations, audit dashboard
 │   ├── api/            Planned API app
 │   └── studio/         Planned user-facing studio
 ├── docker-compose.yml  Root compose entrypoint (includes per-app stacks)
@@ -59,13 +59,14 @@ For the active pipelines app (docker-dev):
 ```bash
 cp apps/pipelines/.env.example apps/pipelines/.env
 # edit .env: set ENVIRONMENT=docker_dev and provider keys
-make infra-up          # start Prefect server, Postgres, and worker
+make infra-up          # start Prefect server, Postgres, worker, and dashboard
 make pipelines-setup   # init lake, save blocks, create work pool, register deployments
 make dbt-install       # install dbt dependencies
 make dbt-build         # build and test dbt Silver/Gold models
 ```
 
-Prefect UI runs at <http://localhost:4200>.
+Prefect UI runs at <http://localhost:4200>. The pipeline audit dashboard runs at
+<http://localhost:8501>.
 
 For local Python development without Docker:
 
@@ -89,6 +90,7 @@ make pipelines-check
 make pipelines-test
 make infra-up
 make infra-logs-pipelines
+make infra-logs-dashboard
 make infra-down
 make dbt-install
 make dbt-debug
@@ -104,6 +106,7 @@ make check
 make test
 make lint
 make typecheck
+make dashboard
 make dbt-install
 make dbt-build
 make deploy-dry

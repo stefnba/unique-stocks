@@ -9,7 +9,6 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Install uv
 RUN pip install --no-cache-dir uv
 
 # Python 3.14 wheels are not available for every dependency yet.
@@ -17,16 +16,13 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential libffi-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency files first for third-party dependency layer caching.
 COPY pyproject.toml uv.lock ./
 
-# Install production dependencies first, then install this project after source is copied.
-RUN uv sync --no-dev --frozen --no-install-project
+RUN uv sync --no-dev --frozen --extra dashboard --no-install-project
 
-# Copy source
 COPY . .
 
-RUN uv sync --no-dev --frozen
+RUN uv sync --no-dev --frozen --extra dashboard
 
 RUN useradd --create-home --uid 10001 app \
     && mkdir -p /app/lake-data \
@@ -34,5 +30,9 @@ RUN useradd --create-home --uid 10001 app \
 
 USER app
 
-# Default: start a Prefect worker. Override in docker-compose for other commands.
-CMD ["uv", "run", "--no-dev", "--frozen", "prefect", "worker", "start", "--pool", "default-process-pool"]
+EXPOSE 8501
+
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=60s \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=5).read()"
+
+CMD ["uv", "run", "--no-dev", "--frozen", "--extra", "dashboard", "streamlit", "run", "dashboard/app.py", "--server.address=0.0.0.0", "--server.port=8501", "--server.headless=true"]

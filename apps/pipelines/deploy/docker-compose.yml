@@ -83,5 +83,22 @@ services:
       retries: 3
       start_period: 90s
 
+  # ── Pipeline audit dashboard ──────────────────────────────────────────────
+  pipelines-dashboard:
+    build:
+      context: ..
+      dockerfile: Dockerfile.dashboard
+      args:
+        GIT_SHA: ${GIT_SHA:-}
+    environment:
+      PREFECT_API_URL: http://pipelines-server:4200/api
+      PREFECT_WORK_DIR: /app
+      PREFECT_UI_URL: ${PREFECT_UI_URL:-}
+      GIT_SHA: ${GIT_SHA:-}
+    depends_on:
+      pipelines-server:
+        condition: service_healthy
+
 volumes:
   prefect-db:
+  pipelines-lake:

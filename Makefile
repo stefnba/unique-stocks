@@ -1,8 +1,8 @@
 .DEFAULT_GOAL := help
 .PHONY: help \
-        pipelines-install pipelines-test pipelines-check pipelines-lint pipelines-typecheck \
+        pipelines-install pipelines-test pipelines-check pipelines-lint pipelines-typecheck pipelines-dashboard \
         pipelines-worker pipelines-deploy \
-        infra-up infra-up-prod infra-down infra-down-volumes infra-logs infra-logs-pipelines infra-ps \
+        infra-up infra-up-prod infra-down infra-down-volumes infra-logs infra-logs-pipelines infra-logs-dashboard infra-ps \
         dbt-install dbt-debug dbt-compile dbt-run dbt-test dbt-build dbt-clean dbt-run-staging dbt-run-marts
 
 # ── Colours ────────────────────────────────────────────────────────────────
@@ -56,6 +56,9 @@ pipelines-typecheck: ## Type-check pipeline code
 pipelines-worker: ## Start a Prefect worker (reads PREFECT_API_URL from env)
 	$(MAKE) -C $(PIPELINES_DIR) worker
 
+pipelines-dashboard: ## Start the Streamlit pipeline audit dashboard
+	$(MAKE) -C $(PIPELINES_DIR) dashboard
+
 pipelines-setup: ## Full one-time setup: init lake, save blocks, create pool, deploy
 	$(MAKE) -C $(PIPELINES_DIR) setup
 
@@ -63,7 +66,7 @@ pipelines-deploy: ## Register all Prefect deployments
 	$(MAKE) -C $(PIPELINES_DIR) deploy
 
 # ── Infrastructure ─────────────────────────────────────────────────────────
-infra-up: ## Start dev stack (Docker) — Prefect server + Postgres + pipelines worker
+infra-up: ## Start dev stack (Docker) — Prefect server + Postgres + worker + dashboard
 	$(COMPOSE_DEV) up -d
 
 infra-up-prod: ## Start production stack
@@ -79,7 +82,10 @@ infra-logs: ## Tail logs for all services (Ctrl-C to stop)
 	$(COMPOSE_DEV) logs -f
 
 infra-logs-pipelines: ## Tail pipeline worker logs only
-	$(COMPOSE_DEV) logs -f pipelines
+	$(COMPOSE_DEV) logs -f pipelines-worker
+
+infra-logs-dashboard: ## Tail pipeline dashboard logs only
+	$(COMPOSE_DEV) logs -f pipelines-dashboard
 
 infra-ps: ## Show running service status
 	$(COMPOSE_DEV) ps

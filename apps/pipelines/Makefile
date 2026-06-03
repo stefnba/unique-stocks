@@ -1,8 +1,8 @@
 .DEFAULT_GOAL := help
 .PHONY: help install test test-unit test-integration lint lint-fix format format-check typecheck check \
-        smoke operational-health \
+        smoke operational-health dashboard \
         prefect-server prefect-worker \
-        docker-up docker-down docker-down-volumes docker-logs docker-logs-worker docker-ps \
+        docker-up docker-down docker-down-volumes docker-logs docker-logs-worker docker-logs-dashboard docker-ps \
         docker-setup \
         lake-reset-local lake-migration lake-migration-status lake-migrate blocks-save setup s3-landing-zone \
         deploy deploy-dry deploy-upsert \
@@ -14,6 +14,7 @@
 export
 
 LOCAL_LAKE_PATH ?= unique_stocks.duckdb
+STREAMLIT_SERVER_PORT ?= 8501
 LAKE_MIGRATIONS_DIR := lake/migrations
 LAKE_TABLES_REF := lake.schema:ALL_TABLES
 DBT_DIR := dbt
@@ -80,7 +81,7 @@ format-check: ## Check formatting without modifying files
 	uv run ruff format . --check
 
 typecheck: ## Run static type checks (basedpyright)
-	uv run basedpyright
+	$(UV) run --extra dashboard basedpyright
 
 test-integration: ## Run integration tests only
 	uv run pytest tests/integration/ -v
@@ -96,6 +97,9 @@ smoke: ## Run local smoke preset (FLOW=<preset>, pass ARGS="...")
 operational-health: ## Check Prefect API and lake audit health (pass ARGS="...")
 	$(UV) run python scripts/check_operational_health.py $(ARGS)
 
+dashboard: ## Start the Streamlit pipeline audit dashboard
+	$(UV) run --extra dashboard streamlit run dashboard/app.py --server.address 0.0.0.0 --server.port $(STREAMLIT_SERVER_PORT) --server.headless true
+
 ##@ Local Services
 prefect-server: ## Start a local Prefect server (no Docker)
 	@while lsof -ti :4200 > /dev/null 2>&1; do \
@@ -110,7 +114,7 @@ DEPLOY_DIR   := deploy
 COMPOSE_BASE := docker compose -f $(DEPLOY_DIR)/docker-compose.yml
 COMPOSE_DEV  := $(COMPOSE_BASE) -f $(DEPLOY_DIR)/docker-compose.dev.yml
 
-docker-up: ## Build and start the docker-dev stack (Prefect server + Postgres + worker)
+docker-up: ## Build and start the docker-dev stack (Prefect server + Postgres + worker + dashboard)
 	$(COMPOSE_DEV) up -d --build --remove-orphans
 
 docker-down: ## Stop the docker-dev stack
@@ -124,6 +128,9 @@ docker-logs: ## Tail logs for all services
 
 docker-logs-worker: ## Tail pipelines worker logs only
 	$(COMPOSE_DEV) logs -f pipelines-worker
+
+docker-logs-dashboard: ## Tail pipelines dashboard logs only
+	$(COMPOSE_DEV) logs -f pipelines-dashboard
 
 docker-ps: ## Show docker-dev service status
 	$(COMPOSE_DEV) ps

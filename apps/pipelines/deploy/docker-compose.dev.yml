@@ -21,7 +21,26 @@ services:
         required: false   # cp .env.example .env to start
     environment:
       ENVIRONMENT: docker_dev
-      LOCAL_LAKE_PATH: unique_stocks.duckdb
+      LOCAL_LAKE_PATH: /app/lake-data/unique_stocks.duckdb
       PIPELINE_LOG_FORMAT: console
       PIPELINE_LOG_LEVEL: INFO
     restart: unless-stopped
+    volumes:
+      - pipelines-lake:/app/lake-data
+
+  pipelines-dashboard:
+    env_file:
+      - path: ../.env
+        required: false
+    ports:
+      - "8501:8501"
+    environment:
+      ENVIRONMENT: docker_dev
+      EODHD_API_KEY: ""
+      AWS_ACCESS_KEY_ID: ""
+      AWS_SECRET_ACCESS_KEY: ""
+      LOCAL_LAKE_PATH: /app/lake-data/unique_stocks.duckdb
+      PREFECT_UI_URL: http://localhost:4200
+    restart: unless-stopped
+    volumes:
+      - pipelines-lake:/app/lake-data

@@ -1,6 +1,6 @@
 # Pipelines
 
-`apps/pipelines` is the Prefect 3 ingestion app for Unique Stocks. It fetches market data from providers, validates provider responses, writes typed Bronze records through the lake client, and coordinates scheduled runs.
+`apps/pipelines` is the Prefect 3 ingestion app for Unique Stocks. It fetches market data from providers, validates provider responses, writes typed Bronze records through the lake client, coordinates scheduled runs, and includes the pipeline audit dashboard for operational monitoring.
 
 The active path is end-of-day price ingestion for the configured market data provider. Exchange and instrument are reference flows; fundamental ingests full provider documents plus typed stock, ETF, mutual fund, and index Bronze slices for the fixture-backed EODHD shapes.
 
@@ -86,6 +86,7 @@ apps/pipelines/
 ├── core/               Shared infrastructure: ingestion, logging, lake, and storage clients
 ├── providers/          Provider-specific clients and raw response models
 ├── dbt/                dbt Core project: Bronze -> Silver -> Gold transformations
+├── dashboard/          Streamlit operations dashboard for the pipeline audit schema
 ├── docs/               Pipeline runbooks, including AWS/S3 setup
 ├── scripts/            Local operational helpers
 ├── tests/              Unit and integration tests
@@ -93,7 +94,8 @@ apps/pipelines/
 ├── prefect.yaml        Prefect deployment definitions
 ├── pyproject.toml      Python dependencies
 ├── Makefile            App-level commands
-└── Dockerfile          Worker image
+├── Dockerfile          Worker image
+└── Dockerfile.dashboard Streamlit dashboard image
 ```
 
 Domain code is organized under `domains/<domain>/`. Ingestion domains usually define `models.py`, `tables.py`, `datasets.py`, `parsers.py`, task modules, and `flows.py`, plus small domain helpers when needed.
@@ -156,6 +158,22 @@ reruns resume-safe, such as EOD backfill `no_data` for an exact ticker/date
 range. See [docs/pipeline_audit.md](docs/pipeline_audit.md) for table
 semantics, statuses, and the integration pattern.
 
+## Pipeline dashboard
+
+The Streamlit dashboard under `dashboard/` is an operational read surface for the pipeline audit schema. It lives in this app so it can reuse `config.settings` and `core.clients.lake.DataLakeClient`, but it runs as a separate process from the Prefect worker.
+
+Run it locally from `apps/pipelines/`:
+
+```bash
+make dashboard
+```
+
+The dashboard reads `pipeline.runs` for summary health and loads drill-down details from `pipeline.run_units`, `pipeline.landing_objects`, `pipeline.rejections`, and the dbt audit tables. Set `MOTHERDUCK_TOKEN` to inspect MotherDuck; otherwise it reads `LOCAL_LAKE_PATH`.
+
+Run detail pages are routed with `?page=run&run_id=<run_id>`. Use the `Open`
+links in the run tables to jump from the overview into one run's units, landing
+objects, rejections, and dbt results.
+
 ## Operational logging
 
 Pipeline code uses `structlog` through the central configuration in `core/utils/logging.py`. Development and
@@ -206,29 +224,31 @@ uv run prefect deployment run 'eod-price-daily/backfill' -p trade_date=2026-05-0
 
 ## Local development with Docker (`docker_dev`)
 
-Full stack in containers — `pipelines-server` backed by `pipelines-db`, with `pipelines-worker` as the worker service. Use this to validate env-var wiring and Docker image builds before deploying.
+Full stack in containers — `pipelines-server` backed by `pipelines-db`, with `pipelines-worker` as the worker service and `pipelines-dashboard` as the Streamlit audit dashboard. Use this to validate env-var wiring and Docker image builds before deploying.
 
 Docker Compose sets `ENVIRONMENT=docker_dev` for `pipelines-worker`. Set it in `.env` too if you want host commands in the same shell to use docker-dev settings, then from `apps/pipelines/`:
 
 ```bash
 cp .env.example .env
 # edit .env: set ENVIRONMENT=docker_dev and any provider keys
-make docker-up             # start pipelines-server, pipelines-db, and pipelines-worker
+make docker-up             # start pipelines-server, pipelines-db, worker, and dashboard
 make docker-setup          # migrate container lake, save blocks, create work pool, register deployments
 ```
 
-The default docker-dev lake is isolated inside the `pipelines-worker` container at `/app/unique_stocks.duckdb`. It does not share the host DuckDB file, which avoids local file-lock and path drift between host smoke runs and container worker runs. If `MOTHERDUCK_TOKEN` is set in `.env`, docker-dev intentionally targets MotherDuck instead for integration testing.
+The default docker-dev lake is isolated from the host and shared only between the `pipelines-worker` and `pipelines-dashboard` containers at `/app/lake-data/unique_stocks.duckdb`. This avoids host file-lock and path drift while still letting the dashboard inspect the worker's local audit rows. If `MOTHERDUCK_TOKEN` is set in `.env`, docker-dev intentionally targets MotherDuck instead for integration testing.
 
 Useful commands:
 
 ```bash
 make docker-ps
 make docker-logs-worker
+make docker-logs-dashboard
 make docker-down
 make docker-down-volumes   # ⚠ also deletes the Postgres volume
 ```
 
 Prefect UI runs at <http://localhost:4200>.
+The pipeline audit dashboard runs at <http://localhost:8501>.
 
 ## Lake schema migrations
 
@@ -378,6 +398,9 @@ Set all secrets in the deployment platform (Coolify environment variables), neve
 Optional production infrastructure configuration:
 
 - `PREFECT_HOST_BIND_IP` — defaults to `127.0.0.1`; use `0.0.0.0` only behind a protected reverse proxy.
+- `DASHBOARD_HOST_BIND_IP` — defaults to `127.0.0.1`; use `0.0.0.0` only behind a protected reverse proxy.
+- `DASHBOARD_MOTHERDUCK_TOKEN` — optional dashboard-specific MotherDuck token. Prefer a read-only token here; when omitted, the dashboard falls back to `MOTHERDUCK_TOKEN`.
+- `PREFECT_UI_URL` — optional browser-facing Prefect UI base URL used for run deep links from the dashboard.
 
 Production fails closed when `ENVIRONMENT=prod` is set without `MOTHERDUCK_TOKEN`; set the token or use `ENVIRONMENT=dev` for local work.
 

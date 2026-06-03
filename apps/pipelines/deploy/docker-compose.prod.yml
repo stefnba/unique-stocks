@@ -32,3 +32,21 @@ services:
       resources:
         limits:
           memory: 512m
+
+  pipelines-dashboard:
+    ports:
+      - "${DASHBOARD_HOST_BIND_IP:-127.0.0.1}:8501:8501"
+    environment:
+      ENVIRONMENT: prod
+      MOTHERDUCK_TOKEN: ${MOTHERDUCK_TOKEN:?MOTHERDUCK_TOKEN is required in production}
+      DASHBOARD_MOTHERDUCK_TOKEN: ${DASHBOARD_MOTHERDUCK_TOKEN:-}
+      PREFECT_UI_URL: ${PREFECT_UI_URL:-}
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          memory: 512m
