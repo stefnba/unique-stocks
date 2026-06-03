@@ -24,15 +24,24 @@ log = structlog.get_logger(__name__)
     description=(
         "Ingest trading hours and holidays for provider schedule API codes. "
         "Writes bronze.exchange_schedule and bronze.exchange_holiday. Skips exchanges already ingested for "
-        "snapshot_date."
+        "snapshot_date. Provider fetches run in bounded batches; landing and Bronze writes stay sequential."
     ),
 )
 async def exchange_schedule_flow(
     snapshot_date: date | None = None,
     provider_schedule_exchange_codes: list[str] | None = None,
+    batch_size: int = 10,
+    provider_batch_delay_seconds: float = 0.0,
 ) -> dict[str, object]:
-    """Ingest exchange schedule and holiday for the provider schedule API universe."""
+    """Ingest exchange schedule and holiday for the provider schedule API universe.
+
+    ``batch_size`` caps concurrent provider fetches per batch; landing and Bronze
+    writes stay sequential within each batch. ``provider_batch_delay_seconds`` adds
+    a pause between fetch batches to reduce rate-limit and overload errors.
+    """
     snapshot_date = snapshot_date or date.today()
+    fetch_batch_size = max(1, int(batch_size))
+    fetch_batch_delay = max(0.0, float(provider_batch_delay_seconds))
     codes = provider_schedule_exchange_codes or await fetch_provider_schedule_exchange_codes()
     tracker = PipelineRunTracker()
     summary: dict = {
@@ -51,6 +60,8 @@ async def exchange_schedule_flow(
         parameters={
             "snapshot_date": snapshot_date.isoformat(),
             "provider_schedule_exchange_codes": provider_schedule_exchange_codes,
+            "batch_size": fetch_batch_size,
+            "provider_batch_delay_seconds": fetch_batch_delay,
         },
         target_window_start=snapshot_date,
         target_window_end=snapshot_date,
@@ -74,69 +85,86 @@ async def exchange_schedule_flow(
                 else:
                     pending.append(provider_schedule_exchange_code)
 
-            # Fetch all exchange concurrently — HTTP is the bottleneck (~0.75 s each).
-            # return_exceptions=True prevents one 5xx from cancelling all other tasks.
-            results = await asyncio.gather(
-                *[fetch_exchange_details(code) for code in pending],
-                return_exceptions=True,
+            log.info(
+                "schedule.fetch_batches_start",
+                pending=len(pending),
+                batch_size=fetch_batch_size,
+                provider_batch_delay_seconds=fetch_batch_delay,
             )
 
-            # Write results sequentially to avoid concurrent DuckDB write conflicts.
-            for provider_schedule_exchange_code, details in zip(pending, results, strict=True):
-                if isinstance(details, BaseException):
-                    log.error(
-                        "schedule.fetch_error",
-                        provider_schedule_exchange_code=provider_schedule_exchange_code,
-                        error=str(details),
-                    )
-                    summary["failed"].append(provider_schedule_exchange_code)
-                    run.record_unit(
-                        unit_type="schedule_snapshot",
-                        unit_key={
-                            "provider_schedule_exchange_code": provider_schedule_exchange_code,
-                            "snapshot_date": snapshot_date.isoformat(),
-                        },
-                        status="failed",
-                        error=details,
-                        rows_written=0,
-                    )
-                    continue
-                if details is None:
-                    summary["unsupported"].append(provider_schedule_exchange_code)
-                    run.record_unit(
-                        unit_type="schedule_snapshot",
-                        unit_key={
-                            "provider_schedule_exchange_code": provider_schedule_exchange_code,
-                            "snapshot_date": snapshot_date.isoformat(),
-                        },
-                        status="unsupported",
-                        reason="provider_404",
-                        rows_written=0,
-                    )
-                    continue
-
-                landing = await write_schedule_to_landing_zone(details, provider_schedule_exchange_code, snapshot_date)
-                schedule_write = write_bronze_exchange_schedule(details, snapshot_date, source_uri=landing.source_uri)
-                holiday_write = write_bronze_exchange_holiday(details, snapshot_date, source_uri=landing.source_uri)
-                rows_written = schedule_write.rows_written + holiday_write.rows_written
-                summary["exchange"][provider_schedule_exchange_code] = {
-                    "schedule_rows": schedule_write.rows_written,
-                    "holiday_rows": holiday_write.rows_written,
-                }
-                run.record_unit_with_landing(
-                    landing,
-                    unit_type="schedule_snapshot",
-                    unit_key={
-                        "provider_schedule_exchange_code": provider_schedule_exchange_code,
-                        "snapshot_date": snapshot_date.isoformat(),
-                    },
-                    status="completed",
-                    reason=_combined_bronze_reason(schedule_write.reason, holiday_write.reason)
-                    if rows_written == 0
-                    else None,
-                    rows_valid=rows_written,
-                    rows_written=rows_written,
+            for batch_index in range(0, len(pending), fetch_batch_size):
+                batch_codes = pending[batch_index : batch_index + fetch_batch_size]
+                # return_exceptions=True prevents one failure from cancelling the batch.
+                results = await asyncio.gather(
+                    *[fetch_exchange_details(code) for code in batch_codes],
+                    return_exceptions=True,
                 )
+
+                # Write results sequentially to avoid concurrent DuckDB write conflicts.
+                for provider_schedule_exchange_code, details in zip(batch_codes, results, strict=True):
+                    if isinstance(details, BaseException):
+                        log.error(
+                            "schedule.fetch_error",
+                            provider_schedule_exchange_code=provider_schedule_exchange_code,
+                            error=str(details),
+                        )
+                        summary["failed"].append(provider_schedule_exchange_code)
+                        run.record_unit(
+                            unit_type="schedule_snapshot",
+                            unit_key={
+                                "provider_schedule_exchange_code": provider_schedule_exchange_code,
+                                "snapshot_date": snapshot_date.isoformat(),
+                            },
+                            status="failed",
+                            error=details,
+                            rows_written=0,
+                        )
+                        continue
+                    if details is None:
+                        summary["unsupported"].append(provider_schedule_exchange_code)
+                        run.record_unit(
+                            unit_type="schedule_snapshot",
+                            unit_key={
+                                "provider_schedule_exchange_code": provider_schedule_exchange_code,
+                                "snapshot_date": snapshot_date.isoformat(),
+                            },
+                            status="unsupported",
+                            reason="provider_404",
+                            rows_written=0,
+                        )
+                        continue
+
+                    landing = await write_schedule_to_landing_zone(
+                        details, provider_schedule_exchange_code, snapshot_date
+                    )
+                    schedule_write = write_bronze_exchange_schedule(
+                        details, snapshot_date, source_uri=landing.source_uri
+                    )
+                    holiday_write = write_bronze_exchange_holiday(
+                        details, snapshot_date, source_uri=landing.source_uri
+                    )
+                    rows_written = schedule_write.rows_written + holiday_write.rows_written
+                    summary["exchange"][provider_schedule_exchange_code] = {
+                        "schedule_rows": schedule_write.rows_written,
+                        "holiday_rows": holiday_write.rows_written,
+                    }
+                    run.record_unit_with_landing(
+                        landing,
+                        unit_type="schedule_snapshot",
+                        unit_key={
+                            "provider_schedule_exchange_code": provider_schedule_exchange_code,
+                            "snapshot_date": snapshot_date.isoformat(),
+                        },
+                        status="completed",
+                        reason=_combined_bronze_reason(schedule_write.reason, holiday_write.reason)
+                        if rows_written == 0
+                        else None,
+                        rows_valid=rows_written,
+                        rows_written=rows_written,
+                    )
+
+                if fetch_batch_delay > 0 and batch_index + fetch_batch_size < len(pending):
+                    await asyncio.sleep(fetch_batch_delay)
 
             log.info(
                 "schedule.flow_done",

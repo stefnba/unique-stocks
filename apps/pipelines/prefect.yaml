@@ -157,6 +157,8 @@ deployments:
     parameters:
       snapshot_date: null
       provider_schedule_exchange_codes: null
+      batch_size: 10
+      provider_batch_delay_seconds: 0.0
     <<: *manual
 
   # ═══════════════════════════════════════════════════════════════════════════

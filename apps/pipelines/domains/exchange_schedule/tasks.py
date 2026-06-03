@@ -5,8 +5,12 @@ from datetime import UTC, date, datetime
 import httpx
 import structlog
 from prefect import task
+from prefect.client.schemas.objects import State, TaskRun
+from prefect.tasks import exponential_backoff
+from pydantic import ValidationError
 
 from config.blocks import BlockRegistry
+from core.clients.http.base import ProviderRateLimitError
 from core.ingestion import BronzeWrite, LandingWrite
 from domains.exchange_schedule.datasets import (
     EXCHANGE_HOLIDAY_DATASET,
@@ -16,6 +20,12 @@ from domains.exchange_schedule.parsers import parse_exchange_holiday_snapshots, 
 from providers.eodhd.models import ExchangeSchedule
 
 log = structlog.get_logger(__name__)
+
+
+def _is_retryable(task: object, task_run: TaskRun, state: State) -> bool:
+    """Retry transient errors only; never retry schema drift or provider quota exhaustion."""
+    exc = state.result(raise_on_failure=False)
+    return not isinstance(exc, ValidationError | ProviderRateLimitError)
 
 
 @task(name="fetch-provider-schedule-exchange-codes")
@@ -37,7 +47,13 @@ async def fetch_provider_schedule_exchange_codes() -> list[str]:
     return codes
 
 
-@task(name="fetch-exchange-details", retries=3, retry_delay_seconds=10)
+@task(
+    name="fetch-exchange-details",
+    task_run_name="fetch-exchange-details-{provider_schedule_exchange_code}",
+    retries=3,
+    retry_delay_seconds=exponential_backoff(10),
+    retry_condition_fn=_is_retryable,
+)
 async def fetch_exchange_details(provider_schedule_exchange_code: str) -> ExchangeSchedule | None:
     """Fetch v2 trading hours and holiday for one exchange.
 
@@ -64,7 +80,10 @@ async def fetch_exchange_details(provider_schedule_exchange_code: str) -> Exchan
     return details
 
 
-@task(name="write-schedule-landing")
+@task(
+    name="write-schedule-landing",
+    task_run_name="write-schedule-landing-{provider_schedule_exchange_code}",
+)
 async def write_schedule_to_landing_zone(
     details: ExchangeSchedule,
     provider_schedule_exchange_code: str,
@@ -177,7 +196,10 @@ def write_bronze_exchange_holiday(
     return BronzeWrite(rows_written=written)
 
 
-@task(name="schedule-already-ingested")
+@task(
+    name="schedule-already-ingested",
+    task_run_name="schedule-already-ingested-{provider_schedule_exchange_code}",
+)
 def schedule_already_ingested(provider_schedule_exchange_code: str, snapshot_date: date) -> bool:
     """Return True when schedule data for this exchange and snapshot already exists."""
     from core.clients.lake import get_lake_client
