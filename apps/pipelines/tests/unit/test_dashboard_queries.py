@@ -95,13 +95,34 @@ def test_dashboard_detail_queries() -> None:
     assert len(units) == 1
     assert units[0]["unit_key_hash"] == "hash-1"
 
+    unit = queries.load_run_unit_by_id(lake, run_id=RUN_ID_COMPLETED, unit_id=UNIT_ID)
+    assert unit is not None
+    assert unit["unit_key_hash"] == "hash-1"
+
+    missing_unit = queries.load_run_unit_by_id(lake, run_id=RUN_ID_COMPLETED, unit_id=RUN_ID_FAILED)
+    assert missing_unit is None
+
     landing_objects = queries.load_landing_objects(lake, run_id=RUN_ID_COMPLETED)
     assert len(landing_objects) == 1
     assert landing_objects[0]["source_uri"] == "s3://bucket/object.json"
 
+    unit_landing_objects = queries.load_landing_objects(lake, run_id=RUN_ID_COMPLETED, unit_id=UNIT_ID)
+    assert len(unit_landing_objects) == 1
+    assert unit_landing_objects[0]["source_uri"] == "s3://bucket/object.json"
+
+    unrelated_landing_objects = queries.load_landing_objects(lake, run_id=RUN_ID_COMPLETED, unit_id=RUN_ID_FAILED)
+    assert unrelated_landing_objects == []
+
     rejections = queries.load_rejections(lake, run_id=RUN_ID_COMPLETED)
     assert len(rejections) == 1
     assert rejections[0]["reason"] == "parse_error"
+
+    unit_rejections = queries.load_rejections(lake, run_id=RUN_ID_COMPLETED, unit_id=UNIT_ID)
+    assert len(unit_rejections) == 1
+    assert unit_rejections[0]["reason"] == "parse_error"
+
+    unrelated_rejections = queries.load_rejections(lake, run_id=RUN_ID_COMPLETED, unit_id=RUN_ID_FAILED)
+    assert unrelated_rejections == []
 
     dbt_nodes = queries.load_dbt_node_results(lake, run_id=RUN_ID_COMPLETED)
     assert len(dbt_nodes) == 1

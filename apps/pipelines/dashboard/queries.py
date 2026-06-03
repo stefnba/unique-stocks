@@ -358,6 +358,40 @@ def load_unit_status_breakdown(lake: LakeReader, *, run_id: str) -> list[dict[st
     )
 
 
+def load_run_unit_by_id(lake: LakeReader, *, run_id: str, unit_id: str) -> dict[str, Any] | None:
+    """Load one work unit by durable unit id."""
+    if not lake.table_exists("pipeline", "run_units"):
+        return None
+    return lake.query_one(
+        """
+        SELECT
+            unit_id,
+            run_id,
+            domain,
+            provider,
+            unit_type,
+            unit_key_hash,
+            unit_key_json,
+            status,
+            reason,
+            source_uri,
+            rows_raw,
+            rows_valid,
+            rows_rejected,
+            rows_written,
+            started_at,
+            completed_at,
+            date_diff('second', started_at, COALESCE(completed_at, CURRENT_TIMESTAMP)) AS duration_seconds,
+            error_class,
+            error_message
+        FROM pipeline.run_units
+        WHERE run_id = ? AND unit_id = ?
+        LIMIT 1
+        """,
+        [run_id, unit_id],
+    )
+
+
 def load_run_units(lake: LakeReader, *, run_id: str, limit: int = 500) -> list[dict[str, Any]]:
     """Load work-unit rows for a selected run."""
     if not lake.table_exists("pipeline", "run_units"):
@@ -399,12 +433,24 @@ def load_run_units(lake: LakeReader, *, run_id: str, limit: int = 500) -> list[d
     )
 
 
-def load_landing_objects(lake: LakeReader, *, run_id: str, limit: int = 200) -> list[dict[str, Any]]:
-    """Load landing objects linked to a selected run."""
+def load_landing_objects(
+    lake: LakeReader,
+    *,
+    run_id: str,
+    unit_id: str | None = None,
+    limit: int = 200,
+) -> list[dict[str, Any]]:
+    """Load landing objects linked to a selected run or work unit."""
     if not lake.table_exists("pipeline", "landing_objects"):
         return []
+    clauses = ["run_id = ?"]
+    params: list[Any] = [run_id]
+    if unit_id:
+        clauses.append("unit_id = ?")
+        params.append(unit_id)
+    params.append(_bounded_limit(limit, default=200, maximum=1000))
     return lake.query(
-        """
+        f"""
         SELECT
             landing_id,
             unit_id,
@@ -417,20 +463,32 @@ def load_landing_objects(lake: LakeReader, *, run_id: str, limit: int = 200) -> 
             content_hash,
             recorded_at
         FROM pipeline.landing_objects
-        WHERE run_id = ?
+        WHERE {" AND ".join(clauses)}
         ORDER BY recorded_at DESC
         LIMIT ?
         """,
-        [run_id, _bounded_limit(limit, default=200, maximum=1000)],
+        params,
     )
 
 
-def load_rejections(lake: LakeReader, *, run_id: str, limit: int = 100) -> list[dict[str, Any]]:
-    """Load sampled parser rejections linked to a selected run."""
+def load_rejections(
+    lake: LakeReader,
+    *,
+    run_id: str,
+    unit_id: str | None = None,
+    limit: int = 100,
+) -> list[dict[str, Any]]:
+    """Load sampled parser rejections linked to a selected run or work unit."""
     if not lake.table_exists("pipeline", "rejections"):
         return []
+    clauses = ["run_id = ?"]
+    params: list[Any] = [run_id]
+    if unit_id:
+        clauses.append("unit_id = ?")
+        params.append(unit_id)
+    params.append(_bounded_limit(limit, default=100, maximum=1000))
     return lake.query(
-        """
+        f"""
         SELECT
             rejection_id,
             unit_id,
@@ -443,11 +501,11 @@ def load_rejections(lake: LakeReader, *, run_id: str, limit: int = 100) -> list[
             raw_sample_json,
             recorded_at
         FROM pipeline.rejections
-        WHERE run_id = ?
+        WHERE {" AND ".join(clauses)}
         ORDER BY recorded_at DESC
         LIMIT ?
         """,
-        [run_id, _bounded_limit(limit, default=100, maximum=1000)],
+        params,
     )
 
 
