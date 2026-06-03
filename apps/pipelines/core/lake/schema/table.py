@@ -45,6 +45,9 @@ class TableModel:
 
         Base classes may omit table metadata. Any subclass that declares table
         attributes is treated as concrete enough to validate.
+
+        Args:
+            **kwargs: Keyword arguments forwarded by Python subclass creation.
         """
         super().__init_subclass__(**kwargs)
         table_attrs = {"table_name", "row_model", "unique_columns", "idempotency_columns"}
@@ -54,32 +57,56 @@ class TableModel:
 
     @classmethod
     def qualified_name(cls) -> str:
-        """Return the fully qualified table name."""
+        """Return the fully qualified table name.
+
+        Returns:
+            Table name in ``schema.table`` form.
+        """
         return f"{cls.schema_name}.{cls.table_name}"
 
     @classmethod
     def columns(cls) -> tuple[ColumnSpec, ...]:
-        """Return SQL column specs inferred from the Pydantic row model."""
+        """Return SQL column specs inferred from the Pydantic row model.
+
+        Returns:
+            Physical SQL columns for the table.
+        """
         return tuple(column_from_field(name, field) for name, field in cls.row_model.model_fields.items())
 
     @classmethod
     def column_names(cls) -> tuple[str, ...]:
-        """Return all physical column names for this table."""
+        """Return all physical column names for this table.
+
+        Returns:
+            Physical column names in render order.
+        """
         return tuple(column.name for column in cls.columns())
 
     @classmethod
     def unique_column_names(cls) -> tuple[str, ...]:
-        """Return columns that make one table row unique."""
+        """Return columns that make one table row unique.
+
+        Returns:
+            Unique constraint column names.
+        """
         return cls.unique_columns
 
     @classmethod
     def idempotency_column_names(cls) -> tuple[str, ...]:
-        """Return idempotency column names."""
+        """Return idempotency column names.
+
+        Returns:
+            Columns used to detect completed ingestion partitions.
+        """
         return cls.idempotency_columns
 
     @classmethod
     def to_ddl(cls) -> str:
-        """Return ``CREATE TABLE IF NOT EXISTS`` DDL for this table model."""
+        """Return ``CREATE TABLE IF NOT EXISTS`` DDL for this table model.
+
+        Returns:
+            Idempotent table creation SQL.
+        """
         columns = cls.columns()
         cls._validate_column_refs(columns)
 
@@ -94,7 +121,12 @@ class TableModel:
 
     @classmethod
     def _validate_table_definition(cls) -> None:
-        """Validate required table metadata and column references."""
+        """Validate required table metadata and column references.
+
+        Raises:
+            TypeError: If required table metadata is missing or malformed.
+            ValueError: If unique or idempotency metadata references an unknown column.
+        """
         required_attrs = ("table_name", "row_model", "unique_columns", "idempotency_columns")
         missing = tuple(name for name in required_attrs if name not in cls.__dict__)
         missing += tuple(name for name in ("schema_name",) if not hasattr(cls, name))
@@ -113,7 +145,14 @@ class TableModel:
 
     @classmethod
     def _validate_column_refs(cls, columns: tuple[ColumnSpec, ...]) -> None:
-        """Validate that metadata column names exist in the physical table."""
+        """Validate that metadata column names exist in the physical table.
+
+        Args:
+            columns: Physical columns available on the table.
+
+        Raises:
+            ValueError: If metadata references an unknown column.
+        """
         known = {column.name for column in columns}
         for label, refs in {
             "unique_columns": cls.unique_columns,
@@ -140,6 +179,9 @@ class BronzeTableModel(TableModel):
 
         The envelope is physical storage metadata and is therefore excluded
         from parser-owned Pydantic row models.
+
+        Returns:
+            Physical SQL columns including Bronze envelope metadata.
         """
         return (
             ColumnSpec("ingestion_id", UUID, nullable=True, default="GEN_RANDOM_UUID()"),

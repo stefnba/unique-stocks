@@ -50,7 +50,20 @@ def plan_migrations(
     tracking_schema: str = "lake",
     tracking_table: str = "schema_migration",
 ) -> MigrationPlan:
-    """Plan migrations without mutating the lake."""
+    """Plan migrations without mutating the lake.
+
+    Args:
+        connection: Active DuckDB or MotherDuck connection.
+        migrations_dir: Directory containing migration SQL files.
+        tracking_schema: Schema that stores migration application records.
+        tracking_table: Table that stores migration application records.
+
+    Returns:
+        Pending and already-applied migration files.
+
+    Raises:
+        MigrationChecksumError: If an already-applied migration file changed.
+    """
     if _table_exists(connection, schema=tracking_schema, table=tracking_table):
         applied_by_version = load_applied_migrations(connection, schema=tracking_schema, table=tracking_table)
     else:
@@ -79,7 +92,20 @@ def apply_pending_migrations(
     tracking_schema: str = "lake",
     tracking_table: str = "schema_migration",
 ) -> MigrationRunResult:
-    """Apply pending migration files in order."""
+    """Apply pending migration files in order.
+
+    Args:
+        connection: Active DuckDB or MotherDuck connection.
+        migrations_dir: Directory containing migration SQL files.
+        tracking_schema: Schema that stores migration application records.
+        tracking_table: Table that stores migration application records.
+
+    Returns:
+        Applied and skipped migration files.
+
+    Raises:
+        MigrationChecksumError: If an already-applied migration file changed.
+    """
     ensure_migration_table(connection, schema=tracking_schema, table=tracking_table)
     plan = plan_migrations(
         connection,
@@ -107,7 +133,13 @@ def ensure_migration_table(
     schema: str = "lake",
     table: str = "schema_migration",
 ) -> None:
-    """Create the migration tracking table if needed."""
+    """Create the migration tracking table if needed.
+
+    Args:
+        connection: Active DuckDB or MotherDuck connection.
+        schema: Schema that should contain the tracking table.
+        table: Tracking table name.
+    """
     qualified = _qualified(schema, table)
     connection.execute(f"CREATE SCHEMA IF NOT EXISTS {_quote_identifier(schema)}")
     connection.execute(
@@ -130,7 +162,16 @@ def load_applied_migrations(
     schema: str = "lake",
     table: str = "schema_migration",
 ) -> dict[str, AppliedMigration]:
-    """Load applied migrations keyed by version."""
+    """Load applied migrations keyed by version.
+
+    Args:
+        connection: Active DuckDB or MotherDuck connection.
+        schema: Schema containing the tracking table.
+        table: Tracking table name.
+
+    Returns:
+        Applied migration records keyed by migration version.
+    """
     rows = connection.execute(
         f"""
         SELECT version, name, checksum
@@ -151,6 +192,17 @@ def _apply_one_migration(
     tracking_schema: str,
     tracking_table: str,
 ) -> None:
+    """Apply one migration transactionally and record it after success.
+
+    Args:
+        connection: Active DuckDB or MotherDuck connection.
+        migration: Migration file to execute.
+        tracking_schema: Schema that stores migration application records.
+        tracking_table: Table that stores migration application records.
+
+    Raises:
+        Exception: Re-raises any SQL execution or record-write failure after rollback.
+    """
     sql = migration.path.read_text(encoding="utf-8")
     started = perf_counter()
     try:
@@ -180,10 +232,29 @@ def _apply_one_migration(
 
 
 def _qualified(schema: str, table: str) -> str:
+    """Return a quoted schema-qualified table name.
+
+    Args:
+        schema: Schema name.
+        table: Table name.
+
+    Returns:
+        Quoted name in ``"schema"."table"`` form.
+    """
     return f"{_quote_identifier(schema)}.{_quote_identifier(table)}"
 
 
 def _table_exists(connection: duckdb.DuckDBPyConnection, *, schema: str, table: str) -> bool:
+    """Return whether a table exists in information_schema.
+
+    Args:
+        connection: Active DuckDB or MotherDuck connection.
+        schema: Schema name to check.
+        table: Table name to check.
+
+    Returns:
+        Whether the table exists.
+    """
     return (
         connection.execute(
             "SELECT 1 FROM information_schema.tables WHERE table_schema = ? AND table_name = ?",
@@ -194,6 +265,17 @@ def _table_exists(connection: duckdb.DuckDBPyConnection, *, schema: str, table: 
 
 
 def _quote_identifier(value: str) -> str:
+    """Quote a DuckDB identifier for safe SQL interpolation.
+
+    Args:
+        value: Raw DuckDB identifier.
+
+    Returns:
+        Safely quoted identifier.
+
+    Raises:
+        ValueError: If the identifier is empty or contains a NUL byte.
+    """
     if not value or "\x00" in value:
         raise ValueError(f"Invalid DuckDB identifier: {value!r}")
     return '"' + value.replace('"', '""') + '"'

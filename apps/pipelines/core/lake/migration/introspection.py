@@ -24,12 +24,20 @@ class DesiredTable:
 
     @property
     def key(self) -> TableKey:
-        """Return the table lookup key."""
+        """Return the table lookup key.
+
+        Returns:
+            ``(schema, table)`` tuple used for dictionary lookups.
+        """
         return (self.schema, self.name)
 
     @property
     def qualified_name(self) -> str:
-        """Return the unquoted qualified table name."""
+        """Return the unquoted qualified table name.
+
+        Returns:
+            Table name in ``schema.table`` form.
+        """
         return f"{self.schema}.{self.name}"
 
 
@@ -63,12 +71,20 @@ class ActualTable:
 
     @property
     def key(self) -> TableKey:
-        """Return the table lookup key."""
+        """Return the table lookup key.
+
+        Returns:
+            ``(schema, table)`` tuple used for dictionary lookups.
+        """
         return (self.schema, self.name)
 
     @property
     def qualified_name(self) -> str:
-        """Return the unquoted qualified table name."""
+        """Return the unquoted qualified table name.
+
+        Returns:
+            Table name in ``schema.table`` form.
+        """
         return f"{self.schema}.{self.name}"
 
 
@@ -85,7 +101,15 @@ def desired_lake_schema_from_tables(
     *,
     default_schemas: Sequence[str] = (),
 ) -> DesiredLakeSchema:
-    """Build the desired schema from registered table specs."""
+    """Build the desired schema from registered table specs.
+
+    Args:
+        tables: Registered table model classes.
+        default_schemas: Lake schemas that should exist even without tables.
+
+    Returns:
+        Desired schema metadata keyed by schema and table name.
+    """
     desired_tables = {
         (table.schema_name, table.table_name): DesiredTable(
             schema=table.schema_name,
@@ -105,7 +129,15 @@ def inspect_lake_schema(
     *,
     schemas: Collection[str] | None = None,
 ) -> ActualLakeSchema:
-    """Read the current lake schema from DuckDB/MotherDuck information_schema."""
+    """Read the current lake schema from DuckDB/MotherDuck information_schema.
+
+    Args:
+        connection: Active DuckDB or MotherDuck connection.
+        schemas: Optional schema names to inspect.
+
+    Returns:
+        Actual schema metadata discovered from ``information_schema``.
+    """
     schema_filter = set(schemas) if schemas is not None else None
     existing_schemas = _fetch_schemas(connection, schema_filter)
     table_rows = _fetch_tables(connection, schema_filter)
@@ -128,6 +160,15 @@ def _fetch_schemas(
     connection: duckdb.DuckDBPyConnection,
     schema_filter: set[str] | None,
 ) -> frozenset[str]:
+    """Fetch existing schemas, optionally restricted to the desired lake schemas.
+
+    Args:
+        connection: Active DuckDB or MotherDuck connection.
+        schema_filter: Optional schema names to retain.
+
+    Returns:
+        Existing schema names after filtering.
+    """
     rows = connection.execute("SELECT schema_name FROM information_schema.schemata").fetchall()
     schemas = {str(row[0]) for row in rows}
     if schema_filter is not None:
@@ -139,6 +180,15 @@ def _fetch_tables(
     connection: duckdb.DuckDBPyConnection,
     schema_filter: set[str] | None,
 ) -> tuple[TableKey, ...]:
+    """Fetch base tables from information_schema in deterministic order.
+
+    Args:
+        connection: Active DuckDB or MotherDuck connection.
+        schema_filter: Optional schema names to retain.
+
+    Returns:
+        Table keys for existing base tables.
+    """
     rows = connection.execute(
         """
         SELECT table_schema, table_name
@@ -157,6 +207,15 @@ def _fetch_columns(
     connection: duckdb.DuckDBPyConnection,
     schema_filter: set[str] | None,
 ) -> dict[TableKey, dict[str, ActualColumn]]:
+    """Fetch existing table columns keyed by schema and table.
+
+    Args:
+        connection: Active DuckDB or MotherDuck connection.
+        schema_filter: Optional schema names to retain.
+
+    Returns:
+        Column metadata grouped by table key and then by column name.
+    """
     rows = connection.execute(
         """
         SELECT table_schema, table_name, column_name, data_type, is_nullable, column_default, ordinal_position
@@ -184,6 +243,15 @@ def _fetch_unique_constraints(
     connection: duckdb.DuckDBPyConnection,
     schema_filter: set[str] | None,
 ) -> dict[TableKey, tuple[tuple[str, ...], ...]]:
+    """Fetch UNIQUE constraints as ordered column tuples keyed by table.
+
+    Args:
+        connection: Active DuckDB or MotherDuck connection.
+        schema_filter: Optional schema names to retain.
+
+    Returns:
+        Unique constraints grouped by table key.
+    """
     rows = connection.execute(
         """
         SELECT tc.table_schema, tc.table_name, kcu.constraint_name, kcu.column_name, kcu.ordinal_position

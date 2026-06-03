@@ -22,30 +22,67 @@ class MigrationFile:
 
     @property
     def filename(self) -> str:
-        """Return the migration filename."""
+        """Return the migration filename.
+
+        Returns:
+            The basename of the SQL file path.
+        """
         return self.path.name
 
 
 def timestamp_version(now: datetime | None = None) -> str:
-    """Return a UTC timestamp suitable for migration ordering."""
+    """Return a UTC timestamp suitable for migration ordering.
+
+    Args:
+        now: Optional datetime to format instead of the current UTC time.
+
+    Returns:
+        A compact timestamp string in ``YYYYMMDDHHMMSS`` format.
+    """
     resolved = now or datetime.now(UTC)
     return resolved.strftime("%Y%m%d%H%M%S")
 
 
 def slugify_migration_name(name: str | None, *, default: str = "schema_diff") -> str:
-    """Convert a human migration name into a filename slug."""
+    """Convert a human migration name into a filename slug.
+
+    Args:
+        name: Optional human-readable migration name.
+        default: Slug to use when ``name`` is blank.
+
+    Returns:
+        A lowercase slug containing only letters, digits, and underscores.
+    """
     raw = (name or default).strip().lower()
     slug = re.sub(r"[^a-z0-9]+", "_", raw).strip("_")
     return slug or default
 
 
 def migration_filename(*, version: str, name: str | None) -> str:
-    """Return the canonical migration filename."""
+    """Return the canonical migration filename.
+
+    Args:
+        version: Migration version timestamp.
+        name: Optional human-readable migration name.
+
+    Returns:
+        The versioned SQL filename.
+    """
     return f"{version}_{slugify_migration_name(name)}.sql"
 
 
 def parse_migration_file(path: Path) -> MigrationFile:
-    """Parse a migration path into metadata."""
+    """Parse a migration path into metadata.
+
+    Args:
+        path: Path to a SQL migration file.
+
+    Returns:
+        Parsed migration metadata including checksum.
+
+    Raises:
+        ValueError: If the filename does not match the migration naming convention.
+    """
     match = _MIGRATION_FILE_RE.match(path.name)
     if match is None:
         raise ValueError(f"Invalid migration filename: {path.name}")
@@ -58,7 +95,14 @@ def parse_migration_file(path: Path) -> MigrationFile:
 
 
 def list_migration_files(directory: Path) -> tuple[MigrationFile, ...]:
-    """Return migration files sorted by version and filename."""
+    """Return migration files sorted by version and filename.
+
+    Args:
+        directory: Directory containing migration SQL files.
+
+    Returns:
+        Parsed migration files in deterministic apply order.
+    """
     if not directory.exists():
         return ()
     paths = sorted(path for path in directory.iterdir() if path.suffix == ".sql" and path.is_file())
@@ -66,7 +110,14 @@ def list_migration_files(directory: Path) -> tuple[MigrationFile, ...]:
 
 
 def checksum_file(path: Path) -> str:
-    """Return the SHA-256 checksum for a migration file."""
+    """Return the SHA-256 checksum for a migration file.
+
+    Args:
+        path: Path to checksum.
+
+    Returns:
+        Hex-encoded SHA-256 digest of the file bytes.
+    """
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
@@ -77,7 +128,20 @@ def write_migration_file(
     name: str | None = None,
     version: str | None = None,
 ) -> Path:
-    """Write a new migration file and return its path."""
+    """Write a new migration file and return its path.
+
+    Args:
+        directory: Directory where the migration file should be created.
+        sql: SQL text to write.
+        name: Optional human-readable migration name for the filename slug.
+        version: Optional explicit version timestamp.
+
+    Returns:
+        Path to the newly created migration file.
+
+    Raises:
+        FileExistsError: If the resolved migration filename already exists.
+    """
     directory.mkdir(parents=True, exist_ok=True)
     resolved_version = version or timestamp_version()
     path = directory / migration_filename(version=resolved_version, name=name)
@@ -88,7 +152,14 @@ def write_migration_file(
 
 
 def empty_migration_sql(name: str | None = None) -> str:
-    """Return a manual migration skeleton."""
+    """Return a manual migration skeleton.
+
+    Args:
+        name: Optional human-readable migration name.
+
+    Returns:
+        SQL comments forming an empty manual migration template.
+    """
     title = slugify_migration_name(name)
     return "\n".join(
         (

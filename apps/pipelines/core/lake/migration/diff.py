@@ -16,16 +16,28 @@ class LakeSchemaDiff:
 
     @property
     def has_changes(self) -> bool:
-        """Return True when the diff has executable SQL or warnings."""
+        """Return True when the diff has executable SQL or warnings.
+
+        Returns:
+            Whether any SQL statements or warnings were generated.
+        """
         return bool(self.statements or self.warnings)
 
     @property
     def has_statements(self) -> bool:
-        """Return True when the diff has executable SQL statements."""
+        """Return True when the diff has executable SQL statements.
+
+        Returns:
+            Whether the migration contains SQL statements to execute.
+        """
         return bool(self.statements)
 
     def to_sql(self) -> str:
-        """Render the migration SQL file body."""
+        """Render the migration SQL file body.
+
+        Returns:
+            SQL text containing warning comments and executable statements.
+        """
         sections: list[str] = [
             "-- Generated lake schema migration.",
             "-- Review before applying to shared environments.",
@@ -40,7 +52,16 @@ class LakeSchemaDiff:
 
 
 def diff_lake_schema(actual: ActualLakeSchema, desired: DesiredLakeSchema) -> LakeSchemaDiff:
-    """Generate a conservative migration diff from actual to desired state."""
+    """Generate a conservative migration diff from actual to desired state.
+
+    Args:
+        actual: Current lake catalog discovered through introspection.
+        desired: Desired lake catalog rendered from table specs.
+
+    Returns:
+        A diff containing safe SQL statements, manual-review warnings, and a
+        suggested migration name.
+    """
     statements: list[str] = []
     warnings: list[str] = []
     missing_tables: list[DesiredTable] = []
@@ -78,6 +99,15 @@ def diff_lake_schema(actual: ActualLakeSchema, desired: DesiredLakeSchema) -> La
 
 
 def _diff_existing_table(actual: ActualTable, desired: DesiredTable) -> tuple[list[str], list[str]]:
+    """Diff an existing table and return safe SQL plus manual-review warnings.
+
+    Args:
+        actual: Existing table metadata from the lake catalog.
+        desired: Desired table metadata from Python table specs.
+
+    Returns:
+        A pair of executable SQL statements and warning comments.
+    """
     statements: list[str] = []
     warnings: list[str] = []
     actual_columns = actual.columns
@@ -123,6 +153,15 @@ def _diff_existing_table(actual: ActualTable, desired: DesiredTable) -> tuple[li
 
 
 def _add_column_statements(table: DesiredTable, column: ColumnSpec) -> tuple[list[str], str | None]:
+    """Generate safe ADD COLUMN SQL, or a warning when the add needs manual backfill.
+
+    Args:
+        table: Desired table that is missing the column.
+        column: Desired column to add.
+
+    Returns:
+        A pair of executable SQL statements and an optional warning.
+    """
     if column.nullable:
         return [f"ALTER TABLE {table.qualified_name} ADD COLUMN IF NOT EXISTS {column.to_ddl()}"], None
     if column.default is not None:
@@ -135,6 +174,15 @@ def _add_column_statements(table: DesiredTable, column: ColumnSpec) -> tuple[lis
 
 
 def _sql_types_match(desired_type: str, actual_type: str) -> bool:
+    """Return whether desired and actual SQL types are equivalent for v1 diffs.
+
+    Args:
+        desired_type: SQL type from the desired table spec.
+        actual_type: SQL type from the existing lake catalog.
+
+    Returns:
+        Whether the normalized SQL types are treated as equivalent.
+    """
     desired = _normalize_sql_type(desired_type)
     actual = _normalize_sql_type(actual_type)
     if desired == "DECIMAL" and actual.startswith("DECIMAL("):
@@ -143,6 +191,14 @@ def _sql_types_match(desired_type: str, actual_type: str) -> bool:
 
 
 def _normalize_sql_type(sql_type: str) -> str:
+    """Normalize SQL type spellings before comparison.
+
+    Args:
+        sql_type: Raw SQL type string.
+
+    Returns:
+        Canonical SQL type spelling used by the diff comparison.
+    """
     normalized = " ".join(sql_type.upper().split())
     aliases = {
         "TEXT": "VARCHAR",
@@ -152,12 +208,29 @@ def _normalize_sql_type(sql_type: str) -> str:
 
 
 def _defaults_match(desired_default: str, actual_default: str | None) -> bool:
+    """Return whether desired and actual default expressions match textually.
+
+    Args:
+        desired_default: Default expression from the desired table spec.
+        actual_default: Default expression from the existing lake catalog.
+
+    Returns:
+        Whether the normalized default expressions match.
+    """
     if actual_default is None:
         return False
     return _normalize_default(desired_default) == _normalize_default(actual_default)
 
 
 def _normalize_default(default: str) -> str:
+    """Normalize a default expression for conservative string comparison.
+
+    Args:
+        default: SQL default expression.
+
+    Returns:
+        Lowercase default expression with whitespace removed.
+    """
     return "".join(default.lower().split())
 
 
@@ -168,6 +241,17 @@ def _suggest_name(
     statements: tuple[str, ...],
     warnings: tuple[str, ...],
 ) -> str:
+    """Suggest a readable migration filename stem from the diff shape.
+
+    Args:
+        missing_tables: Desired tables that do not exist yet.
+        altered_tables: Qualified table names with SQL or warnings.
+        statements: Executable statements produced by the diff.
+        warnings: Manual-review warnings produced by the diff.
+
+    Returns:
+        A short snake_case migration name.
+    """
     if len(missing_tables) == 1 and not altered_tables and not warnings:
         table = missing_tables[0]
         return f"create_{table.schema}_{table.name}"

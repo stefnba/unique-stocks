@@ -81,6 +81,10 @@ class ColumnSpec:
     def to_ddl(self) -> str:
         """Return this column as a SQL DDL fragment.
 
+        Returns:
+            Column definition suitable for use inside a ``CREATE TABLE``
+            statement.
+
         Example:
             ``ColumnSpec("name", "VARCHAR").to_ddl()`` returns
             ``"name VARCHAR NOT NULL"``.
@@ -99,6 +103,13 @@ def column_from_field(name: str, field: FieldInfo) -> ColumnSpec:
     SQL type is inferred from the field annotation unless the annotation or
     field metadata contains ``SqlColumn``. Optional annotations such as
     ``str | None`` become nullable columns by default.
+
+    Args:
+        name: Physical column name to render.
+        field: Pydantic field metadata from the row model.
+
+    Returns:
+        Normalized SQL column specification.
     """
     annotation, metadata = _unwrap_annotated(field.annotation)
     metadata.extend(field.metadata)
@@ -112,7 +123,14 @@ def column_from_field(name: str, field: FieldInfo) -> ColumnSpec:
 
 
 def _unwrap_annotated(annotation: Any) -> tuple[Any, list[Any]]:
-    """Return the base annotation and metadata from ``Annotated`` values."""
+    """Return the base annotation and metadata from ``Annotated`` values.
+
+    Args:
+        annotation: Python annotation to inspect.
+
+    Returns:
+        A pair of the unwrapped annotation and any ``Annotated`` metadata.
+    """
     if get_origin(annotation) is Annotated:
         args = get_args(annotation)
         return args[0], list(args[1:])
@@ -120,7 +138,14 @@ def _unwrap_annotated(annotation: Any) -> tuple[Any, list[Any]]:
 
 
 def _unwrap_optional(annotation: Any) -> tuple[Any, bool]:
-    """Return the non-None annotation and whether the original was optional."""
+    """Return the non-None annotation and whether the original was optional.
+
+    Args:
+        annotation: Python annotation to inspect.
+
+    Returns:
+        A pair of the effective annotation and whether ``None`` was allowed.
+    """
     origin = get_origin(annotation)
     if origin in {typing.Union, UnionType}:
         args = tuple(arg for arg in get_args(annotation) if arg is not NoneType)
@@ -130,7 +155,17 @@ def _unwrap_optional(annotation: Any) -> tuple[Any, bool]:
 
 
 def _infer_sql_type(annotation: Any) -> str:
-    """Infer a DuckDB-compatible SQL type for a Python annotation."""
+    """Infer a DuckDB-compatible SQL type for a Python annotation.
+
+    Args:
+        annotation: Python annotation to map to SQL.
+
+    Returns:
+        DuckDB-compatible SQL type string.
+
+    Raises:
+        TypeError: If the annotation cannot be mapped without an explicit override.
+    """
     origin = get_origin(annotation)
     if annotation is str:
         return VARCHAR
