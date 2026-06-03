@@ -247,6 +247,116 @@ def load_daily_run_trend(
     )
 
 
+def load_attention_runs(
+    lake: LakeReader,
+    *,
+    since: datetime,
+    domains: Sequence[str],
+    limit: int = 200,
+) -> list[dict[str, Any]]:
+    """Load failed and partial runs for triage, independent of explorer status filters.
+
+    Args:
+        lake: Read-only lake client.
+        since: Start of the dashboard window.
+        domains: Optional domain filters. An empty sequence disables domain filtering.
+        limit: Maximum number of attention runs to return.
+
+    Returns:
+        Failed and partial run rows ordered by ``started_at`` descending.
+    """
+    if not pipeline_runs_available(lake):
+        return []
+
+    domain_values = _clean_values(domains)
+    clauses = ["started_at >= ?", "status IN ('failed', 'partial')"]
+    params: list[Any] = [since]
+    if domain_values:
+        clauses.append(f"domain IN ({_placeholders(len(domain_values))})")
+        params.extend(domain_values)
+
+    params.append(_bounded_limit(limit, default=200, maximum=500))
+    return lake.query(
+        f"""
+        SELECT
+            run_id,
+            parent_run_id,
+            prefect_flow_run_id,
+            flow_name,
+            domain,
+            run_kind,
+            provider,
+            status,
+            started_at,
+            completed_at,
+            date_diff('second', started_at, COALESCE(completed_at, CURRENT_TIMESTAMP)) AS duration_seconds,
+            units_total,
+            units_failed,
+            rows_written,
+            rows_rejected,
+            error_class,
+            error_message
+        FROM pipeline.runs
+        WHERE {" AND ".join(clauses)}
+        ORDER BY started_at DESC
+        LIMIT ?
+        """,
+        params,
+    )
+
+
+def load_latest_attention_runs_by_domain(
+    lake: LakeReader,
+    *,
+    since: datetime,
+    domains: Sequence[str],
+) -> list[dict[str, Any]]:
+    """Load the most recent failed or partial run per domain inside the window.
+
+    Args:
+        lake: Read-only lake client.
+        since: Start of the dashboard window.
+        domains: Optional domain filters. An empty sequence disables domain filtering.
+
+    Returns:
+        One attention run row per domain, ordered by domain name.
+    """
+    if not pipeline_runs_available(lake):
+        return []
+
+    domain_values = _clean_values(domains)
+    clauses = ["started_at >= ?", "status IN ('failed', 'partial')"]
+    params: list[Any] = [since]
+    if domain_values:
+        clauses.append(f"domain IN ({_placeholders(len(domain_values))})")
+        params.extend(domain_values)
+
+    return lake.query(
+        f"""
+        WITH ranked AS (
+            SELECT
+                run_id,
+                flow_name,
+                domain,
+                status,
+                started_at,
+                completed_at,
+                units_failed,
+                error_class,
+                error_message,
+                ROW_NUMBER() OVER (PARTITION BY domain ORDER BY started_at DESC) AS row_number
+            FROM pipeline.runs
+            WHERE {" AND ".join(clauses)}
+        )
+        SELECT * EXCLUDE (row_number)
+        FROM ranked
+        WHERE row_number = 1
+        ORDER BY domain
+        """,
+        params,
+    )
+
+
 def load_recent_runs(
     lake: LakeReader,
     *,
@@ -554,6 +664,16 @@ def _run_filters(
     domains: Sequence[str],
     statuses: Sequence[str],
 ) -> tuple[list[str], list[Any]]:
+    """Build shared ``WHERE`` clauses for run-level dashboard queries.
+
+    Args:
+        since: Lower bound for ``started_at``.
+        domains: Optional domain filters.
+        statuses: Optional status filters. An empty sequence disables status filtering.
+
+    Returns:
+        Tuple of SQL clause strings and bound parameter values.
+    """
     clauses = ["started_at >= ?"]
     params: list[Any] = [since]
 
@@ -571,14 +691,40 @@ def _run_filters(
 
 
 def _clean_values(values: Sequence[str]) -> list[str]:
+    """Drop blank strings from dashboard filter inputs.
+
+    Args:
+        values: Raw string filter values from the UI.
+
+    Returns:
+        Non-empty trimmed strings.
+    """
     return [str(value) for value in values if str(value).strip()]
 
 
 def _placeholders(count: int) -> str:
+    """Build a comma-separated SQL placeholder list.
+
+    Args:
+        count: Number of placeholders to generate.
+
+    Returns:
+        Placeholder string such as ``?, ?, ?``.
+    """
     return ", ".join("?" for _ in range(count))
 
 
 def _bounded_limit(value: int, *, default: int, maximum: int) -> int:
+    """Clamp user-provided limits to safe dashboard bounds.
+
+    Args:
+        value: Requested row limit from the UI or caller.
+        default: Fallback when ``value`` cannot be parsed as an integer.
+        maximum: Hard upper bound enforced for lake queries.
+
+    Returns:
+        Integer limit between ``1`` and ``maximum``.
+    """
     try:
         numeric = int(value)
     except TypeError, ValueError:
@@ -587,6 +733,11 @@ def _bounded_limit(value: int, *, default: int, maximum: int) -> int:
 
 
 def _empty_summary() -> dict[str, int]:
+    """Return zeroed KPI counters for unmigrated or empty lakes.
+
+    Returns:
+        Empty run-summary counter mapping used by overview KPIs.
+    """
     return {
         "total_runs": 0,
         "running_runs": 0,
@@ -601,6 +752,14 @@ def _empty_summary() -> dict[str, int]:
 
 
 def _int_value(value: object) -> int:
+    """Coerce lake counter values to integers.
+
+    Args:
+        value: Raw scalar from a SQL aggregate.
+
+    Returns:
+        Integer value, defaulting to zero for ``None``.
+    """
     if value is None:
         return 0
     return int(cast(Any, value))

@@ -13,10 +13,20 @@ It treats `pipeline.runs` as the summary table and loads drill-down data from
 
 ## Pages
 
-The default route is the overview page. Run tables expose a `Detail` link that
-opens `?page=run&run_id=<run_id>` for a durable, bookmarkable run detail view.
-The detail page shows run metadata, parameters, summary JSON, work units, landing
-objects, sampled rejections, and dbt node results.
+Routes use query params for bookmarkable drill-down:
+
+- `?page=overview` — triage queue, domain health, collapsed activity/lookup
+- `?page=run&run_id=<run_id>` — run investigation with unit master-detail
+- `?page=unit&run_id=<run_id>&unit_id=<unit_id>` — unit evidence view
+
+Select a row in any run table to open run detail. On the run page, select a unit row
+to inspect landing/rejection evidence inline, or open the full unit page.
+
+## Layout
+
+`app.py` is the Streamlit entrypoint. Page rendering lives under `views/`, shared
+formatting under `formatting.py`, table helpers under `tables.py`, cached loaders
+under `loaders.py`, and read-only SQL under `queries.py`.
 
 ## Local Run
 

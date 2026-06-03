@@ -81,6 +81,25 @@ def test_dashboard_run_summary_queries() -> None:
     assert trend[0]["runs"] == 3
 
 
+def test_dashboard_attention_queries() -> None:
+    """Triage queries should load attention runs independently of explorer filters."""
+    now = datetime(2026, 6, 3, 12, 0, tzinfo=UTC)
+    lake = _lake_with_dashboard_tables()
+    _insert_runs(lake, now=now)
+
+    attention_runs = queries.load_attention_runs(lake, since=now - timedelta(days=2), domains=("eod_price",))
+    assert [str(row["run_id"]) for row in attention_runs] == [RUN_ID_FAILED]
+
+    attention_by_domain = queries.load_latest_attention_runs_by_domain(
+        lake,
+        since=now - timedelta(days=2),
+        domains=("eod_price", "instrument"),
+    )
+    assert len(attention_by_domain) == 1
+    assert str(attention_by_domain[0]["run_id"]) == RUN_ID_FAILED
+    assert attention_by_domain[0]["domain"] == "eod_price"
+
+
 def test_dashboard_detail_queries() -> None:
     """Run drill-down queries should read units, landing, rejections, and dbt nodes."""
     now = datetime(2026, 6, 3, 12, 0, tzinfo=UTC)
