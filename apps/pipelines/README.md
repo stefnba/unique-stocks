@@ -156,6 +156,19 @@ reruns resume-safe, such as EOD backfill `no_data` for an exact ticker/date
 range. See [docs/pipeline_audit.md](docs/pipeline_audit.md) for table
 semantics, statuses, and the integration pattern.
 
+## Operational logging
+
+Pipeline code uses `structlog` through the central configuration in `core/utils/logging.py`. Development and
+docker-dev default to readable console logs; production defaults to JSON logs on stdout so Prefect and the container
+platform can collect them. Prefect captures app package logs through `PREFECT_LOGGING_EXTRA_LOGGERS`.
+
+Logging is configured when the `core` package is first imported. Set `ENVIRONMENT`, `PIPELINE_LOG_FORMAT`,
+`PIPELINE_LOG_LEVEL`, and optional `GIT_SHA` before importing flow/task modules in local scripts or workers. Compose
+sets these before the worker imports app code.
+
+Do not write general log lines to the lake or S3. Use Prefect/stdout logs for narrative debugging, `pipeline.*` audit
+tables for durable run facts and dashboard queries, and S3 only for raw provider landing payloads.
+
 ## Environments
 
 | Environment     | `ENVIRONMENT` value | Prefect backend    | Lake backend      | When to use                                        |

@@ -5,9 +5,12 @@ from typing import ClassVar, Self
 
 import httpx
 import pytest
+from pytest import CaptureFixture
 from structlog.testing import capture_logs
 
+from config.settings import Settings
 from core.clients.http.base import REDACTED_QUERY_VALUE, HttpClientBase, ProviderRateLimitError
+from core.utils.logging import configure_logging
 
 SECRET_TOKEN = "provider-token-123"
 
@@ -96,3 +99,19 @@ async def test_http_client_redacts_provider_token_echoed_in_error_body() -> None
     log_text = repr(logs)
     assert SECRET_TOKEN not in log_text
     assert f"api_token={REDACTED_QUERY_VALUE}" in log_text
+
+
+@pytest.mark.asyncio
+async def test_http_client_success_response_logs_at_debug_level(capsys: CaptureFixture[str]) -> None:
+    """Successful provider responses should stay out of normal INFO operational logs."""
+    configure_logging(settings=Settings(pipeline_log_format="json", pipeline_log_level="INFO"), force=True)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=[], request=request)
+
+    transport = httpx.MockTransport(handler)
+
+    async with _DemoClient(transport) as client:
+        await client._request("/prices", params={"symbol": "AAPL.US"})
+
+    assert "http.client.demo.response" not in capsys.readouterr().out

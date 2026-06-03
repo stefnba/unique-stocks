@@ -1,10 +1,15 @@
 """Tests for pipeline audit tracking helpers."""
 
+import json
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any, cast
 
 import pytest
+import structlog
+from pydantic import SecretStr
+from pytest import CaptureFixture
 
+from config.settings import Settings
 from core.clients.lake import DataLakeClient
 from core.ingestion.landing import LandingWrite
 from core.ingestion.run_tracking import (
@@ -16,6 +21,7 @@ from core.ingestion.run_tracking import (
     RunUnitTally,
     terminal_status,
 )
+from core.utils.logging import configure_logging
 
 
 class FakeLake:
@@ -168,6 +174,68 @@ def test_track_run_allows_explicit_completion() -> None:
     assert lake.executed[-1][1][0] == "completed"
     assert lake.executed[-1][1][2] == 0
     assert lake.executed[-1][1][-2] == '{"ok":true}'
+
+
+def test_track_run_binds_logging_context(capsys: CaptureFixture[str]) -> None:
+    """Logs emitted inside a run scope should include the durable pipeline run context."""
+    structlog.contextvars.clear_contextvars()
+    configure_logging(
+        settings=Settings(
+            environment="prod",
+            motherduck_token=SecretStr("motherduck-token"),
+            pipeline_log_format="json",
+        ),
+        force=True,
+    )
+    lake = FakeLake()
+    tracker = _tracker(lake)
+    capsys.readouterr()
+
+    with tracker.track_run(flow_name="flow", domain="domain", run_kind="daily", provider="provider") as run:
+        run_id = run.run_id
+        structlog.get_logger("tests.run_tracking").info("run.inside_scope")
+        run.complete(counters=RunCounters(units_total=0))
+    structlog.get_logger("tests.run_tracking").info("run.outside_scope")
+
+    rows = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    events = {row["event"]: row for row in rows}
+    assert events["pipeline.run.started"]["run_id"] == run_id
+    assert events["pipeline.run.completed"]["run_id"] == run_id
+    assert events["run.inside_scope"]["run_id"] == run_id
+    assert events["run.inside_scope"]["domain"] == "domain"
+    assert events["run.inside_scope"]["provider"] == "provider"
+    assert "run_id" not in events["run.outside_scope"]
+
+
+def test_track_run_logs_failures(capsys: CaptureFixture[str]) -> None:
+    """Run and unit failures should produce operational log events."""
+    structlog.contextvars.clear_contextvars()
+    configure_logging(
+        settings=Settings(
+            environment="prod",
+            motherduck_token=SecretStr("motherduck-token"),
+            pipeline_log_format="json",
+        ),
+        force=True,
+    )
+    lake = FakeLake()
+    tracker = _tracker(lake)
+    capsys.readouterr()
+
+    with (
+        pytest.raises(ValueError, match="fetch failed"),
+        tracker.track_run(flow_name="flow", domain="domain", run_kind="daily", provider="provider") as run,
+        run.track_unit(unit_type="ticker", unit_key={"ticker": "AAPL.US"}),
+    ):
+        raise ValueError("fetch failed")
+
+    rows = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    events = {row["event"]: row for row in rows}
+    assert events["pipeline.unit.failed"]["unit_type"] == "ticker"
+    assert events["pipeline.unit.failed"]["unit_key_hash"]
+    assert "unit_key" not in events["pipeline.unit.failed"]
+    assert events["pipeline.unit.failed"]["error_class"] == "ValueError"
+    assert events["pipeline.run.failed"]["error_class"] == "ValueError"
 
 
 def test_track_unit_binds_run_context_and_landing_object() -> None:

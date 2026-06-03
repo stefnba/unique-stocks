@@ -1,8 +1,11 @@
 FROM python:3.14-slim
 
+ARG GIT_SHA=""
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    UV_CACHE_DIR=/tmp/uv-cache
+    UV_CACHE_DIR=/tmp/uv-cache \
+    GIT_SHA=${GIT_SHA}
 
 WORKDIR /app
 
