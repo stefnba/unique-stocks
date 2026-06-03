@@ -9,6 +9,7 @@ import structlog
 from prefect import flow
 from pydantic import ValidationError
 
+from core.clients.http.base import ProviderRateLimitError
 from core.ingestion import LandingWrite, PipelineRunScope, PipelineRunTracker, RejectionRecord, terminal_status
 from domains.fundamental.tasks import (
     delete_fundamental_snapshot_rows,
@@ -57,6 +58,8 @@ _REJECTION_SAMPLE_LIMIT_PER_TICKER = 100
 async def fundamental_flow(
     tickers: list[str] | None = None,
     snapshot_date: date | None = None,
+    ingestion_batch_date: date | None = None,
+    continue_ingestion_batch: bool = False,
     provider_exchange_codes: list[str] | None = None,
     limit: int | None = None,
     skip_existing: bool = True,
@@ -73,7 +76,12 @@ async def fundamental_flow(
     This first implementation supports stock fundamentals. Non-stock documents
     still produce a document metadata row, but family-specific ETF/fund/index
     extraction is intentionally left for separate parser slices with fixtures.
-    ``snapshot_date`` is an ingestion batch date. By default, already-ingested
+    ``snapshot_date`` and ``ingestion_batch_date`` are the bronze partition key
+    ``(snapshot_date, ticker)``. Use ``ingestion_batch_date`` to pin a multi-day
+    backfill campaign. With ``continue_ingestion_batch=True`` and no explicit
+    date, the flow reuses ``MAX(snapshot_date)`` from ``bronze.fundamental_document``
+    so a later run does not treat every ticker as pending again. Manual runs
+    without those flags still default to today. By default, already-ingested
     ticker snapshots are skipped before fetching to avoid spending provider
     credits. Set ``refresh_existing=True`` to fetch existing ticker snapshots,
     compare payload hashes, and replace same-day Bronze rows only when the
@@ -83,8 +91,26 @@ async def fundamental_flow(
     ``batch_size`` controls concurrent provider fetches only; landing and
     Bronze writes stay sequential. ``max_provider_credits`` can cap provider
     calls for fundamentals backfills where each EODHD call costs 10 credits.
+    If the provider returns HTTP 429, the flow stops after the active fetch
+    batch and records unsubmitted tickers as deferred so the same batch date can
+    continue after the provider quota resets.
     """
-    snapshot_date = snapshot_date or date.today()
+    from domains.fundamental.tasks import resolve_fundamental_snapshot_date_task
+
+    resolved_batch = resolve_fundamental_snapshot_date_task(
+        snapshot_date=snapshot_date,
+        ingestion_batch_date=ingestion_batch_date,
+        continue_ingestion_batch=continue_ingestion_batch,
+    )
+    snapshot_date = date.fromisoformat(str(resolved_batch["snapshot_date"]))
+    snapshot_date_source = str(resolved_batch["source"])
+    if snapshot_date_source == "bronze_latest":
+        log.info(
+            "fundamental.ingestion_batch_continued",
+            snapshot_date=snapshot_date.isoformat(),
+            source=snapshot_date_source,
+        )
+
     if tickers:
         requested_tickers = tickers
     else:
@@ -97,9 +123,12 @@ async def fundamental_flow(
 
     summary: dict = {
         "snapshot_date": snapshot_date.isoformat(),
+        "snapshot_date_source": snapshot_date_source,
         "tickers": {},
         "skipped": [],
         "failed": [],
+        "deferred": [],
+        "provider_quota_exhausted": False,
     }
     total_raw = 0
     total_valid = 0
@@ -115,6 +144,9 @@ async def fundamental_flow(
         parameters={
             "tickers": tickers,
             "snapshot_date": snapshot_date.isoformat(),
+            "ingestion_batch_date": ingestion_batch_date.isoformat() if ingestion_batch_date else None,
+            "continue_ingestion_batch": continue_ingestion_batch,
+            "snapshot_date_source": snapshot_date_source,
             "provider_exchange_codes": provider_exchange_codes,
             "limit": limit,
             "skip_existing": skip_existing,
@@ -164,7 +196,9 @@ async def fundamental_flow(
                         rows_written=0,
                     )
 
-            async for ticker, result in _fundamental_raw_results(
+            processed_tickers: set[str] = set()
+            stop_after_fetch_batch = False
+            async for ticker, result, is_batch_end in _fundamental_raw_results(
                 pending_tickers,
                 snapshot_date=snapshot_date,
                 replay_landing=replay_landing,
@@ -172,7 +206,35 @@ async def fundamental_flow(
                 fetch_batch_size=fetch_batch_size,
                 fetch_batch_delay=fetch_batch_delay,
             ):
+                processed_tickers.add(ticker)
                 unit_key = {"ticker": ticker, "snapshot_date": snapshot_date.isoformat()}
+                if isinstance(result, ProviderRateLimitError):
+                    log.warning(
+                        "fundamental.provider_quota_exhausted",
+                        ticker=ticker,
+                        retry_after=result.retry_after,
+                    )
+                    summary["provider_quota_exhausted"] = True
+                    summary["failed"].append(ticker)
+                    summary["deferred"].append(ticker)
+                    run.record_unit(
+                        unit_type="ticker_snapshot",
+                        unit_key=unit_key,
+                        status="failed",
+                        reason="provider_rate_limited",
+                        error=result,
+                        rows_written=0,
+                    )
+                    stop_after_fetch_batch = True
+                    if is_batch_end:
+                        _defer_provider_rate_limited_tickers(
+                            run=run,
+                            summary=summary,
+                            tickers=_unprocessed_tickers(pending_tickers, processed_tickers),
+                            snapshot_date=snapshot_date,
+                        )
+                        break
+                    continue
                 if isinstance(result, ValidationError):
                     summary["failed"].append(ticker)
                     run.record_unit(
@@ -502,6 +564,15 @@ async def fundamental_flow(
                         rows_written=0,
                     )
 
+                if stop_after_fetch_batch and is_batch_end:
+                    _defer_provider_rate_limited_tickers(
+                        run=run,
+                        summary=summary,
+                        tickers=_unprocessed_tickers(pending_tickers, processed_tickers),
+                        snapshot_date=snapshot_date,
+                    )
+                    break
+
             run.complete(
                 status=terminal_status(
                     failed=run.tally.failed,
@@ -548,7 +619,7 @@ async def _fundamental_raw_results(
     landing_source_uris_by_ticker: dict[str, str] | None,
     fetch_batch_size: int,
     fetch_batch_delay: float,
-) -> AsyncIterator[tuple[str, FundamentalRaw | tuple[FundamentalRaw, LandingWrite] | BaseException]]:
+) -> AsyncIterator[tuple[str, FundamentalRaw | tuple[FundamentalRaw, LandingWrite] | BaseException, bool]]:
     """Yield fetched or replayed fundamentals payloads one batch at a time."""
     for i in range(0, len(tickers), fetch_batch_size):
         batch_tickers = tickers[i : i + fetch_batch_size]
@@ -570,16 +641,43 @@ async def _fundamental_raw_results(
                 return_exceptions=True,
             )
 
-        for ticker, result in zip(batch_tickers, raw_results, strict=True):
-            yield ticker, result
+        last_index = len(batch_tickers) - 1
+        for batch_index, (ticker, result) in enumerate(zip(batch_tickers, raw_results, strict=True)):
+            yield ticker, result, batch_index == last_index
 
         if not replay_landing and fetch_batch_delay > 0 and i + fetch_batch_size < len(tickers):
             await asyncio.sleep(fetch_batch_delay)
 
 
 def _write_reason(*reasons: str | None) -> str | None:
+    """Combine non-empty Bronze write reasons into a stable unit reason string."""
     reason_set = sorted({reason for reason in reasons if reason})
     return ",".join(reason_set) if reason_set else None
+
+
+def _unprocessed_tickers(tickers: list[str], processed_tickers: set[str]) -> list[str]:
+    """Return pending tickers that have not had a fetch result processed."""
+    return [ticker for ticker in tickers if ticker not in processed_tickers]
+
+
+def _defer_provider_rate_limited_tickers(
+    *,
+    run: PipelineRunScope,
+    summary: dict,
+    tickers: list[str],
+    snapshot_date: date,
+) -> None:
+    """Record unsubmitted fundamentals work that should resume after quota reset."""
+    for ticker in tickers:
+        summary["skipped"].append(ticker)
+        summary["deferred"].append(ticker)
+        run.record_unit(
+            unit_type="ticker_snapshot",
+            unit_key={"ticker": ticker, "snapshot_date": snapshot_date.isoformat()},
+            status="skipped",
+            reason="provider_rate_limited",
+            rows_written=0,
+        )
 
 
 def _fundamental_rejection_records(

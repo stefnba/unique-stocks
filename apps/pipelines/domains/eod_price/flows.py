@@ -16,6 +16,7 @@ import structlog
 from prefect import flow
 from pydantic import ValidationError
 
+from core.clients.http.base import ProviderRateLimitError
 from core.ingestion import (
     BronzeParseResult,
     LandingObjectRecord,
@@ -36,6 +37,7 @@ from domains.eod_price.tasks import (
     parse_eod_price,
     write_backfill_eod_batch,
     write_bronze_eod_price,
+    write_eod_backfill_coverage,
     write_eod_price_to_landing,
     write_ticker_eod_history_to_landing,
 )
@@ -332,6 +334,7 @@ async def eod_price_backfill_flow(
     to_date: date | None = None,
     provider_exchange_codes: list[str] | None = None,
     batch_size: int = 50,
+    max_provider_calls: int | None = None,
 ) -> dict[str, object]:
     """Ingest full OHLCV history for every instrument in bronze.instrument.
 
@@ -340,9 +343,12 @@ async def eod_price_backfill_flow(
     batch all bars are committed to bronze before the next batch starts,
     giving natural checkpoints for resume on failure.
 
-    A symbol is skipped if it already has any row in bronze.eod_price for
-    its provider exchange code — re-runs are safe. To re-ingest a specific
-    symbol, pass its provider exchange code and delete its rows from bronze first.
+    A symbol is skipped when it already has rows in ``bronze.eod_price`` or a
+    ``no_data`` row in ``pipeline.ingestion_coverage`` for the exact same backfill
+    unit key: ``provider_exchange_code``, ticker, ``from_date``, and ``to_date``.
+    Re-runs are safe. To retry a symbol, delete its price and/or coverage rows
+    for that exchange partition first. Parser-rejected payloads are not marked
+    ``no_data``; they remain retryable.
 
     Provider-validated backfill payloads are written to S3 landing before
     parsing so historical ingestion follows the same replay contract as daily
@@ -357,9 +363,16 @@ async def eod_price_backfill_flow(
             enough to stay within the provider's API rate limits.
             At batch_size=50 and ~0.75 s/call the flow can process ~5 k
             symbols/hour, well within the daily quota.
+        max_provider_calls: Optional cap on per-symbol provider fetches submitted
+            during this run. Re-run later with the same date range to resume from
+            ``bronze.eod_price`` plus exact-range ``pipeline.ingestion_coverage``
+            pending-symbol detection.
     """
     to_date = to_date or date.today()
     codes = provider_exchange_codes or await fetch_eod_provider_exchange_codes()
+    provider_call_limit = None if max_provider_calls is None else max(0, int(max_provider_calls))
+    provider_calls_submitted = 0
+    provider_calls_deferred = 0
 
     total_written = 0
     total_raw = 0
@@ -370,6 +383,12 @@ async def eod_price_backfill_flow(
         "to_date": to_date.isoformat(),
         "exchange": {},
         "failed_symbols": [],
+        "provider_quota_exhausted": False,
+        "provider_calls": {
+            "max": provider_call_limit,
+            "submitted": 0,
+            "deferred": 0,
+        },
     }
 
     tracker = PipelineRunTracker()
@@ -383,6 +402,7 @@ async def eod_price_backfill_flow(
             "to_date": to_date.isoformat(),
             "provider_exchange_codes": provider_exchange_codes,
             "batch_size": batch_size,
+            "max_provider_calls": max_provider_calls,
         },
         target_window_start=from_date,
         target_window_end=to_date,
@@ -397,10 +417,11 @@ async def eod_price_backfill_flow(
         )
 
         try:
+            stop_after_exchange = False
             for provider_exchange_code in codes:
-                pending = load_backfill_pending_symbols(provider_exchange_code, from_date)
+                pending_all = load_backfill_pending_symbols(provider_exchange_code, from_date, to_date)
 
-                if not pending:
+                if not pending_all:
                     log.info("backfill.exchange_skip", provider_exchange_code=provider_exchange_code, reason="all_done")
                     summary["exchange"][provider_exchange_code] = {"symbols": 0, "rows": 0}
                     run.record_unit(
@@ -416,15 +437,49 @@ async def eod_price_backfill_flow(
                     )
                     continue
 
+                pending = pending_all
+                exchange_deferred = 0
+                if provider_call_limit is not None:
+                    remaining_call_budget = provider_call_limit - provider_calls_submitted
+                    if remaining_call_budget <= 0:
+                        provider_calls_deferred += len(pending_all)
+                        summary["provider_quota_exhausted"] = True
+                        summary["provider_calls"]["deferred"] = provider_calls_deferred
+                        summary["exchange"][provider_exchange_code] = {
+                            "symbols_pending": len(pending_all),
+                            "symbols_deferred": len(pending_all),
+                            "rows_written": 0,
+                        }
+                        run.record_unit(
+                            unit_type="exchange_backfill",
+                            unit_key={
+                                "provider_exchange_code": provider_exchange_code,
+                                "from_date": from_date.isoformat(),
+                                "to_date": to_date.isoformat(),
+                            },
+                            status="skipped",
+                            reason="provider_call_budget_exhausted",
+                            rows_written=0,
+                        )
+                        break
+                    pending = pending_all[:remaining_call_budget]
+                    exchange_deferred = len(pending_all) - len(pending)
+                    if exchange_deferred:
+                        summary["provider_quota_exhausted"] = True
+                        stop_after_exchange = True
+
                 log.info("backfill.exchange_start", provider_exchange_code=provider_exchange_code, pending=len(pending))
                 exchange_written = 0
                 exchange_failed: list[str] = []
                 exchange_raw = 0
                 exchange_valid = 0
                 exchange_rejected = 0
+                exchange_rate_limited = False
 
                 for i in range(0, len(pending), batch_size):
                     batch_symbols = pending[i : i + batch_size]
+                    provider_calls_submitted += len(batch_symbols)
+                    summary["provider_calls"]["submitted"] = provider_calls_submitted
                     raw_results = await asyncio.gather(
                         *[fetch_ticker_eod_history(sym, from_date, to_date) for sym in batch_symbols],
                         return_exceptions=True,
@@ -454,6 +509,27 @@ async def eod_price_backfill_flow(
                                 rows_written=0,
                             )
                             raise result  # schema drift — abort everything
+                        if isinstance(result, ProviderRateLimitError):
+                            log.warning(
+                                "backfill.provider_quota_exhausted",
+                                symbol=sym,
+                                retry_after=result.retry_after,
+                            )
+                            summary["provider_quota_exhausted"] = True
+                            exchange_rate_limited = True
+                            exchange_failed.append(sym)
+                            unit_records.append(
+                                run.unit_record(
+                                    unit_id=unit_id,
+                                    unit_type="ticker_backfill",
+                                    unit_key=unit_key,
+                                    status="failed",
+                                    reason="provider_rate_limited",
+                                    error=result,
+                                    rows_written=0,
+                                )
+                            )
+                            continue
                         if isinstance(result, BaseException):
                             log.error("backfill.symbol_failed", symbol=sym, error=str(result))
                             exchange_failed.append(sym)
@@ -488,13 +564,28 @@ async def eod_price_backfill_flow(
                             log.warning("backfill.parse_rejections", symbol=sym, count=rejected)
                         if valid:
                             batch_sources.extend(attach_source_uri(valid, landing.source_uri))
+                        elif not result:
+                            write_eod_backfill_coverage(
+                                run_id=str(run.run_id),
+                                provider_exchange_code=provider_exchange_code,
+                                ticker=sym,
+                                from_date=from_date,
+                                to_date=to_date,
+                                rows_raw=len(result),
+                                rows_valid=len(valid),
+                                rows_rejected=rejected,
+                                source_uri=landing.source_uri,
+                            )
+                        unit_reason = None
+                        if not valid:
+                            unit_reason = "no_valid_rows" if not result else "all_rows_rejected"
                         unit_records.append(
                             run.unit_record(
                                 unit_id=unit_id,
                                 unit_type="ticker_backfill",
                                 unit_key=unit_key,
                                 status="completed",
-                                reason="no_valid_rows" if not valid else None,
+                                reason=unit_reason,
                                 source_uri=landing.source_uri,
                                 rows_raw=len(result),
                                 rows_valid=len(valid),
@@ -539,12 +630,20 @@ async def eod_price_backfill_flow(
                         rows_written=batch_written,
                         units=len(unit_records),
                     )
+                    if exchange_rate_limited:
+                        exchange_deferred += len(pending) - min(i + batch_size, len(pending))
+                        stop_after_exchange = True
+                        break
 
                 summary["exchange"][provider_exchange_code] = {
-                    "symbols_pending": len(pending),
+                    "symbols_pending": len(pending_all),
                     "symbols_failed": len(exchange_failed),
+                    "symbols_deferred": exchange_deferred,
                     "rows_written": exchange_written,
                 }
+                if exchange_deferred:
+                    provider_calls_deferred += exchange_deferred
+                    summary["provider_calls"]["deferred"] = provider_calls_deferred
                 exchange_status = "completed" if not exchange_failed else "failed"
                 run.record_unit(
                     unit_type="exchange_backfill",
@@ -562,6 +661,8 @@ async def eod_price_backfill_flow(
                 )
                 summary["failed_symbols"].extend(exchange_failed)
                 total_written += exchange_written
+                if stop_after_exchange:
+                    break
 
             run.complete(
                 status=terminal_status(

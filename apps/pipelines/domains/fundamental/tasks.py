@@ -10,9 +10,11 @@ from prefect.tasks import exponential_backoff
 from pydantic import ValidationError
 
 from config.blocks import BlockRegistry
+from core.clients.http.base import ProviderRateLimitError
 from core.ingestion import BronzeParseResult, BronzeWrite, LandingWrite
 from core.ingestion.keys import ObjectStorageKey
 from domains.eod_price.symbols import exchange_from_qualified_ticker
+from domains.fundamental.batch import resolve_fundamental_snapshot_date
 from domains.fundamental.datasets import (
     FUNDAMENTAL_DOCUMENT_DATASET,
     FUNDAMENTAL_ETF_HOLDING_DATASET,
@@ -93,9 +95,9 @@ class _LandingStorage(Protocol):
 
 
 def _is_retryable(task: object, task_run: TaskRun, state: State) -> bool:
-    """Retry transient errors only — never retry schema validation failures."""
+    """Retry transient errors only; never retry schema drift or provider quota exhaustion."""
     exc = state.result(raise_on_failure=False)
-    return not isinstance(exc, ValidationError)
+    return not isinstance(exc, ValidationError | ProviderRateLimitError)
 
 
 @task(name="fetch-fundamental-provider-exchange-codes")
@@ -149,6 +151,58 @@ def load_fundamental_stock_tickers(
     tickers = [f"{row['ticker']}.{row['provider_exchange_code']}" for row in rows]
     log.info("fundamental.stock_tickers_loaded", count=len(tickers))
     return tickers
+
+
+@task(name="load-latest-fundamental-ingestion-batch-date")
+def load_latest_fundamental_ingestion_batch_date() -> date | None:
+    """Return the latest ``snapshot_date`` present in ``bronze.fundamental_document``.
+
+    Used to continue a multi-day backfill under the same bronze partition when
+    ``continue_ingestion_batch`` is enabled and no explicit batch date was passed.
+    """
+    from core.clients.lake import get_lake_client
+
+    lake = get_lake_client()
+    if not lake.table_exists("bronze", FUNDAMENTAL_DOCUMENT_DATASET.table_name):
+        return None
+
+    qualified = lake.qualified_name("bronze", FUNDAMENTAL_DOCUMENT_DATASET.table_name)
+    row = lake.query_one(
+        f"""
+        SELECT MAX(snapshot_date) AS snapshot_date
+        FROM {qualified}
+        WHERE data_provider = ?
+        """,
+        [str(FUNDAMENTAL_DOCUMENT_DATASET.provider)],
+    )
+    if not row or row.get("snapshot_date") is None:
+        return None
+    latest = row["snapshot_date"]
+    if isinstance(latest, date):
+        return latest
+    return date.fromisoformat(str(latest))
+
+
+@task(name="resolve-fundamental-snapshot-date")
+def resolve_fundamental_snapshot_date_task(
+    *,
+    snapshot_date: date | None,
+    ingestion_batch_date: date | None,
+    continue_ingestion_batch: bool,
+) -> dict[str, str]:
+    """Resolve the effective fundamentals ingestion batch date for this run."""
+    latest = load_latest_fundamental_ingestion_batch_date.fn() if continue_ingestion_batch else None
+    resolved = resolve_fundamental_snapshot_date(
+        snapshot_date=snapshot_date,
+        ingestion_batch_date=ingestion_batch_date,
+        continue_ingestion_batch=continue_ingestion_batch,
+        latest_bronze_snapshot_date=latest,
+        default_date=datetime.now(UTC).date(),
+    )
+    return {
+        "snapshot_date": resolved.snapshot_date.isoformat(),
+        "source": resolved.source,
+    }
 
 
 @task(name="fundamental-document-already-ingested")
@@ -321,6 +375,7 @@ async def write_fundamental_to_landing(
 
 
 def _latest_fundamental_landing_uri(s3: _LandingStorage, *, ticker: str, snapshot_date: date) -> str:
+    """Return the newest landed fundamentals object URI for one ticker snapshot."""
     provider_exchange_code = exchange_from_qualified_ticker(ticker)
     key = ObjectStorageKey.partitioned_from_mapping(
         FUNDAMENTAL_DOCUMENT_DATASET.provider,
@@ -348,6 +403,7 @@ def _latest_fundamental_landing_uri(s3: _LandingStorage, *, ticker: str, snapsho
 
 
 def _landing_bucket(s3: _LandingStorage) -> str:
+    """Return the storage client's default bucket or raise a replay-friendly error."""
     bucket = getattr(s3, "bucket", None)
     if not bucket:
         raise ValueError("S3 storage client has no default bucket; pass an explicit fundamentals source_uri.")
