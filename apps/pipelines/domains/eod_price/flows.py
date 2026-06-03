@@ -38,6 +38,7 @@ from domains.eod_price.tasks import (
     write_backfill_eod_batch,
     write_bronze_eod_price,
     write_eod_backfill_coverage,
+    write_eod_backfill_deferred_coverage,
     write_eod_price_to_landing,
     write_ticker_eod_history_to_landing,
 )
@@ -443,6 +444,14 @@ async def eod_price_backfill_flow(
                     remaining_call_budget = provider_call_limit - provider_calls_submitted
                     if remaining_call_budget <= 0:
                         provider_calls_deferred += len(pending_all)
+                        write_eod_backfill_deferred_coverage(
+                            run_id=str(run.run_id),
+                            provider_exchange_code=provider_exchange_code,
+                            tickers=pending_all,
+                            from_date=from_date,
+                            to_date=to_date,
+                            reason="provider_call_budget_exhausted",
+                        )
                         summary["provider_quota_exhausted"] = True
                         summary["provider_calls"]["deferred"] = provider_calls_deferred
                         summary["exchange"][provider_exchange_code] = {
@@ -464,7 +473,16 @@ async def eod_price_backfill_flow(
                         break
                     pending = pending_all[:remaining_call_budget]
                     exchange_deferred = len(pending_all) - len(pending)
+                    deferred_symbols = pending_all[len(pending) :]
                     if exchange_deferred:
+                        write_eod_backfill_deferred_coverage(
+                            run_id=str(run.run_id),
+                            provider_exchange_code=provider_exchange_code,
+                            tickers=deferred_symbols,
+                            from_date=from_date,
+                            to_date=to_date,
+                            reason="provider_call_budget_exhausted",
+                        )
                         summary["provider_quota_exhausted"] = True
                         stop_after_exchange = True
 
@@ -631,7 +649,17 @@ async def eod_price_backfill_flow(
                         units=len(unit_records),
                     )
                     if exchange_rate_limited:
-                        exchange_deferred += len(pending) - min(i + batch_size, len(pending))
+                        deferred_symbols = pending[min(i + batch_size, len(pending)) :]
+                        exchange_deferred += len(deferred_symbols)
+                        if deferred_symbols:
+                            write_eod_backfill_deferred_coverage(
+                                run_id=str(run.run_id),
+                                provider_exchange_code=provider_exchange_code,
+                                tickers=deferred_symbols,
+                                from_date=from_date,
+                                to_date=to_date,
+                                reason="provider_rate_limited",
+                            )
                         stop_after_exchange = True
                         break
 

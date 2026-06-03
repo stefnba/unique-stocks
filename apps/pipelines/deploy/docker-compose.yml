@@ -55,7 +55,13 @@ services:
     depends_on:
       pipelines-server:
         condition: service_healthy
-    command: uv run --no-dev --frozen prefect worker start --pool default-process-pool
+    command:
+      - sh
+      - -lc
+      - |
+        set -e
+        uv run --no-dev --frozen python -m core.lake.migration.migrate --migrations-dir lake/migrations
+        exec uv run --no-dev --frozen prefect worker start --pool default-process-pool
     healthcheck:
       test:
         [
@@ -65,13 +71,12 @@ services:
           "--no-dev",
           "--frozen",
           "python",
-          "-c",
-          "import os, urllib.request; urllib.request.urlopen(os.environ['PREFECT_API_URL'] + '/health', timeout=5).read()",
+          "scripts/check_worker_health.py",
         ]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 90s
 
 volumes:
   prefect-db:

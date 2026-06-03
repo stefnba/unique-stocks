@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from config.blocks import BlockRegistry
 from core.clients.http.base import ProviderRateLimitError
 from core.ingestion import BronzeParseResult, BronzeWrite, LandingWrite
+from core.ingestion.coverage import COVERAGE_STATUS_PROVIDER_QUOTA_DEFERRED, record_ingestion_coverage
 from core.ingestion.keys import ObjectStorageKey
 from domains.eod_price.symbols import exchange_from_qualified_ticker
 from domains.fundamental.batch import resolve_fundamental_snapshot_date
@@ -85,6 +86,10 @@ from providers.eodhd.models import FundamentalRaw
 
 log = structlog.get_logger(__name__)
 
+FUNDAMENTAL_DOMAIN = "fundamental"
+FUNDAMENTAL_PROVIDER = "eodhd"
+FUNDAMENTAL_TICKER_SNAPSHOT_UNIT_TYPE = "ticker_snapshot"
+
 
 class _LandingStorage(Protocol):
     bucket: str | None
@@ -151,6 +156,46 @@ def load_fundamental_stock_tickers(
     tickers = [f"{row['ticker']}.{row['provider_exchange_code']}" for row in rows]
     log.info("fundamental.stock_tickers_loaded", count=len(tickers))
     return tickers
+
+
+@task(name="write-fundamental-deferred-coverage")
+def write_fundamental_deferred_coverage(
+    *,
+    run_id: str,
+    tickers: list[str],
+    snapshot_date: date,
+    reason: str,
+) -> BronzeWrite:
+    """Record unsubmitted fundamentals units deferred by provider quota controls."""
+    from core.clients.lake import get_lake_client
+
+    if not tickers:
+        return BronzeWrite(rows_written=0, reason="no_tickers")
+
+    lake = get_lake_client()
+    written = 0
+    recorded_at = datetime.now(UTC)
+    for ticker in tickers:
+        written += record_ingestion_coverage(
+            lake,
+            run_id=run_id,
+            domain=FUNDAMENTAL_DOMAIN,
+            provider=FUNDAMENTAL_PROVIDER,
+            unit_type=FUNDAMENTAL_TICKER_SNAPSHOT_UNIT_TYPE,
+            unit_key={"ticker": ticker, "snapshot_date": snapshot_date.isoformat()},
+            status=COVERAGE_STATUS_PROVIDER_QUOTA_DEFERRED,
+            reason=reason,
+            recorded_at=recorded_at,
+        )
+
+    log.info(
+        "fundamental.deferred_coverage_written",
+        run_id=run_id,
+        tickers=len(tickers),
+        rows=written,
+        reason=reason,
+    )
+    return BronzeWrite(rows_written=written, reason=reason if written == 0 else None)
 
 
 @task(name="load-latest-fundamental-ingestion-batch-date")

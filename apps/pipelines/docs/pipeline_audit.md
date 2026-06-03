@@ -7,15 +7,15 @@ what partitions were attempted, skipped, failed, landed, parsed, rejected, and w
 
 ## Tables
 
-| Table                         | Purpose                                                                                                                                                                                                             |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pipeline.runs`               | One row per logical pipeline invocation, including the Prefect flow run id when available.                                                                                                                          |
-| `pipeline.run_units`          | One row per domain work unit, such as an exchange/date, ticker backfill range, schedule code, or future fundamental period.                                                                                         |
-| `pipeline.ingestion_coverage` | Cross-domain terminal partition outcomes for resumable ingestion (`no_data`, `provider_quota_deferred`, etc.). Same unit grain as `run_units` via `domain` + `unit_type` + `unit_key_json`. Not bronze market data. |
-| `pipeline.landing_objects`    | Raw S3 landing objects produced or consumed by a run, linked to the run and optional work unit.                                                                                                                     |
-| `pipeline.rejections`         | Sampled structured parser rejection records. Counts on runs/units are exhaustive; row samples are capped to keep audit volume bounded.                                                                              |
-| `pipeline.dbt_invocations`    | One row per dbt command run by the dbt Prefect flow.                                                                                                                                                                |
-| `pipeline.dbt_node_results`   | Per-model/per-test results loaded from dbt `target/run_results.json`.                                                                                                                                               |
+| Table                         | Purpose                                                                                                                                                                                                                |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pipeline.runs`               | One row per logical pipeline invocation, including the Prefect flow run id when available.                                                                                                                             |
+| `pipeline.run_units`          | One row per domain work unit, such as an exchange/date, ticker backfill range, schedule code, or future fundamental period.                                                                                            |
+| `pipeline.ingestion_coverage` | Cross-domain partition coverage/audit facts for resumable ingestion (`no_data`, `provider_quota_deferred`, etc.). Same unit grain as `run_units` via `domain` + `unit_type` + `unit_key_json`. Not bronze market data. |
+| `pipeline.landing_objects`    | Raw S3 landing objects produced or consumed by a run, linked to the run and optional work unit.                                                                                                                        |
+| `pipeline.rejections`         | Sampled structured parser rejection records. Counts on runs/units are exhaustive; row samples are capped to keep audit volume bounded.                                                                                 |
+| `pipeline.dbt_invocations`    | One row per dbt command run by the dbt Prefect flow.                                                                                                                                                                   |
+| `pipeline.dbt_node_results`   | Per-model/per-test results loaded from dbt `target/run_results.json`.                                                                                                                                                  |
 
 ## Runs vs Run Units
 
@@ -32,12 +32,12 @@ overall status, start/end timestamps, aggregate counters, and compact summary/er
 Use `pipeline.run_units` for drill-down and replay/debugging. It stores the domain-specific unit key, unit status,
 reason, source URI, per-unit row counters, and per-unit error details.
 
-Use `pipeline.ingestion_coverage` for terminal partition outcomes that should affect future planning but are not
-Bronze market data. For example, EOD historical backfill writes a `no_data` coverage row only after a provider
-fetch and landing write succeed but the provider returns no bars for the exact ticker/date-range unit. Later
-backfill runs use those coverage rows, together with `bronze.eod_price`, to compute pending symbols. Parser
-rejections, fetch failures, and HTTP 429 quota stops are intentionally not EOD `no_data` coverage; those units
-remain retryable.
+Use `pipeline.ingestion_coverage` for partition facts that should survive across runs but are not Bronze market data.
+For example, EOD historical backfill writes a `no_data` coverage row only after a provider fetch and landing write
+succeed but the provider returns no bars for the exact ticker/date-range unit. Later backfill runs use those `no_data`
+rows, together with `bronze.eod_price`, to compute pending symbols. `provider_quota_deferred` rows are different: they
+explain work that was not submitted because a provider quota or credit cap stopped scheduling. They are audit breadcrumbs,
+not completion markers, and those units remain retryable.
 
 Example for one EOD backfill invocation:
 

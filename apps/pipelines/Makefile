@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 .PHONY: help install test test-unit test-integration lint lint-fix format format-check typecheck check \
-        smoke \
+        smoke operational-health \
         prefect-server prefect-worker \
         docker-up docker-down docker-down-volumes docker-logs docker-logs-worker docker-ps \
         docker-setup \
@@ -92,6 +92,9 @@ smoke: ## Run local smoke preset (FLOW=<preset>, pass ARGS="...")
 		exit 2; \
 	fi
 	$(UV) run python scripts/run_smoke.py $(FLOW) $(ARGS)
+
+operational-health: ## Check Prefect API and lake audit health (pass ARGS="...")
+	$(UV) run python scripts/check_operational_health.py $(ARGS)
 
 ##@ Local Services
 prefect-server: ## Start a local Prefect server (no Docker)

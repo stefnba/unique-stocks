@@ -17,7 +17,7 @@ Backfill pending symbols are computed in `load_backfill_pending_symbols`:
 
 ```text
 pending = latest bronze.instrument tickers for the exchange
-        - tickers with any bronze.eod_price row for that exchange
+        - tickers whose bronze.eod_price rows span the requested date range
         - tickers with pipeline.ingestion_coverage (no_data, exact ticker_backfill date range)
 ```
 
@@ -29,8 +29,9 @@ recomputes pending symbols from Bronze plus exact-range coverage and continues
 with the remaining tickers.
 
 If the provider returns HTTP 429, the flow stops scheduling later batches. The
-429 ticker is recorded as a failed run unit, unscheduled tickers stay pending,
-and no `no_data` coverage row is written for quota failures.
+429 ticker is recorded as a failed run unit, unscheduled tickers get
+`provider_quota_deferred` audit coverage, and no `no_data` coverage row is
+written for quota failures. Deferred tickers stay pending for the next run.
 
 ### `pipeline.ingestion_coverage` (EOD conventions)
 
@@ -41,14 +42,18 @@ Cross-domain pipeline table; EOD backfill uses:
 | `domain`        | `eod_price`                                                      |
 | `unit_type`     | `ticker_backfill`                                                |
 | `unit_key_json` | `{provider_exchange_code, ticker, from_date, to_date}`           |
-| `status`        | `no_data` when fetch+landing succeeded but the provider returned no rows |
+| `status`        | `no_data` after fetch+landing returned no rows; `provider_quota_deferred` for unsubmitted quota-deferred work |
 | `reason`        | `no_valid_rows`                                                  |
 
 Helpers: `domains/eod_price/coverage.py` (unit key builder), `core/ingestion/coverage.py` (generic read/write). Coverage lookup pushes `unit_key_json` field matches into SQL, then applies a Python fallback filter after decoding DuckDB JSON strings.
 
-**Not written** for fetch failures, HTTP 429, or all-rows-rejected parser outcomes - those symbols stay pending (Bronze idempotency handles completed symbols).
+Only `no_data` coverage removes a ticker from pending-symbol planning. `provider_quota_deferred` is an audit row for
+unsubmitted work and deliberately leaves the ticker pending.
 
-**Future:** other domains can use the same table (for example `fundamental` + `ticker_snapshot` + `provider_quota_deferred` for tickers skipped after quota exhaustion without a bronze row).
+**Not written** as `no_data` for fetch failures, HTTP 429, or all-rows-rejected parser outcomes - those symbols stay pending (Bronze idempotency handles completed symbols).
+
+Fundamentals also uses the same table with `domain = 'fundamental'`, `unit_type = 'ticker_snapshot'`, and
+`status = 'provider_quota_deferred'` for ticker snapshots skipped after credit or rate-limit exhaustion.
 
 **Force retry:** delete the matching `ingestion_coverage` row (and any `bronze.eod_price` rows if re-ingesting prices), then re-run backfill.
 

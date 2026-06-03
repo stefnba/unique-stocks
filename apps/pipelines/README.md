@@ -368,6 +368,24 @@ Optional production infrastructure configuration:
 
 Production fails closed when `ENVIRONMENT=prod` is set without `MOTHERDUCK_TOKEN`; set the token or use `ENVIRONMENT=dev` for local work.
 
+The production worker applies pending lake migrations before it starts the Prefect worker process. This keeps a deploy
+with schema changes from consuming work against an old lake schema. `make setup` still runs migrations idempotently as
+part of first-time bootstrap.
+
+Docker healthchecks are intentionally container-local. The worker healthcheck verifies that the container can reach the
+Prefect API and that a Prefect worker process is running; it does not prove that scheduled ingestion is fresh or that a
+specific work pool is consuming every expected deployment. Use the operational health command for that:
+
+```bash
+cd apps/pipelines
+make operational-health
+make operational-health ARGS="--recent-domain eod_price --recent-domain fundamental --recent-hours 36"
+```
+
+`operational-health` fails when Prefect is unreachable, `pipeline.runs` is missing, a run is stuck in `running` beyond
+the stale threshold, or a required domain has no recent terminal run. Tune `--stale-running-hours`, `--recent-domain`,
+and `--recent-hours` to match the production schedule you are monitoring.
+
 After the first production deploy, SSH into the VPS and run one-time setup:
 
 ```bash
@@ -377,6 +395,7 @@ ENVIRONMENT=prod \
 make setup
 ```
 
-This assumes `MOTHERDUCK_TOKEN` is already present in the deployment environment.
+This assumes `MOTHERDUCK_TOKEN` is already present in the deployment environment. The setup command saves Prefect blocks,
+creates/updates the work pool, and registers deployments.
 
 Re-run `make deploy` (not `make setup`) after changing deployment definitions — `setup` is only needed once per new environment.

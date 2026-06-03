@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from core.ingestion.coverage import COVERAGE_STATUS_NO_DATA, unit_key_hash
+from core.ingestion.coverage import COVERAGE_STATUS_NO_DATA, COVERAGE_STATUS_PROVIDER_QUOTA_DEFERRED, unit_key_hash
 from domains.eod_price import tasks
 from domains.eod_price.coverage import (
     EOD_PRICE_DOMAIN,
@@ -27,12 +27,14 @@ class FakeLake:
         *,
         instrument_rows: list[dict[str, str]] | None = None,
         price_tickers: list[str] | None = None,
+        price_ranges: dict[str, tuple[date, date]] | None = None,
         coverage_unit_keys: list[dict[str, object] | str] | None = None,
         tables: set[tuple[str, str]] | None = None,
     ) -> None:
         """Configure query results and table existence."""
         self.instrument_rows = instrument_rows or []
         self.price_tickers = price_tickers or []
+        self.price_ranges = price_ranges or {ticker: (FROM_DATE, TO_DATE) for ticker in self.price_tickers}
         self.coverage_unit_keys = coverage_unit_keys or []
         self.coverage_rows: list[dict[str, object]] = []
         self.tables = tables or {
@@ -57,7 +59,13 @@ class FakeLake:
         if "bronze.instrument" in sql:
             return self.instrument_rows
         if "bronze.eod_price" in sql:
-            return [{"ticker": ticker} for ticker in self.price_tickers]
+            requested_from = date.fromisoformat(str((params or [None, None, FROM_DATE])[2]))
+            requested_to = date.fromisoformat(str((params or [None, None, FROM_DATE, TO_DATE])[3]))
+            return [
+                {"ticker": ticker}
+                for ticker, (min_date, max_date) in self.price_ranges.items()
+                if min_date <= requested_from and max_date >= requested_to
+            ]
         if "pipeline.ingestion_coverage" in sql:
             return [{"unit_key_json": key} for key in self.coverage_unit_keys]
         return []
@@ -126,6 +134,29 @@ def test_load_backfill_pending_excludes_price_and_no_data_coverage(
     )
 
 
+def test_load_backfill_pending_keeps_partial_price_history_pending(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A recent daily bar should not make a full historical backfill look complete."""
+    lake = FakeLake(
+        instrument_rows=[
+            {"ticker": "AAPL"},
+            {"ticker": "MSFT"},
+        ],
+        price_ranges={
+            "AAPL.US": (date(2026, 5, 31), date(2026, 5, 31)),
+            "MSFT.US": (FROM_DATE, TO_DATE),
+        },
+    )
+    import core.clients.lake as lake_module
+
+    monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
+
+    pending = tasks.load_backfill_pending_symbols.fn("US", FROM_DATE, TO_DATE)
+
+    assert pending == ["AAPL.US"]
+
+
 def test_write_eod_backfill_coverage_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
     """Coverage writes insert once per backfill partition."""
     lake = FakeLake(tables={("pipeline", "ingestion_coverage")})
@@ -179,3 +210,26 @@ def test_write_eod_backfill_coverage_is_idempotent(monkeypatch: pytest.MonkeyPat
     assert record["status"] == COVERAGE_STATUS_NO_DATA
     assert record["unit_type"] == EOD_TICKER_BACKFILL_UNIT_TYPE
     assert record["unit_key_json"]["ticker"] == "AAPL.US"
+
+
+def test_write_eod_deferred_coverage_records_unsubmitted_tickers(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Provider-deferred backfill units are audited without marking them no_data."""
+    lake = FakeLake(tables={("pipeline", "ingestion_coverage")})
+    import core.clients.lake as lake_module
+
+    monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
+
+    result = tasks.write_eod_backfill_deferred_coverage.fn(
+        run_id="018f0000-0000-7000-8000-000000000003",
+        provider_exchange_code="US",
+        tickers=["MSFT.US", "GOOG.US"],
+        from_date=FROM_DATE,
+        to_date=TO_DATE,
+        reason="provider_rate_limited",
+    )
+
+    assert result.rows_written == 2
+    assert {(schema, table) for schema, table, _ in lake.inserted} == {("pipeline", "ingestion_coverage")}
+    records = [record for _, _, batch in lake.inserted for record in batch]
+    assert {record["status"] for record in records} == {COVERAGE_STATUS_PROVIDER_QUOTA_DEFERRED}
+    assert {record["unit_key_json"]["ticker"] for record in records} == {"MSFT.US", "GOOG.US"}

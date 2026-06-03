@@ -17,6 +17,7 @@ from core.clients.http.base import ProviderRateLimitError
 from core.ingestion import BronzeParseResult, BronzeWrite, LandingWrite
 from core.ingestion.coverage import (
     COVERAGE_STATUS_NO_DATA,
+    COVERAGE_STATUS_PROVIDER_QUOTA_DEFERRED,
     INGESTION_COVERAGE_TABLE_NAME,
     ingestion_coverage_recorded,
     list_ingestion_coverage_unit_keys,
@@ -243,7 +244,7 @@ def load_backfill_pending_symbols(provider_exchange_code: str, from_date: date, 
     Returns fully-qualified symbols (e.g. ``["AAPL.US", "MSFT.US"]``).
     A symbol is excluded from pending when either:
 
-    - Any row for it exists in ``bronze.eod_price`` for this exchange, or
+    - Existing ``bronze.eod_price`` rows span the requested date range, or
     - A ``no_data`` row exists in ``pipeline.ingestion_coverage`` for the same
       ticker backfill unit key (see ``domains/eod_price/coverage.py``).
 
@@ -285,8 +286,16 @@ def load_backfill_pending_symbols(provider_exchange_code: str, from_date: date, 
     if lake.table_exists("bronze", "eod_price"):
         price_q = lake.qualified_name("bronze", "eod_price")
         done_rows = lake.query(
-            f"SELECT DISTINCT ticker FROM {price_q} WHERE provider_exchange_code = ? AND data_provider = ?",
-            [provider_exchange_code, EOD_PRICE_DATASET.provider],
+            f"""
+            SELECT ticker
+            FROM {price_q}
+            WHERE provider_exchange_code = ?
+              AND data_provider = ?
+            GROUP BY ticker
+            HAVING MIN(bar_date) <= ?
+               AND MAX(bar_date) >= ?
+            """,
+            [provider_exchange_code, EOD_PRICE_DATASET.provider, from_date.isoformat(), to_date.isoformat()],
         )
         done_codes = {ticker_without_exchange(r["ticker"], provider_exchange_code) for r in done_rows}
 
@@ -320,6 +329,55 @@ def load_backfill_pending_symbols(provider_exchange_code: str, from_date: date, 
         pending=len(pending),
     )
     return [qualified_ticker(code, provider_exchange_code) for code in pending]
+
+
+@task(name="write-eod-backfill-deferred-coverage")
+def write_eod_backfill_deferred_coverage(
+    *,
+    run_id: str,
+    provider_exchange_code: str,
+    tickers: list[str],
+    from_date: date,
+    to_date: date,
+    reason: str,
+) -> BronzeWrite:
+    """Record unsubmitted EOD backfill units deferred by provider quota controls."""
+    from core.clients.lake import get_lake_client
+
+    if not tickers:
+        return BronzeWrite(rows_written=0, reason="no_tickers")
+
+    lake = get_lake_client()
+    written = 0
+    recorded_at = datetime.now(UTC)
+    for ticker in tickers:
+        unit_key = eod_ticker_backfill_unit_key(
+            provider_exchange_code=provider_exchange_code,
+            ticker=ticker,
+            from_date=from_date,
+            to_date=to_date,
+        )
+        written += record_ingestion_coverage(
+            lake,
+            run_id=run_id,
+            domain=EOD_PRICE_DOMAIN,
+            provider=eod_provider(),
+            unit_type=EOD_TICKER_BACKFILL_UNIT_TYPE,
+            unit_key=unit_key,
+            status=COVERAGE_STATUS_PROVIDER_QUOTA_DEFERRED,
+            reason=reason,
+            recorded_at=recorded_at,
+        )
+
+    log.info(
+        "backfill.deferred_coverage_written",
+        run_id=run_id,
+        provider_exchange_code=provider_exchange_code,
+        tickers=len(tickers),
+        rows=written,
+        reason=reason,
+    )
+    return BronzeWrite(rows_written=written, reason=reason if written == 0 else None)
 
 
 @task(name="write-eod-backfill-coverage")

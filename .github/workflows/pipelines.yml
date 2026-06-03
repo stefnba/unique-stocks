@@ -1,0 +1,81 @@
+name: Pipelines CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - prod-ready
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pipelines-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: apps/pipelines/uv.lock
+
+      - name: Install Python
+        working-directory: apps/pipelines
+        run: uv python install 3.14.3
+
+      - name: Install dependencies
+        working-directory: apps/pipelines
+        run: uv sync --frozen
+
+      - name: Format check
+        working-directory: apps/pipelines
+        run: uv run ruff format . --check
+
+      - name: Lint
+        working-directory: apps/pipelines
+        run: uv run ruff check .
+
+      - name: Typecheck
+        working-directory: apps/pipelines
+        run: uv run basedpyright
+
+      - name: Unit tests
+        working-directory: apps/pipelines
+        run: uv run pytest tests/unit -q
+
+      - name: Render production compose
+        env:
+          POSTGRES_PASSWORD: test-postgres-password
+          MOTHERDUCK_TOKEN: test-motherduck-token
+          PREFECT_UI_API_URL: https://prefect.example.com/api
+        run: docker compose -f apps/pipelines/deploy/docker-compose.yml -f apps/pipelines/deploy/docker-compose.prod.yml config
+
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

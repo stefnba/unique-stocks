@@ -31,6 +31,9 @@ env/
 # uv
 .uv/
 
+# local git worktrees / scratch branches
+.worktrees/
+
 # Jupyter
 .ipynb_checkpoints/
 *.ipynb

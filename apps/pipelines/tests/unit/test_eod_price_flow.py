@@ -149,12 +149,19 @@ async def test_eod_backfill_provider_call_budget_limits_submitted_symbols(
     monkeypatch.setattr(flows, "fetch_ticker_eod_history", fetch)
     monkeypatch.setattr(flows, "write_ticker_eod_history_to_landing", _write_empty_landing)
     coverage_calls: list[str] = []
+    deferred_calls: list[list[str]] = []
 
     def record_coverage(**kwargs: object) -> BronzeWrite:
         coverage_calls.append(str(kwargs["ticker"]))
         return BronzeWrite(rows_written=1)
 
+    def record_deferred(**kwargs: object) -> BronzeWrite:
+        tickers = list(cast(list[str], kwargs["tickers"]))
+        deferred_calls.append(tickers)
+        return BronzeWrite(rows_written=len(tickers))
+
     monkeypatch.setattr(flows, "write_eod_backfill_coverage", record_coverage)
+    monkeypatch.setattr(flows, "write_eod_backfill_deferred_coverage", record_deferred)
 
     summary = await flows.eod_price_backfill_flow.fn(
         from_date=FROM_DATE,
@@ -165,6 +172,7 @@ async def test_eod_backfill_provider_call_budget_limits_submitted_symbols(
     )
 
     assert coverage_calls == ["AAPL.US"]
+    assert deferred_calls == [["MSFT.US", "GOOG.US"]]
 
     assert calls == ["AAPL.US"]
     assert summary["provider_quota_exhausted"] is True
@@ -196,6 +204,14 @@ async def test_eod_backfill_stops_after_provider_rate_limit(monkeypatch: pytest.
         "write_eod_backfill_coverage",
         lambda **_: BronzeWrite(rows_written=1),
     )
+    deferred_calls: list[list[str]] = []
+
+    def record_deferred(**kwargs: object) -> BronzeWrite:
+        tickers = list(cast(list[str], kwargs["tickers"]))
+        deferred_calls.append(tickers)
+        return BronzeWrite(rows_written=len(tickers))
+
+    monkeypatch.setattr(flows, "write_eod_backfill_deferred_coverage", record_deferred)
 
     summary = await flows.eod_price_backfill_flow.fn(
         from_date=FROM_DATE,
@@ -207,6 +223,7 @@ async def test_eod_backfill_stops_after_provider_rate_limit(monkeypatch: pytest.
     assert calls == ["AAPL.US", "MSFT.US"]
     assert summary["provider_quota_exhausted"] is True
     assert summary["failed_symbols"] == ["MSFT.US"]
+    assert deferred_calls == [["GOOG.US"]]
     exchange = cast(dict[str, dict[str, object]], summary["exchange"])
     assert exchange["US"]["symbols_deferred"] == 1
     assert [unit.get("reason") for unit in run.units] == [
@@ -234,6 +251,11 @@ async def test_eod_backfill_all_rejected_rows_do_not_write_no_data_coverage(
     monkeypatch.setattr(flows, "fetch_ticker_eod_history", fetch)
     monkeypatch.setattr(flows, "write_ticker_eod_history_to_landing", _write_empty_landing)
     monkeypatch.setattr(flows, "write_eod_backfill_coverage", fail_coverage)
+    monkeypatch.setattr(
+        flows,
+        "write_eod_backfill_deferred_coverage",
+        lambda **_: BronzeWrite(rows_written=0),
+    )
 
     summary = await flows.eod_price_backfill_flow.fn(
         from_date=FROM_DATE,

@@ -30,6 +30,7 @@ class FakeRun:
 
     def __init__(self) -> None:
         """Create an empty fake run."""
+        self.run_id = "run-1"
         self.tally = RunUnitTally()
         self.is_terminal = False
         self.units: list[dict[str, object]] = []
@@ -328,6 +329,14 @@ async def test_provider_credit_budget_skips_tickers_before_fetch(monkeypatch: py
     monkeypatch.setattr(flows, "write_fundamental_to_landing", fail_if_called)
     monkeypatch.setattr(flows, "delete_fundamental_snapshot_rows", fail_if_called)
     monkeypatch.setattr(flows, "write_bronze_fundamental_document", fail_if_called)
+    deferred_calls: list[list[str]] = []
+
+    def record_deferred(**kwargs: object) -> BronzeWrite:
+        tickers = list(cast(list[str], kwargs["tickers"]))
+        deferred_calls.append(tickers)
+        return BronzeWrite(rows_written=len(tickers))
+
+    monkeypatch.setattr(flows, "write_fundamental_deferred_coverage", record_deferred)
 
     summary = await flows.fundamental_flow.fn(
         tickers=["AAPL.US", "MSFT.US"],
@@ -338,6 +347,7 @@ async def test_provider_credit_budget_skips_tickers_before_fetch(monkeypatch: py
     )
 
     assert calls == ["AAPL.US"]
+    assert deferred_calls == [["MSFT.US"]]
     assert summary["skipped"] == ["MSFT.US", "AAPL.US"]
     assert [unit["reason"] for unit in run.units] == ["credit_budget_exhausted", "payload_unchanged"]
 
@@ -369,6 +379,14 @@ async def test_fundamental_flow_defers_remaining_tickers_after_provider_rate_lim
     monkeypatch.setattr(flows, "write_fundamental_to_landing", fail_if_called)
     monkeypatch.setattr(flows, "delete_fundamental_snapshot_rows", fail_if_called)
     monkeypatch.setattr(flows, "write_bronze_fundamental_document", fail_if_called)
+    deferred_calls: list[list[str]] = []
+
+    def record_deferred(**kwargs: object) -> BronzeWrite:
+        tickers = list(cast(list[str], kwargs["tickers"]))
+        deferred_calls.append(tickers)
+        return BronzeWrite(rows_written=len(tickers))
+
+    monkeypatch.setattr(flows, "write_fundamental_deferred_coverage", record_deferred)
 
     summary = await flows.fundamental_flow.fn(
         tickers=["AAPL.US", "MSFT.US", "GOOG.US"],
@@ -381,6 +399,7 @@ async def test_fundamental_flow_defers_remaining_tickers_after_provider_rate_lim
     assert summary["provider_quota_exhausted"] is True
     assert summary["failed"] == ["MSFT.US"]
     assert summary["deferred"] == ["MSFT.US", "GOOG.US"]
+    assert deferred_calls == [["GOOG.US"]]
     assert summary["skipped"] == ["AAPL.US", "GOOG.US"]
     assert [unit["reason"] for unit in run.units] == [
         "payload_unchanged",

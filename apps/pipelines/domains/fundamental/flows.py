@@ -40,6 +40,7 @@ from domains.fundamental.tasks import (
     write_bronze_fundamental_stock_outstanding_shares,
     write_bronze_fundamental_stock_shares_stats,
     write_bronze_fundamental_stock_splits_dividends,
+    write_fundamental_deferred_coverage,
     write_fundamental_to_landing,
 )
 from providers.eodhd.models import FundamentalRaw
@@ -186,6 +187,13 @@ async def fundamental_flow(
                 max_provider_calls = max(0, int(max_provider_credits) // provider_credit_cost)
                 skipped_for_budget = pending_tickers[max_provider_calls:]
                 pending_tickers = pending_tickers[:max_provider_calls]
+                if skipped_for_budget:
+                    write_fundamental_deferred_coverage(
+                        run_id=str(run.run_id),
+                        tickers=skipped_for_budget,
+                        snapshot_date=snapshot_date,
+                        reason="credit_budget_exhausted",
+                    )
                 for ticker in skipped_for_budget:
                     summary["skipped"].append(ticker)
                     run.record_unit(
@@ -668,6 +676,14 @@ def _defer_provider_rate_limited_tickers(
     snapshot_date: date,
 ) -> None:
     """Record unsubmitted fundamentals work that should resume after quota reset."""
+    if not tickers:
+        return
+    write_fundamental_deferred_coverage(
+        run_id=str(run.run_id),
+        tickers=tickers,
+        snapshot_date=snapshot_date,
+        reason="provider_rate_limited",
+    )
     for ticker in tickers:
         summary["skipped"].append(ticker)
         summary["deferred"].append(ticker)
