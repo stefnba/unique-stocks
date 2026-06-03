@@ -44,6 +44,7 @@ def test_lake_schema_registers_current_bronze_tables() -> None:
         "bronze.fundamental_index_historical_component",
         "pipeline.runs",
         "pipeline.run_units",
+        "pipeline.ingestion_coverage",
         "pipeline.landing_objects",
         "pipeline.rejections",
         "pipeline.dbt_invocations",

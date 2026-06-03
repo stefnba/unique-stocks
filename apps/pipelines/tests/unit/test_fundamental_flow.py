@@ -5,8 +5,10 @@ from contextlib import contextmanager
 from datetime import date
 from typing import cast
 
+import httpx
 import pytest
 
+from core.clients.http.base import ProviderRateLimitError
 from core.ingestion import BronzeWrite, LandingWrite, RunUnitTally
 from core.ingestion.run_tracking import UnitStatus
 from domains.fundamental import flows, tasks
@@ -14,6 +16,13 @@ from domains.fundamental.parsers import parse_fundamental_document
 from providers.eodhd.models import FundamentalRaw
 
 SNAPSHOT_DATE = date(2026, 5, 29)
+
+
+def _provider_rate_limit_error(symbol: str) -> ProviderRateLimitError:
+    """Build a redacted provider rate-limit error for flow branch tests."""
+    request = httpx.Request("GET", f"https://provider.example/eod/{symbol}?api_token=[redacted]")
+    response = httpx.Response(429, request=request)
+    return ProviderRateLimitError("provider quota exhausted", request=request, response=response)
 
 
 class FakeRun:
@@ -115,6 +124,30 @@ def _raw_stock_payload() -> FundamentalRaw:
             },
         }
     )
+
+
+@pytest.mark.asyncio
+async def test_continue_ingestion_batch_uses_resolved_snapshot_date(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Backfill continuation keeps one bronze partition across multi-day reruns."""
+    run = FakeRun()
+    resolve_calls: dict[str, object] = {}
+
+    def fake_resolve(**kwargs: object) -> dict[str, str]:
+        resolve_calls.update(kwargs)
+        return {"snapshot_date": "2026-05-15", "source": "bronze_latest"}
+
+    monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
+    monkeypatch.setattr(tasks, "resolve_fundamental_snapshot_date_task", fake_resolve)
+    monkeypatch.setattr(flows, "fundamental_document_already_ingested", lambda *_: True)
+
+    summary = await flows.fundamental_flow.fn(
+        tickers=["AAPL.US"],
+        continue_ingestion_batch=True,
+    )
+
+    assert resolve_calls["continue_ingestion_batch"] is True
+    assert summary["snapshot_date"] == "2026-05-15"
+    assert summary["snapshot_date_source"] == "bronze_latest"
 
 
 @pytest.mark.asyncio
@@ -307,6 +340,53 @@ async def test_provider_credit_budget_skips_tickers_before_fetch(monkeypatch: py
     assert calls == ["AAPL.US"]
     assert summary["skipped"] == ["MSFT.US", "AAPL.US"]
     assert [unit["reason"] for unit in run.units] == ["credit_budget_exhausted", "payload_unchanged"]
+
+
+@pytest.mark.asyncio
+async def test_fundamental_flow_defers_remaining_tickers_after_provider_rate_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A 429 stops later fetch batches so the next run can resume from Bronze idempotency."""
+    raw = _raw_stock_payload()
+    payload_hash = parse_fundamental_document(raw, ticker="AAPL.US", snapshot_date=SNAPSHOT_DATE).row.payload_hash
+    run = FakeRun()
+    calls: list[str] = []
+
+    async def fetch(ticker: str) -> FundamentalRaw:
+        calls.append(ticker)
+        if ticker == "MSFT.US":
+            raise _provider_rate_limit_error(ticker)
+        return raw
+
+    def fail_if_called(*_: object, **__: object) -> None:
+        raise AssertionError("unchanged or deferred tickers should not land, delete, or write")
+
+    monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
+    monkeypatch.setattr(flows, "fundamental_document_already_ingested", lambda *_: False)
+    monkeypatch.setattr(flows, "fetch_fundamental_ticker", fetch)
+    monkeypatch.setattr(flows, "parse_fundamental_stock", tasks.parse_fundamental_stock.fn)
+    monkeypatch.setattr(flows, "load_fundamental_document_payload_hash", lambda *_: payload_hash)
+    monkeypatch.setattr(flows, "write_fundamental_to_landing", fail_if_called)
+    monkeypatch.setattr(flows, "delete_fundamental_snapshot_rows", fail_if_called)
+    monkeypatch.setattr(flows, "write_bronze_fundamental_document", fail_if_called)
+
+    summary = await flows.fundamental_flow.fn(
+        tickers=["AAPL.US", "MSFT.US", "GOOG.US"],
+        snapshot_date=SNAPSHOT_DATE,
+        skip_existing=False,
+        batch_size=1,
+    )
+
+    assert calls == ["AAPL.US", "MSFT.US"]
+    assert summary["provider_quota_exhausted"] is True
+    assert summary["failed"] == ["MSFT.US"]
+    assert summary["deferred"] == ["MSFT.US", "GOOG.US"]
+    assert summary["skipped"] == ["AAPL.US", "GOOG.US"]
+    assert [unit["reason"] for unit in run.units] == [
+        "payload_unchanged",
+        "provider_rate_limited",
+        "provider_rate_limited",
+    ]
 
 
 def test_delete_fundamental_snapshot_rows_deletes_child_tables_before_document(

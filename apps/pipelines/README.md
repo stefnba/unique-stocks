@@ -13,6 +13,12 @@ The active path is end-of-day price ingestion for the configured market data pro
 | `instrument`  | Reference flow | Weekly.                                            |
 | `fundamental` | Active v1      | Manual or quarterly.                               |
 
+Per-ticker historical backfill resume semantics (`pipeline.ingestion_coverage`,
+pending-symbol rules) are documented in
+[`domains/eod_price/README.md`](domains/eod_price/README.md). Fundamentals
+batch-date and quota resume behavior is documented in
+[`domains/fundamental/README.md`](domains/fundamental/README.md).
+
 ## Exchange reference flow
 
 The exchange domain has two Bronze sources:
@@ -139,12 +145,16 @@ Current audit tables are generated from `lake/schema.py` and initialized by `mak
 
 - `pipeline.runs`
 - `pipeline.run_units`
+- `pipeline.ingestion_coverage`
 - `pipeline.landing_objects`
 - `pipeline.rejections`
 - `pipeline.dbt_invocations`
 - `pipeline.dbt_node_results`
 
-See [docs/pipeline_audit.md](docs/pipeline_audit.md) for table semantics, statuses, and the integration pattern.
+`pipeline.ingestion_coverage` stores terminal non-Bronze outcomes that make
+reruns resume-safe, such as EOD backfill `no_data` for an exact ticker/date
+range. See [docs/pipeline_audit.md](docs/pipeline_audit.md) for table
+semantics, statuses, and the integration pattern.
 
 ## Environments
 

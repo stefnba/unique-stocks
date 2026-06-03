@@ -55,6 +55,33 @@ def redacted_http_status_error(exc: httpx.HTTPStatusError) -> httpx.HTTPStatusEr
     )
 
 
+class ProviderRateLimitError(httpx.HTTPStatusError):
+    """Provider returned HTTP 429 and further immediate calls should stop."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        request: httpx.Request,
+        response: httpx.Response,
+        retry_after: str | None = None,
+    ) -> None:
+        """Create a redacted rate-limit error with optional provider retry guidance."""
+        super().__init__(message, request=request, response=response)
+        self.retry_after = retry_after
+
+
+def redacted_provider_rate_limit_error(exc: httpx.HTTPStatusError) -> ProviderRateLimitError:
+    """Return a redacted 429 error that orchestration code can distinguish."""
+    safe_exc = redacted_http_status_error(exc)
+    return ProviderRateLimitError(
+        str(safe_exc),
+        request=safe_exc.request,
+        response=safe_exc.response,
+        retry_after=exc.response.headers.get("Retry-After"),
+    )
+
+
 class HttpClientBase(ABC):
     """Abstract async HTTP client backed by httpx."""
 
@@ -114,6 +141,7 @@ class HttpClientBase(ABC):
 
         Raises:
             httpx.HTTPStatusError:  Non-2xx response.
+            ProviderRateLimitError: Provider returned HTTP 429.
             httpx.TimeoutException: Request timed out.
             RuntimeError:           Called outside of async context manager.
         """
@@ -156,6 +184,8 @@ class HttpClientBase(ABC):
                 status=exc.response.status_code,
                 body=redact_sensitive_query_params(exc.response.text[:300]),
             )
+            if exc.response.status_code == 429:
+                raise redacted_provider_rate_limit_error(exc) from None
             raise redacted_http_status_error(exc) from None
         except httpx.TimeoutException:
             log.error(f"http.client.{self.PROVIDER}.timeout", path=safe_path, method=method)

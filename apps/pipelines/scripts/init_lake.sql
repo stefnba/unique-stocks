@@ -637,6 +637,24 @@ CREATE TABLE IF NOT EXISTS pipeline.run_units (
     UNIQUE (run_id, unit_type, unit_key_hash)
 );
 
+CREATE TABLE IF NOT EXISTS pipeline.ingestion_coverage (
+    coverage_id UUID DEFAULT GEN_RANDOM_UUID(),
+    run_id UUID NOT NULL,
+    domain VARCHAR NOT NULL,
+    provider VARCHAR NOT NULL,
+    unit_type VARCHAR NOT NULL,
+    unit_key_hash VARCHAR NOT NULL,
+    unit_key_json JSON NOT NULL,
+    status VARCHAR NOT NULL,
+    reason VARCHAR,
+    rows_raw INTEGER,
+    rows_valid INTEGER,
+    rows_rejected INTEGER,
+    source_uri VARCHAR,
+    recorded_at TIMESTAMPTZ NOT NULL,
+    UNIQUE (domain, provider, unit_type, unit_key_hash, status)
+);
+
 CREATE TABLE IF NOT EXISTS pipeline.landing_objects (
     landing_id UUID DEFAULT GEN_RANDOM_UUID(),
     run_id UUID NOT NULL,

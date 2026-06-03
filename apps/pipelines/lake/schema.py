@@ -110,6 +110,41 @@ class PipelineRunUnitsTable(TableModel):
     idempotency_columns = ()
 
 
+class PipelineIngestionCoverageRow(BaseModel):
+    """Terminal ingestion partition outcome for cross-run resume (not bronze data).
+
+    Aligns with ``pipeline.run_units`` grain via ``domain``, ``unit_type``, and
+    ``unit_key_json``. Used when a partition should be skipped on later runs —
+    for example ``no_data`` after a successful provider call with zero valid rows,
+    or ``provider_quota_deferred`` when a flow stops before calling the provider.
+    """
+
+    coverage_id: Annotated[UUID | None, SqlColumn(SQL_UUID, nullable=True, default="GEN_RANDOM_UUID()")] = None
+    run_id: Annotated[UUID, SqlColumn(SQL_UUID)]
+    domain: str
+    provider: str
+    unit_type: str
+    unit_key_hash: str
+    unit_key_json: Annotated[dict[str, object], SqlColumn(JSON)]
+    status: str
+    reason: str | None = None
+    rows_raw: Annotated[int | None, SqlColumn(INTEGER, nullable=True)] = None
+    rows_valid: Annotated[int | None, SqlColumn(INTEGER, nullable=True)] = None
+    rows_rejected: Annotated[int | None, SqlColumn(INTEGER, nullable=True)] = None
+    source_uri: str | None = None
+    recorded_at: datetime
+
+
+class PipelineIngestionCoverageTable(TableModel):
+    """Physical schema for ``pipeline.ingestion_coverage``."""
+
+    schema_name = "pipeline"
+    table_name = "ingestion_coverage"
+    row_model = PipelineIngestionCoverageRow
+    unique_columns = ("domain", "provider", "unit_type", "unit_key_hash", "status")
+    idempotency_columns = ()
+
+
 class PipelineLandingObjectRow(BaseModel):
     """One landing object produced or consumed by a pipeline run."""
 
@@ -224,6 +259,7 @@ class PipelineDbtNodeResultsTable(TableModel):
 
 PIPELINE_RUNS_TABLE = PipelineRunsTable
 PIPELINE_RUN_UNITS_TABLE = PipelineRunUnitsTable
+PIPELINE_INGESTION_COVERAGE_TABLE = PipelineIngestionCoverageTable
 PIPELINE_LANDING_OBJECTS_TABLE = PipelineLandingObjectsTable
 PIPELINE_REJECTIONS_TABLE = PipelineRejectionsTable
 PIPELINE_DBT_INVOCATIONS_TABLE = PipelineDbtInvocationsTable
@@ -261,6 +297,7 @@ BRONZE_TABLES = (
 PIPELINE_TABLES = (
     PIPELINE_RUNS_TABLE,
     PIPELINE_RUN_UNITS_TABLE,
+    PIPELINE_INGESTION_COVERAGE_TABLE,
     PIPELINE_LANDING_OBJECTS_TABLE,
     PIPELINE_REJECTIONS_TABLE,
     PIPELINE_DBT_INVOCATIONS_TABLE,
@@ -275,6 +312,7 @@ __all__ = [
     "BRONZE_TABLES",
     "PIPELINE_DBT_INVOCATIONS_TABLE",
     "PIPELINE_DBT_NODE_RESULTS_TABLE",
+    "PIPELINE_INGESTION_COVERAGE_TABLE",
     "PIPELINE_LANDING_OBJECTS_TABLE",
     "PIPELINE_REJECTIONS_TABLE",
     "PIPELINE_RUN_UNITS_TABLE",
@@ -282,6 +320,8 @@ __all__ = [
     "PIPELINE_TABLES",
     "PipelineDbtInvocationRow",
     "PipelineDbtInvocationsTable",
+    "PipelineIngestionCoverageRow",
+    "PipelineIngestionCoverageTable",
     "PipelineDbtNodeResultRow",
     "PipelineDbtNodeResultsTable",
     "PipelineLandingObjectRow",

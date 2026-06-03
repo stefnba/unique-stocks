@@ -7,7 +7,7 @@ import httpx
 import pytest
 from structlog.testing import capture_logs
 
-from core.clients.http.base import REDACTED_QUERY_VALUE, HttpClientBase
+from core.clients.http.base import REDACTED_QUERY_VALUE, HttpClientBase, ProviderRateLimitError
 
 SECRET_TOKEN = "provider-token-123"
 
@@ -83,10 +83,11 @@ async def test_http_client_redacts_provider_token_echoed_in_error_body() -> None
 
     transport = httpx.MockTransport(handler)
 
-    with capture_logs() as logs, pytest.raises(httpx.HTTPStatusError) as exc_info:
+    with capture_logs() as logs, pytest.raises(ProviderRateLimitError) as exc_info:
         async with _DemoClient(transport) as client:
             await client._request("/prices", params={"symbol": "AAPL.US"})
 
+    assert exc_info.value.response.status_code == 429
     assert SECRET_TOKEN in seen_urls[0]
     assert SECRET_TOKEN not in str(exc_info.value)
     assert SECRET_TOKEN not in str(exc_info.value.request.url)
