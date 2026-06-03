@@ -3,7 +3,7 @@ unique_stocks:
   outputs:
     dev:
       type: duckdb
-      path: "{{ env_var('DBT_DUCKDB_PATH') }}"
+      path: "{{ env_var('DBT_DUCKDB_PATH', env_var('LOCAL_LAKE_PATH', env_var('LAKE_NAME', 'unique_stocks') ~ '.duckdb')) }}"
       schema: main
       threads: 4
     prod:
