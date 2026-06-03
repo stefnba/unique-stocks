@@ -101,6 +101,7 @@ smoke: ## Run local smoke preset (FLOW=<preset>, pass ARGS="...")
 	fi
 	$(UV) run python scripts/run_smoke.py $(FLOW) $(ARGS)
 
+##@ Operations
 operational-health: ## Check Prefect API and lake audit health (pass ARGS="...")
 	$(UV) run python scripts/check_operational_health.py $(ARGS)
 
