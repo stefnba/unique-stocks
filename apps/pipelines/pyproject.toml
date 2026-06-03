@@ -19,6 +19,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# The dashboard is a production service, but not a Prefect worker dependency.
+# Keep dashboard-only runtime deps here and install them explicitly in
+# Dockerfile.dashboard, CI, and local dashboard commands with --extra dashboard.
 dashboard = ["pandas>=2.2,<3", "streamlit>=1.56,<2"]
 
 [dependency-groups]
