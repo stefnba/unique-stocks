@@ -10,12 +10,19 @@ DBT_NODE_RESULTS_LIMIT = 300
 ATTENTION_RUNS_LIMIT = 200
 
 OVERVIEW_PAGE = "overview"
-RUN_PAGE = "run"
-UNIT_PAGE = "unit"
+DOMAINS_PAGE = "domains"
+DOMAIN_DETAIL_PAGE = "domain-detail"
+RUNS_PAGE = "runs"
+RUN_DETAIL_PAGE = "run-detail"
+RUN_UNITS_PAGE = "run-units"
+RUN_UNIT_DETAIL_PAGE = "run-unit-detail"
+LANDING_OBJECTS_PAGE = "landing-objects"
+LANDING_OBJECT_DETAIL_PAGE = "landing-object-detail"
 
 ATTENTION_STATUSES = frozenset({"failed", "partial"})
 UNIT_ATTENTION_STATUSES = frozenset({"failed", "unsupported", "skipped"})
 HEALTHY_RUN_STATUSES = frozenset({"completed", "partial", "skipped"})
+UNIT_STATUSES = ("running", "completed", "failed", "unsupported", "skipped")
 
 INTEGER_TABLE_COLUMNS = frozenset(
     {

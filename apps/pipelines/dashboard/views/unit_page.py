@@ -12,10 +12,11 @@ from dashboard.formatting import (
     format_unit_title,
     json_value_parsed,
     jsonable,
+    safe_key,
     short_id,
 )
 from dashboard.loaders import load_unit_page
-from dashboard.routing import overview_href, render_breadcrumb, run_detail_href
+from dashboard.routing import landing_objects_href, overview_href, render_breadcrumb, run_detail_href, run_units_href
 from dashboard.views.components import (
     render_key_fields,
     render_landing_table,
@@ -34,11 +35,14 @@ def render_unit_page(run_id: str | None, unit_id: str | None) -> None:
     run_href = run_detail_href(run_id) if run_id else None
     render_breadcrumb(
         ("Pipeline Audit", overview_href()),
+        ("Run Units", run_units_href(run_id=run_id)),
         ("Run", run_href),
         ("Unit", None),
     )
 
     if not run_id or not unit_id:
+        st.title("Run Unit Detail")
+        st.caption("Work-unit status, key fields, landing objects, and parser rejections.")
         st.warning("Choose a work unit from a run detail page to open its detail page.")
         return
 
@@ -52,9 +56,11 @@ def render_unit_page(run_id: str | None, unit_id: str | None) -> None:
     run = page["run"]
     unit = page["unit"]
     if run is None:
+        st.title("Run Unit Detail")
         st.warning(f"Run {run_id} was not found in pipeline.runs.")
         return
     if unit is None:
+        st.title("Run Unit Detail")
         st.warning(f"Unit {unit_id} was not found in pipeline.run_units for this run.")
         return
 
@@ -94,6 +100,12 @@ def _render_unit_summary(run: dict[str, Any], unit: dict[str, Any]) -> None:
     valid.metric("Rows Valid", format_int(unit.get("rows_valid")))
     written.metric("Rows Written", format_int(unit.get("rows_written")))
     rejected.metric("Rows Rejected", format_int(unit.get("rows_rejected")))
+
+    st.link_button(
+        "Landing Objects",
+        landing_objects_href(run_id=str(run["run_id"]), unit_id=str(unit["unit_id"])),
+        icon=":material/cloud:",
+    )
 
     reason = unit.get("reason")
     if reason:
@@ -135,6 +147,10 @@ def _render_unit_detail(detail: dict[str, list[dict[str, Any]]]) -> None:
         ]
     )
     with landing:
-        render_landing_table(detail["landing_objects"])
+        landing_rows = detail["landing_objects"]
+        landing_key = "unit_landing_objects"
+        if landing_rows:
+            landing_key = f"unit_landing_{safe_key(landing_rows[0].get('unit_id'))}"
+        render_landing_table(landing_rows, key=landing_key)
     with rejections:
         render_rejection_table(detail["rejections"])

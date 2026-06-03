@@ -13,6 +13,7 @@ RUN_ID_FAILED = "018f0000-0000-7000-8000-000000000002"
 RUN_ID_RUNNING = "018f0000-0000-7000-8000-000000000003"
 DBT_RUN_ID = "018f0000-0000-7000-8000-000000000004"
 UNIT_ID = "018f0000-0000-7000-8000-000000000005"
+LANDING_ID = "018f0000-0000-7000-8000-000000000006"
 
 
 def test_dashboard_queries_return_empty_results_when_runs_table_is_missing() -> None:
@@ -20,6 +21,8 @@ def test_dashboard_queries_return_empty_results_when_runs_table_is_missing() -> 
     lake = DataLakeClient(connection=duckdb.connect(":memory:"))
 
     assert queries.pipeline_runs_available(lake) is False
+    assert queries.run_units_available(lake) is False
+    assert queries.landing_objects_available(lake) is False
     assert queries.load_status_summary(lake, since=datetime.now(UTC), domains=()) == {
         "total_runs": 0,
         "running_runs": 0,
@@ -32,7 +35,10 @@ def test_dashboard_queries_return_empty_results_when_runs_table_is_missing() -> 
         "rows_rejected": 0,
     }
     assert queries.load_recent_runs(lake, since=datetime.now(UTC), domains=(), statuses=()) == []
+    assert queries.load_recent_run_units(lake, since=datetime.now(UTC), domains=(), statuses=()) == []
+    assert queries.load_recent_landing_objects(lake, since=datetime.now(UTC), domains=()) == []
     assert queries.load_run_by_id(lake, run_id=RUN_ID_COMPLETED) is None
+    assert queries.load_landing_object_by_id(lake, landing_id=LANDING_ID) is None
 
 
 def test_dashboard_run_summary_queries() -> None:
@@ -80,6 +86,21 @@ def test_dashboard_run_summary_queries() -> None:
     assert len(trend) == 1
     assert trend[0]["runs"] == 3
 
+    domain_summary = queries.load_domain_run_summary(lake, since=now - timedelta(days=2), domains=("eod_price",))
+    assert domain_summary == [
+        {
+            "domain": "eod_price",
+            "runs": 3,
+            "running_runs": 1,
+            "completed_runs": 1,
+            "attention_runs": 1,
+            "units_failed": 1,
+            "rows_written": 100,
+            "rows_rejected": 0,
+            "latest_started_at": now - timedelta(hours=1),
+        }
+    ]
+
 
 def test_dashboard_attention_queries() -> None:
     """Triage queries should load attention runs independently of explorer filters."""
@@ -114,6 +135,16 @@ def test_dashboard_detail_queries() -> None:
     assert len(units) == 1
     assert units[0]["unit_key_hash"] == "hash-1"
 
+    recent_units = queries.load_recent_run_units(
+        lake,
+        since=now - timedelta(days=2),
+        domains=("eod_price",),
+        statuses=("completed",),
+    )
+    assert len(recent_units) == 1
+    assert str(recent_units[0]["unit_id"]) == UNIT_ID
+    assert recent_units[0]["flow_name"] == "eod-price-daily"
+
     unit = queries.load_run_unit_by_id(lake, run_id=RUN_ID_COMPLETED, unit_id=UNIT_ID)
     assert unit is not None
     assert unit["unit_key_hash"] == "hash-1"
@@ -124,6 +155,21 @@ def test_dashboard_detail_queries() -> None:
     landing_objects = queries.load_landing_objects(lake, run_id=RUN_ID_COMPLETED)
     assert len(landing_objects) == 1
     assert landing_objects[0]["source_uri"] == "s3://bucket/object.json"
+
+    recent_landing_objects = queries.load_recent_landing_objects(
+        lake,
+        since=now - timedelta(days=2),
+        domains=("eod_price",),
+    )
+    assert len(recent_landing_objects) == 1
+    assert str(recent_landing_objects[0]["landing_id"]) == LANDING_ID
+    assert recent_landing_objects[0]["flow_name"] == "eod-price-daily"
+
+    landing_object = queries.load_landing_object_by_id(lake, landing_id=LANDING_ID)
+    assert landing_object is not None
+    assert landing_object["source_uri"] == "s3://bucket/object.json"
+    assert landing_object["run_status"] == "completed"
+    assert landing_object["unit_status"] == "completed"
 
     unit_landing_objects = queries.load_landing_objects(lake, run_id=RUN_ID_COMPLETED, unit_id=UNIT_ID)
     assert len(unit_landing_objects) == 1
@@ -146,6 +192,17 @@ def test_dashboard_detail_queries() -> None:
     dbt_nodes = queries.load_dbt_node_results(lake, run_id=RUN_ID_COMPLETED)
     assert len(dbt_nodes) == 1
     assert dbt_nodes[0]["unique_id"] == "model.unique_stocks.daily_price"
+
+    evidence_summary = queries.load_audit_evidence_summary(lake, since=now - timedelta(days=2), domains=("eod_price",))
+    assert evidence_summary == {
+        "landing_objects": 1,
+        "landing_bytes": 1024,
+        "rejection_samples": 1,
+        "coverage_records": 0,
+        "dbt_invocations": 1,
+        "dbt_attention_invocations": 0,
+        "dbt_attention_nodes": 0,
+    }
 
 
 def _lake_with_dashboard_tables() -> DataLakeClient:
@@ -430,7 +487,7 @@ def _insert_detail_rows(lake: DataLakeClient, *, now: datetime) -> None:
         "landing_objects",
         [
             {
-                "landing_id": "018f0000-0000-7000-8000-000000000006",
+                "landing_id": LANDING_ID,
                 "run_id": RUN_ID_COMPLETED,
                 "unit_id": UNIT_ID,
                 "domain": "eod_price",

@@ -22,7 +22,7 @@ from dashboard.formatting import (
     json_value_parsed,
     jsonable,
 )
-from dashboard.tables import frame, render_compact_dataframe
+from dashboard.tables import frame, render_compact_dataframe, render_landing_object_overview_table
 
 
 def render_limit_note(rows: list[dict[str, Any]], *, limit: int, label: str) -> None:
@@ -53,7 +53,7 @@ def render_run_status_callout(run: dict[str, Any]) -> None:
     elif status == "partial":
         st.warning(error_text("Run completed partially", error_class=error_class, error_message=error_message))
     elif status == "running":
-        st.info("Run is still running. Stale detection uses the threshold in the sidebar.")
+        st.info("Run is still running. Stale detection uses the stale-hours threshold on Overview.")
     elif status == "completed":
         if units_failed or rows_rejected:
             st.warning(
@@ -106,30 +106,18 @@ def render_key_fields(value: object) -> None:
                 st.markdown(f"**{format_key_value(item_value)}**")
 
 
-def render_landing_table(rows: list[dict[str, Any]]) -> None:
+def render_landing_table(rows: list[dict[str, Any]], *, key: str) -> None:
     """Render landing-object evidence rows for a run or unit scope.
 
     Args:
         rows: Landing-object rows from ``pipeline.landing_objects``.
+        key: Unique Streamlit widget key for the landing table.
     """
     table = frame(rows)
     if table.empty:
         st.info("No landing objects recorded for this scope.")
         return
-    render_compact_dataframe(
-        table,
-        columns=[
-            "recorded_at",
-            "dataset",
-            "provider",
-            "source_uri",
-            "rows_raw",
-            "byte_count",
-            "content_hash",
-            "partition_json",
-            "unit_id",
-        ],
-    )
+    render_landing_object_overview_table(table, key=key)
     render_limit_note(rows, limit=LANDING_OBJECTS_LIMIT, label="landing objects")
 
 

@@ -24,7 +24,13 @@ from dashboard.formatting import (
     short_id,
     truncate_text,
 )
-from dashboard.routing import labeled_href, run_detail_href, run_unit_preview_href
+from dashboard.routing import (
+    labeled_href,
+    landing_object_detail_href,
+    run_detail_href,
+    run_unit_preview_href,
+    unit_detail_href,
+)
 
 
 def frame(rows: list[dict[str, Any]]) -> pd.DataFrame:
@@ -74,6 +80,8 @@ def table_column_config(table: pd.DataFrame, *, extra: dict[str, Any] | None = N
             config[column] = st.column_config.NumberColumn(humanize_column(column), format="%,.2f")
         elif is_status_column(column):
             config[column] = st.column_config.TextColumn(humanize_column(column), width="small")
+        else:
+            config[column] = st.column_config.TextColumn(humanize_column(column))
     return config
 
 
@@ -115,6 +123,29 @@ def status_cell_style(value: object) -> str:
     return "background-color: #f3f4f6; color: #374151; font-weight: 600"
 
 
+def merge_action_queue(
+    stale_runs: list[dict[str, Any]],
+    attention_runs: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Merge stale and attention runs into one triage list without duplicates.
+
+    Args:
+        stale_runs: Runs past the stale threshold while still ``running``.
+        attention_runs: Failed or partial runs in the selected window.
+
+    Returns:
+        Rows with a ``queue`` field of ``stale`` or ``attention``.
+    """
+    stale_ids = {str(row.get("run_id")) for row in stale_runs if row.get("run_id")}
+    rows: list[dict[str, Any]] = [{**row, "queue": "stale"} for row in stale_runs]
+    for row in attention_runs:
+        run_id = str(row.get("run_id") or "")
+        if run_id and run_id in stale_ids:
+            continue
+        rows.append({**row, "queue": "attention"})
+    return rows
+
+
 def compact_run_frame(source: pd.DataFrame) -> pd.DataFrame:
     """Build the compact run table shown on overview and triage pages.
 
@@ -125,6 +156,7 @@ def compact_run_frame(source: pd.DataFrame) -> pd.DataFrame:
         Display-ready dataframe with formatted timestamps and truncated errors.
     """
     columns = [
+        "queue",
         "run_id_short",
         "status",
         "domain",
@@ -146,7 +178,7 @@ def compact_run_frame(source: pd.DataFrame) -> pd.DataFrame:
             0,
             "run_id_short",
             pd.Series(
-                [labeled_href(run_detail_href(run_id), short_id(run_id)) for run_id in source["run_id"].tolist()],
+                [_run_detail_link(run_id) for run_id in source["run_id"].tolist()],
                 index=result.index,
                 dtype="string",
             ),
@@ -157,9 +189,11 @@ def compact_run_frame(source: pd.DataFrame) -> pd.DataFrame:
     for column in ("started_at", "completed_at"):
         if column in result.columns:
             result[column] = [format_datetime(value) for value in result[column].tolist()]
-    if "error_message" in result.columns:
-        result["error_message"] = [truncate_text(value) for value in result["error_message"].tolist()]
+    for column in ("error_class", "error_message"):
+        if column in result.columns:
+            result[column] = [truncate_text(value) for value in result[column].tolist()]
     ordered_columns = [
+        "queue",
         "run_id_short",
         "status",
         "domain",
@@ -251,6 +285,182 @@ def compact_unit_frame(source: pd.DataFrame, *, run_id: str) -> pd.DataFrame:
     return cast(pd.DataFrame, result.loc[:, [column for column in ordered_columns if column in result.columns]])
 
 
+def compact_run_unit_overview_frame(source: pd.DataFrame) -> pd.DataFrame:
+    """Build the compact work-unit table shown on the run-unit overview page.
+
+    Args:
+        source: Raw unit rows including ``unit_id`` and ``run_id``.
+
+    Returns:
+        Display-ready dataframe with links to unit and run detail pages.
+    """
+    columns = [
+        "unit_id_short",
+        "run_id_short",
+        "status",
+        "domain",
+        "flow_name",
+        "run_kind",
+        "provider",
+        "unit_type",
+        "unit_key_json",
+        "reason",
+        "error_class",
+        "error_message",
+        "rows_raw",
+        "rows_valid",
+        "rows_written",
+        "rows_rejected",
+        "duration_seconds",
+        "started_at",
+        "completed_at",
+        "source_uri",
+    ]
+    result = _copy_available_columns(source, columns)
+    if "unit_id" in source.columns and "unit_id_short" not in result.columns:
+        result.insert(
+            0,
+            "unit_id_short",
+            pd.Series(
+                [_unit_detail_link(row) for row in source.to_dict(orient="records")],
+                index=result.index,
+                dtype="string",
+            ),
+        )
+    if "run_id" in source.columns and "run_id_short" not in result.columns:
+        insert_at = 1 if "unit_id_short" in result.columns else 0
+        result.insert(
+            insert_at,
+            "run_id_short",
+            pd.Series(
+                [_run_detail_link(run_id) for run_id in source["run_id"].tolist()],
+                index=result.index,
+                dtype="string",
+            ),
+        )
+    unit_key_frame, unit_key_columns = unit_key_columns_frame(source)
+    if not unit_key_frame.empty:
+        result = cast(pd.DataFrame, pd.concat([result, unit_key_frame], axis=1))
+    if "unit_key_json" in result.columns:
+        if not unit_key_columns:
+            result["unit_key"] = [format_json_compact(value) for value in result["unit_key_json"].tolist()]
+        result = cast(pd.DataFrame, result.drop(columns=["unit_key_json"]))
+    if "duration_seconds" in result.columns:
+        result["duration"] = [format_duration(value) for value in result["duration_seconds"].tolist()]
+        result = cast(pd.DataFrame, result.drop(columns=["duration_seconds"]))
+    for column in ("started_at", "completed_at"):
+        if column in result.columns:
+            result[column] = [format_datetime(value) for value in result[column].tolist()]
+    if "error_message" in result.columns:
+        result["error_message"] = [truncate_text(value) for value in result["error_message"].tolist()]
+    ordered_columns = [
+        "unit_id_short",
+        "run_id_short",
+        "status",
+        "domain",
+        "flow_name",
+        "run_kind",
+        "provider",
+        "unit_type",
+        *unit_key_columns,
+        "unit_key",
+        "reason",
+        "error_class",
+        "error_message",
+        "rows_raw",
+        "rows_valid",
+        "rows_written",
+        "rows_rejected",
+        "duration",
+        "started_at",
+        "completed_at",
+        "source_uri",
+    ]
+    return cast(pd.DataFrame, result.loc[:, [column for column in ordered_columns if column in result.columns]])
+
+
+def compact_landing_object_frame(source: pd.DataFrame) -> pd.DataFrame:
+    """Build the compact landing-object table shown on overview and detail pages.
+
+    Args:
+        source: Raw landing-object rows including ``landing_id``.
+
+    Returns:
+        Display-ready dataframe with links to landing, run, and unit detail pages.
+    """
+    columns = [
+        "landing_id_short",
+        "run_id_short",
+        "unit_id_short",
+        "domain",
+        "dataset",
+        "provider",
+        "flow_name",
+        "source_uri",
+        "rows_raw",
+        "byte_count",
+        "content_hash",
+        "partition_json",
+        "recorded_at",
+    ]
+    result = _copy_available_columns(source, columns)
+    if "landing_id" in source.columns and "landing_id_short" not in result.columns:
+        result.insert(
+            0,
+            "landing_id_short",
+            pd.Series(
+                [
+                    labeled_href(landing_object_detail_href(landing_id), short_id(landing_id))
+                    for landing_id in source["landing_id"].tolist()
+                ],
+                index=result.index,
+                dtype="string",
+            ),
+        )
+    if "run_id" in source.columns and "run_id_short" not in result.columns:
+        insert_at = 1 if "landing_id_short" in result.columns else 0
+        result.insert(
+            insert_at,
+            "run_id_short",
+            pd.Series(
+                [labeled_href(run_detail_href(run_id), short_id(run_id)) for run_id in source["run_id"].tolist()],
+                index=result.index,
+                dtype="string",
+            ),
+        )
+    if {"run_id", "unit_id"}.issubset(source.columns) and "unit_id_short" not in result.columns:
+        insert_at = 2 if {"landing_id_short", "run_id_short"}.issubset(result.columns) else len(result.columns)
+        result.insert(
+            insert_at,
+            "unit_id_short",
+            pd.Series(
+                [_unit_detail_link(row) for row in source.to_dict(orient="records")],
+                index=result.index,
+                dtype="string",
+            ),
+        )
+    if "partition_json" in result.columns:
+        result["partition_json"] = [format_json_compact(value) for value in result["partition_json"].tolist()]
+    if "recorded_at" in result.columns:
+        result["recorded_at"] = [format_datetime(value) for value in result["recorded_at"].tolist()]
+    ordered_columns = [
+        "landing_id_short",
+        "run_id_short",
+        "unit_id_short",
+        "domain",
+        "dataset",
+        "provider",
+        "flow_name",
+        "recorded_at",
+        "rows_raw",
+        "byte_count",
+        "content_hash",
+        "partition_json",
+        "source_uri",
+    ]
+    return cast(pd.DataFrame, result.loc[:, [column for column in ordered_columns if column in result.columns]])
+
+
 def render_run_table(source: pd.DataFrame, *, key: str) -> None:
     """Render a run table with links to run detail pages.
 
@@ -258,6 +468,90 @@ def render_run_table(source: pd.DataFrame, *, key: str) -> None:
         source: Raw run rows including ``run_id``.
         key: Unique Streamlit widget key for the table instance.
     """
+    _render_compact_run_table(source, key=key)
+
+
+def render_action_queue(source: pd.DataFrame, *, key: str) -> None:
+    """Render the unified stale and attention triage table.
+
+    Args:
+        source: Run rows including a ``queue`` column from :func:`merge_action_queue`.
+        key: Unique Streamlit widget key for the table instance.
+    """
+    _render_compact_run_table(source, key=key, caption="Stale runs are still in running state.")
+
+
+def render_run_unit_overview_table(source: pd.DataFrame, *, key: str) -> None:
+    """Render a run-unit overview table with links to unit and run detail pages.
+
+    Args:
+        source: Raw unit rows including ``unit_id`` and ``run_id``.
+        key: Unique Streamlit widget key for the table instance.
+    """
+    table = compact_run_unit_overview_frame(source)
+    st.dataframe(
+        styled_table(table),
+        width="stretch",
+        hide_index=True,
+        key=key,
+        column_config=table_column_config(
+            table,
+            extra={
+                "unit_id_short": st.column_config.LinkColumn(
+                    "Unit ID",
+                    width="small",
+                    display_text=LINK_COLUMN_LABEL_PATTERN,
+                ),
+                "run_id_short": st.column_config.LinkColumn(
+                    "Run ID",
+                    width="small",
+                    display_text=LINK_COLUMN_LABEL_PATTERN,
+                ),
+            },
+        ),
+    )
+    st.caption("Click a unit ID for full evidence, or a run ID for the parent run investigation.")
+
+
+def render_landing_object_overview_table(source: pd.DataFrame, *, key: str) -> None:
+    """Render a landing-object overview table with links to evidence detail pages.
+
+    Args:
+        source: Raw landing-object rows including ``landing_id``.
+        key: Unique Streamlit widget key for the table instance.
+    """
+    table = compact_landing_object_frame(source)
+    st.dataframe(
+        styled_table(table),
+        width="stretch",
+        hide_index=True,
+        key=key,
+        column_config=table_column_config(
+            table,
+            extra={
+                "landing_id_short": st.column_config.LinkColumn(
+                    "Landing ID",
+                    width="small",
+                    display_text=LINK_COLUMN_LABEL_PATTERN,
+                ),
+                "run_id_short": st.column_config.LinkColumn(
+                    "Run ID",
+                    width="small",
+                    display_text=LINK_COLUMN_LABEL_PATTERN,
+                ),
+                "unit_id_short": st.column_config.LinkColumn(
+                    "Unit ID",
+                    width="small",
+                    display_text=LINK_COLUMN_LABEL_PATTERN,
+                ),
+            },
+        ),
+    )
+    st.caption("Click a landing ID for object detail, or use run and unit IDs for parent context.")
+
+
+def _render_compact_run_table(source: pd.DataFrame, *, key: str, caption: str | None = None) -> None:
+    """Render a compact run dataframe with run-detail links."""
     table = compact_run_frame(source)
     st.dataframe(
         styled_table(table),
@@ -275,7 +569,7 @@ def render_run_table(source: pd.DataFrame, *, key: str) -> None:
             },
         ),
     )
-    st.caption("Click a run ID to inspect units and evidence.")
+    st.caption(caption or "Click a run ID to inspect units and evidence.")
 
 
 def render_unit_table(source: pd.DataFrame, *, run_id: str, key: str) -> str | None:
@@ -457,6 +751,22 @@ def _copy_available_columns(source: pd.DataFrame, columns: list[str]) -> pd.Data
     """
     available_columns = [column for column in columns if column in source.columns]
     return cast(pd.DataFrame, source.loc[:, available_columns].copy())
+
+
+def _run_detail_link(run_id: object) -> str:
+    """Build a short run detail link label for a dataframe cell."""
+    if not run_id:
+        return "-"
+    return labeled_href(run_detail_href(run_id), short_id(run_id))
+
+
+def _unit_detail_link(row: dict[str, Any]) -> str:
+    """Build a short unit detail link label for a dataframe cell."""
+    run_id = row.get("run_id")
+    unit_id = row.get("unit_id")
+    if not run_id or not unit_id:
+        return "-"
+    return labeled_href(unit_detail_href(run_id=str(run_id), unit_id=unit_id), short_id(unit_id))
 
 
 def _selected_index_from_state(state: object) -> int | None:

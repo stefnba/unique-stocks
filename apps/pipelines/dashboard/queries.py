@@ -33,6 +33,16 @@ def pipeline_runs_available(lake: LakeReader) -> bool:
     return lake.table_exists("pipeline", "runs")
 
 
+def run_units_available(lake: LakeReader) -> bool:
+    """Return whether the dashboard's work-unit table exists."""
+    return lake.table_exists("pipeline", "run_units")
+
+
+def landing_objects_available(lake: LakeReader) -> bool:
+    """Return whether the dashboard's landing-object table exists."""
+    return lake.table_exists("pipeline", "landing_objects")
+
+
 def load_status_summary(
     lake: LakeReader,
     *,
@@ -94,8 +104,15 @@ def load_stale_running_runs(
             domain,
             run_kind,
             provider,
+            status,
             started_at,
+            completed_at,
             date_diff('second', started_at, CURRENT_TIMESTAMP) AS running_seconds,
+            date_diff('second', started_at, COALESCE(completed_at, CURRENT_TIMESTAMP)) AS duration_seconds,
+            units_total,
+            units_failed,
+            rows_written,
+            rows_rejected,
             error_class,
             error_message
         FROM pipeline.runs
@@ -218,6 +235,38 @@ def load_status_breakdown(
     )
 
 
+def load_domain_run_summary(
+    lake: LakeReader,
+    *,
+    since: datetime,
+    domains: Sequence[str],
+) -> list[dict[str, Any]]:
+    """Load per-domain run, unit, and row counters for the selected window."""
+    if not pipeline_runs_available(lake):
+        return []
+
+    clauses, params = _run_filters(since=since, domains=domains, statuses=())
+    return lake.query(
+        f"""
+        SELECT
+            domain,
+            COUNT(*) AS runs,
+            COUNT(*) FILTER (WHERE status = 'running') AS running_runs,
+            COUNT(*) FILTER (WHERE status = 'completed') AS completed_runs,
+            COUNT(*) FILTER (WHERE status IN ('failed', 'partial')) AS attention_runs,
+            COALESCE(SUM(units_failed), 0) AS units_failed,
+            COALESCE(SUM(rows_written), 0) AS rows_written,
+            COALESCE(SUM(rows_rejected), 0) AS rows_rejected,
+            MAX(started_at) AS latest_started_at
+        FROM pipeline.runs
+        WHERE {" AND ".join(clauses)}
+        GROUP BY domain
+        ORDER BY attention_runs DESC, running_runs DESC, rows_rejected DESC, domain
+        """,
+        params,
+    )
+
+
 def load_daily_run_trend(
     lake: LakeReader,
     *,
@@ -245,6 +294,123 @@ def load_daily_run_trend(
         """,
         params,
     )
+
+
+def load_audit_evidence_summary(
+    lake: LakeReader,
+    *,
+    since: datetime,
+    domains: Sequence[str],
+) -> dict[str, int]:
+    """Load compact cross-table audit evidence counters for the overview page."""
+    summary = _empty_evidence_summary()
+    domain_values = _clean_values(domains)
+
+    if lake.table_exists("pipeline", "landing_objects"):
+        clauses = ["recorded_at >= ?"]
+        params: list[Any] = [since]
+        if domain_values:
+            clauses.append(f"domain IN ({_placeholders(len(domain_values))})")
+            params.extend(domain_values)
+        row = lake.query_one(
+            f"""
+            SELECT
+                COUNT(*) AS landing_objects,
+                COALESCE(SUM(byte_count), 0) AS landing_bytes
+            FROM pipeline.landing_objects
+            WHERE {" AND ".join(clauses)}
+            """,
+            params,
+        )
+        if row:
+            summary["landing_objects"] = _int_value(row.get("landing_objects"))
+            summary["landing_bytes"] = _int_value(row.get("landing_bytes"))
+
+    if lake.table_exists("pipeline", "rejections"):
+        clauses = ["recorded_at >= ?"]
+        params = [since]
+        if domain_values:
+            clauses.append(f"domain IN ({_placeholders(len(domain_values))})")
+            params.extend(domain_values)
+        row = lake.query_one(
+            f"""
+            SELECT COUNT(*) AS rejection_samples
+            FROM pipeline.rejections
+            WHERE {" AND ".join(clauses)}
+            """,
+            params,
+        )
+        if row:
+            summary["rejection_samples"] = _int_value(row.get("rejection_samples"))
+
+    if lake.table_exists("pipeline", "ingestion_coverage"):
+        clauses = ["recorded_at >= ?"]
+        params = [since]
+        if domain_values:
+            clauses.append(f"domain IN ({_placeholders(len(domain_values))})")
+            params.extend(domain_values)
+        row = lake.query_one(
+            f"""
+            SELECT COUNT(*) AS coverage_records
+            FROM pipeline.ingestion_coverage
+            WHERE {" AND ".join(clauses)}
+            """,
+            params,
+        )
+        if row:
+            summary["coverage_records"] = _int_value(row.get("coverage_records"))
+
+    if lake.table_exists("pipeline", "dbt_invocations") and pipeline_runs_available(lake):
+        clauses = ["run.started_at >= ?"]
+        params = [since]
+        if domain_values:
+            clauses.append(f"run.domain IN ({_placeholders(len(domain_values))})")
+            params.extend(domain_values)
+        row = lake.query_one(
+            f"""
+            SELECT
+                COUNT(*) AS dbt_invocations,
+                COUNT(*) FILTER (
+                    WHERE invocation.status NOT IN ('completed', 'success', 'pass')
+                ) AS dbt_attention_invocations
+            FROM pipeline.dbt_invocations AS invocation
+            INNER JOIN pipeline.runs AS run
+                ON invocation.run_id = run.run_id
+            WHERE {" AND ".join(clauses)}
+            """,
+            params,
+        )
+        if row:
+            summary["dbt_invocations"] = _int_value(row.get("dbt_invocations"))
+            summary["dbt_attention_invocations"] = _int_value(row.get("dbt_attention_invocations"))
+
+    if (
+        lake.table_exists("pipeline", "dbt_invocations")
+        and lake.table_exists("pipeline", "dbt_node_results")
+        and pipeline_runs_available(lake)
+    ):
+        clauses = ["run.started_at >= ?"]
+        params = [since]
+        if domain_values:
+            clauses.append(f"run.domain IN ({_placeholders(len(domain_values))})")
+            params.extend(domain_values)
+        row = lake.query_one(
+            f"""
+            SELECT COUNT(*) AS dbt_attention_nodes
+            FROM pipeline.dbt_invocations AS invocation
+            INNER JOIN pipeline.dbt_node_results AS node
+                ON invocation.dbt_run_id = node.dbt_run_id
+            INNER JOIN pipeline.runs AS run
+                ON invocation.run_id = run.run_id
+            WHERE {" AND ".join(clauses)}
+              AND node.status IN ('error', 'fail', 'warn')
+            """,
+            params,
+        )
+        if row:
+            summary["dbt_attention_nodes"] = _int_value(row.get("dbt_attention_nodes"))
+
+    return summary
 
 
 def load_attention_runs(
@@ -543,6 +709,89 @@ def load_run_units(lake: LakeReader, *, run_id: str, limit: int = 500) -> list[d
     )
 
 
+def load_recent_run_units(
+    lake: LakeReader,
+    *,
+    since: datetime,
+    domains: Sequence[str],
+    statuses: Sequence[str],
+    run_id: str | None = None,
+    limit: int = 200,
+) -> list[dict[str, Any]]:
+    """Load recent work units for the run-unit overview page."""
+    if not run_units_available(lake):
+        return []
+
+    runs_available = pipeline_runs_available(lake)
+    join_sql = "LEFT JOIN pipeline.runs AS run ON unit.run_id = run.run_id" if runs_available else ""
+    flow_sql = "run.flow_name" if runs_available else "CAST(NULL AS VARCHAR)"
+    run_kind_sql = "run.run_kind" if runs_available else "CAST(NULL AS VARCHAR)"
+    domain_sql = "COALESCE(unit.domain, run.domain)" if runs_available else "unit.domain"
+    provider_sql = "COALESCE(unit.provider, run.provider)" if runs_available else "unit.provider"
+    window_sql = (
+        "COALESCE(unit.started_at, unit.completed_at, run.started_at)"
+        if runs_available
+        else "COALESCE(unit.started_at, unit.completed_at)"
+    )
+
+    clauses = [f"{window_sql} >= ?"]
+    params: list[Any] = [since]
+    domain_values = _clean_values(domains)
+    if domain_values:
+        clauses.append(f"{domain_sql} IN ({_placeholders(len(domain_values))})")
+        params.extend(domain_values)
+    status_values = _clean_values(statuses)
+    if status_values:
+        clauses.append(f"unit.status IN ({_placeholders(len(status_values))})")
+        params.extend(status_values)
+    if run_id:
+        clauses.append("unit.run_id = ?")
+        params.append(run_id)
+
+    params.append(_bounded_limit(limit, default=200, maximum=1000))
+    return lake.query(
+        f"""
+        SELECT
+            unit.unit_id,
+            unit.run_id,
+            {flow_sql} AS flow_name,
+            {run_kind_sql} AS run_kind,
+            {domain_sql} AS domain,
+            {provider_sql} AS provider,
+            unit.unit_type,
+            unit.unit_key_hash,
+            unit.unit_key_json,
+            unit.status,
+            unit.reason,
+            unit.source_uri,
+            unit.rows_raw,
+            unit.rows_valid,
+            unit.rows_rejected,
+            unit.rows_written,
+            unit.started_at,
+            unit.completed_at,
+            date_diff('second', unit.started_at, COALESCE(unit.completed_at, CURRENT_TIMESTAMP)) AS duration_seconds,
+            unit.error_class,
+            unit.error_message
+        FROM pipeline.run_units AS unit
+        {join_sql}
+        WHERE {" AND ".join(clauses)}
+        ORDER BY
+            CASE unit.status
+                WHEN 'failed' THEN 1
+                WHEN 'unsupported' THEN 2
+                WHEN 'skipped' THEN 3
+                WHEN 'running' THEN 4
+                ELSE 5
+            END,
+            unit.completed_at DESC NULLS LAST,
+            unit.started_at DESC NULLS LAST
+        LIMIT ?
+        """,
+        params,
+    )
+
+
 def load_landing_objects(
     lake: LakeReader,
     *,
@@ -563,7 +812,9 @@ def load_landing_objects(
         f"""
         SELECT
             landing_id,
+            run_id,
             unit_id,
+            domain,
             dataset,
             provider,
             source_uri,
@@ -578,6 +829,127 @@ def load_landing_objects(
         LIMIT ?
         """,
         params,
+    )
+
+
+def load_recent_landing_objects(
+    lake: LakeReader,
+    *,
+    since: datetime,
+    domains: Sequence[str],
+    run_id: str | None = None,
+    unit_id: str | None = None,
+    limit: int = 200,
+) -> list[dict[str, Any]]:
+    """Load recent landing objects for the landing-object overview page."""
+    if not landing_objects_available(lake):
+        return []
+
+    runs_available = pipeline_runs_available(lake)
+    units_available = run_units_available(lake)
+    run_join_sql = "LEFT JOIN pipeline.runs AS run ON landing.run_id = run.run_id" if runs_available else ""
+    unit_join_sql = "LEFT JOIN pipeline.run_units AS unit ON landing.unit_id = unit.unit_id" if units_available else ""
+    run_flow_sql = "run.flow_name" if runs_available else "CAST(NULL AS VARCHAR)"
+    domain_inputs = ["landing.domain"]
+    provider_inputs = ["landing.provider"]
+    if units_available:
+        domain_inputs.append("unit.domain")
+        provider_inputs.append("unit.provider")
+    if runs_available:
+        domain_inputs.append("run.domain")
+        provider_inputs.append("run.provider")
+    domain_sql = f"COALESCE({', '.join(domain_inputs)})"
+    provider_sql = f"COALESCE({', '.join(provider_inputs)})"
+
+    clauses = ["landing.recorded_at >= ?"]
+    params: list[Any] = [since]
+    domain_values = _clean_values(domains)
+    if domain_values:
+        clauses.append(f"{domain_sql} IN ({_placeholders(len(domain_values))})")
+        params.extend(domain_values)
+    if run_id:
+        clauses.append("landing.run_id = ?")
+        params.append(run_id)
+    if unit_id:
+        clauses.append("landing.unit_id = ?")
+        params.append(unit_id)
+
+    params.append(_bounded_limit(limit, default=200, maximum=1000))
+    return lake.query(
+        f"""
+        SELECT
+            landing.landing_id,
+            landing.run_id,
+            landing.unit_id,
+            {run_flow_sql} AS flow_name,
+            {domain_sql} AS domain,
+            {provider_sql} AS provider,
+            landing.dataset,
+            landing.source_uri,
+            landing.partition_json,
+            landing.rows_raw,
+            landing.byte_count,
+            landing.content_hash,
+            landing.recorded_at
+        FROM pipeline.landing_objects AS landing
+        {run_join_sql}
+        {unit_join_sql}
+        WHERE {" AND ".join(clauses)}
+        ORDER BY landing.recorded_at DESC
+        LIMIT ?
+        """,
+        params,
+    )
+
+
+def load_landing_object_by_id(lake: LakeReader, *, landing_id: str) -> dict[str, Any] | None:
+    """Load one landing object by durable landing id."""
+    if not landing_objects_available(lake):
+        return None
+
+    runs_available = pipeline_runs_available(lake)
+    units_available = run_units_available(lake)
+    run_join_sql = "LEFT JOIN pipeline.runs AS run ON landing.run_id = run.run_id" if runs_available else ""
+    unit_join_sql = "LEFT JOIN pipeline.run_units AS unit ON landing.unit_id = unit.unit_id" if units_available else ""
+    run_flow_sql = "run.flow_name" if runs_available else "CAST(NULL AS VARCHAR)"
+    run_status_sql = "run.status" if runs_available else "CAST(NULL AS VARCHAR)"
+    unit_status_sql = "unit.status" if units_available else "CAST(NULL AS VARCHAR)"
+    domain_inputs = ["landing.domain"]
+    provider_inputs = ["landing.provider"]
+    if units_available:
+        domain_inputs.append("unit.domain")
+        provider_inputs.append("unit.provider")
+    if runs_available:
+        domain_inputs.append("run.domain")
+        provider_inputs.append("run.provider")
+    domain_sql = f"COALESCE({', '.join(domain_inputs)})"
+    provider_sql = f"COALESCE({', '.join(provider_inputs)})"
+
+    return lake.query_one(
+        f"""
+        SELECT
+            landing.landing_id,
+            landing.run_id,
+            landing.unit_id,
+            {run_flow_sql} AS flow_name,
+            {run_status_sql} AS run_status,
+            {unit_status_sql} AS unit_status,
+            {domain_sql} AS domain,
+            {provider_sql} AS provider,
+            landing.dataset,
+            landing.source_uri,
+            landing.partition_json,
+            landing.rows_raw,
+            landing.byte_count,
+            landing.content_hash,
+            landing.recorded_at
+        FROM pipeline.landing_objects AS landing
+        {run_join_sql}
+        {unit_join_sql}
+        WHERE landing.landing_id = ?
+        LIMIT 1
+        """,
+        [landing_id],
     )
 
 
@@ -748,6 +1120,19 @@ def _empty_summary() -> dict[str, int]:
         "units_failed": 0,
         "rows_written": 0,
         "rows_rejected": 0,
+    }
+
+
+def _empty_evidence_summary() -> dict[str, int]:
+    """Return zeroed cross-table audit evidence counters."""
+    return {
+        "landing_objects": 0,
+        "landing_bytes": 0,
+        "rejection_samples": 0,
+        "coverage_records": 0,
+        "dbt_invocations": 0,
+        "dbt_attention_invocations": 0,
+        "dbt_attention_nodes": 0,
     }
 
 

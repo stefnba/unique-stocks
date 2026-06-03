@@ -16,7 +16,15 @@ from dashboard.formatting import (
     short_id,
 )
 from dashboard.loaders import load_run_page
-from dashboard.routing import overview_href, render_breadcrumb, run_detail_href, unit_detail_href
+from dashboard.routing import (
+    landing_objects_href,
+    overview_href,
+    render_breadcrumb,
+    run_detail_href,
+    run_units_href,
+    runs_href,
+    unit_detail_href,
+)
 from dashboard.tables import (
     default_unit_statuses,
     filter_frame_by_values,
@@ -43,9 +51,11 @@ def render_run_page(run_id: str | None, *, preview_unit_id: str | None = None) -
         run_id: Durable run identifier from ``pipeline.runs``.
         preview_unit_id: Optional unit id from query params for inline evidence preview.
     """
-    render_breadcrumb(("Pipeline Audit", overview_href()), ("Run", None))
+    render_breadcrumb(("Pipeline Audit", overview_href()), ("Runs", runs_href()), ("Run", None))
 
     if not run_id:
+        st.title("Run Detail")
+        st.caption("Parent run investigation and related work-unit evidence.")
         st.warning("Choose a run from the overview to open its detail page.")
         return
 
@@ -58,6 +68,7 @@ def render_run_page(run_id: str | None, *, preview_unit_id: str | None = None) -
 
     run = page["run"]
     if run is None:
+        st.title("Run Detail")
         st.warning(f"Run {run_id} was not found in pipeline.runs.")
         return
 
@@ -98,12 +109,24 @@ def _render_run_summary(run: dict[str, Any]) -> None:
     written.metric("Rows Written", format_int(run.get("rows_written")))
     rejected.metric("Rows Rejected", format_int(run.get("rows_rejected")))
 
-    action_columns = st.columns(2)
+    action_columns = st.columns(4)
     prefect_url = prefect_flow_run_url(run.get("prefect_flow_run_id"))
     if prefect_url:
         action_columns[0].link_button("Open in Prefect", prefect_url)
     if run.get("parent_run_id"):
         action_columns[1].link_button("Open parent run", run_detail_href(run["parent_run_id"]))
+    action_columns[2].link_button(
+        "Run Units",
+        run_units_href(run_id=str(run["run_id"])),
+        icon=":material/view_list:",
+        width="stretch",
+    )
+    action_columns[3].link_button(
+        "Landing Objects",
+        landing_objects_href(run_id=str(run["run_id"])),
+        icon=":material/cloud:",
+        width="stretch",
+    )
 
 
 def _render_run_detail(
@@ -143,7 +166,7 @@ def _render_run_detail(
         render_rejection_table(detail["rejections"])
 
     with landing:
-        render_landing_table(detail["landing_objects"])
+        render_landing_table(detail["landing_objects"], key=f"run_landing_{run['run_id']}")
 
     with dbt:
         render_dbt_table(detail["dbt_node_results"])
@@ -222,6 +245,6 @@ def _render_units_panel(
             ]
         )
         with evidence_landing:
-            render_landing_table(unit_landing)
+            render_landing_table(unit_landing, key=f"run_unit_preview_landing_{safe_key(active_unit_id)}")
         with evidence_rejections:
             render_rejection_table(unit_rejections)

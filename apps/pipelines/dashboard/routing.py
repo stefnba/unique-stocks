@@ -1,4 +1,4 @@
-"""Query-param routing helpers for the pipeline audit dashboard."""
+"""Route helpers for the pipeline audit dashboard."""
 
 from __future__ import annotations
 
@@ -6,54 +6,16 @@ from urllib.parse import quote
 
 import streamlit as st
 
-from dashboard.constants import OVERVIEW_PAGE, RUN_PAGE, UNIT_PAGE
-
-
-def current_route() -> dict[str, str | None]:
-    """Read the active dashboard route from Streamlit query params.
-
-    Returns:
-        Mapping with ``page``, ``run_id``, ``unit_id``, and ``preview_unit_id`` keys.
-    """
-    page = query_param("page") or OVERVIEW_PAGE
-    if page not in {OVERVIEW_PAGE, RUN_PAGE, UNIT_PAGE}:
-        page = OVERVIEW_PAGE
-    return {
-        "page": page,
-        "run_id": query_param("run_id"),
-        "unit_id": query_param("unit_id"),
-        "preview_unit_id": query_param("preview_unit_id"),
-    }
-
-
-def set_route(
-    page: str,
-    *,
-    run_id: str | None = None,
-    unit_id: str | None = None,
-    preview_unit_id: str | None = None,
-) -> None:
-    """Update Streamlit query params for the requested dashboard route.
-
-    Args:
-        page: Target page slug such as ``overview``, ``run``, or ``unit``.
-        run_id: Optional durable run identifier for drill-down routes.
-        unit_id: Optional durable unit identifier for unit drill-down routes.
-        preview_unit_id: Optional unit identifier for inline preview on the run page.
-    """
-    st.query_params["page"] = page
-    if run_id:
-        st.query_params["run_id"] = run_id
-    elif "run_id" in st.query_params:
-        del st.query_params["run_id"]
-    if unit_id:
-        st.query_params["unit_id"] = unit_id
-    elif "unit_id" in st.query_params:
-        del st.query_params["unit_id"]
-    if preview_unit_id:
-        st.query_params["preview_unit_id"] = preview_unit_id
-    elif "preview_unit_id" in st.query_params:
-        del st.query_params["preview_unit_id"]
+from dashboard.constants import (
+    DOMAIN_DETAIL_PAGE,
+    DOMAINS_PAGE,
+    LANDING_OBJECT_DETAIL_PAGE,
+    LANDING_OBJECTS_PAGE,
+    RUN_DETAIL_PAGE,
+    RUN_UNIT_DETAIL_PAGE,
+    RUN_UNITS_PAGE,
+    RUNS_PAGE,
+)
 
 
 def query_param(name: str) -> str | None:
@@ -82,7 +44,7 @@ def run_detail_href(run_id: object) -> str:
     Returns:
         Bookmarkable relative URL for the run page.
     """
-    return f"?page={RUN_PAGE}&run_id={quote(str(run_id), safe='')}"
+    return _page_href(RUN_DETAIL_PAGE, run_id=str(run_id))
 
 
 def unit_detail_href(*, run_id: str, unit_id: object) -> str:
@@ -95,7 +57,7 @@ def unit_detail_href(*, run_id: str, unit_id: object) -> str:
     Returns:
         Bookmarkable relative URL for the unit page.
     """
-    return f"?page={UNIT_PAGE}&run_id={quote(run_id, safe='')}&unit_id={quote(str(unit_id), safe='')}"
+    return _page_href(RUN_UNIT_DETAIL_PAGE, run_id=run_id, unit_id=str(unit_id))
 
 
 def run_unit_preview_href(*, run_id: str, unit_id: object) -> str:
@@ -108,7 +70,7 @@ def run_unit_preview_href(*, run_id: str, unit_id: object) -> str:
     Returns:
         Bookmarkable relative URL that opens the run page with preview active.
     """
-    return f"?page={RUN_PAGE}&run_id={quote(run_id, safe='')}&preview_unit_id={quote(str(unit_id), safe='')}"
+    return _page_href(RUN_DETAIL_PAGE, run_id=run_id, preview_unit_id=str(unit_id))
 
 
 def labeled_href(href: str, label: str) -> str:
@@ -128,28 +90,48 @@ def labeled_href(href: str, label: str) -> str:
 
 
 def overview_href() -> str:
-    """Build a relative href for the overview route.
-
-    Returns:
-        Bookmarkable relative URL for the overview page.
-    """
-    return f"?page={OVERVIEW_PAGE}"
+    """Build a relative href for the overview route."""
+    return "./"
 
 
-def render_sidebar_navigation(route: dict[str, str | None]) -> None:
-    """Render sidebar page navigation for the active route.
+def runs_href(*, domain: str | None = None, status: str | None = None) -> str:
+    """Build a relative href for the run overview route with optional preset filters."""
+    return _page_href(RUNS_PAGE, domain=domain, status=status)
 
-    Args:
-        route: Current route mapping from :func:`current_route`.
-    """
-    st.sidebar.subheader("Pages")
-    if st.sidebar.button("Overview", width="stretch", disabled=route["page"] == OVERVIEW_PAGE):
-        set_route(OVERVIEW_PAGE)
-        st.rerun()
-    if route["page"] == RUN_PAGE:
-        st.sidebar.caption("Current page: Run Detail")
-    elif route["page"] == UNIT_PAGE:
-        st.sidebar.caption("Current page: Unit Detail")
+
+def domains_href(*, domain: str | None = None) -> str:
+    """Build a relative href for the domains route with optional domain focus."""
+    return _page_href(DOMAINS_PAGE, domain=domain)
+
+
+def domain_detail_href(domain: object) -> str:
+    """Build a relative href for one domain detail route."""
+    return _page_href(DOMAIN_DETAIL_PAGE, domain=str(domain))
+
+
+def run_units_href(
+    *,
+    domain: str | None = None,
+    status: str | None = None,
+    run_id: str | None = None,
+) -> str:
+    """Build a relative href for the run-unit overview route."""
+    return _page_href(RUN_UNITS_PAGE, domain=domain, status=status, run_id=run_id)
+
+
+def landing_objects_href(
+    *,
+    domain: str | None = None,
+    run_id: str | None = None,
+    unit_id: str | None = None,
+) -> str:
+    """Build a relative href for the landing-object overview route."""
+    return _page_href(LANDING_OBJECTS_PAGE, domain=domain, run_id=run_id, unit_id=unit_id)
+
+
+def landing_object_detail_href(landing_id: object) -> str:
+    """Build a relative href for one landing-object detail route."""
+    return _page_href(LANDING_OBJECT_DETAIL_PAGE, landing_id=str(landing_id))
 
 
 def render_breadcrumb(*parts: tuple[str, str | None]) -> None:
@@ -165,3 +147,13 @@ def render_breadcrumb(*parts: tuple[str, str | None]) -> None:
         else:
             links.append(label)
     st.markdown(" › ".join(links))
+
+
+def _page_href(path: str, **params: str | None) -> str:
+    """Build a Streamlit page-relative URL that preserves app base paths."""
+    query = "&".join(
+        f"{quote(key, safe='')}={quote(value, safe='')}" for key, value in params.items() if value is not None
+    )
+    if not query:
+        return path
+    return f"{path}?{query}"
