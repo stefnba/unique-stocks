@@ -124,9 +124,10 @@ Set at least the active provider API key shown in `.env.example` for live provid
 | ----------------------- | ----------------- | -------------------------------------------------------------------------- |
 | Provider API key(s)     | Yes for live runs | Current market data provider credentials; see `.env.example`.              |
 | `MOTHERDUCK_TOKEN`      | No                | Blank uses local DuckDB; set for MotherDuck.                               |
-| `LOCAL_LAKE_PATH`       | No                | Local DuckDB file path when `MOTHERDUCK_TOKEN` is blank.                   |
+| `LAKE_NAME`             | Yes               | Logical lake name; used as the MotherDuck database name and local default. |
+| `LOCAL_LAKE_PATH`       | No                | Local DuckDB file path; defaults to `{LAKE_NAME}.duckdb` when unset.       |
 | `DBT_TARGET`            | No                | Direct dbt CLI target; app flows derive this from the active lake backend. |
-| `DBT_DUCKDB_PATH`       | No                | Direct dbt CLI DuckDB path; app flows derive this from `LOCAL_LAKE_PATH`.  |
+| `DBT_DUCKDB_PATH`       | No                | Direct dbt CLI DuckDB path; Make/app flows derive this from the lake path. |
 | `AWS_ACCESS_KEY_ID`     | No                | AWS access key when S3 is enabled.                                         |
 | `AWS_SECRET_ACCESS_KEY` | No                | AWS secret key when S3 is enabled.                                         |
 | `PREFECT_API_URL`       | Yes               | Prefect API URL for workers and deploy commands.                           |
@@ -291,7 +292,7 @@ For MotherDuck organization, token, CLI, and security setup, see [docs/motherduc
 
 ## dbt transformations
 
-The dbt project lives inside this app at `dbt/`. App-run dbt flows derive their target from the same settings as Python ingestion: local DuckDB when `MOTHERDUCK_TOKEN` is blank, MotherDuck when it is set. Direct dbt CLI commands can still use `DBT_TARGET` and `DBT_DUCKDB_PATH`.
+The dbt project lives inside this app at `dbt/`. App-run dbt flows derive their target from the same settings as Python ingestion: local DuckDB when `MOTHERDUCK_TOKEN` is blank, MotherDuck when it is set. Direct dbt CLI commands can still use `DBT_TARGET`, `LAKE_NAME`, and `DBT_DUCKDB_PATH`.
 
 Local dbt workflow:
 
@@ -391,11 +392,12 @@ The production compose file binds the host Prefect port to `127.0.0.1` by defaul
 reverse proxy can reach the service on the VPS. Set `PREFECT_HOST_BIND_IP=0.0.0.0` only when the deployment platform
 requires a public host bind, and put the Prefect UI/API behind TLS plus access control.
 
-Set all secrets in the deployment platform (Coolify environment variables), never in git:
+Set production environment variables in the deployment platform (Coolify environment variables), never in git:
 
 - `POSTGRES_PASSWORD`
 - Provider API key(s) from `.env.example`
 - `MOTHERDUCK_TOKEN`
+- `LAKE_NAME=unique_stocks` unless production should target a different MotherDuck database
 - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` (when S3 is enabled)
 - `PREFECT_UI_API_URL`, `PREFECT_API_URL`
 - `ENVIRONMENT=prod`
@@ -436,7 +438,7 @@ ENVIRONMENT=prod \
 make setup
 ```
 
-This assumes `MOTHERDUCK_TOKEN` is already present in the deployment environment. The setup command saves Prefect blocks,
-creates/updates the work pool, and registers deployments.
+This assumes `MOTHERDUCK_TOKEN` and `LAKE_NAME` are already present in the deployment environment. The setup command
+saves Prefect blocks, creates/updates the work pool, and registers deployments.
 
 Re-run `make deploy` (not `make setup`) after changing deployment definitions — `setup` is only needed once per new environment.

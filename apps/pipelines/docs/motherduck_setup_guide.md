@@ -62,6 +62,7 @@ Set:
 
 ```bash
 MOTHERDUCK_TOKEN=<token>
+LAKE_NAME=unique_stocks
 DBT_TARGET=prod
 ```
 
@@ -70,7 +71,7 @@ DBT_TARGET=prod
 Keep `DBT_TARGET=dev` when you want dbt to use the local DuckDB file. The committed dbt profile already maps:
 
 - `dev` -> local DuckDB via `DBT_DUCKDB_PATH`
-- `prod` -> `md:unique_stocks` using `MOTHERDUCK_TOKEN`
+- `prod` -> `md:${LAKE_NAME}` using `MOTHERDUCK_TOKEN`
 
 ## CLI Setup
 
@@ -128,7 +129,7 @@ Run the full build:
 DBT_TARGET=prod make dbt-build
 ```
 
-For production setup, set `MOTHERDUCK_TOKEN` in the deployment platform first, then run:
+For production setup, set `MOTHERDUCK_TOKEN` and `LAKE_NAME` in the deployment platform first, then run:
 
 ```bash
 PREFECT_API_URL=https://prefect.yourdomain.com/api \

@@ -75,6 +75,8 @@ def test_run_dbt_command_uses_app_root_paths_and_env_overlay(
     assert isinstance(env, dict)
     assert env["AWS_ACCESS_KEY_ID"] == "keep-me"
     assert env["DBT_TARGET"] == "dev"
+    assert env["LAKE_NAME"] == "unique_stocks"
+    assert env["LOCAL_LAKE_PATH"] == str(APP_ROOT / "unique_stocks.duckdb")
     assert env["DBT_DUCKDB_PATH"] == str(APP_ROOT / "unique_stocks.duckdb")
 
 

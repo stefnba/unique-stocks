@@ -13,6 +13,8 @@ from typing import Any, Literal, cast
 import duckdb
 import structlog
 
+from core.lake.database import ensure_lake_database, motherduck_connection_string
+
 log = structlog.get_logger(__name__)
 
 type LakeDataFormat = Literal["rows", "csv", "json", "jsonl", "parquet"]
@@ -202,10 +204,15 @@ class DataLakeClient:
         settings = self._settings()
         if self.connection_string:
             conn_str = self.connection_string
-        elif settings.lake_backend() == "motherduck":
-            conn_str = f"md:unique_stocks?motherduck_token={settings.motherduck_token.get_secret_value()}"
         else:
-            conn_str = settings.resolved_local_lake_path()
+            ensure_lake_database(settings)
+            if settings.lake_backend() == "motherduck":
+                conn_str = motherduck_connection_string(
+                    database_name=settings.motherduck_database_name,
+                    motherduck_token=settings.motherduck_token.get_secret_value(),
+                )
+            else:
+                conn_str = settings.resolved_local_lake_path()
         log.info("lake.connecting", connection=conn_str.split("?")[0])
         if self.config:
             conn = duckdb.connect(conn_str, self.read_only, self.config)

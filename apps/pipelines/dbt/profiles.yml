@@ -3,11 +3,11 @@ unique_stocks:
   outputs:
     dev:
       type: duckdb
-      path: "{{ env_var('DBT_DUCKDB_PATH', '../unique_stocks.duckdb') }}"
+      path: "{{ env_var('DBT_DUCKDB_PATH') }}"
       schema: main
       threads: 4
     prod:
       type: duckdb
-      path: "md:unique_stocks?motherduck_token={{ env_var('MOTHERDUCK_TOKEN') }}"
+      path: "md:{{ env_var('LAKE_NAME') }}?motherduck_token={{ env_var('MOTHERDUCK_TOKEN') }}"
       schema: main
       threads: 4

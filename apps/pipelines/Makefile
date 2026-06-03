@@ -4,7 +4,7 @@
         prefect-server prefect-worker \
         docker-up docker-down docker-down-volumes docker-logs docker-logs-worker docker-logs-dashboard docker-ps \
         docker-setup \
-        lake-reset-local lake-migration lake-migration-status lake-migrate blocks-save setup s3-landing-zone \
+        lake-env-guard lake-reset-local lake-migration lake-migration-status lake-migrate blocks-save setup s3-landing-zone \
         deploy deploy-dry deploy-upsert \
         dbt-install dbt-debug dbt-compile dbt-seed dbt-run dbt-test dbt-build dbt-clean dbt-run-staging dbt-run-marts \
         lake-ui
@@ -13,7 +13,8 @@
 -include .env
 export
 
-LOCAL_LAKE_PATH ?= unique_stocks.duckdb
+LAKE_NAME ?=
+LOCAL_LAKE_PATH ?= $(if $(strip $(LAKE_NAME)),$(strip $(LAKE_NAME)).duckdb,)
 STREAMLIT_SERVER_PORT ?= 8501
 LAKE_MIGRATIONS_DIR := lake/migrations
 LAKE_TABLES_REF := lake.schema:ALL_TABLES
@@ -23,7 +24,7 @@ DBT_DUCKDB_PATH ?= $(LOCAL_LAKE_PATH)
 UV_CACHE_DIR ?= $(CURDIR)/.uv-cache
 export UV_CACHE_DIR
 UV := UV_CACHE_DIR="$(UV_CACHE_DIR)" uv
-DBT := DBT_DUCKDB_PATH="$(DBT_DUCKDB_PATH)" $(UV) run dbt
+DBT := DBT_DUCKDB_PATH="$(DBT_DUCKDB_PATH)" LAKE_NAME="$(LAKE_NAME)" LOCAL_LAKE_PATH="$(LOCAL_LAKE_PATH)" $(UV) run dbt
 DBT_FLAGS := --project-dir $(DBT_DIR) --profiles-dir $(DBT_DIR) --target $(DBT_TARGET)
 
 # ── Colours ────────────────────────────────────────────────────────────────
@@ -43,7 +44,13 @@ help: ## Show this help
 install: ## Install all deps including dev
 	uv sync
 
-setup: ## Full one-time setup: wait for server, migrate lake, save blocks, create pool, deploy
+lake-env-guard:
+	@if [ -z "$(LAKE_NAME)" ]; then \
+		echo "LAKE_NAME is required. Copy apps/pipelines/.env.example to apps/pipelines/.env or export LAKE_NAME."; \
+		exit 2; \
+	fi
+
+setup: lake-env-guard ## Full one-time setup: wait for server, migrate lake, save blocks, create pool, deploy
 	@echo "Waiting for Prefect server at $(PREFECT_API_URL)..."
 	@until curl -sf "$(PREFECT_API_URL)/health" > /dev/null 2>&1; do \
 		printf "."; sleep 2; \
@@ -150,7 +157,7 @@ docker-setup: ## Run one-time setup inside the docker-dev pipelines container
 #             make setup           (terminal 2)
 # docker-dev: make docker-up, then make docker-setup
 # prod:       PREFECT_API_URL=... MOTHERDUCK_TOKEN=... make setup
-lake-reset-local: ## Delete and recreate the local DuckDB lake (destructive; dev only)
+lake-reset-local: lake-env-guard ## Delete and recreate the local DuckDB lake (destructive; dev only)
 	@if [ -n "$(MOTHERDUCK_TOKEN)" ]; then \
 		echo "Refusing to reset local lake while MOTHERDUCK_TOKEN is set."; \
 		exit 1; \
@@ -159,18 +166,18 @@ lake-reset-local: ## Delete and recreate the local DuckDB lake (destructive; dev
 	rm -f "$(LOCAL_LAKE_PATH)" "$(LOCAL_LAKE_PATH).wal"
 	$(MAKE) lake-migrate
 
-lake-migration: ## Generate a lake schema migration (NAME="..." optional, EMPTY=1 for manual)
+lake-migration: lake-env-guard ## Generate a lake schema migration (NAME="..." optional, EMPTY=1 for manual)
 	$(UV) run python -m core.lake.migration.generate --tables "$(LAKE_TABLES_REF)" --migrations-dir "$(LAKE_MIGRATIONS_DIR)"
 
-lake-migrate: ## Apply pending lake schema migrations
+lake-migrate: lake-env-guard ## Apply pending lake schema migrations
 	$(UV) run python -m core.lake.migration.migrate --migrations-dir "$(LAKE_MIGRATIONS_DIR)"
 
-lake-migration-status: ## Show pending/applied lake schema migrations without applying
+lake-migration-status: lake-env-guard ## Show pending/applied lake schema migrations without applying
 	$(UV) run python -m core.lake.migration.migrate --migrations-dir "$(LAKE_MIGRATIONS_DIR)" --dry-run
 
-lake-ui: ## Open DuckDB local UI (MotherDuck if MOTHERDUCK_TOKEN is set, else local lake)
+lake-ui: lake-env-guard ## Open DuckDB local UI (MotherDuck if MOTHERDUCK_TOKEN is set, else local lake)
 	@if [ -n "$(MOTHERDUCK_TOKEN)" ]; then \
-		MOTHERDUCK_TOKEN="$(MOTHERDUCK_TOKEN)" duckdb -ui "md:unique_stocks"; \
+		MOTHERDUCK_TOKEN="$(MOTHERDUCK_TOKEN)" duckdb -ui "md:$(LAKE_NAME)"; \
 	else \
 		duckdb -ui "$(LOCAL_LAKE_PATH)"; \
 	fi
@@ -196,29 +203,29 @@ print('Deployments in prefect.yaml:'); \
 dbt-install: ## Install app deps including dbt
 	$(UV) sync
 
-dbt-debug: ## Validate dbt project config and lake connection
+dbt-debug: lake-env-guard ## Validate dbt project config and lake connection
 	$(DBT) debug $(DBT_FLAGS)
 
-dbt-compile: ## Compile dbt models without writing lake tables
+dbt-compile: lake-env-guard ## Compile dbt models without writing lake tables
 	$(DBT) compile $(DBT_FLAGS)
 
-dbt-seed: ## Load dbt seed reference data
+dbt-seed: lake-env-guard ## Load dbt seed reference data
 	$(DBT) seed $(DBT_FLAGS)
 
-dbt-run: dbt-seed ## Load seeds, then run all dbt models
+dbt-run: lake-env-guard dbt-seed ## Load seeds, then run all dbt models
 	$(DBT) run $(DBT_FLAGS)
 
-dbt-test: ## Run dbt data tests
+dbt-test: lake-env-guard ## Run dbt data tests
 	$(DBT) test $(DBT_FLAGS)
 
-dbt-build: ## Run dbt models and data tests
+dbt-build: lake-env-guard ## Run dbt models and data tests
 	$(DBT) build $(DBT_FLAGS)
 
 dbt-clean: ## Remove dbt build artifacts
 	$(DBT) clean $(DBT_FLAGS)
 
-dbt-run-staging: ## Run staging (Silver) models only
+dbt-run-staging: lake-env-guard ## Run staging (Silver) models only
 	$(DBT) run $(DBT_FLAGS) --select path:models/staging
 
-dbt-run-marts: ## Run mart (Gold) models only
+dbt-run-marts: lake-env-guard ## Run mart (Gold) models only
 	$(DBT) run $(DBT_FLAGS) --select path:models/marts

@@ -5,13 +5,19 @@ from pathlib import Path
 import pytest
 from pydantic import SecretStr
 
-from config.settings import APP_ROOT, PROD_MOTHERDUCK_ERROR, Settings
+from config.settings import APP_ROOT, PROD_MOTHERDUCK_ERROR, Settings, get_settings
 
 
 def test_resolved_local_lake_path_is_absolute() -> None:
     """Relative lake paths should resolve against the pipelines app root."""
     settings = Settings(local_lake_path="unique_stocks.duckdb")
     assert Path(settings.resolved_local_lake_path()) == APP_ROOT / "unique_stocks.duckdb"
+
+
+def test_resolved_local_lake_path_derives_from_lake_name_when_unset() -> None:
+    """Unset local lake paths should derive from the logical lake name."""
+    settings = Settings(lake_name="sandbox_lake", local_lake_path="")
+    assert Path(settings.resolved_local_lake_path()) == APP_ROOT / "sandbox_lake.duckdb"
 
 
 def test_resolved_local_lake_path_keeps_absolute_input() -> None:
@@ -48,17 +54,34 @@ def test_resolved_dbt_target_matches_lake_backend() -> None:
 
 def test_dbt_env_overlay_uses_absolute_local_lake_path() -> None:
     """Local dbt env should target the same absolute DuckDB file as Python ingestion."""
+    local_path = str(APP_ROOT / "unique_stocks.duckdb")
     settings = Settings(motherduck_token=SecretStr(""), local_lake_path="unique_stocks.duckdb")
     assert settings.dbt_env_overlay() == {
         "DBT_TARGET": "dev",
-        "DBT_DUCKDB_PATH": str(APP_ROOT / "unique_stocks.duckdb"),
+        "LAKE_NAME": "unique_stocks",
+        "LOCAL_LAKE_PATH": local_path,
+        "DBT_DUCKDB_PATH": local_path,
     }
 
 
 def test_dbt_env_overlay_uses_prod_for_motherduck() -> None:
-    """MotherDuck dbt env should switch target without setting a local DuckDB path."""
-    settings = Settings(motherduck_token=SecretStr("test-token"))
-    assert settings.dbt_env_overlay() == {"DBT_TARGET": "prod"}
+    """MotherDuck dbt env should switch target without setting DBT_DUCKDB_PATH."""
+    settings = Settings(motherduck_token=SecretStr("test-token"), local_lake_path="unique_stocks.duckdb")
+    assert settings.dbt_env_overlay() == {
+        "DBT_TARGET": "prod",
+        "LAKE_NAME": "unique_stocks",
+        "LOCAL_LAKE_PATH": str(APP_ROOT / "unique_stocks.duckdb"),
+    }
+
+
+def test_lake_name_reads_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """LAKE_NAME env should override the code fallback."""
+    monkeypatch.setenv("LAKE_NAME", "sandbox_lake")
+    get_settings.cache_clear()
+    try:
+        assert Settings().lake_name == "sandbox_lake"
+    finally:
+        get_settings.cache_clear()
 
 
 def test_prod_requires_motherduck_token() -> None:

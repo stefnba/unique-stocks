@@ -14,6 +14,7 @@ type PipelineLogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR"]
 type PipelineLogFormat = Literal["auto", "console", "json"]
 
 APP_ROOT: Final[Path] = Path(__file__).resolve().parents[1]
+_DEFAULT_LAKE_NAME: Final[str] = "unique_stocks"
 PROD_MOTHERDUCK_ERROR: Final[str] = (
     "ENVIRONMENT=prod requires MOTHERDUCK_TOKEN; set MOTHERDUCK_TOKEN or use ENVIRONMENT=dev"
 )
@@ -34,9 +35,13 @@ class Settings(BaseSettings):
         default=SecretStr(""),
         description="MotherDuck token. When blank, lake.py falls back to the local DuckDB file.",
     )
+    lake_name: str = Field(
+        default=_DEFAULT_LAKE_NAME,
+        description="Logical lake name; shared with dbt via LAKE_NAME and used as the MotherDuck database name.",
+    )
     local_lake_path: str = Field(
-        default="unique_stocks.duckdb",
-        description="Local DuckDB file path used when MOTHERDUCK_TOKEN is blank.",
+        default="",
+        description="Optional local DuckDB file path when MOTHERDUCK_TOKEN is blank (LOCAL_LAKE_PATH).",
     )
 
     # AWS credentials (used only in config/blocks.py to bootstrap the S3_BUCKET block)
@@ -59,6 +64,11 @@ class Settings(BaseSettings):
         """Return ``True`` when running in the production environment."""
         return self.environment == "prod"
 
+    @property
+    def motherduck_database_name(self) -> str:
+        """Return the provider-specific MotherDuck database name for this lake."""
+        return self.lake_name
+
     @model_validator(mode="after")
     def validate_environment(self) -> Settings:
         """Reject unsafe production settings before any runtime work starts."""
@@ -74,10 +84,17 @@ class Settings(BaseSettings):
 
     def resolved_local_lake_path(self) -> str:
         """Return an absolute DuckDB path so workers and CLI share the same lake file."""
-        path = Path(self.local_lake_path)
+        path = Path(self._local_lake_path())
         if path.is_absolute():
             return str(path)
         return str((APP_ROOT / path).resolve())
+
+    def _local_lake_path(self) -> str:
+        """Return configured local path or derive one from the lake name."""
+        configured_path = self.local_lake_path.strip()
+        if configured_path:
+            return configured_path
+        return f"{self.lake_name}.duckdb"
 
     def resolved_dbt_target(self) -> DbtTarget:
         """Return the dbt target matching the selected lake backend."""
@@ -86,9 +103,13 @@ class Settings(BaseSettings):
         return "dev"
 
     def dbt_env_overlay(self) -> dict[str, str]:
-        """Return dbt env vars that keep dbt and Python lake writes aligned."""
+        """Return env vars that keep dbt CLI and Python lake writes aligned."""
         target = self.resolved_dbt_target()
-        overlay = {"DBT_TARGET": target}
+        overlay = {
+            "DBT_TARGET": target,
+            "LAKE_NAME": self.lake_name,
+            "LOCAL_LAKE_PATH": self.resolved_local_lake_path(),
+        }
         if target == "dev":
             overlay["DBT_DUCKDB_PATH"] = self.resolved_local_lake_path()
         return overlay
