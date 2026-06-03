@@ -140,9 +140,7 @@ async def exchange_schedule_flow(
                     schedule_write = write_bronze_exchange_schedule(
                         details, snapshot_date, source_uri=landing.source_uri
                     )
-                    holiday_write = write_bronze_exchange_holiday(
-                        details, snapshot_date, source_uri=landing.source_uri
-                    )
+                    holiday_write = write_bronze_exchange_holiday(details, snapshot_date, source_uri=landing.source_uri)
                     rows_written = schedule_write.rows_written + holiday_write.rows_written
                     summary["exchange"][provider_schedule_exchange_code] = {
                         "schedule_rows": schedule_write.rows_written,
