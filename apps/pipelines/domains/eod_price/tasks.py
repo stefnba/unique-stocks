@@ -65,7 +65,6 @@ def _is_retryable(task: object, task_run: TaskRun, state: State) -> bool:
     retries=3,
     retry_delay_seconds=exponential_backoff(10),
     retry_condition_fn=_is_retryable,
-    log_prints=True,
 )
 async def fetch_eod_price_bulk(
     provider_exchange_code: str,

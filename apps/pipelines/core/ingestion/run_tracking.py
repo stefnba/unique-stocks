@@ -17,12 +17,16 @@ from hashlib import sha256
 from typing import Literal
 from uuid import UUID
 
+import structlog
+
 from core.clients.lake import DataLakeClient, get_lake_client
 from core.ingestion.landing import LandingWrite
 from core.ingestion.serialization import canonical_json, jsonable
 
 type RunStatus = Literal["running", "completed", "partial", "failed", "skipped", "cancelled"]
 type UnitStatus = Literal["completed", "failed", "skipped", "unsupported"]
+
+log = structlog.get_logger(__name__)
 
 _ERROR_LIMIT = 2000
 
@@ -1057,6 +1061,16 @@ class PipelineRunTracker:
                 }
             ],
         )
+        log.info(
+            "pipeline.run.started",
+            run_id=run_id,
+            flow_name=flow_name,
+            domain=domain,
+            run_kind=run_kind,
+            provider=provider,
+            target_window_start=target_window_start,
+            target_window_end=target_window_end,
+        )
         return run_id
 
     @contextmanager
@@ -1090,18 +1104,26 @@ class PipelineRunTracker:
         Raises:
             RuntimeError: If the scope exits without a terminal state.
         """
+        run_id = self.start_run(
+            flow_name=flow_name,
+            domain=domain,
+            run_kind=run_kind,
+            provider=provider,
+            parameters=parameters,
+            target_window_start=target_window_start,
+            target_window_end=target_window_end,
+            parent_run_id=parent_run_id,
+        )
+        context_tokens = structlog.contextvars.bind_contextvars(
+            run_id=run_id,
+            flow_name=flow_name,
+            domain=domain,
+            run_kind=run_kind,
+            provider=provider,
+        )
         scope = PipelineRunScope(
             self,
-            self.start_run(
-                flow_name=flow_name,
-                domain=domain,
-                run_kind=run_kind,
-                provider=provider,
-                parameters=parameters,
-                target_window_start=target_window_start,
-                target_window_end=target_window_end,
-                parent_run_id=parent_run_id,
-            ),
+            run_id,
             domain=domain,
             provider=provider,
         )
@@ -1116,6 +1138,8 @@ class PipelineRunTracker:
                 message = "Run scope exited without a terminal state."
                 scope.fail(message)
                 raise RuntimeError(message)
+        finally:
+            structlog.contextvars.reset_contextvars(**context_tokens)
 
     def complete_run(
         self,
@@ -1164,6 +1188,19 @@ class PipelineRunTracker:
                 canonical_json(summary) if summary is not None else None,
                 str(run_id),
             ],
+        )
+        log.info(
+            "pipeline.run.completed",
+            run_id=str(run_id),
+            status=status,
+            units_total=counters.units_total,
+            units_succeeded=counters.units_succeeded,
+            units_failed=counters.units_failed,
+            units_skipped=counters.units_skipped,
+            rows_raw=counters.rows_raw,
+            rows_valid=counters.rows_valid,
+            rows_rejected=counters.rows_rejected,
+            rows_written=counters.rows_written,
         )
 
     def fail_run(
@@ -1218,6 +1255,20 @@ class PipelineRunTracker:
                 error_message,
                 str(run_id),
             ],
+        )
+        log.error(
+            "pipeline.run.failed",
+            run_id=str(run_id),
+            error_class=error_class,
+            error_message=error_message,
+            units_total=counters.units_total,
+            units_succeeded=counters.units_succeeded,
+            units_failed=counters.units_failed,
+            units_skipped=counters.units_skipped,
+            rows_raw=counters.rows_raw,
+            rows_valid=counters.rows_valid,
+            rows_rejected=counters.rows_rejected,
+            rows_written=counters.rows_written,
         )
 
     def record_unit(
@@ -1333,6 +1384,19 @@ class PipelineRunTracker:
             "run_units",
             rows,
         )
+        for row in rows:
+            if row["status"] == "failed":
+                log.warning(
+                    "pipeline.unit.failed",
+                    run_id=row["run_id"],
+                    unit_id=row["unit_id"],
+                    domain=row["domain"],
+                    provider=row["provider"],
+                    unit_type=row["unit_type"],
+                    unit_key_hash=row["unit_key_hash"],
+                    error_class=row["error_class"],
+                    error_message=row["error_message"],
+                )
         return unit_ids
 
     def record_landing_object(

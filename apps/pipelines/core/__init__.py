@@ -11,3 +11,7 @@ to one business domain:
 Domain packages decide *what* to ingest. ``core`` decides *how* common
 infrastructure behavior is expressed consistently.
 """
+
+from core.utils.logging import configure_logging
+
+configure_logging()

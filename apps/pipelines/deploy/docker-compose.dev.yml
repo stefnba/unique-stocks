@@ -22,4 +22,6 @@ services:
     environment:
       ENVIRONMENT: docker_dev
       LOCAL_LAKE_PATH: unique_stocks.duckdb
+      PIPELINE_LOG_FORMAT: console
+      PIPELINE_LOG_LEVEL: INFO
     restart: unless-stopped

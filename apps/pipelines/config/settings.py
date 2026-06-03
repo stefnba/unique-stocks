@@ -10,6 +10,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 type Environment = Literal["dev", "prod", "docker_dev"]
 type LakeBackend = Literal["local", "motherduck"]
 type DbtTarget = Literal["dev", "prod"]
+type PipelineLogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR"]
+type PipelineLogFormat = Literal["auto", "console", "json"]
 
 APP_ROOT: Final[Path] = Path(__file__).resolve().parents[1]
 PROD_MOTHERDUCK_ERROR: Final[str] = (
@@ -47,6 +49,10 @@ class Settings(BaseSettings):
 
     # Environment
     environment: Environment = "dev"
+
+    # Logging
+    pipeline_log_level: PipelineLogLevel = "INFO"
+    pipeline_log_format: PipelineLogFormat = "auto"
 
     @property
     def is_production(self) -> bool:

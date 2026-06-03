@@ -10,30 +10,28 @@ Usage:
         data = await client._request("/some/path", params={"foo": "bar"})
 """
 
-import re
 from abc import ABC
-from typing import Any, ClassVar, Final, Literal, Self, TypeVar
+from collections.abc import Mapping, Sequence
+from typing import ClassVar, Final, Literal, Self, TypeVar, cast
 
 import httpx
 import structlog
 from pydantic import BaseModel
 
+from core.utils.redaction import redact_sensitive_query_params
+
 log = structlog.get_logger(__name__)
 
 type HttpMethod = Literal["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"]
+type JsonScalar = str | int | float | bool | None
+type JsonValue = JsonScalar | list[JsonValue] | dict[str, JsonValue]
+type JsonObject = dict[str, JsonValue]
+type QueryParamValue = str | int | float | bool | None
+type QueryParams = Mapping[str, QueryParamValue | Sequence[QueryParamValue]]
 
 T = TypeVar("T", bound=BaseModel)
 
 REDACTED_QUERY_VALUE: Final[str] = "[redacted]"
-_SENSITIVE_QUERY_PARAM_PATTERN: Final[re.Pattern[str]] = re.compile(
-    r"(?i)([?&](?:api[_-]?key|api[_-]?token|apikey|access[_-]?token|auth[_-]?token|token|secret|password)=)"
-    r"([^&#\s\"']*)"
-)
-
-
-def redact_sensitive_query_params(value: str) -> str:
-    """Redact sensitive query parameter values from loggable text."""
-    return _SENSITIVE_QUERY_PARAM_PATTERN.sub(rf"\1{REDACTED_QUERY_VALUE}", value)
 
 
 def redacted_http_status_error(exc: httpx.HTTPStatusError) -> httpx.HTTPStatusError:
@@ -128,9 +126,9 @@ class HttpClientBase(ABC):
         path: str,
         *,
         method: HttpMethod = "GET",
-        params: dict[str, Any] | None = None,
-        json: dict[str, Any] | None = None,
-    ) -> Any:
+        params: QueryParams | None = None,
+        json: JsonObject | None = None,
+    ) -> JsonValue:
         """Make an authenticated HTTP request and return the parsed JSON body.
 
         Args:
@@ -146,15 +144,15 @@ class HttpClientBase(ABC):
             RuntimeError:           Called outside of async context manager.
         """
         response = await self._send(path, method=method, params=params, json=json)
-        return response.json()
+        return cast(JsonValue, response.json())
 
     async def _request_text(
         self,
         path: str,
         *,
         method: HttpMethod = "GET",
-        params: dict[str, Any] | None = None,
-        json: dict[str, Any] | None = None,
+        params: QueryParams | None = None,
+        json: JsonObject | None = None,
     ) -> str:
         """Make an authenticated HTTP request and return the text body."""
         response = await self._send(path, method=method, params=params, json=json)
@@ -165,8 +163,8 @@ class HttpClientBase(ABC):
         path: str,
         *,
         method: HttpMethod = "GET",
-        params: dict[str, Any] | None = None,
-        json: dict[str, Any] | None = None,
+        params: QueryParams | None = None,
+        json: JsonObject | None = None,
     ) -> httpx.Response:
         """Make an authenticated HTTP request and return the response object."""
         if self._http is None:
@@ -178,25 +176,33 @@ class HttpClientBase(ABC):
             response = await self._http.request(method, path, params=params, json=json)
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 429:
+                log.warning(
+                    "provider.rate_limit",
+                    provider=self.PROVIDER,
+                    path=safe_path,
+                    status=exc.response.status_code,
+                    retry_after=exc.response.headers.get("Retry-After"),
+                    body=redact_sensitive_query_params(exc.response.text[:300]),
+                )
+                raise redacted_provider_rate_limit_error(exc) from None
             log.error(
                 f"http.client.{self.PROVIDER}.http_error",
                 path=safe_path,
                 status=exc.response.status_code,
                 body=redact_sensitive_query_params(exc.response.text[:300]),
             )
-            if exc.response.status_code == 429:
-                raise redacted_provider_rate_limit_error(exc) from None
             raise redacted_http_status_error(exc) from None
         except httpx.TimeoutException:
             log.error(f"http.client.{self.PROVIDER}.timeout", path=safe_path, method=method)
             raise
 
-        log.info(
+        log.debug(
             f"http.client.{self.PROVIDER}.response",
             path=safe_path,
             method=method,
             status=response.status_code,
-            elapsed_seconds=response.elapsed.total_seconds(),
+            elapsed_seconds=_response_elapsed_seconds(response),
         )
         return response
 
@@ -205,7 +211,7 @@ class HttpClientBase(ABC):
         path: str,
         *,
         model: type[T],
-        params: dict[str, Any] | None = None,
+        params: QueryParams | None = None,
     ) -> T:
         """GET a single resource and validate the response against a Pydantic model.
 
@@ -225,7 +231,7 @@ class HttpClientBase(ABC):
         path: str,
         *,
         model: type[T],
-        params: dict[str, Any] | None = None,
+        params: QueryParams | None = None,
     ) -> list[T]:
         """GET a list resource and validate each item against a Pydantic model.
 
@@ -241,3 +247,11 @@ class HttpClientBase(ABC):
         if not isinstance(data, list):
             raise TypeError(f"Expected list response from {path}, got {type(data).__name__}")
         return [model.model_validate(item) for item in data]
+
+
+def _response_elapsed_seconds(response: httpx.Response) -> float | None:
+    """Return response elapsed seconds when httpx has recorded it."""
+    try:
+        return response.elapsed.total_seconds()
+    except RuntimeError:
+        return None

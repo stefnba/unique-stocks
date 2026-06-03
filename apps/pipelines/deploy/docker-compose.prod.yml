@@ -21,6 +21,8 @@ services:
     environment:
       ENVIRONMENT: prod
       MOTHERDUCK_TOKEN: ${MOTHERDUCK_TOKEN:?MOTHERDUCK_TOKEN is required in production}
+      PIPELINE_LOG_FORMAT: json
+      PIPELINE_LOG_LEVEL: INFO
     restart: always
     security_opt:
       - no-new-privileges:true

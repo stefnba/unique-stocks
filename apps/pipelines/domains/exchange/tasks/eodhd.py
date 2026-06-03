@@ -14,7 +14,7 @@ from providers.eodhd.models import SupportedExchange
 log = structlog.get_logger(__name__)
 
 
-@task(name="fetch-exchange-catalog", retries=3, log_prints=True)
+@task(name="fetch-exchange-catalog", retries=3)
 async def fetch_exchange_catalog() -> list[SupportedExchange]:
     """Fetch and schema-validate the list of supported exchange from the provider."""
     from providers.eodhd.client import EODHDClient

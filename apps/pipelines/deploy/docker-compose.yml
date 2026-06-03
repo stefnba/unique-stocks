@@ -49,9 +49,14 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-}
     environment:
       PREFECT_API_URL: http://pipelines-server:4200/api
       PREFECT_WORK_DIR: /app
+      PREFECT_LOGGING_EXTRA_LOGGERS: core,domains,providers,config,scripts
+      PREFECT_LOGGING_LOG_PRINTS: "False"
+      GIT_SHA: ${GIT_SHA:-}
     depends_on:
       pipelines-server:
         condition: service_healthy
