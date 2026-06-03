@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from core.ingestion import LandingDomain
-from core.schema.ddl import render_init_lake_sql
+from core.lake.schema.ddl import render_greenfield_schema_sql
 from lake.schema import ALL_TABLES, BRONZE_TABLES
 
 
@@ -101,7 +101,12 @@ def test_lake_schema_uses_singular_domain_names() -> None:
     assert [name for name in old_plural_packages if (domain_root / name).exists()] == []
 
 
-def test_generated_init_lake_sql_is_current() -> None:
-    """The checked-in init SQL should match the Python table specs."""
+def test_initial_schema_migration_matches_current_table_specs() -> None:
+    """The first migration should match the current greenfield table specs."""
     root = Path(__file__).parents[2]
-    assert (root / "scripts/init_lake.sql").read_text() == render_init_lake_sql(ALL_TABLES)
+    migration_sql = (root / "lake/migrations/20260603000000_initial_schema.sql").read_text()
+    assert _without_header(migration_sql) == _without_header(render_greenfield_schema_sql(ALL_TABLES))
+
+
+def _without_header(sql: str) -> str:
+    return "\n\n".join(sql.split("\n\n")[1:])

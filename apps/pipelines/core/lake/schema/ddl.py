@@ -2,13 +2,13 @@
 
 from collections.abc import Sequence
 
-from core.schema.table import TableModel
+from core.lake.schema.table import TableModel
 
-DEFAULT_SCHEMAS = ("bronze", "silver", "gold", "pipeline")
+DEFAULT_SCHEMAS = ("bronze", "silver", "gold", "pipeline", "lake")
 
 
-def render_init_lake_sql(tables: Sequence[type[TableModel]]) -> str:
-    """Render the complete idempotent lake initialization SQL."""
+def render_greenfield_schema_sql(tables: Sequence[type[TableModel]]) -> str:
+    """Render the complete idempotent greenfield lake schema SQL."""
     sections = [
         _header(),
         *_schema_statements(),
@@ -26,9 +26,8 @@ def _header() -> str:
     return "\n".join(
         (
             "-- Initialise unique_stocks schemas and tables.",
-            "-- Safe to run multiple times, but existing tables are not migrated.",
-            "-- Generated from Python table specs. Do not edit by hand.",
-            "-- Regenerate with: uv run python scripts/render_init_lake_sql.py > scripts/init_lake.sql",
+            "-- Generated from Python table specs.",
+            "-- Use lake migrations to apply schema changes.",
         )
     )
 

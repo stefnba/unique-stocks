@@ -6,8 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from core.schema import BOOLEAN, DOUBLE, INTEGER, JSON, TEXT, VARCHAR, SqlColumn, TableModel
-from core.schema import UUID as SQL_UUID
+from core.lake.schema import BOOLEAN, DOUBLE, INTEGER, JSON, TEXT, VARCHAR, SqlColumn, TableModel
+from core.lake.schema import UUID as SQL_UUID
 from domains.eod_price.tables import EOD_PRICE_TABLE
 from domains.exchange.tables import EXCHANGE_CATALOG_TABLE, EXCHANGE_MIC_REGISTRY_TABLE
 from domains.exchange_schedule.tables import EXCHANGE_HOLIDAY_TABLE, EXCHANGE_SCHEDULE_TABLE

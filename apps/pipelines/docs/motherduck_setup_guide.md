@@ -103,14 +103,15 @@ USE unique_stocks;
 SHOW DATABASES;
 ```
 
-You can also run the project lake initializer directly:
+You can also apply project lake schema migrations directly:
 
 ```bash
 cd apps/pipelines
-make lake-init
+make lake-migration-status
+make lake-migrate
 ```
 
-The initializer runs `scripts/init_lake.sql` and is idempotent.
+Lake migrations run each SQL file inside a DuckDB transaction. Validate transactional DDL behavior on MotherDuck with a non-production database before the first production schema change that uses multi-statement DDL.
 
 ## dbt Setup
 
@@ -142,7 +143,7 @@ Yes for query and project setup:
 
 - Connect with the DuckDB CLI using `duckdb "md:unique_stocks"`.
 - Create databases and schemas with SQL.
-- Run `make lake-init`, `make setup`, and dbt commands with `MOTHERDUCK_TOKEN` set.
+- Run `make lake-migrate`, `make setup`, and dbt commands with `MOTHERDUCK_TOKEN` set.
 
 Mostly no for organization administration:
 
@@ -157,18 +158,18 @@ Mostly no for organization administration:
 - Do not put the token directly in a command-line connection string unless you are in a throwaway shell, because command history and process listings can expose it.
 - Use personal tokens only for personal development.
 - Give organization admin rights only to people who need them.
-- Rotate tokens by creating a new token, updating `.env` or deployment secrets, running `make lake-init` or `make dbt-debug`, then revoking the old token.
+- Rotate tokens by creating a new token, updating `.env` or deployment secrets, running `make lake-migrate` or `make dbt-debug`, then revoking the old token.
 - If a token leaks, revoke it immediately in the MotherDuck UI or via the Admin REST API if the token belongs to a service account.
 
 ## Troubleshooting
 
-If `make lake-init` or `make dbt-debug` cannot authenticate:
+If `make lake-migrate` or `make dbt-debug` cannot authenticate:
 
 - Confirm `MOTHERDUCK_TOKEN` is set in the same shell running the command.
 - Confirm the token is `Read/Write`, not read-scaling/read-only.
 - Confirm you are targeting `DBT_TARGET=prod` for dbt.
 - Try an interactive check with `duckdb "md:unique_stocks"` to separate DuckDB/MotherDuck auth from project wiring.
-- If the database is missing, create it in the MotherDuck UI or DuckDB CLI, then rerun `make lake-init`.
+- If the database is missing, create it in the MotherDuck UI or DuckDB CLI, then rerun `make lake-migrate`.
 
 ## References
 

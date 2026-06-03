@@ -1,6 +1,6 @@
 # Schema DSL
 
-`core.schema` describes lake table schemas without mixing table policy into
+`core.lake.schema` describes lake table schemas without mixing table policy into
 parser-owned Pydantic row models.
 
 ## Concepts
@@ -109,8 +109,24 @@ to that class. Domain datasets and the app-level registry import the uppercase
 constant, for example `EXCHANGE_CATALOG_TABLE`.
 
 The app-level registry lives in `lake/schema.py`. It imports domain table specs
-and exposes `ALL_TABLES`, which is used by `scripts/render_init_lake_sql.py`
-to regenerate `scripts/init_lake.sql`.
+and exposes `ALL_TABLES`, which migration generation compares against the
+current lake catalog.
+
+## Migrations
+
+Schema changes are shipped as SQL migrations under `lake/migrations/`, not by
+running this package directly.
+
+```bash
+make lake-migration         # diff lake/schema.py against the connected lake
+make lake-migration-status  # list pending and applied migration files
+make lake-migrate           # apply pending migrations
+```
+
+`make lake-migration` needs a live local DuckDB or MotherDuck connection because
+it derives SQL from the actual catalog state plus the desired `ALL_TABLES`
+registry. If the diff only contains warning comments, no migration file is
+created by default.
 
 ## Current Tradeoff
 

@@ -1,6 +1,6 @@
 """Lake table specs for EOD price Bronze rows."""
 
-from core.schema import BronzeTableModel
+from core.lake.schema import BronzeTableModel
 from domains.eod_price.models import EODBar
 
 

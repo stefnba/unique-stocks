@@ -29,8 +29,8 @@ from core.ingestion.parser import (
     parse_strict_rows,
 )
 from core.ingestion.partitioning import LandingPartitionSchema
+from core.lake.schema import BronzeTableModel
 from core.models import BronzeModel, ProviderModel
-from core.schema import BronzeTableModel
 from domains.exchange.datasets import EXCHANGE_CATALOG_DATASET, EXCHANGE_MIC_REGISTRY_DATASET
 
 

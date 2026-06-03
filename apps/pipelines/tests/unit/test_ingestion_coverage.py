@@ -34,11 +34,7 @@ class FakeLake:
         if "COUNT" not in sql or not params:
             return {"cnt": 0}
         _, _, _, key_hash, status = params
-        count = sum(
-            1
-            for row in self.rows
-            if row["unit_key_hash"] == key_hash and row["status"] == status
-        )
+        count = sum(1 for row in self.rows if row["unit_key_hash"] == key_hash and row["status"] == status)
         return {"cnt": count}
 
     def query(self, sql: str, params: Sequence[Any] | None = None) -> list[dict[str, Any]]:

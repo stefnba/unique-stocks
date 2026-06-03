@@ -1,7 +1,5 @@
--- Initialise unique_stocks schemas and tables.
--- Safe to run multiple times, but existing tables are not migrated.
--- Generated from Python table specs. Do not edit by hand.
--- Regenerate with: uv run python scripts/render_init_lake_sql.py > scripts/init_lake.sql
+-- Initial unique_stocks lake schema.
+-- This is the first canonical lake schema migration.
 
 CREATE SCHEMA IF NOT EXISTS bronze;
 
@@ -10,6 +8,8 @@ CREATE SCHEMA IF NOT EXISTS silver;
 CREATE SCHEMA IF NOT EXISTS gold;
 
 CREATE SCHEMA IF NOT EXISTS pipeline;
+
+CREATE SCHEMA IF NOT EXISTS lake;
 
 -- -----------------------------------------------------------------------
 -- Bronze - raw, immutable, append-only

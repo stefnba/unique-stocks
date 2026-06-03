@@ -1,6 +1,6 @@
 """Lake table specs for instrument Bronze rows."""
 
-from core.schema import BronzeTableModel
+from core.lake.schema import BronzeTableModel
 from domains.instrument.models import InstrumentSnapshot
 
 

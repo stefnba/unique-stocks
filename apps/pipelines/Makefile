@@ -4,7 +4,7 @@
         prefect-server prefect-worker \
         docker-up docker-down docker-down-volumes docker-logs docker-logs-worker docker-ps \
         docker-setup \
-        lake-init lake-reset-local lake-render-sql blocks-save setup s3-landing-zone \
+        lake-reset-local lake-migration lake-migration-status lake-migrate blocks-save setup s3-landing-zone \
         deploy deploy-dry deploy-upsert \
         dbt-install dbt-debug dbt-compile dbt-seed dbt-run dbt-test dbt-build dbt-clean dbt-run-staging dbt-run-marts \
         lake-ui
@@ -14,7 +14,8 @@
 export
 
 LOCAL_LAKE_PATH ?= unique_stocks.duckdb
-LAKE_INIT_SQL := scripts/init_lake.sql
+LAKE_MIGRATIONS_DIR := lake/migrations
+LAKE_TABLES_REF := lake.schema:ALL_TABLES
 DBT_DIR := dbt
 DBT_TARGET ?= dev
 DBT_DUCKDB_PATH ?= $(LOCAL_LAKE_PATH)
@@ -41,12 +42,12 @@ help: ## Show this help
 install: ## Install all deps including dev
 	uv sync
 
-setup: ## Full one-time setup: wait for server, init lake, save blocks, create pool, deploy
+setup: ## Full one-time setup: wait for server, migrate lake, save blocks, create pool, deploy
 	@echo "Waiting for Prefect server at $(PREFECT_API_URL)..."
 	@until curl -sf "$(PREFECT_API_URL)/health" > /dev/null 2>&1; do \
 		printf "."; sleep 2; \
 	done; echo " ready."
-	$(MAKE) lake-init
+	$(MAKE) lake-migrate
 	$(MAKE) blocks-save
 	uv run prefect work-pool create default-process-pool --type process --overwrite
 	$(MAKE) deploy
@@ -129,7 +130,7 @@ docker-setup: ## Run one-time setup inside the docker-dev pipelines container
 	@until curl -sf "http://localhost:4200/api/health" > /dev/null 2>&1; do \
 		printf "."; sleep 2; \
 	done; echo " ready."
-	$(COMPOSE_DEV) exec pipelines-worker sh -lc 'LAKE_INIT_SQL=scripts/init_lake.sql uv run --no-dev --frozen python -c "import os, duckdb; from config.settings import get_settings; settings = get_settings(); conn_str = f\"md:unique_stocks?motherduck_token={settings.motherduck_token.get_secret_value()}\" if settings.lake_backend() == \"motherduck\" else settings.resolved_local_lake_path(); conn = duckdb.connect(conn_str); conn.execute(open(os.environ[\"LAKE_INIT_SQL\"]).read())"'
+	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python -m core.lake.migration.migrate --migrations-dir "$(LAKE_MIGRATIONS_DIR)"
 	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python -c "from config.blocks import BlockRegistry; BlockRegistry.save_all(if_exists='overwrite')"
 	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen prefect work-pool create default-process-pool --type process --overwrite
 	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python scripts/sync_prefect_deployments.py
@@ -139,15 +140,6 @@ docker-setup: ## Run one-time setup inside the docker-dev pipelines container
 #             make setup           (terminal 2)
 # docker-dev: make docker-up, then make docker-setup
 # prod:       PREFECT_API_URL=... MOTHERDUCK_TOKEN=... make setup
-lake-init: ## Initialise DuckDB/MotherDuck lake schemas (idempotent)
-	@if [ -n "$(MOTHERDUCK_TOKEN)" ]; then \
-		echo "Initialising MotherDuck (md:unique_stocks)..."; \
-		LAKE_INIT_SQL="$(LAKE_INIT_SQL)" uv run python -c "import os, duckdb; token = os.environ['MOTHERDUCK_TOKEN']; conn = duckdb.connect(f'md:unique_stocks?motherduck_token={token}'); conn.execute(open(os.environ['LAKE_INIT_SQL']).read())"; \
-	else \
-		echo "Initialising local DuckDB lake ($(LOCAL_LAKE_PATH))..."; \
-		LOCAL_LAKE_PATH="$(LOCAL_LAKE_PATH)" LAKE_INIT_SQL="$(LAKE_INIT_SQL)" uv run python -c "import os, duckdb; conn = duckdb.connect(os.environ['LOCAL_LAKE_PATH']); conn.execute(open(os.environ['LAKE_INIT_SQL']).read())"; \
-	fi
-
 lake-reset-local: ## Delete and recreate the local DuckDB lake (destructive; dev only)
 	@if [ -n "$(MOTHERDUCK_TOKEN)" ]; then \
 		echo "Refusing to reset local lake while MOTHERDUCK_TOKEN is set."; \
@@ -155,10 +147,16 @@ lake-reset-local: ## Delete and recreate the local DuckDB lake (destructive; dev
 	fi
 	@echo "Deleting local DuckDB lake ($(LOCAL_LAKE_PATH))..."
 	rm -f "$(LOCAL_LAKE_PATH)" "$(LOCAL_LAKE_PATH).wal"
-	$(MAKE) lake-init
+	$(MAKE) lake-migrate
 
-lake-render-sql: ## Regenerate scripts/init_lake.sql from Python table specs
-	uv run python scripts/render_init_lake_sql.py > scripts/init_lake.sql
+lake-migration: ## Generate a lake schema migration (NAME="..." optional, EMPTY=1 for manual)
+	$(UV) run python -m core.lake.migration.generate --tables "$(LAKE_TABLES_REF)" --migrations-dir "$(LAKE_MIGRATIONS_DIR)"
+
+lake-migrate: ## Apply pending lake schema migrations
+	$(UV) run python -m core.lake.migration.migrate --migrations-dir "$(LAKE_MIGRATIONS_DIR)"
+
+lake-migration-status: ## Show pending/applied lake schema migrations without applying
+	$(UV) run python -m core.lake.migration.migrate --migrations-dir "$(LAKE_MIGRATIONS_DIR)" --dry-run
 
 lake-ui: ## Open DuckDB local UI (MotherDuck if MOTHERDUCK_TOKEN is set, else local lake)
 	@if [ -n "$(MOTHERDUCK_TOKEN)" ]; then \

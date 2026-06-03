@@ -1,6 +1,6 @@
 """Lake table specs for fundamentals Bronze rows."""
 
-from core.schema import BronzeTableModel
+from core.lake.schema import BronzeTableModel
 from domains.fundamental.models import (
     FundamentalDocument,
     FundamentalEtfHolding,

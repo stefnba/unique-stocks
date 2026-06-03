@@ -19,7 +19,7 @@ type LakeDataFormat = Literal["rows", "csv", "json", "jsonl", "parquet"]
 type LakeWriteMode = Literal["append", "replace", "create"]
 type DuckDBConfigValue = str | bool | int | float | list[str]
 
-_DEFAULT_SCHEMAS = ("bronze", "silver", "gold", "pipeline")
+_DEFAULT_SCHEMAS = ("bronze", "silver", "gold", "pipeline", "lake")
 _FORMAT_BY_SUFFIX: dict[str, LakeDataFormat] = {
     ".csv": "csv",
     ".json": "json",

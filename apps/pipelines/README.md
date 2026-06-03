@@ -87,7 +87,7 @@ apps/pipelines/
 ├── providers/          Provider-specific clients and raw response models
 ├── dbt/                dbt Core project: Bronze -> Silver -> Gold transformations
 ├── docs/               Pipeline runbooks, including AWS/S3 setup
-├── scripts/            Local helpers and SQL scripts
+├── scripts/            Local operational helpers
 ├── tests/              Unit and integration tests
 ├── deploy/             Docker Compose files: base, dev override, prod override
 ├── prefect.yaml        Prefect deployment definitions
@@ -141,7 +141,7 @@ You do not need to create the S3 bucket and IAM user manually in the AWS Console
 
 The lake `pipeline` schema stores data-plane audit facts for ingestion and transformation runs. Prefect remains the orchestration control plane for scheduling, retries, task states, and logs; the lake audit tables answer data questions such as which exchange/date was skipped, which ticker backfill failed, which landing URI produced Bronze rows, and which dbt model or test failed.
 
-Current audit tables are generated from `lake/schema.py` and initialized by `make lake-init`:
+Current audit tables are defined in `lake/schema.py` and applied through lake schema migrations:
 
 - `pipeline.runs`
 - `pipeline.run_units`
@@ -180,7 +180,7 @@ In a second terminal:
 
 ```bash
 cd apps/pipelines
-make setup                 # init lake, save blocks, create work pool, register deployments
+make setup                 # migrate lake, save blocks, create work pool, register deployments
 make prefect-worker        # start the worker
 ```
 
@@ -201,7 +201,7 @@ Docker Compose sets `ENVIRONMENT=docker_dev` for `pipelines-worker`. Set it in `
 cp .env.example .env
 # edit .env: set ENVIRONMENT=docker_dev and any provider keys
 make docker-up             # start pipelines-server, pipelines-db, and pipelines-worker
-make docker-setup          # init container lake, save blocks, create work pool, register deployments
+make docker-setup          # migrate container lake, save blocks, create work pool, register deployments
 ```
 
 The default docker-dev lake is isolated inside the `pipelines-worker` container at `/app/unique_stocks.duckdb`. It does not share the host DuckDB file, which avoids local file-lock and path drift between host smoke runs and container worker runs. If `MOTHERDUCK_TOKEN` is set in `.env`, docker-dev intentionally targets MotherDuck instead for integration testing.
@@ -217,18 +217,33 @@ make docker-down-volumes   # ⚠ also deletes the Postgres volume
 
 Prefect UI runs at <http://localhost:4200>.
 
-## Lake initialization
+## Lake schema migrations
 
-`make setup` handles this automatically. To run it standalone:
+`make setup` handles this automatically. To run migrations standalone:
 
 ```bash
 cd apps/pipelines
-make lake-init                              # local DuckDB, or MotherDuck when MOTHERDUCK_TOKEN is set
+make lake-migration-status                  # preview pending/applied migrations without changing the lake
+make lake-migrate                           # local DuckDB, or MotherDuck when MOTHERDUCK_TOKEN is set
 ```
 
-For docker-dev, use `make docker-setup` instead so initialization runs in the same container filesystem as the worker.
+For docker-dev, use `make docker-setup` instead so migrations run in the same container filesystem as the worker.
 
-The SQL script (`scripts/init_lake.sql`) is idempotent and safe to re-run, but it does not migrate or reshape existing tables. During greenfield schema rewrites, reset the local DuckDB lake with:
+Schema SQL files live in `lake/migrations/`. Applied versions are tracked in `lake.schema_migration`; changed checksums for already-applied files are refused.
+
+Generate a reviewed schema diff after editing table specs:
+
+```bash
+make lake-migration                         # generate a reviewed schema diff
+make lake-migration NAME="add foo column"   # optional readable filename slug
+make lake-migration EMPTY=1                 # manual migration skeleton
+```
+
+`make lake-migration` compares `lake/schema.py` against the connected lake, so it needs the same local DuckDB or MotherDuck access as `make lake-migrate`. If the diff contains only warnings and no executable SQL, it prints the warnings and does not create a no-op migration file.
+
+On the first run against an older lake that does not have `lake.schema_migration`, `make lake-migrate` treats every migration file as pending. The initial migration is written with `IF NOT EXISTS` DDL so it can bootstrap tracking and record checksums for an existing local lake.
+
+During greenfield schema rewrites, reset the local DuckDB lake with:
 
 ```bash
 make lake-reset-local
@@ -245,7 +260,7 @@ Local dbt workflow:
 ```bash
 cd apps/pipelines
 make dbt-install
-make lake-init
+make lake-migrate
 make dbt-debug
 make dbt-build
 ```
@@ -270,7 +285,7 @@ Production dbt execution is also available as Prefect deployments:
 
 Both price and exchange builds read `dbt/target/run_results.json` and write dbt audit rows to the lake.
 
-DuckDB allows one writer at a time. If `make lake-init` or `make dbt-build` reports a database lock, close any local DuckDB/Cursor/VS Code database viewer connected to `unique_stocks.duckdb` and rerun the command.
+DuckDB allows one writer at a time. If `make lake-migrate` or `make dbt-build` reports a database lock, close any local DuckDB/Cursor/VS Code database viewer connected to `unique_stocks.duckdb` and rerun the command.
 
 ## Quality checks
 

@@ -7,7 +7,7 @@ from typing import Annotated, ClassVar
 import pytest
 from pydantic import BaseModel
 
-from core.schema import DECIMAL, BronzeTableModel, SqlColumn
+from core.lake.schema import DECIMAL, BronzeTableModel, SqlColumn
 
 
 class ExchangeCatalogRow(BaseModel):

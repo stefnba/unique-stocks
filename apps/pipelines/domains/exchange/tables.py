@@ -1,6 +1,6 @@
 """Lake table specs for exchange Bronze rows."""
 
-from core.schema import BronzeTableModel
+from core.lake.schema import BronzeTableModel
 from domains.exchange.models import ExchangeCatalogSnapshot, ExchangeMicRegistrySnapshot
 
 

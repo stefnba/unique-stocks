@@ -1,6 +1,6 @@
 """Lake table specs for exchange schedule Bronze rows."""
 
-from core.schema import BronzeTableModel
+from core.lake.schema import BronzeTableModel
 from domains.exchange_schedule.models import ExchangeHolidaySnapshot, ExchangeScheduleSnapshot
 
 

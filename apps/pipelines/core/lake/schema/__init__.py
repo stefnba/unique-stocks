@@ -1,6 +1,6 @@
 """Small schema DSL for lake table definitions."""
 
-from core.schema.columns import (
+from core.lake.schema.columns import (
     BIGINT,
     BOOLEAN,
     DATE,
@@ -15,7 +15,7 @@ from core.schema.columns import (
     ColumnSpec,
     SqlColumn,
 )
-from core.schema.table import BronzeTableModel, SchemaName, TableModel
+from core.lake.schema.table import BronzeTableModel, SchemaName, TableModel
 
 __all__ = [
     "BIGINT",

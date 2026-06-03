@@ -1,4 +1,4 @@
-"""Data lake client exports."""
+"""Lake client package."""
 
 from core.clients.lake.client import (
     DataLakeClient,

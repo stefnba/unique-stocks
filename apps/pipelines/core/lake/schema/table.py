@@ -9,7 +9,7 @@ from typing import ClassVar, Literal
 
 from pydantic import BaseModel
 
-from core.schema.columns import (
+from core.lake.schema.columns import (
     JSON,
     TIMESTAMPTZ,
     UUID,
@@ -18,7 +18,7 @@ from core.schema.columns import (
     column_from_field,
 )
 
-type SchemaName = Literal["bronze", "silver", "gold", "pipeline"]
+type SchemaName = Literal["bronze", "silver", "gold", "pipeline", "lake"]
 
 
 class TableModel:

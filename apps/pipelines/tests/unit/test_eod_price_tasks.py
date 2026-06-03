@@ -68,9 +68,7 @@ class FakeLake:
             return {"cnt": 0}
         _, _, _, key_hash, status = params
         count = sum(
-            1
-            for row in self.coverage_rows
-            if row.get("unit_key_hash") == key_hash and row.get("status") == status
+            1 for row in self.coverage_rows if row.get("unit_key_hash") == key_hash and row.get("status") == status
         )
         return {"cnt": count}
 

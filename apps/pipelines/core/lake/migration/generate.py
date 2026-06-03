@@ -1,0 +1,97 @@
+"""Generate a lake migration from actual vs desired schema."""
+
+from __future__ import annotations
+
+import argparse
+import importlib
+import os
+from collections.abc import Sequence
+from pathlib import Path
+
+from core.clients.lake import DataLakeClient
+from core.lake.migration.diff import diff_lake_schema
+from core.lake.migration.files import empty_migration_sql, write_migration_file
+from core.lake.migration.introspection import desired_lake_schema_from_tables, inspect_lake_schema
+from core.lake.schema.ddl import DEFAULT_SCHEMAS
+from core.lake.schema.table import TableModel
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    """Generate a timestamped migration SQL file."""
+    args = _parse_args(argv)
+    name = args.name or os.environ.get("NAME")
+    empty = args.empty or _truthy(os.environ.get("EMPTY"))
+    force_warning_only = args.force_warning_only or _truthy(os.environ.get("FORCE_WARNING_ONLY"))
+    migrations_dir = Path(args.migrations_dir)
+
+    if empty:
+        path = write_migration_file(migrations_dir, sql=empty_migration_sql(name), name=name)
+        print(f"Created empty lake migration: {path}")
+        return
+
+    desired = desired_lake_schema_from_tables(load_table_specs(args.tables), default_schemas=DEFAULT_SCHEMAS)
+    client = DataLakeClient(read_only=True)
+    try:
+        actual = inspect_lake_schema(client.connection, schemas=desired.schemas)
+    finally:
+        client.close()
+
+    diff = diff_lake_schema(actual, desired)
+    if not diff.has_changes:
+        print("Lake schema is current; no migration created.")
+        return
+    if not diff.has_statements and not force_warning_only:
+        _print_warnings(diff.warnings)
+        print("No executable migration statements generated; no migration file created.")
+        return
+
+    path = write_migration_file(migrations_dir, sql=diff.to_sql(), name=name or diff.suggested_name)
+    print(f"Created lake migration: {path}")
+
+
+def load_table_specs(ref: str) -> tuple[type[TableModel], ...]:
+    """Load table specs from a ``module:attribute`` reference."""
+    module_name, separator, attr_name = ref.partition(":")
+    if not module_name or separator != ":" or not attr_name:
+        raise ValueError(f"Invalid table spec reference {ref!r}; expected module:attribute")
+
+    value = getattr(importlib.import_module(module_name), attr_name)
+    if isinstance(value, str) or not isinstance(value, Sequence):
+        raise TypeError(f"{ref} must reference a sequence of TableModel classes")
+
+    tables = tuple(value)
+    invalid = tuple(table for table in tables if not isinstance(table, type) or not issubclass(table, TableModel))
+    if invalid:
+        raise TypeError(f"{ref} contains non-TableModel entries: {invalid!r}")
+    return tables
+
+
+def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--tables",
+        required=True,
+        help="Desired table specs as module:attribute, e.g. lake.schema:ALL_TABLES.",
+    )
+    parser.add_argument("--migrations-dir", required=True, help="Directory where migration SQL files are stored.")
+    parser.add_argument("--name", help="Optional human-readable migration name.")
+    parser.add_argument("--empty", action="store_true", help="Create an empty manual migration skeleton.")
+    parser.add_argument(
+        "--force-warning-only",
+        action="store_true",
+        help="Write a comment-only migration when the diff contains warnings but no executable SQL.",
+    )
+    return parser.parse_args(argv)
+
+
+def _print_warnings(warnings: Sequence[str]) -> None:
+    for warning in warnings:
+        print(f"WARNING: {warning}")
+
+
+def _truthy(value: str | None) -> bool:
+    return value is not None and value.strip().lower() in {"1", "true", "yes", "y"}
+
+
+if __name__ == "__main__":
+    main()
