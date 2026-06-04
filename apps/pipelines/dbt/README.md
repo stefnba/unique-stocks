@@ -12,6 +12,22 @@ Source definitions live under `models/sources/`. dbt discovers source YAML anywh
 
 The dbt-visible names are the YAML `sources[].name` and `tables[].name` values. Staging models reference Bronze with calls such as `source('bronze', 'eod_price')`. Keep source YAML focused on external/Bronze relations and the Python-to-dbt handoff; downstream dbt models should use `ref()`.
 
+### Data Flow
+
+The pipeline flow before and inside dbt is:
+
+```text
+provider APIs -> raw landing objects -> Bronze tables -> dbt sources -> staging -> intermediate -> Gold marts
+```
+
+Python ingestion owns provider fetches, raw landing writes, parsing, and typed Bronze table writes. Bronze is the handoff into dbt.
+
+Staging models are the first dbt transformation layer. They should map closely to one Bronze source table and handle only type casting, renaming, normalization, and deduplication. This creates a stable Silver interface over raw provider-shaped data without adding business logic.
+
+Intermediate models are optional Silver building blocks used when logic is too reusable or too structural to keep inside one final mart. Use them for joins, latest-snapshot selection, provider-code mapping, exchange/security universe construction, and other transformations that several marts or downstream models may share. Intermediate models are not the final consumer-facing tables.
+
+Gold marts are the final business-ready models. They turn staged and intermediate data into dimensions and facts that downstream analytics, dashboards, and applications can query directly.
+
 ### Model Layers
 
 Use layer prefixes consistently:
