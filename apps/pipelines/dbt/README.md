@@ -32,12 +32,12 @@ Never put business logic in staging models. Put analytics logic in intermediate 
 
 Current mart folders are grouped by business area/domain:
 
-| Folder         | Current purpose                              |
-| -------------- | -------------------------------------------- |
-| `exchange/`    | Exchange dimensions and calendars.           |
-| `security/`    | Security universe and profile dimensions.    |
-| `price/`       | Price facts.                                 |
-| `fundamental/` | Fundamental metric facts and related marts.  |
+| Folder         | Current purpose                             |
+| -------------- | ------------------------------------------- |
+| `exchange/`    | Exchange dimensions and calendars.          |
+| `security/`    | Security universe and profile dimensions.   |
+| `price/`       | Price facts.                                |
+| `fundamental/` | Fundamental metric facts and related marts. |
 
 ### SQL Shape
 
@@ -85,6 +85,25 @@ Every mart primary key gets `not_null` and `unique` schema tests. Fact-table for
 
 Keep standard key tests in schema YAML. Use singular SQL tests for custom assertions that generic dbt tests cannot express cleanly.
 
-### Renames
+### Schema Changes And Cleanup
 
-When renaming a Gold mart, remember that dbt will create the newly named relation but will not automatically drop the old one from an existing lake. Drop deprecated Gold relations only after the replacement model has built and downstream consumers have moved.
+dbt rebuilds the selected models it knows about; it does not behave like a full warehouse migration tool.
+
+For this project, staging and intermediate models are views, and Gold marts are tables. A normal `dbt build` reflects column additions, removals, and SQL changes for selected table and view models because dbt recreates those relations as part of materialization.
+
+Renamed or deleted models are different. dbt will create the new relation, but it will not automatically drop the old table or view from an existing lake. Drop deprecated relations explicitly only after the replacement model has built, downstream `ref()`s and consumers have moved, and the old object is no longer needed:
+
+```sql
+DROP TABLE IF EXISTS gold.old_model_name;
+DROP VIEW IF EXISTS gold.old_model_name;
+```
+
+For future incremental models, schema and logic changes need extra care. Use `--full-refresh` when historical rows need to be rebuilt or when incremental schema behavior is not enough:
+
+```bash
+uv run dbt build --project-dir dbt --profiles-dir dbt --target dev --full-refresh --select model_name+
+```
+
+Bronze/source schema changes are owned by the Python lake migration flow, not dbt cleanup. Apply the lake migration first, then update `models/sources/*.yml`, staging models, downstream marts, and tests.
+
+References: [dbt materializations](https://docs.getdbt.com/docs/build/materializations), [incremental models](https://docs.getdbt.com/docs/build/incremental-models), and [dbt run](https://docs.getdbt.com/reference/commands/run).
