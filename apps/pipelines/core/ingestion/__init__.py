@@ -11,7 +11,7 @@ from .coverage import (
 from .dataset import BronzeDataset, BronzeWrite
 from .keys import LandingDomain
 from .landing import LandingTarget, LandingWrite
-from .parser import BronzeParseResult
+from .parser import BestEffortParseResult, BronzeParseResult
 from .run_tracking import (
     LandingObjectRecord,
     PipelineRunScope,
@@ -31,6 +31,7 @@ __all__ = [
     "INGESTION_COVERAGE_TABLE_NAME",
     "BronzeDataset",
     "BronzeWrite",
+    "BestEffortParseResult",
     "BronzeParseResult",
     "ingestion_coverage_recorded",
     "list_ingestion_coverage_unit_keys",

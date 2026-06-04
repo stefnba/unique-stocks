@@ -18,7 +18,7 @@ def parse_instrument_snapshots(
     snapshot_date: date,
 ) -> tuple[list[BronzeParseResult[InstrumentSnapshot]], list[Instrument]]:
     """Parse provider instrument with partial success for large payloads."""
-    return parse_best_effort_rows(
+    result = parse_best_effort_rows(
         raws,
         lambda raw: InstrumentSnapshot(
             snapshot_date=snapshot_date,
@@ -38,3 +38,4 @@ def parse_instrument_snapshots(
             error=str(exc),
         ),
     )
+    return result.valid, result.rejected

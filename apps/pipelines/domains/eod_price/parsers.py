@@ -38,7 +38,7 @@ def parse_eod_bars(
     We log rejections but never raise — a few bad tickers should not abort
     an entire exchange's worth of data.
     """
-    return parse_best_effort_rows(
+    result = parse_best_effort_rows(
         raw_rows,
         lambda row: _build_eod_bar(row, expected_date=expected_date, provider_exchange_code=provider_exchange_code),
         on_rejected=lambda row, exc: log.warning(
@@ -48,6 +48,7 @@ def parse_eod_bars(
             error=str(exc),
         ),
     )
+    return result.valid, result.rejected
 
 
 def infer_bulk_bar_date(raw_rows: list[EODBulkPriceRaw]) -> date:
@@ -67,7 +68,7 @@ def parse_ticker_bars(
     ``AAPL.US``) and no date-mismatch filtering is applied — the per-ticker
     endpoint returns exactly the requested range.
     """
-    return parse_best_effort_rows(
+    result = parse_best_effort_rows(
         raw_bars,
         lambda row: _build_ticker_bar(row, ticker=ticker),
         on_rejected=lambda row, exc: log.warning(
@@ -77,6 +78,7 @@ def parse_ticker_bars(
             error=str(exc),
         ),
     )
+    return result.valid, result.rejected
 
 
 def _build_eod_bar(

@@ -403,14 +403,14 @@ def test_parse_best_effort_rows_tracks_rejections_and_drops() -> None:
             raise ValueError("bad row")
         return _price()
 
-    sources, rejected = parse_best_effort_rows(
+    result = parse_best_effort_rows(
         ["ok", "drop", "bad"],
         build_row,
         on_rejected=lambda raw, exc: errors.append((raw, str(exc))),
     )
 
-    assert [source.raw_fragment for source in sources] == ["ok"]
-    assert rejected == ["bad"]
+    assert [source.raw_fragment for source in result.valid] == ["ok"]
+    assert result.rejected == ["bad"]
     assert errors == [("bad", "bad row")]
 
 

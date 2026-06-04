@@ -45,6 +45,19 @@ class BronzeParseResult[RowT: BronzeModel]:
         return BronzeParseResult(row=self.row, raw_fragment=self.raw_fragment, source_uri=_source_uri(source_uri))
 
 
+@dataclass(frozen=True, slots=True)
+class BestEffortParseResult[RowT: BronzeModel, RawT]:
+    """Rows accepted and rejected by a best-effort parser run.
+
+    Attributes:
+        valid: Parsed Bronze rows with their original raw fragments.
+        rejected: Raw items that raised while parsing.
+    """
+
+    valid: list[BronzeParseResult[RowT]]
+    rejected: list[RawT]
+
+
 class BronzeParser[RawT, RowT: BronzeModel](Protocol):
     """Shape for parser objects that need shared context while building rows."""
 
@@ -148,7 +161,7 @@ def parse_best_effort_rows[RawT, RowT: BronzeModel](
     build_row: BestEffortRowBuilder[RawT, RowT],
     *,
     on_rejected: ParseFailureHandler[RawT] | None = None,
-) -> tuple[list[BronzeParseResult[RowT]], list[RawT]]:
+) -> BestEffortParseResult[RowT, RawT]:
     """Parse raw rows with per-row isolation.
 
     ``build_row`` may return ``None`` to intentionally drop a raw item without
@@ -162,7 +175,7 @@ def parse_best_effort_rows[RawT, RowT: BronzeModel](
         on_rejected: Optional callback invoked with the raw item and exception.
 
     Returns:
-        Pair of valid parse results and rejected raw items.
+        Valid parse results and rejected raw items.
     """
     valid: list[BronzeParseResult[RowT]] = []
     rejected: list[RawT] = []
@@ -177,7 +190,7 @@ def parse_best_effort_rows[RawT, RowT: BronzeModel](
 
         if row is not None:
             valid.append(parse_result(row, raw))
-    return valid, rejected
+    return BestEffortParseResult(valid=valid, rejected=rejected)
 
 
 def attach_source_uri[RowT: BronzeModel](
@@ -203,6 +216,7 @@ def _source_uri(source: str | S3ObjectRef) -> str:
 
 
 __all__ = [
+    "BestEffortParseResult",
     "BronzeParser",
     "BronzeParseResult",
     "attach_source_uri",
