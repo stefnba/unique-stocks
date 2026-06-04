@@ -170,7 +170,7 @@ If `make lake-migrate` or `make dbt-debug` cannot authenticate:
 - Confirm the token is `Read/Write`, not read-scaling/read-only.
 - Confirm you are targeting `DBT_TARGET=prod` for dbt.
 - Try an interactive check with `duckdb "md:unique_stocks"` to separate DuckDB/MotherDuck auth from project wiring.
-- If the database is missing, create it in the MotherDuck UI or DuckDB CLI, then rerun `make lake-migrate`.
+- If the database is missing, run `make lake-ensure-database` or `make lake-migrate`; both call `CREATE DATABASE IF NOT EXISTS` for `LAKE_NAME` before connecting.
 
 ## References
 

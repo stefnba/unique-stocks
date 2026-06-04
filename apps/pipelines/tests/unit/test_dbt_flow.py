@@ -80,6 +80,34 @@ def test_run_dbt_command_uses_app_root_paths_and_env_overlay(
     assert env["DBT_DUCKDB_PATH"] == str(APP_ROOT / "unique_stocks.duckdb")
 
 
+def test_run_dbt_command_ensures_motherduck_database_for_prod(monkeypatch: MonkeyPatch) -> None:
+    """Prod dbt runs should create the MotherDuck database before connecting."""
+    settings = Settings(motherduck_token=SecretStr("test-token"))
+    ensure_calls: list[Settings] = []
+
+    def fake_ensure(candidate: Settings) -> None:
+        ensure_calls.append(candidate)
+
+    def fake_run(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(dbt, "get_settings", lambda: settings)
+    monkeypatch.setattr(dbt, "ensure_lake_database", fake_ensure)
+    monkeypatch.setattr(dbt, "_dbt_base_command", lambda: ["dbt"])
+    monkeypatch.setattr(dbt.subprocess, "run", fake_run)
+
+    dbt.run_dbt_command.fn(
+        command="compile",
+        select=[],
+        exclude=[],
+        project_dir="dbt",
+        profiles_dir="dbt",
+        target=None,
+    )
+
+    assert ensure_calls == [settings]
+
+
 def test_run_dbt_command_rejects_explicit_target_conflict(monkeypatch: MonkeyPatch) -> None:
     """Explicit dbt targets should not drift from the selected lake backend."""
     monkeypatch.setattr(dbt, "get_settings", lambda: Settings(motherduck_token=SecretStr("")))

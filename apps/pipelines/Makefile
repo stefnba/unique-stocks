@@ -4,7 +4,7 @@
         prefect-server prefect-worker \
         docker-up docker-down docker-down-volumes docker-logs docker-logs-worker docker-logs-dashboard docker-ps \
         docker-setup \
-        lake-env-guard lake-reset-local lake-migration lake-migration-status lake-migrate blocks-save setup s3-landing-zone \
+        lake-env-guard lake-reset-local lake-migration lake-migration-status lake-ensure-database lake-migrate blocks-save setup s3-landing-zone \
         deploy deploy-dry deploy-upsert \
         dbt-install dbt-debug dbt-compile dbt-seed dbt-run dbt-test dbt-build dbt-clean dbt-run-staging dbt-run-marts \
         lake-ui
@@ -167,16 +167,19 @@ lake-reset-local: lake-env-guard ## Delete and recreate the local DuckDB lake (d
 	rm -f "$(LOCAL_LAKE_PATH)" "$(LOCAL_LAKE_PATH).wal"
 	$(MAKE) lake-migrate
 
-lake-migration: lake-env-guard ## Generate a lake schema migration (NAME="..." optional, EMPTY=1 for manual)
+lake-migration: lake-env-guard lake-ensure-database ## Generate a lake schema migration (NAME="..." optional, EMPTY=1 for manual)
 	$(UV) run python -m core.lake.migration.generate --tables "$(LAKE_TABLES_REF)" --migrations-dir "$(LAKE_MIGRATIONS_DIR)"
 
-lake-migrate: lake-env-guard ## Apply pending lake schema migrations
+lake-ensure-database: lake-env-guard ## Create MotherDuck database or local lake parent dir when missing
+	$(UV) run python -c "from config.settings import get_settings; from core.lake.database import ensure_lake_database; ensure_lake_database(get_settings())"
+
+lake-migrate: lake-env-guard lake-ensure-database ## Apply pending lake schema migrations
 	$(UV) run python -m core.lake.migration.migrate --migrations-dir "$(LAKE_MIGRATIONS_DIR)"
 
-lake-migration-status: lake-env-guard ## Show pending/applied lake schema migrations without applying
+lake-migration-status: lake-env-guard lake-ensure-database ## Show pending/applied lake schema migrations without applying
 	$(UV) run python -m core.lake.migration.migrate --migrations-dir "$(LAKE_MIGRATIONS_DIR)" --dry-run
 
-lake-ui: lake-env-guard ## Open DuckDB local UI (MotherDuck if MOTHERDUCK_TOKEN is set, else local lake)
+lake-ui: lake-env-guard lake-ensure-database ## Open DuckDB local UI (MotherDuck if MOTHERDUCK_TOKEN is set, else local lake)
 	@if [ -n "$(MOTHERDUCK_TOKEN)" ]; then \
 		MOTHERDUCK_TOKEN="$(MOTHERDUCK_TOKEN)" duckdb -ui "md:$(LAKE_NAME)"; \
 	else \
@@ -204,29 +207,29 @@ print('Deployments in prefect.yaml:'); \
 dbt-install: ## Install app deps including dbt
 	$(UV) sync
 
-dbt-debug: lake-env-guard ## Validate dbt project config and lake connection
+dbt-debug: lake-env-guard lake-ensure-database ## Validate dbt project config and lake connection
 	$(DBT) debug $(DBT_FLAGS)
 
-dbt-compile: lake-env-guard ## Compile dbt models without writing lake tables
+dbt-compile: lake-env-guard lake-ensure-database ## Compile dbt models without writing lake tables
 	$(DBT) compile $(DBT_FLAGS)
 
-dbt-seed: lake-env-guard ## Load dbt seed reference data
+dbt-seed: lake-env-guard lake-ensure-database ## Load dbt seed reference data
 	$(DBT) seed $(DBT_FLAGS)
 
-dbt-run: lake-env-guard dbt-seed ## Load seeds, then run all dbt models
+dbt-run: lake-env-guard lake-ensure-database dbt-seed ## Load seeds, then run all dbt models
 	$(DBT) run $(DBT_FLAGS)
 
-dbt-test: lake-env-guard ## Run dbt data tests
+dbt-test: lake-env-guard lake-ensure-database ## Run dbt data tests
 	$(DBT) test $(DBT_FLAGS)
 
-dbt-build: lake-env-guard ## Run dbt models and data tests
+dbt-build: lake-env-guard lake-ensure-database ## Run dbt models and data tests
 	$(DBT) build $(DBT_FLAGS)
 
 dbt-clean: ## Remove dbt build artifacts
 	$(DBT) clean $(DBT_FLAGS)
 
-dbt-run-staging: lake-env-guard ## Run staging (Silver) models only
+dbt-run-staging: lake-env-guard lake-ensure-database ## Run staging (Silver) models only
 	$(DBT) run $(DBT_FLAGS) --select path:models/staging
 
-dbt-run-marts: lake-env-guard ## Run mart (Gold) models only
+dbt-run-marts: lake-env-guard lake-ensure-database ## Run mart (Gold) models only
 	$(DBT) run $(DBT_FLAGS) --select path:models/marts

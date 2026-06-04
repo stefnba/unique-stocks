@@ -20,6 +20,7 @@ from config.settings import APP_ROOT, DbtTarget, get_settings
 from core.clients.lake import get_lake_client, reset_lake_client
 from core.ingestion import PipelineRunTracker, RunCounters, terminal_status
 from core.ingestion.serialization import jsonable
+from core.lake.database import ensure_lake_database
 
 log = structlog.get_logger(__name__)
 
@@ -159,6 +160,8 @@ def run_dbt_command(
     """Run dbt in a subprocess and return captured process metadata."""
     settings = get_settings()
     resolved_target = _resolve_dbt_target(target, settings.resolved_dbt_target(), settings.lake_backend())
+    if resolved_target == "prod":
+        ensure_lake_database(settings)
     project_path = _resolve_app_path(project_dir)
     profiles_path = _resolve_app_path(profiles_dir)
     args = _dbt_base_command()
