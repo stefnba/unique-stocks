@@ -49,12 +49,10 @@ This file is for AI and coding agents working in this repository. Human onboardi
 
 ## dbt conventions
 
+- Follow the detailed dbt design, naming, mart-shape, lineage, materialization, documentation, and testing conventions in `apps/pipelines/dbt/README.md#conventions`.
 - Never put business logic in staging models. Staging is for type casting, renaming, normalization, and deduplication.
-- Put analytics logic in marts.
-- Use `ref()` instead of hardcoded table names.
-- Every model gets a `.yml` description file with column descriptions.
-- Test files mirror model structure.
-- Add tests for primary keys, important not-null columns, accepted enum values, and domain-specific sanity checks.
+- Put analytics logic in marts, use `ref()` instead of hardcoded table names, and keep Bronze as the Python-to-dbt handoff.
+- Keep raw lineage columns such as `source_uri` and `row_hash` out of Gold unless a consumer needs them directly.
 
 ## App boundaries
 

@@ -312,15 +312,22 @@ make dbt-run-staging
 make dbt-run-marts
 ```
 
+For dbt sources, naming, mart-shape, key, lineage, testing, and materialization conventions, see [`dbt/README.md#conventions`](dbt/README.md#conventions).
+
 `dbt/profiles.yml` is committed because it contains only environment-variable references, not secrets. Use `DBT_TARGET=prod` with `MOTHERDUCK_TOKEN` set to run against MotherDuck.
 
-Production dbt execution is also available as Prefect deployments:
+Production dbt execution is available as Prefect deployments:
 
 - `dbt-build/exchange-build`: exchange staging/intermediate + exchange marts/provider ingestion universe.
+- `dbt-build/instrument-build`: instrument staging/intermediate + security dimension.
 - `dbt-build/price-build`: price staging and mart models.
-- `dbt-build/fundamental-build`: fundamental staging models.
+- `dbt-build/fundamental-build`: fundamental staging/intermediate + fundamental/security marts.
 
-Both price and exchange builds read `dbt/target/run_results.json` and write dbt audit rows to the lake.
+Ingestion deployments set `run_dbt_build=true` where Silver/Gold freshness matters. A clean
+domain audit status (`pipeline.runs.status = 'completed'`) launches the matching dbt deployment
+with the ingestion `run_id` as `parent_run_id`; `partial`, `failed`, or all-skipped ingestion
+runs do not auto-promote Bronze data. Run the dbt deployments directly for bootstrap, repair,
+or full rebuilds. dbt builds read `dbt/target/run_results.json` and write dbt audit rows to the lake.
 
 DuckDB allows one writer at a time. If `make lake-migrate` or `make dbt-build` reports a database lock, close any local DuckDB/Cursor/VS Code database viewer connected to `unique_stocks.duckdb` and rerun the command.
 
@@ -352,17 +359,17 @@ make dbt-build
 `prefect.yaml` registers one deployment per operational mode (scheduled, manual, backfill, build).
 Each mode maps to the same domain flow with different default parameters.
 
-| Domain                 | Deployments                                                               | Mode                     |
-| ---------------------- | ------------------------------------------------------------------------- | ------------------------ |
-| EOD price (bulk)       | `eod-price-daily/daily`, `/backfill`                                      | scheduled, backfill      |
-| EOD price (per-ticker) | `eod-price-backfill/historical-backfill`                                  | backfill                 |
-| Exchange catalog / MIC | `exchange-catalog-refresh/manual`, `exchange-mic-registry-refresh/manual` | bootstrap                |
-| Exchange schedule      | `exchange-schedule-refresh/manual`                                        | manual                   |
-| Instrument             | `instrument-refresh/weekly`, `/manual`                                    | scheduled, manual        |
-| Fundamental            | `fundamental-quarterly/manual`, `/backfill`, `/replay`                    | manual, backfill, replay |
-| dbt                    | `dbt-build/exchange-build`, `/price-build`, `/fundamental-build`          | build                    |
+| Domain                 | Deployments                                                                           | Mode                     |
+| ---------------------- | ------------------------------------------------------------------------------------- | ------------------------ |
+| EOD price (bulk)       | `eod-price-daily/daily`, `/backfill`                                                  | scheduled, backfill      |
+| EOD price (per-ticker) | `eod-price-backfill/historical-backfill`                                              | backfill                 |
+| Exchange catalog / MIC | `exchange-catalog-refresh/manual`, `exchange-mic-registry-refresh/manual`             | bootstrap                |
+| Exchange schedule      | `exchange-schedule-refresh/manual`                                                    | manual                   |
+| Instrument             | `instrument-refresh/weekly`, `/manual`                                                | scheduled, manual        |
+| Fundamental            | `fundamental-quarterly/manual`, `/backfill`, `/replay`                                | manual, backfill, replay |
+| dbt                    | `dbt-build/exchange-build`, `/instrument-build`, `/price-build`, `/fundamental-build` | build                    |
 
-Bootstrap order for a new environment: exchange manual → exchange-build → instrument → ingest → matching `*-build`.
+Bootstrap order for a new environment: exchange catalog manual → exchange MIC manual → exchange schedule manual → exchange-build → instrument → ingest. In normal operation, ingestion deployments trigger their matching dbt build after a clean audit status; pass `run_dbt_build=false` for Bronze-only runs.
 
 `make deploy` is the source-of-truth sync: it removes orphaned deployments owned by this app
 (entrypoints under `domains.*` or `core.transforms.*`), then applies `prefect.yaml`.
