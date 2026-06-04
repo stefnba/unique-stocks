@@ -1,16 +1,18 @@
 repos:
   - repo: local
     hooks:
-      - id: pipelines-ruff-format
-        name: pipelines ruff format
-        entry: uv run --project apps/pipelines ruff format
-        language: system
+      - id: pipelines-ruff-check
+        name: pipelines ruff check
+        entry: apps/pipelines/scripts/run_uv.sh
+        args: [ruff, check, --fix]
+        language: script
         files: ^apps/pipelines/
         types_or: [python, pyi]
 
-      - id: pipelines-ruff-check
-        name: pipelines ruff check
-        entry: uv run --project apps/pipelines ruff check --fix
-        language: system
+      - id: pipelines-ruff-format
+        name: pipelines ruff format
+        entry: apps/pipelines/scripts/run_uv.sh
+        args: [ruff, format]
+        language: script
         files: ^apps/pipelines/
         types_or: [python, pyi]
