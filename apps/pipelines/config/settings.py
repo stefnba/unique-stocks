@@ -112,6 +112,8 @@ class Settings(BaseSettings):
         }
         if target == "dev":
             overlay["DBT_DUCKDB_PATH"] = self.resolved_local_lake_path()
+        else:
+            overlay["MOTHERDUCK_TOKEN"] = self.motherduck_token.get_secret_value().strip()
         return overlay
 
 

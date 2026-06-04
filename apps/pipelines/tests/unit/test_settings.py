@@ -65,12 +65,13 @@ def test_dbt_env_overlay_uses_absolute_local_lake_path() -> None:
 
 
 def test_dbt_env_overlay_uses_prod_for_motherduck() -> None:
-    """MotherDuck dbt env should switch target without setting DBT_DUCKDB_PATH."""
+    """MotherDuck dbt env should pass the token to dbt without setting DBT_DUCKDB_PATH."""
     settings = Settings(motherduck_token=SecretStr("test-token"), local_lake_path="unique_stocks.duckdb")
     assert settings.dbt_env_overlay() == {
         "DBT_TARGET": "prod",
         "LAKE_NAME": "unique_stocks",
         "LOCAL_LAKE_PATH": str(APP_ROOT / "unique_stocks.duckdb"),
+        "MOTHERDUCK_TOKEN": "test-token",
     }
 
 

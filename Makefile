@@ -54,7 +54,7 @@ pipelines-typecheck: ## Type-check pipeline code
 	$(MAKE) -C $(PIPELINES_DIR) typecheck
 
 pipelines-worker: ## Start a Prefect worker (reads PREFECT_API_URL from env)
-	$(MAKE) -C $(PIPELINES_DIR) worker
+	$(MAKE) -C $(PIPELINES_DIR) prefect-worker
 
 pipelines-dashboard: ## Start the Streamlit pipeline audit dashboard
 	$(MAKE) -C $(PIPELINES_DIR) dashboard
