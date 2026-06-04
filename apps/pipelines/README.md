@@ -90,12 +90,10 @@ apps/pipelines/
 ├── docs/               Pipeline runbooks, including AWS/S3 setup
 ├── scripts/            Local operational helpers
 ├── tests/              Unit and integration tests
-├── deploy/             Docker Compose files: base, dev override, prod override
+├── deploy/             Docker Compose files and Dockerfiles (worker + dashboard)
 ├── prefect.yaml        Prefect deployment definitions
 ├── pyproject.toml      Python dependencies
-├── Makefile            App-level commands
-├── Dockerfile          Worker image
-└── Dockerfile.dashboard Streamlit dashboard image
+└── Makefile            App-level commands
 ```
 
 Domain code is organized under `domains/<domain>/`. Ingestion domains usually define `models.py`, `tables.py`, `datasets.py`, `parsers.py`, task modules, and `flows.py`, plus small domain helpers when needed.
@@ -164,7 +162,7 @@ semantics, statuses, and the integration pattern.
 The Streamlit dashboard under `dashboard/` is an operational read surface for the pipeline audit schema. It lives in this app so it can reuse `config.settings` and `core.clients.lake.DataLakeClient`, but it runs as a separate process from the Prefect worker.
 
 Dashboard dependencies are kept in the `dashboard` optional extra. Production
-deploys the dashboard service with `Dockerfile.dashboard`, which installs
+deploys the dashboard service with `deploy/Dockerfile.dashboard`, which installs
 `--extra dashboard`; the Prefect worker image intentionally installs only base
 pipeline dependencies.
 

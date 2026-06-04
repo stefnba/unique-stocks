@@ -48,7 +48,7 @@ services:
   pipelines-worker:
     build:
       context: ..
-      dockerfile: Dockerfile
+      dockerfile: deploy/Dockerfile
       args:
         GIT_SHA: ${GIT_SHA:-}
     environment:
@@ -87,7 +87,7 @@ services:
   pipelines-dashboard:
     build:
       context: ..
-      dockerfile: Dockerfile.dashboard
+      dockerfile: deploy/Dockerfile.dashboard
       args:
         GIT_SHA: ${GIT_SHA:-}
     environment:
