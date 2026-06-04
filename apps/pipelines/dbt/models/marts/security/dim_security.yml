@@ -4,10 +4,11 @@ models:
   - name: dim_security
     description: Gold current tradable security dimension enriched with latest fundamentals where available.
     columns:
-      - name: security_id
-        description: Stable key for one active tradable provider security.
+      - name: security_pk
+        description: Deterministic hashed primary key for one active tradable provider security.
         data_tests:
           - not_null
+          - unique
       - name: data_provider
         description: Provider that supplies the security.
         data_tests:

@@ -4,10 +4,11 @@ models:
   - name: dim_exchange
     description: Gold canonical exchange and market dimension from the latest ISO 10383 MIC registry snapshot.
     columns:
-      - name: exchange_id
-        description: Stable exchange dimension key, equal to the MIC.
+      - name: exchange_pk
+        description: Deterministic hashed primary key for one exchange or market.
         data_tests:
           - not_null
+          - unique
       - name: mic
         description: Market Identifier Code for the exchange or segment.
         data_tests:
@@ -84,13 +85,14 @@ models:
         data_tests:
           - not_null
 
-  - name: exchange_calendar
+  - name: dim_exchange_calendar
     description: Gold latest provider trading-hours calendar by schedule endpoint code.
     columns:
-      - name: exchange_calendar_id
-        description: Stable key for one latest exchange schedule row.
+      - name: exchange_calendar_pk
+        description: Deterministic hashed primary key for one latest exchange schedule row.
         data_tests:
           - not_null
+          - unique
       - name: data_provider
         description: Provider that supplied the exchange schedule.
         data_tests:
@@ -158,13 +160,14 @@ models:
         data_tests:
           - not_null
 
-  - name: exchange_holiday_calendar
+  - name: dim_exchange_holiday_calendar
     description: Gold latest provider holiday and early-close calendar by schedule endpoint code.
     columns:
-      - name: exchange_holiday_calendar_id
-        description: Stable key for one latest holiday or early-close row.
+      - name: exchange_holiday_calendar_pk
+        description: Deterministic hashed primary key for one latest holiday or early-close row.
         data_tests:
           - not_null
+          - unique
       - name: data_provider
         description: Provider that supplied the holiday row.
         data_tests:
@@ -210,13 +213,14 @@ models:
         data_tests:
           - not_null
 
-  - name: provider_code_mapping
+  - name: dim_provider_code_mapping
     description: Gold provider request-code mappings to self codes, MICs, and schedule endpoint codes.
     columns:
-      - name: provider_code_mapping_id
-        description: Stable key for one provider-code mapping row.
+      - name: provider_code_mapping_pk
+        description: Deterministic hashed primary key for one provider-code mapping row.
         data_tests:
           - not_null
+          - unique
       - name: data_provider
         description: Provider that owns the mapping.
         data_tests:

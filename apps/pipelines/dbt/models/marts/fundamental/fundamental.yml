@@ -1,13 +1,14 @@
 version: 2
 
 models:
-  - name: security_fundamental_profile
+  - name: dim_security_fundamental_profile
     description: Gold current fundamentals profile for securities that have provider fundamentals documents.
     columns:
-      - name: fundamental_profile_id
-        description: Stable key for one current provider security fundamentals profile.
+      - name: security_fundamental_profile_pk
+        description: Deterministic hashed primary key for one current provider security fundamentals profile.
         data_tests:
           - not_null
+          - unique
       - name: data_provider
         description: Provider that supplied the profile.
         data_tests:
@@ -147,13 +148,29 @@ models:
         data_tests:
           - not_null
 
-  - name: fundamental_metric_fact
+  - name: fct_fundamental_metric
     description: Gold long-form current fundamentals metric facts for stock and fund-like instruments.
     columns:
-      - name: fundamental_metric_fact_id
-        description: Stable key for one provider fundamentals metric fact.
+      - name: fundamental_metric_pk
+        description: Deterministic hashed primary key for one provider fundamentals metric fact.
         data_tests:
           - not_null
+          - unique
+      - name: security_pk
+        description: Foreign key to dim_security when the metric belongs to a tradable security.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_security')
+                field: security_pk
+      - name: data_provider
+        description: Provider that supplied the metric.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
       - name: snapshot_date
         description: Snapshot date for the fundamentals metric.
         data_tests:
@@ -184,14 +201,6 @@ models:
           - not_null
       - name: metric_date
         description: Provider metric date when supplied.
-      - name: data_provider
-        description: Provider that supplied the metric.
-        data_tests:
-          - not_null
-          - accepted_values:
-              arguments:
-                values:
-                  - eodhd
       - name: ingested_at
         description: Timestamp when the metric row was written to Bronze.
         data_tests:

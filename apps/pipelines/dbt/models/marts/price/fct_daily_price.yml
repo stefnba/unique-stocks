@@ -1,9 +1,29 @@
 version: 2
 
 models:
-  - name: daily_price
+  - name: fct_daily_price
     description: Gold daily price bars for app queries and downstream analytics.
     columns:
+      - name: daily_price_pk
+        description: Deterministic hashed primary key for one provider daily price bar.
+        data_tests:
+          - not_null
+          - unique
+      - name: security_pk
+        description: Foreign key to dim_security when the priced symbol is in the tradable security dimension.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_security')
+                field: security_pk
+      - name: data_provider
+        description: Provider that supplied the record.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
       - name: ticker
         description: Exchange-qualified ticker, such as AAPL.US.
         data_tests:
@@ -42,14 +62,6 @@ models:
         description: Reported trading volume for the trading date.
         data_tests:
           - not_null
-      - name: data_provider
-        description: Provider that supplied the record.
-        data_tests:
-          - not_null
-          - accepted_values:
-              arguments:
-                values:
-                  - eodhd
       - name: ingested_at
         description: Timestamp when the row was written to Bronze.
         data_tests:
