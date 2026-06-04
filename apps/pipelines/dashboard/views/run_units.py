@@ -10,8 +10,9 @@ from dashboard.filters import RunUnitFilters, render_run_unit_controls
 from dashboard.formatting import format_int
 from dashboard.loaders import load_run_units_overview_page
 from dashboard.routing import overview_href
-from dashboard.tables import frame, render_run_unit_overview_table, search_frame
+from dashboard.tables import frame, render_run_unit_overview_table, table_browser_frame
 from dashboard.views.common import load_or_show_error, render_cache_caption, render_page_header
+from dashboard.views.components import render_browse_limit_note
 
 _RUN_UNIT_SEARCH_COLUMNS = [
     "unit_id",
@@ -50,17 +51,24 @@ def render_run_units_page() -> None:
         st.info("No run units match the selected filters.")
         return
 
-    unit_frame = search_frame(
-        unit_frame,
-        query=filters["search"],
-        columns=_RUN_UNIT_SEARCH_COLUMNS,
-    )
-    if unit_frame.empty:
-        st.info("No run units match the search query.")
-        return
-
     st.subheader(f"{format_int(len(unit_frame))} run units")
-    render_run_unit_overview_table(unit_frame, key="run_units_overview")
+    render_browse_limit_note(page["recent_units"], limit=filters["recent_limit"], label="run units")
+    visible_units = table_browser_frame(
+        unit_frame,
+        key="run_units_overview",
+        label="run units",
+        filter_column="status",
+        filter_label="Status",
+        filter_default=filters["status_filter"],
+        search_columns=_RUN_UNIT_SEARCH_COLUMNS,
+        search_placeholder="Unit id, key, hash, reason, source URI, or error",
+    )
+    if visible_units.empty:
+        return
+    render_run_unit_overview_table(
+        visible_units,
+        key="run_units_overview",
+    )
 
 
 def _load_run_units(filters: RunUnitFilters) -> dict[str, Any] | None:
@@ -69,7 +77,7 @@ def _load_run_units(filters: RunUnitFilters) -> dict[str, Any] | None:
         lambda: load_run_units_overview_page(
             since_iso=filters["since"].isoformat(),
             domains=tuple(filters["domains"]),
-            statuses=tuple(filters["statuses"]),
+            statuses=(),
             run_id=filters["run_id"],
             recent_limit=int(filters["recent_limit"]),
         ),

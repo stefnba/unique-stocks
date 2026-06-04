@@ -12,11 +12,13 @@ from dashboard.constants import (
     FLOAT_TABLE_COLUMNS,
     INTEGER_TABLE_COLUMNS,
     LINK_COLUMN_LABEL_PATTERN,
+    TABLE_PAGE_SIZE_OPTIONS,
     UNIT_ATTENTION_STATUSES,
 )
 from dashboard.formatting import (
     format_datetime,
     format_duration,
+    format_int,
     format_json_compact,
     format_key_value,
     humanize_column,
@@ -30,6 +32,43 @@ from dashboard.routing import (
     run_detail_href,
     run_unit_preview_href,
     unit_detail_href,
+)
+
+_TABLE_HEADER_HEIGHT = 38
+_TABLE_ROW_HEIGHT = 34
+_MIN_VISIBLE_TABLE_ROWS = 3
+_MAX_VISIBLE_TABLE_ROWS = 14
+
+_SMALL_TEXT_COLUMNS = frozenset(
+    {
+        "domain",
+        "provider",
+        "queue",
+        "reason",
+        "run_kind",
+        "status",
+        "unit_type",
+    }
+)
+_MEDIUM_TEXT_COLUMNS = frozenset(
+    {
+        "completed_at",
+        "content_hash",
+        "dataset",
+        "error_class",
+        "flow_name",
+        "recorded_at",
+        "started_at",
+    }
+)
+_LARGE_TEXT_COLUMNS = frozenset(
+    {
+        "error_message",
+        "partition_json",
+        "raw_sample_json",
+        "source_uri",
+        "unit_key",
+    }
 )
 
 
@@ -75,14 +114,220 @@ def table_column_config(table: pd.DataFrame, *, extra: dict[str, Any] | None = N
         if column in config:
             continue
         if column in INTEGER_TABLE_COLUMNS:
-            config[column] = st.column_config.NumberColumn(humanize_column(column), format="%,d")
+            config[column] = st.column_config.NumberColumn(humanize_column(column), format="%,d", width="small")
         elif column in FLOAT_TABLE_COLUMNS:
-            config[column] = st.column_config.NumberColumn(humanize_column(column), format="%,.2f")
+            config[column] = st.column_config.NumberColumn(humanize_column(column), format="%,.2f", width="small")
         elif is_status_column(column):
             config[column] = st.column_config.TextColumn(humanize_column(column), width="small")
         else:
-            config[column] = st.column_config.TextColumn(humanize_column(column))
+            config[column] = text_column_config(column)
     return config
+
+
+def text_column_config(column: object) -> Any:
+    """Build a width-aware text column configuration.
+
+    Args:
+        column: Dataframe column label.
+
+    Returns:
+        Streamlit text column config sized for common audit fields.
+    """
+    column_name = str(column)
+    if column_name in _SMALL_TEXT_COLUMNS:
+        return st.column_config.TextColumn(humanize_column(column), width="small")
+    if column_name in _MEDIUM_TEXT_COLUMNS:
+        return st.column_config.TextColumn(humanize_column(column), width="medium")
+    if column_name in _LARGE_TEXT_COLUMNS:
+        return st.column_config.TextColumn(humanize_column(column), width="large")
+    return st.column_config.TextColumn(humanize_column(column))
+
+
+def table_height(table: pd.DataFrame) -> int:
+    """Return a bounded dataframe height that avoids page-size controls.
+
+    Args:
+        table: Display dataframe.
+
+    Returns:
+        Pixel height for Streamlit's scrollable dataframe canvas.
+    """
+    visible_rows = min(max(len(table.index), _MIN_VISIBLE_TABLE_ROWS), _MAX_VISIBLE_TABLE_ROWS)
+    return _TABLE_HEADER_HEIGHT + (_TABLE_ROW_HEIGHT * visible_rows)
+
+
+def paginated_frame(source: pd.DataFrame, *, key: str, label: str) -> pd.DataFrame:
+    """Render pagination controls and return the selected frame slice.
+
+    Args:
+        source: Filtered dataframe to paginate.
+        key: Unique Streamlit key prefix for pagination controls.
+        label: Human-readable row label such as ``runs``.
+
+    Returns:
+        Current page of ``source``.
+    """
+    if source.empty or len(source.index) <= min(TABLE_PAGE_SIZE_OPTIONS):
+        return source
+
+    page_size_column, page_column, range_column = st.columns([1, 1, 3])
+    page_size = int(
+        cast(
+            int,
+            page_size_column.selectbox(
+                "Page size",
+                options=list(TABLE_PAGE_SIZE_OPTIONS),
+                index=1,
+                key=f"{key}_page_size",
+            ),
+        )
+    )
+    page_count = max(1, (len(source.index) + page_size - 1) // page_size)
+    page_key = f"{key}_page"
+    current_page = page_state_value(st.session_state.get(page_key, 1))
+    if current_page > page_count:
+        st.session_state[page_key] = page_count
+        current_page = page_count
+
+    page = int(
+        cast(
+            int,
+            page_column.selectbox(
+                "Page",
+                options=list(range(1, page_count + 1)),
+                index=current_page - 1,
+                format_func=lambda value: f"{value} of {page_count}",
+                key=page_key,
+            ),
+        )
+    )
+    start = (page - 1) * page_size
+    end = min(start + page_size, len(source.index))
+    range_column.caption(
+        f"Showing {format_int(start + 1)}-{format_int(end)} of {format_int(len(source.index))} {label}."
+    )
+    return cast(pd.DataFrame, source.iloc[start:end].copy())
+
+
+def table_browser_frame(
+    source: pd.DataFrame,
+    *,
+    key: str,
+    label: str,
+    filter_column: str,
+    filter_label: str,
+    search_columns: list[str],
+    search_placeholder: str,
+    filter_default: str | None = None,
+) -> pd.DataFrame:
+    """Render compact browser controls and return the filtered page.
+
+    Args:
+        source: Dataframe after page-level scope filters.
+        key: Unique Streamlit key prefix for controls.
+        label: Human-readable row label such as ``runs``.
+        filter_column: Column used for the table's relevant dropdown filter.
+        filter_label: Human-readable filter label.
+        search_columns: Columns included in text search.
+        search_placeholder: Placeholder for the search input.
+        filter_default: Optional initial filter value from query params.
+
+    Returns:
+        Current page after dropdown filtering, search, and pagination.
+    """
+    if source.empty:
+        return source
+
+    filter_column_ui, search_column_ui, page_size_column, page_column, range_column = st.columns([1.3, 2.7, 1, 1, 2])
+
+    filtered = source
+    options = _filter_options(source, column=filter_column)
+    if options:
+        all_label = f"All {filter_label.lower()}"
+        filter_options = [all_label, *options]
+        filter_index = filter_options.index(filter_default) if filter_default in filter_options else 0
+        selected_filter = str(
+            filter_column_ui.selectbox(
+                filter_label,
+                options=filter_options,
+                index=filter_index,
+                key=f"{key}_filter",
+            )
+        )
+        if selected_filter != all_label:
+            filtered = filter_frame_by_values(filtered, column=filter_column, values=[selected_filter])
+    else:
+        filter_column_ui.caption(f"No {filter_label.lower()} values")
+
+    search_query = str(
+        search_column_ui.text_input(
+            "Search",
+            placeholder=search_placeholder,
+            key=f"{key}_search",
+        )
+    ).strip()
+    filtered = search_frame(filtered, query=search_query, columns=search_columns)
+    if filtered.empty:
+        st.info(f"No {label} match the table controls.")
+        return filtered
+
+    page_size = int(
+        cast(
+            int,
+            page_size_column.selectbox(
+                "Page size",
+                options=list(TABLE_PAGE_SIZE_OPTIONS),
+                index=1,
+                key=f"{key}_page_size",
+            ),
+        )
+    )
+    page_count = max(1, (len(filtered.index) + page_size - 1) // page_size)
+    page_key = f"{key}_page"
+    current_page = page_state_value(st.session_state.get(page_key, 1))
+    if current_page > page_count:
+        st.session_state[page_key] = page_count
+        current_page = page_count
+    page = int(
+        cast(
+            int,
+            page_column.selectbox(
+                "Page",
+                options=list(range(1, page_count + 1)),
+                index=current_page - 1,
+                format_func=lambda value: f"{value} of {page_count}",
+                key=page_key,
+            ),
+        )
+    )
+    start = (page - 1) * page_size
+    end = min(start + page_size, len(filtered.index))
+    range_column.caption(
+        f"Showing {format_int(start + 1)}-{format_int(end)} of {format_int(len(filtered.index))} {label}."
+    )
+    return cast(pd.DataFrame, filtered.iloc[start:end].copy())
+
+
+def page_state_value(value: object) -> int:
+    """Parse a Streamlit page widget value into a one-based page number.
+
+    Args:
+        value: Session-state value, which may be an int or an old formatted label
+            such as ``1 of 5``.
+
+    Returns:
+        Positive one-based page number.
+    """
+    if isinstance(value, int):
+        return max(1, value)
+    text = str(value or "").strip()
+    if not text:
+        return 1
+    first_token = text.split(maxsplit=1)[0]
+    try:
+        return max(1, int(first_token))
+    except ValueError:
+        return 1
 
 
 def is_status_column(column: object) -> bool:
@@ -492,8 +737,11 @@ def render_run_unit_overview_table(source: pd.DataFrame, *, key: str) -> None:
     st.dataframe(
         styled_table(table),
         width="stretch",
+        height=table_height(table),
         hide_index=True,
         key=key,
+        row_height=_TABLE_ROW_HEIGHT,
+        placeholder="-",
         column_config=table_column_config(
             table,
             extra={
@@ -524,8 +772,11 @@ def render_landing_object_overview_table(source: pd.DataFrame, *, key: str) -> N
     st.dataframe(
         styled_table(table),
         width="stretch",
+        height=table_height(table),
         hide_index=True,
         key=key,
+        row_height=_TABLE_ROW_HEIGHT,
+        placeholder="-",
         column_config=table_column_config(
             table,
             extra={
@@ -556,8 +807,11 @@ def _render_compact_run_table(source: pd.DataFrame, *, key: str, caption: str | 
     st.dataframe(
         styled_table(table),
         width="stretch",
+        height=table_height(table),
         hide_index=True,
         key=key,
+        row_height=_TABLE_ROW_HEIGHT,
+        placeholder="-",
         column_config=table_column_config(
             table,
             extra={
@@ -587,10 +841,13 @@ def render_unit_table(source: pd.DataFrame, *, run_id: str, key: str) -> str | N
     state = st.dataframe(
         styled_table(table),
         width="stretch",
+        height=table_height(table),
         hide_index=True,
         key=key,
         on_select="rerun",
         selection_mode="single-row",
+        row_height=_TABLE_ROW_HEIGHT,
+        placeholder="-",
         column_config=table_column_config(
             table,
             extra={
@@ -630,7 +887,10 @@ def render_compact_dataframe(source: pd.DataFrame, *, columns: list[str]) -> Non
     st.dataframe(
         styled_table(table),
         width="stretch",
+        height=table_height(table),
         hide_index=True,
+        row_height=_TABLE_ROW_HEIGHT,
+        placeholder="-",
         column_config=table_column_config(table),
     )
 
@@ -652,6 +912,22 @@ def filter_frame_by_values(source: pd.DataFrame, *, column: str, values: list[st
         return cast(pd.DataFrame, source.iloc[0:0].copy())
     mask = source[column].astype("string").isin(values)
     return cast(pd.DataFrame, source.loc[mask].copy())
+
+
+def _filter_options(source: pd.DataFrame, *, column: str) -> list[str]:
+    """Return non-empty dropdown options for a dataframe column.
+
+    Args:
+        source: Input dataframe.
+        column: Column to inspect.
+
+    Returns:
+        Unique values in dataframe order, converted to strings.
+    """
+    if column not in source.columns:
+        return []
+    values = source[column].dropna().astype("string").drop_duplicates().tolist()
+    return [str(value) for value in values if str(value).strip() and str(value) != "<NA>"]
 
 
 def search_frame(source: pd.DataFrame, *, query: str, columns: list[str]) -> pd.DataFrame:

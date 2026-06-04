@@ -37,6 +37,18 @@ def render_limit_note(rows: list[dict[str, Any]], *, limit: int, label: str) -> 
         st.caption(f"Showing first {format_int(limit)} {label}. Narrow the scope if you need the rest.")
 
 
+def render_browse_limit_note(rows: list[dict[str, Any]], *, limit: int, label: str) -> None:
+    """Render a caption when a browser page hits its fixed result cap.
+
+    Args:
+        rows: Loaded browser rows.
+        limit: Fixed result cap for the page.
+        label: Human-readable result type such as ``runs``.
+    """
+    if len(rows) >= limit:
+        st.caption(f"Result set is capped at {format_int(limit)} {label}.")
+
+
 def render_run_status_callout(run: dict[str, Any]) -> None:
     """Render a prominent status banner for one pipeline run.
 

@@ -10,13 +10,14 @@ from dashboard.filters import RunFilters, render_run_controls
 from dashboard.formatting import format_int
 from dashboard.loaders import load_runs_page
 from dashboard.routing import overview_href
-from dashboard.tables import frame, render_run_table, search_frame
+from dashboard.tables import frame, render_run_table, table_browser_frame
 from dashboard.views.common import (
     lake_ready,
     load_or_show_error,
     render_cache_caption,
     render_page_header,
 )
+from dashboard.views.components import render_browse_limit_note
 
 _RUN_SEARCH_COLUMNS = [
     "run_id",
@@ -49,17 +50,21 @@ def render_runs_page() -> None:
         st.info("No runs match the selected filters.")
         return
 
-    runs_frame = search_frame(
-        runs_frame,
-        query=filters["search"],
-        columns=_RUN_SEARCH_COLUMNS,
-    )
-    if runs_frame.empty:
-        st.info("No runs match the search query.")
-        return
-
     st.subheader(f"{format_int(len(runs_frame))} runs")
-    render_run_table(runs_frame, key="runs_overview")
+    render_browse_limit_note(page["recent_runs"], limit=filters["recent_limit"], label="runs")
+    visible_runs = table_browser_frame(
+        runs_frame,
+        key="runs_overview",
+        label="runs",
+        filter_column="status",
+        filter_label="Status",
+        filter_default=filters["status_filter"],
+        search_columns=_RUN_SEARCH_COLUMNS,
+        search_placeholder="Run id, flow, domain, provider, error, or message",
+    )
+    if visible_runs.empty:
+        return
+    render_run_table(visible_runs, key="runs_overview")
 
 
 def _load_runs(filters: RunFilters) -> dict[str, Any] | None:
@@ -68,7 +73,7 @@ def _load_runs(filters: RunFilters) -> dict[str, Any] | None:
         lambda: load_runs_page(
             since_iso=filters["since"].isoformat(),
             domains=tuple(filters["domains"]),
-            statuses=tuple(filters["statuses"]),
+            statuses=(),
             recent_limit=int(filters["recent_limit"]),
         ),
         error_label="Runs",

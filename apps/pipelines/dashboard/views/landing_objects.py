@@ -17,9 +17,14 @@ from dashboard.formatting import (
 )
 from dashboard.loaders import load_landing_object_page, load_landing_objects_overview_page
 from dashboard.routing import landing_objects_href, overview_href, run_detail_href, unit_detail_href
-from dashboard.tables import frame, render_landing_object_overview_table, search_frame
+from dashboard.tables import frame, render_landing_object_overview_table, table_browser_frame
 from dashboard.views.common import load_or_show_error, render_cache_caption, render_page_header
-from dashboard.views.components import render_key_fields, render_run_status_callout, render_unit_status_callout
+from dashboard.views.components import (
+    render_browse_limit_note,
+    render_key_fields,
+    render_run_status_callout,
+    render_unit_status_callout,
+)
 
 _LANDING_OBJECT_SEARCH_COLUMNS = [
     "landing_id",
@@ -55,17 +60,27 @@ def render_landing_objects_page() -> None:
         st.info("No landing objects match the selected filters.")
         return
 
-    landing_frame = search_frame(
-        landing_frame,
-        query=filters["search"],
-        columns=_LANDING_OBJECT_SEARCH_COLUMNS,
-    )
-    if landing_frame.empty:
-        st.info("No landing objects match the search query.")
-        return
-
     st.subheader(f"{format_int(len(landing_frame))} landing objects")
-    render_landing_object_overview_table(landing_frame, key="landing_objects_overview")
+    render_browse_limit_note(
+        page["recent_landing_objects"],
+        limit=filters["recent_limit"],
+        label="landing objects",
+    )
+    visible_landing_objects = table_browser_frame(
+        landing_frame,
+        key="landing_objects_overview",
+        label="landing objects",
+        filter_column="dataset",
+        filter_label="Dataset",
+        search_columns=_LANDING_OBJECT_SEARCH_COLUMNS,
+        search_placeholder="Landing id, dataset, provider, source URI, hash, or partition",
+    )
+    if visible_landing_objects.empty:
+        return
+    render_landing_object_overview_table(
+        visible_landing_objects,
+        key="landing_objects_overview",
+    )
 
 
 def render_landing_object_detail_page(landing_id: str | None) -> None:

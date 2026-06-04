@@ -8,9 +8,9 @@ from typing import TypedDict, cast
 import streamlit as st
 from streamlit.delta_generator import DeltaGenerator
 
-from dashboard.constants import UNIT_STATUSES
+from dashboard.constants import LANDING_OBJECT_BROWSER_LIMIT, RUN_BROWSER_LIMIT, RUN_UNIT_BROWSER_LIMIT
 from dashboard.formatting import format_window
-from dashboard.queries import DEFAULT_DASHBOARD_DOMAINS, RUN_STATUSES
+from dashboard.queries import DEFAULT_DASHBOARD_DOMAINS
 from dashboard.routing import query_param
 
 WINDOW_HOUR_OPTIONS = (24, 72, 168, 336, 720)
@@ -31,9 +31,8 @@ class RunFilters(TypedDict):
 
     since: datetime
     domains: list[str]
-    statuses: list[str]
     recent_limit: int
-    search: str
+    status_filter: str | None
 
 
 class RunUnitFilters(TypedDict):
@@ -41,10 +40,9 @@ class RunUnitFilters(TypedDict):
 
     since: datetime
     domains: list[str]
-    statuses: list[str]
     recent_limit: int
     run_id: str | None
-    search: str
+    status_filter: str | None
 
 
 class LandingObjectFilters(TypedDict):
@@ -55,7 +53,6 @@ class LandingObjectFilters(TypedDict):
     recent_limit: int
     run_id: str | None
     unit_id: str | None
-    search: str
 
 
 def domains_from_label(label: str) -> list[str]:
@@ -92,39 +89,15 @@ def render_run_controls() -> RunFilters:
     status_default = query_param("status")
 
     with st.container(border=True):
-        window_column, domain_column, status_column, limit_column = st.columns([1, 2, 2, 1])
+        window_column, domain_column = st.columns([1, 2])
         window_hours = _select_window(window_column, key="runs_window")
         focus_domain = _select_domain(domain_column, key="runs_domain", default=domain_default)
-        status_scope = _select_status(
-            status_column,
-            key="runs_status",
-            options=[ALL_STATUSES_LABEL, *list(RUN_STATUSES)],
-            default=status_default,
-        )
-        recent_limit = int(
-            limit_column.slider(
-                "Rows",
-                min_value=25,
-                max_value=500,
-                value=150,
-                step=25,
-                key="runs_rows",
-            )
-        )
-        search = str(
-            st.text_input(
-                "Search",
-                placeholder="Run id, flow, domain, provider, error, or message",
-                key="runs_search",
-            )
-        ).strip()
 
     return {
         "since": now - timedelta(hours=window_hours),
         "domains": domains_from_label(focus_domain),
-        "statuses": [] if status_scope == ALL_STATUSES_LABEL else [status_scope],
-        "recent_limit": recent_limit,
-        "search": search,
+        "recent_limit": RUN_BROWSER_LIMIT,
+        "status_filter": status_default,
     }
 
 
@@ -153,102 +126,64 @@ def render_run_unit_controls() -> RunUnitFilters:
     now = datetime.now(UTC)
     domain_default = query_param("domain")
     status_default = query_param("status")
+    run_id_default = query_param("run_id") or ""
     with st.container(border=True):
-        window_column, domain_column, status_column, limit_column = st.columns([1, 2, 2, 1])
+        window_column, domain_column = st.columns([1, 2])
         window_hours = _select_window(window_column, key="run_units_window")
         focus_domain = _select_domain(domain_column, key="run_units_domain", default=domain_default)
-        status_scope = _select_status(
-            status_column,
-            key="run_units_status",
-            options=[ALL_STATUSES_LABEL, *list(UNIT_STATUSES)],
-            default=status_default,
-        )
-        recent_limit = int(
-            limit_column.slider(
-                "Rows",
-                min_value=25,
-                max_value=500,
-                value=150,
-                step=25,
-                key="run_units_rows",
-            )
-        )
-        run_column, search_column = st.columns([2, 3])
-        run_id = str(
-            run_column.text_input(
-                "Run ID",
-                value=query_param("run_id") or "",
-                placeholder="Optional parent run id",
-                key="run_units_run_id",
-            )
-        ).strip()
-        search = str(
-            search_column.text_input(
-                "Search",
-                placeholder="Unit id, key, hash, reason, source URI, or error",
-                key="run_units_search",
-            )
-        ).strip()
+        with st.expander("Advanced filters", expanded=bool(run_id_default)):
+            run_id = str(
+                st.text_input(
+                    "Run ID",
+                    value=run_id_default,
+                    placeholder="Optional parent run id",
+                    key="run_units_run_id",
+                )
+            ).strip()
 
     return {
         "since": now - timedelta(hours=window_hours),
         "domains": domains_from_label(focus_domain),
-        "statuses": [] if status_scope == ALL_STATUSES_LABEL else [status_scope],
-        "recent_limit": recent_limit,
+        "recent_limit": RUN_UNIT_BROWSER_LIMIT,
         "run_id": run_id or None,
-        "search": search,
+        "status_filter": status_default,
     }
 
 
 def render_landing_object_controls() -> LandingObjectFilters:
     """Render landing-object browser filters and return normalized values."""
     now = datetime.now(UTC)
+    run_id_default = query_param("run_id") or ""
+    unit_id_default = query_param("unit_id") or ""
     with st.container(border=True):
-        window_column, domain_column, limit_column = st.columns([1, 2, 1])
+        window_column, domain_column = st.columns([1, 2])
         window_hours = _select_window(window_column, key="landing_objects_window")
         focus_domain = _select_domain(domain_column, key="landing_objects_domain", default=query_param("domain"))
-        recent_limit = int(
-            limit_column.slider(
-                "Rows",
-                min_value=25,
-                max_value=500,
-                value=150,
-                step=25,
-                key="landing_objects_rows",
-            )
-        )
-        run_column, unit_column, search_column = st.columns([2, 2, 3])
-        run_id = str(
-            run_column.text_input(
-                "Run ID",
-                value=query_param("run_id") or "",
-                placeholder="Optional run id",
-                key="landing_objects_run_id",
-            )
-        ).strip()
-        unit_id = str(
-            unit_column.text_input(
-                "Unit ID",
-                value=query_param("unit_id") or "",
-                placeholder="Optional unit id",
-                key="landing_objects_unit_id",
-            )
-        ).strip()
-        search = str(
-            search_column.text_input(
-                "Search",
-                placeholder="Landing id, dataset, provider, source URI, hash, or partition",
-                key="landing_objects_search",
-            )
-        ).strip()
+        with st.expander("Advanced filters", expanded=bool(run_id_default or unit_id_default)):
+            run_column, unit_column = st.columns(2)
+            run_id = str(
+                run_column.text_input(
+                    "Run ID",
+                    value=run_id_default,
+                    placeholder="Optional run id",
+                    key="landing_objects_run_id",
+                )
+            ).strip()
+            unit_id = str(
+                unit_column.text_input(
+                    "Unit ID",
+                    value=unit_id_default,
+                    placeholder="Optional unit id",
+                    key="landing_objects_unit_id",
+                )
+            ).strip()
 
     return {
         "since": now - timedelta(hours=window_hours),
         "domains": domains_from_label(focus_domain),
-        "recent_limit": recent_limit,
+        "recent_limit": LANDING_OBJECT_BROWSER_LIMIT,
         "run_id": run_id or None,
         "unit_id": unit_id or None,
-        "search": search,
     }
 
 
