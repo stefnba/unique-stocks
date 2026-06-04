@@ -127,6 +127,21 @@ def _raw_stock_payload() -> FundamentalRaw:
     )
 
 
+def _stub_snapshot_resolver(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    snapshot_date: date = SNAPSHOT_DATE,
+    source: str = "explicit",
+) -> None:
+    """Patch the Prefect task wrapper so unit tests stay hermetic."""
+
+    def fake_resolve(**kwargs: object) -> dict[str, str]:
+        _ = kwargs
+        return {"snapshot_date": snapshot_date.isoformat(), "source": source}
+
+    monkeypatch.setattr(tasks, "resolve_fundamental_snapshot_date_task", fake_resolve)
+
+
 @pytest.mark.asyncio
 async def test_continue_ingestion_batch_uses_resolved_snapshot_date(monkeypatch: pytest.MonkeyPatch) -> None:
     """Backfill continuation keeps one bronze partition across multi-day reruns."""
@@ -166,6 +181,7 @@ async def test_fundamental_flow_uses_provider_universe_for_default_tickers(monke
         return []
 
     monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
+    _stub_snapshot_resolver(monkeypatch)
     monkeypatch.setattr(flows, "fetch_fundamental_provider_exchange_codes", fetch_codes)
     monkeypatch.setattr(flows, "load_fundamental_stock_tickers", load_tickers)
 
@@ -192,6 +208,7 @@ async def test_skip_existing_false_uses_changed_payload_refresh(monkeypatch: pyt
         raise AssertionError("unchanged refresh should not land, delete, or write")
 
     monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
+    _stub_snapshot_resolver(monkeypatch)
     monkeypatch.setattr(flows, "fetch_fundamental_ticker", fetch)
     monkeypatch.setattr(flows, "parse_fundamental_stock", tasks.parse_fundamental_stock.fn)
     monkeypatch.setattr(flows, "load_fundamental_document_payload_hash", lambda *_: payload_hash)
@@ -263,6 +280,7 @@ async def test_replay_landing_uses_landed_json_without_provider_fetch(monkeypatc
         return BronzeWrite(rows_written=0, reason="empty")
 
     monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
+    _stub_snapshot_resolver(monkeypatch)
     monkeypatch.setattr(flows, "fundamental_document_already_ingested", lambda *_: False)
     monkeypatch.setattr(flows, "fetch_fundamental_ticker", fail_fetch)
     monkeypatch.setattr(flows, "load_fundamental_from_landing", load_landing)
@@ -323,6 +341,7 @@ async def test_provider_credit_budget_skips_tickers_before_fetch(monkeypatch: py
         raise AssertionError("unchanged refresh should not land, delete, or write")
 
     monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
+    _stub_snapshot_resolver(monkeypatch)
     monkeypatch.setattr(flows, "fetch_fundamental_ticker", fetch)
     monkeypatch.setattr(flows, "parse_fundamental_stock", tasks.parse_fundamental_stock.fn)
     monkeypatch.setattr(flows, "load_fundamental_document_payload_hash", lambda *_: payload_hash)
@@ -372,6 +391,7 @@ async def test_fundamental_flow_defers_remaining_tickers_after_provider_rate_lim
         raise AssertionError("unchanged or deferred tickers should not land, delete, or write")
 
     monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
+    _stub_snapshot_resolver(monkeypatch)
     monkeypatch.setattr(flows, "fundamental_document_already_ingested", lambda *_: False)
     monkeypatch.setattr(flows, "fetch_fundamental_ticker", fetch)
     monkeypatch.setattr(flows, "parse_fundamental_stock", tasks.parse_fundamental_stock.fn)

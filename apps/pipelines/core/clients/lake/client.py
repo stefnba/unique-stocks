@@ -56,6 +56,7 @@ class DataLakeClient:
         connection: duckdb.DuckDBPyConnection | None = None,
         schemas: Sequence[str] = _DEFAULT_SCHEMAS,
         read_only: bool = False,
+        ensure_database: bool = True,
         parallel_workers: int = 8,
         threads: int | None = None,
         config: Mapping[str, DuckDBConfigValue] | None = None,
@@ -64,6 +65,7 @@ class DataLakeClient:
         self.connection_string = connection_string
         self.schemas = tuple(schemas)
         self.read_only = read_only
+        self.ensure_database = ensure_database
         self.parallel_workers = parallel_workers
         self.threads = threads
         self.config = dict(config or {})
@@ -205,7 +207,8 @@ class DataLakeClient:
         if self.connection_string:
             conn_str = self.connection_string
         else:
-            ensure_lake_database(settings)
+            if self.ensure_database:
+                ensure_lake_database(settings)
             if settings.lake_backend() == "motherduck":
                 conn_str = motherduck_connection_string(
                     database_name=settings.motherduck_database_name,
@@ -289,6 +292,7 @@ class DataLakeClient:
             connection_string=self.connection_string,
             schemas=self.schemas,
             read_only=self.read_only,
+            ensure_database=self.ensure_database,
             parallel_workers=self.parallel_workers,
             threads=self.threads,
             config=self.config,

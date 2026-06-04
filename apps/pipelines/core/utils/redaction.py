@@ -12,7 +12,8 @@ SENSITIVE_KEY_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"credential|motherduck[_-]?token|secret|password|token)"
 )
 SENSITIVE_QUERY_PARAM_PATTERN: Final[re.Pattern[str]] = re.compile(
-    r"(?i)([?&](?:api[_-]?key|api[_-]?token|apikey|access[_-]?token|auth[_-]?token|token|secret|password)=)"
+    r"(?i)([?&](?:api[_-]?key|api[_-]?token|apikey|access[_-]?token|auth[_-]?token|"
+    r"motherduck[_-]?token|token|secret|password)=)"
     r"([^&#\s\"']*)"
 )
 

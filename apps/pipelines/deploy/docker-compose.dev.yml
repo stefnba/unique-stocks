@@ -29,6 +29,37 @@ services:
     volumes:
       - pipelines-lake:/app/lake-data
 
+  pipelines-migrator:
+    env_file:
+      - path: ../.env
+        required: false
+    environment:
+      ENVIRONMENT: docker_dev
+      LAKE_NAME: unique_stocks
+      LOCAL_LAKE_PATH: /app/lake-data/unique_stocks.duckdb
+      PIPELINE_LOG_FORMAT: console
+      PIPELINE_LOG_LEVEL: INFO
+    volumes:
+      - pipelines-lake:/app/lake-data
+
+  pipelines-operational-health:
+    env_file:
+      - path: ../.env
+        required: false
+    environment:
+      ENVIRONMENT: docker_dev
+      LAKE_NAME: unique_stocks
+      LOCAL_LAKE_PATH: /app/lake-data/unique_stocks.duckdb
+      PIPELINE_LOG_FORMAT: console
+      PIPELINE_LOG_LEVEL: INFO
+      OPERATIONAL_HEALTH_RECENT_DOMAINS: ${OPERATIONAL_HEALTH_RECENT_DOMAINS:-}
+      OPERATIONAL_HEALTH_RECENT_HOURS: ${OPERATIONAL_HEALTH_RECENT_HOURS:-36}
+      OPERATIONAL_HEALTH_STALE_RUNNING_HOURS: ${OPERATIONAL_HEALTH_STALE_RUNNING_HOURS:-2}
+      OPERATIONAL_HEALTH_LAKE_READ_ONLY: ${OPERATIONAL_HEALTH_LAKE_READ_ONLY:-auto}
+    restart: unless-stopped
+    volumes:
+      - pipelines-lake:/app/lake-data
+
   pipelines-dashboard:
     env_file:
       - path: ../.env

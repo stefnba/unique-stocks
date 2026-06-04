@@ -73,3 +73,60 @@ def test_recent_domain_runs_requires_each_configured_domain() -> None:
 
     assert rows["eod_price"] is recent["eod_price"]
     assert rows["fundamental"] is None
+
+
+def test_configured_recent_domains_uses_cli_values(monkeypatch: Any) -> None:
+    """CLI domains should override monitor environment defaults."""
+    monkeypatch.setenv("OPERATIONAL_HEALTH_RECENT_DOMAINS", "fundamental")
+
+    domains = check_operational_health.configured_recent_domains([" eod_price ", ""])
+
+    assert domains == ["eod_price"]
+
+
+def test_configured_recent_domains_uses_environment(monkeypatch: Any) -> None:
+    """The deployed healthcheck can configure freshness domains through env vars."""
+    monkeypatch.setenv("OPERATIONAL_HEALTH_RECENT_DOMAINS", "eod_price, fundamental exchange")
+
+    domains = check_operational_health.configured_recent_domains(None)
+
+    assert domains == ["eod_price", "fundamental", "exchange"]
+
+
+def test_operational_lake_read_only_defaults_to_false_for_motherduck_token(monkeypatch: Any) -> None:
+    """Regular MotherDuck tokens cannot be opened with DuckDB read_only=True."""
+    monkeypatch.setenv("MOTHERDUCK_TOKEN", "token")
+    monkeypatch.delenv("OPERATIONAL_HEALTH_LAKE_READ_ONLY", raising=False)
+
+    assert check_operational_health.operational_lake_read_only() is False
+
+
+def test_operational_lake_read_only_can_be_forced_for_read_scaling_token(monkeypatch: Any) -> None:
+    """Operators with a read-scaling token can force a read-only MotherDuck connection."""
+    monkeypatch.setenv("MOTHERDUCK_TOKEN", "token")
+    monkeypatch.setenv("OPERATIONAL_HEALTH_LAKE_READ_ONLY", "true")
+
+    assert check_operational_health.operational_lake_read_only() is True
+
+
+def test_main_reports_redacted_lake_error_detail(monkeypatch: Any, capsys: Any) -> None:
+    """Operational alerts should include useful lake errors without leaking tokens."""
+
+    class FailingLake:
+        """Lake double that fails on construction like a connection error."""
+
+        def __init__(self, *_: object, **__: object) -> None:
+            """Raise a connection-style error containing a sensitive query param."""
+            raise RuntimeError("connect failed for md:unique_stocks?motherduck_token=secret-token")
+
+    monkeypatch.setenv("PREFECT_API_URL", "http://prefect.example/api")
+    monkeypatch.setattr(check_operational_health, "prefect_api_is_healthy", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(check_operational_health, "DataLakeClient", FailingLake)
+
+    exit_code = check_operational_health.main([])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "RuntimeError: connect failed" in captured.err
+    assert "secret-token" not in captured.err
+    assert "motherduck_token=[redacted]" in captured.err

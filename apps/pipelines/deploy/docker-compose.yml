@@ -5,6 +5,19 @@
 
 name: unique-stocks
 
+x-pipelines-worker-build: &pipelines-worker-build
+  context: ..
+  dockerfile: deploy/Dockerfile
+  args:
+    GIT_SHA: ${GIT_SHA:-}
+
+x-pipelines-runtime-environment: &pipelines-runtime-environment
+  PREFECT_API_URL: http://pipelines-server:4200/api
+  PREFECT_WORK_DIR: /app
+  PREFECT_LOGGING_EXTRA_LOGGERS: core,domains,providers,config,scripts
+  PREFECT_LOGGING_LOG_PRINTS: "False"
+  GIT_SHA: ${GIT_SHA:-}
+
 services:
 
   # ── Prefect server (API + UI) ──────────────────────────────────────────────
@@ -45,28 +58,34 @@ services:
       retries: 10
 
   # ── Pipelines worker ───────────────────────────────────────────────────────
-  pipelines-worker:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile
-      args:
-        GIT_SHA: ${GIT_SHA:-}
+  pipelines-migrator:
+    build: *pipelines-worker-build
     environment:
-      PREFECT_API_URL: http://pipelines-server:4200/api
-      PREFECT_WORK_DIR: /app
-      PREFECT_LOGGING_EXTRA_LOGGERS: core,domains,providers,config,scripts
-      PREFECT_LOGGING_LOG_PRINTS: "False"
-      GIT_SHA: ${GIT_SHA:-}
+      <<: *pipelines-runtime-environment
+    command:
+      [
+        "uv",
+        "run",
+        "--no-dev",
+        "--frozen",
+        "python",
+        "-m",
+        "core.lake.migration.migrate",
+        "--migrations-dir",
+        "lake/migrations",
+      ]
+    restart: "no"
+
+  pipelines-worker:
+    build: *pipelines-worker-build
+    environment:
+      <<: *pipelines-runtime-environment
     depends_on:
       pipelines-server:
         condition: service_healthy
-    command:
-      - sh
-      - -lc
-      - |
-        set -e
-        uv run --no-dev --frozen python -m core.lake.migration.migrate --migrations-dir lake/migrations
-        exec uv run --no-dev --frozen prefect worker start --pool default-process-pool
+      pipelines-migrator:
+        condition: service_completed_successfully
+    command: ["uv", "run", "--no-dev", "--frozen", "prefect", "worker", "start", "--pool", "default-process-pool"]
     healthcheck:
       test:
         [
@@ -82,6 +101,37 @@ services:
       timeout: 10s
       retries: 3
       start_period: 90s
+
+  # ── Operational health monitor ────────────────────────────────────────────
+  pipelines-operational-health:
+    build: *pipelines-worker-build
+    environment:
+      <<: *pipelines-runtime-environment
+      OPERATIONAL_HEALTH_RECENT_DOMAINS: ${OPERATIONAL_HEALTH_RECENT_DOMAINS:-}
+      OPERATIONAL_HEALTH_RECENT_HOURS: ${OPERATIONAL_HEALTH_RECENT_HOURS:-36}
+      OPERATIONAL_HEALTH_STALE_RUNNING_HOURS: ${OPERATIONAL_HEALTH_STALE_RUNNING_HOURS:-2}
+      OPERATIONAL_HEALTH_LAKE_READ_ONLY: ${OPERATIONAL_HEALTH_LAKE_READ_ONLY:-auto}
+    depends_on:
+      pipelines-server:
+        condition: service_healthy
+      pipelines-migrator:
+        condition: service_completed_successfully
+    command: ["tail", "-f", "/dev/null"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "uv",
+          "run",
+          "--no-dev",
+          "--frozen",
+          "python",
+          "scripts/check_operational_health.py",
+        ]
+      interval: 300s
+      timeout: 30s
+      retries: 2
+      start_period: 120s
 
   # ── Pipeline audit dashboard ──────────────────────────────────────────────
   pipelines-dashboard:

@@ -29,7 +29,8 @@ async def run_dbt_build_after_ingestion(
     This deliberately gates on the app's durable ``pipeline.runs.status`` value,
     not Prefect's flow-run state. Domain flows can finish normally while recording
     a ``partial`` audit status for per-unit failures; those runs must not promote
-    Bronze changes to Silver/Gold automatically.
+    Bronze changes to Silver/Gold automatically. If dbt fails after a completed
+    ingestion audit, this helper raises so the parent Prefect flow also alerts.
     """
     deployment_name = f"dbt-build/{build}"
     if not enabled:
@@ -65,6 +66,14 @@ async def run_dbt_build_after_ingestion(
         "state_type": state_type,
     }
     if state is None or not state.is_completed():
+        log.error(
+            "dbt.post_ingestion_build_failed",
+            build=build,
+            parent_run_id=parent_run_id,
+            flow_run_id=str(flow_run.id),
+            state_name=state_name,
+            state_type=state_type,
+        )
         raise RuntimeError(
             f"Post-ingestion dbt deployment {deployment_name} finished in state "
             f"{state_name or state_type or 'unknown'}."

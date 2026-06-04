@@ -9,19 +9,9 @@ from __future__ import annotations
 
 import os
 import sys
-import urllib.request
 from pathlib import Path
-from urllib.error import URLError
 
-
-def prefect_api_is_healthy(api_url: str, *, timeout_seconds: float = 5.0) -> bool:
-    """Return whether the configured Prefect API health endpoint responds."""
-    health_url = api_url.rstrip("/") + "/health"
-    try:
-        with urllib.request.urlopen(health_url, timeout=timeout_seconds) as response:
-            return 200 <= int(response.status) < 300
-    except OSError, URLError:
-        return False
+from scripts.health_common import prefect_api_is_healthy
 
 
 def worker_process_is_running(proc_root: Path = Path("/proc")) -> bool:

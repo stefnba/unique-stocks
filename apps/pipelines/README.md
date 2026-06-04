@@ -328,6 +328,9 @@ domain audit status (`pipeline.runs.status = 'completed'`) launches the matching
 with the ingestion `run_id` as `parent_run_id`; `partial`, `failed`, or all-skipped ingestion
 runs do not auto-promote Bronze data. Run the dbt deployments directly for bootstrap, repair,
 or full rebuilds. dbt builds read `dbt/target/run_results.json` and write dbt audit rows to the lake.
+If a post-ingestion dbt deployment fails after the ingestion audit has completed, the parent Prefect
+flow intentionally fails for alerting while `pipeline.runs` keeps the ingestion status and dbt audit
+tables carry the transformation failure details.
 
 DuckDB allows one writer at a time. If `make lake-migrate` or `make dbt-build` reports a database lock, close any local DuckDB/Cursor/VS Code database viewer connected to `unique_stocks.duckdb` and rerun the command.
 
@@ -413,16 +416,37 @@ Optional production infrastructure configuration:
 - `DASHBOARD_HOST_BIND_IP` — defaults to `127.0.0.1`; use `0.0.0.0` only behind a protected reverse proxy.
 - `DASHBOARD_MOTHERDUCK_TOKEN` — optional dashboard-specific MotherDuck token. Prefer a read-only token here; when omitted, the dashboard falls back to `MOTHERDUCK_TOKEN`.
 - `PREFECT_UI_URL` — optional browser-facing Prefect UI base URL used for run deep links from the dashboard.
+- `OPERATIONAL_HEALTH_RECENT_DOMAINS` — optional comma- or whitespace-separated domains the deployed `pipelines-operational-health` container must see recently, for example `eod_price,fundamental`.
+- `OPERATIONAL_HEALTH_RECENT_HOURS` — freshness window for configured recent domains; defaults to `36`.
+- `OPERATIONAL_HEALTH_STALE_RUNNING_HOURS` — stale-running threshold; defaults to `2`.
+- `OPERATIONAL_HEALTH_LAKE_READ_ONLY` — defaults to `auto`; leave it there for regular MotherDuck tokens, or set `true` when the monitor uses a MotherDuck read-scaling token.
 
 Production fails closed when `ENVIRONMENT=prod` is set without `MOTHERDUCK_TOKEN`; set the token or use `ENVIRONMENT=dev` for local work.
 
-The production worker applies pending lake migrations before it starts the Prefect worker process. This keeps a deploy
-with schema changes from consuming work against an old lake schema. `make setup` still runs migrations idempotently as
-part of first-time bootstrap.
+Production applies pending lake migrations through the one-shot `pipelines-migrator` service before workers start. This
+keeps deploys with schema changes from consuming work against an old lake schema and avoids every worker racing to run
+migrations when the worker service is scaled out. `pipelines-migrator` is expected to exit successfully after applying
+migrations; `make setup` still runs migrations idempotently as part of first-time bootstrap.
 
 Docker healthchecks are intentionally container-local. The worker healthcheck verifies that the container can reach the
 Prefect API and that a Prefect worker process is running; it does not prove that scheduled ingestion is fresh or that a
-specific work pool is consuming every expected deployment. Use the operational health command for that:
+specific work pool is consuming every expected deployment.
+
+The deployed `pipelines-operational-health` service converts the operational health command into a Docker health status
+that Coolify, Docker, or a container-aware uptime monitor can watch. By default it checks Prefect reachability, the
+presence of `pipeline.runs`, and stale running rows. Set `OPERATIONAL_HEALTH_RECENT_DOMAINS` in production to add
+freshness checks for the domains you care about:
+
+```bash
+OPERATIONAL_HEALTH_RECENT_DOMAINS=eod_price,fundamental
+OPERATIONAL_HEALTH_RECENT_HOURS=36
+```
+
+`OPERATIONAL_HEALTH_LAKE_READ_ONLY=auto` uses a normal SELECT-only connection when `MOTHERDUCK_TOKEN` is set because
+regular MotherDuck tokens cannot be opened through DuckDB's read-only mode. Set it to `true` only when the monitor token
+is a MotherDuck read-scaling token.
+
+You can still run the same check by hand when investigating an incident:
 
 ```bash
 cd apps/pipelines

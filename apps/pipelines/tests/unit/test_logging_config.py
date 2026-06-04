@@ -22,7 +22,10 @@ def test_configure_logging_renders_json_and_redacts_sensitive_values(capsys: Cap
     structlog.get_logger("tests.logging").info(
         "logging.redaction_check",
         api_token="provider-token",
-        url="https://provider.example/prices?api_token=provider-token&symbol=AAPL.US",
+        url=(
+            "https://provider.example/prices?api_token=provider-token&symbol=AAPL.US "
+            "md:unique_stocks?motherduck_token=motherduck-token"
+        ),
         nested={"password": "secret-password", "safe": "ok"},
     )
 
@@ -34,7 +37,9 @@ def test_configure_logging_renders_json_and_redacts_sensitive_values(capsys: Cap
     assert payload["nested"]["password"] == REDACTED_LOG_VALUE
     assert payload["nested"]["safe"] == "ok"
     assert "provider-token" not in json.dumps(payload)
+    assert "motherduck-token" not in json.dumps(payload)
     assert f"api_token={REDACTED_LOG_VALUE}" in payload["url"]
+    assert f"motherduck_token={REDACTED_LOG_VALUE}" in payload["url"]
 
 
 def test_configure_logging_is_idempotent_without_force(capsys: CaptureFixture[str]) -> None:
