@@ -191,7 +191,7 @@ def test_dashboard_detail_queries() -> None:
 
     dbt_nodes = queries.load_dbt_node_results(lake, run_id=RUN_ID_COMPLETED)
     assert len(dbt_nodes) == 1
-    assert dbt_nodes[0]["unique_id"] == "model.unique_stocks.daily_price"
+    assert dbt_nodes[0]["unique_id"] == "model.unique_stocks.fct_daily_price"
 
     evidence_summary = queries.load_audit_evidence_summary(lake, since=now - timedelta(days=2), domains=("eod_price",))
     assert evidence_summary == {
@@ -549,13 +549,13 @@ def _insert_detail_rows(lake: DataLakeClient, *, now: datetime) -> None:
             {
                 "node_result_id": "018f0000-0000-7000-8000-000000000008",
                 "dbt_run_id": DBT_RUN_ID,
-                "unique_id": "model.unique_stocks.daily_price",
+                "unique_id": "model.unique_stocks.fct_daily_price",
                 "resource_type": "model",
                 "status": "success",
                 "execution_time": 1.5,
                 "failures": 0,
                 "rows_affected": 100,
-                "relation_name": "daily_price",
+                "relation_name": "fct_daily_price",
                 "compiled": True,
             }
         ],

@@ -12,6 +12,7 @@ from scripts.sync_prefect_deployments import (
     find_orphaned_deployments,
     is_managed_entrypoint,
     load_prefect_yaml_deployments,
+    resolve_flow_name,
 )
 
 APPS_PIPELINES = Path(__file__).resolve().parents[2]
@@ -33,6 +34,29 @@ def test_expected_deployment_keys_matches_manifest() -> None:
     assert DeploymentKey("dbt-build", "fundamental-build") in keys
     assert DeploymentKey("fundamental-quarterly", "replay") in keys
     assert len(keys) == 15
+
+
+def test_ingestion_deployments_enable_clean_post_ingestion_builds() -> None:
+    """Production-facing ingestion deployments should keep Silver/Gold fresh."""
+    deployments = load_prefect_yaml_deployments(APPS_PIPELINES / DEFAULT_PREFECT_YAML)
+    by_key = {
+        DeploymentKey(resolve_flow_name(deployment), str(deployment["name"])): deployment for deployment in deployments
+    }
+
+    for key in (
+        DeploymentKey("eod-price-daily", "daily"),
+        DeploymentKey("eod-price-daily", "backfill"),
+        DeploymentKey("eod-price-backfill", "historical-backfill"),
+        DeploymentKey("exchange-schedule-refresh", "manual"),
+        DeploymentKey("instrument-refresh", "weekly"),
+        DeploymentKey("instrument-refresh", "manual"),
+        DeploymentKey("fundamental-quarterly", "manual"),
+        DeploymentKey("fundamental-quarterly", "backfill"),
+        DeploymentKey("fundamental-quarterly", "replay"),
+    ):
+        parameters = by_key[key].get("parameters")
+        assert isinstance(parameters, dict)
+        assert parameters["run_dbt_build"] is True
 
 
 @pytest.mark.parametrize(

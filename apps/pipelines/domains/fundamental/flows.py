@@ -10,7 +10,15 @@ from prefect import flow
 from pydantic import ValidationError
 
 from core.clients.http.base import ProviderRateLimitError
-from core.ingestion import LandingWrite, PipelineRunScope, PipelineRunTracker, RejectionRecord, terminal_status
+from core.ingestion import (
+    LandingWrite,
+    PipelineRunScope,
+    PipelineRunTracker,
+    RejectionRecord,
+    RunStatus,
+    terminal_status,
+)
+from core.transforms import run_dbt_build_after_ingestion
 from domains.fundamental.tasks import (
     delete_fundamental_snapshot_rows,
     fetch_fundamental_provider_exchange_codes,
@@ -71,6 +79,7 @@ async def fundamental_flow(
     provider_batch_delay_seconds: float = 0.0,
     provider_credits_per_call: int = 10,
     max_provider_credits: int | None = None,
+    run_dbt_build: bool = False,
 ) -> dict[str, object]:
     """Ingest fundamentals for explicit tickers or latest stock instruments.
 
@@ -94,7 +103,8 @@ async def fundamental_flow(
     calls for fundamentals backfills where each EODHD call costs 10 credits.
     If the provider returns HTTP 429, the flow stops after the active fetch
     batch and records unsubmitted tickers as deferred so the same batch date can
-    continue after the provider quota resets.
+    continue after the provider quota resets. Set ``run_dbt_build=True`` to
+    launch ``dbt-build/fundamental-build`` after a clean ingestion audit status.
     """
     from domains.fundamental.tasks import resolve_fundamental_snapshot_date_task
 
@@ -137,6 +147,8 @@ async def fundamental_flow(
     total_written = 0
 
     tracker = PipelineRunTracker()
+    run_id: str | None = None
+    run_status: RunStatus | None = None
     with tracker.track_run(
         flow_name="fundamental-quarterly",
         domain="fundamental",
@@ -159,10 +171,12 @@ async def fundamental_flow(
             "provider_batch_delay_seconds": fetch_batch_delay,
             "provider_credits_per_call": provider_credit_cost,
             "max_provider_credits": max_provider_credits,
+            "run_dbt_build": run_dbt_build,
         },
         target_window_start=snapshot_date,
         target_window_end=snapshot_date,
     ) as run:
+        run_id = str(run.run_id)
         try:
             pending_tickers: list[str] = []
             for ticker in requested_tickers:
@@ -581,12 +595,13 @@ async def fundamental_flow(
                     )
                     break
 
+            run_status = terminal_status(
+                failed=run.tally.failed,
+                rejected=total_rejected,
+                skipped_all=len(requested_tickers) == 0 or run.tally.skipped == run.tally.total,
+            )
             run.complete(
-                status=terminal_status(
-                    failed=run.tally.failed,
-                    rejected=total_rejected,
-                    skipped_all=len(requested_tickers) == 0 or run.tally.skipped == run.tally.total,
-                ),
+                status=run_status,
                 counters=run.tally.counters(
                     rows_raw=total_raw,
                     rows_valid=total_valid,
@@ -616,6 +631,13 @@ async def fundamental_flow(
                 )
             raise
 
+    if run_dbt_build and run_id is not None and run_status is not None:
+        summary["dbt_build"] = await run_dbt_build_after_ingestion(
+            enabled=run_dbt_build,
+            build="fundamental-build",
+            upstream_status=run_status,
+            parent_run_id=run_id,
+        )
     return summary
 
 

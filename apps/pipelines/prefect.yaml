@@ -16,10 +16,10 @@
 # Bootstrap order (new environments):
 #   1. exchange-catalog-refresh/manual
 #   2. exchange-mic-registry-refresh/manual
-#   3. dbt-build/exchange-build
-#   4. exchange-schedule-refresh/manual   (optional)
+#   3. exchange-schedule-refresh/manual
+#   4. dbt-build/exchange-build
 #   5. instrument-refresh/manual or /weekly
-#   6. ingest domains → matching dbt *-build deployment
+#   6. ingest domains; clean runs auto-trigger matching dbt *-build deployment
 #
 # Workers read PREFECT_API_URL from the environment (.env / docker-compose).
 # The pull step uses PREFECT_WORK_DIR so both local dev (.) and Docker (/app)
@@ -74,10 +74,13 @@ deployments:
       Scheduled daily EOD OHLCV ingestion for all provider exchange codes in the ingestion universe.
 
       One bulk API call per exchange → S3 landing → bronze.eod_price.
+      On clean ingestion completion, triggers dbt-build/price-build.
       Schedule: Mon–Fri 4:30pm America/New_York.
       Optional: trade_date, provider_exchange_codes (e.g. ["US"]).
     entrypoint: domains.eod_price.flows:eod_price_flow
     tags: [eod-price, scheduled]
+    parameters:
+      run_dbt_build: true
     schedule:
       cron: "30 16 * * 1-5"
       timezone: America/New_York
@@ -95,6 +98,7 @@ deployments:
     tags: [eod-price, backfill]
     parameters:
       trade_date: null
+      run_dbt_build: true
     <<: *manual
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -108,11 +112,13 @@ deployments:
       For each instrument in bronze.instrument: OHLCV from from_date→to_date
       → S3 landing → bronze.eod_price. Skips symbols already in bronze or marked
       no_data in pipeline.ingestion_coverage for the same backfill unit (resume-safe).
+      On clean ingestion completion, triggers dbt-build/price-build.
       Optional: to_date, provider_exchange_codes, batch_size (default 50), max_provider_calls.
     entrypoint: domains.eod_price.flows:eod_price_backfill_flow
     tags: [eod-price, backfill]
     parameters:
       batch_size: 50
+      run_dbt_build: true
     concurrency_limit:
       limit: 1
       collision_strategy: CANCEL_NEW
@@ -151,6 +157,7 @@ deployments:
 
       One API call per exchange → bronze.exchange_schedule + bronze.exchange_holiday.
       Skips exchanges already ingested for snapshot_date.
+      On clean ingestion completion, triggers dbt-build/exchange-build.
       Optional: snapshot_date, provider_schedule_exchange_codes.
     entrypoint: domains.exchange_schedule.flows:exchange_schedule_flow
     tags: [exchange, schedule, manual]
@@ -159,6 +166,7 @@ deployments:
       provider_schedule_exchange_codes: null
       batch_size: 10
       provider_batch_delay_seconds: 0.0
+      run_dbt_build: true
     <<: *manual
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -172,9 +180,12 @@ deployments:
 
       Fetches symbol lists per exchange → S3 landing → bronze.instrument.
       Skips exchanges already ingested for snapshot_date.
+      On clean ingestion completion, triggers dbt-build/instrument-build.
       Schedule: Monday 8am America/New_York.
     entrypoint: domains.instrument.flows:instrument_flow
     tags: [instrument, scheduled]
+    parameters:
+      run_dbt_build: true
     schedule:
       cron: "0 8 * * 1"
       timezone: America/New_York
@@ -194,6 +205,7 @@ deployments:
     parameters:
       snapshot_date: null
       provider_exchange_codes: null
+      run_dbt_build: true
     <<: *manual
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -206,11 +218,13 @@ deployments:
       On-demand fundamentals ingestion with skip-existing enabled (default flow behaviour).
 
       Per-ticker API fetch → S3 landing → bronze.fundamental_* tables.
+      On clean ingestion completion, triggers dbt-build/fundamental-build.
       Optional: tickers, provider_exchange_codes, limit, snapshot_date.
     entrypoint: domains.fundamental.flows:fundamental_flow
     tags: [fundamental, manual]
     parameters:
       batch_size: 1
+      run_dbt_build: true
     <<: *manual
 
   - name: backfill
@@ -224,6 +238,7 @@ deployments:
       campaign with ingestion_batch_date or snapshot_date at run time.
 
       Set limit and max_provider_credits at run time to cap provider spend.
+      On clean ingestion completion, triggers dbt-build/fundamental-build.
       Optional: provider_exchange_codes, batch_size, provider_batch_delay_seconds.
     entrypoint: domains.fundamental.flows:fundamental_flow
     tags: [fundamental, backfill]
@@ -234,6 +249,7 @@ deployments:
       batch_size: 5
       provider_batch_delay_seconds: 1.0
       provider_credits_per_call: 10
+      run_dbt_build: true
     concurrency_limit:
       limit: 1
       collision_strategy: CANCEL_NEW
@@ -245,12 +261,14 @@ deployments:
       Re-parse fundamentals from S3 landing JSON — no provider API calls.
 
       Use after parser changes or to rebuild bronze from landed documents.
+      On clean ingestion completion, triggers dbt-build/fundamental-build.
       Optional: tickers, landing_source_uris_by_ticker, provider_exchange_codes, limit.
     entrypoint: domains.fundamental.flows:fundamental_flow
     tags: [fundamental, replay]
     parameters:
       replay_landing: true
       skip_existing: false
+      run_dbt_build: true
     concurrency_limit:
       limit: 1
       collision_strategy: CANCEL_NEW

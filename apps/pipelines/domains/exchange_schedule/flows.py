@@ -6,7 +6,8 @@ from datetime import date
 import structlog
 from prefect import flow
 
-from core.ingestion import PipelineRunTracker, RunCounters, RunUnitTally, terminal_status
+from core.ingestion import PipelineRunTracker, RunCounters, RunStatus, RunUnitTally, terminal_status
+from core.transforms import run_dbt_build_after_ingestion
 from domains.exchange_schedule.tasks import (
     fetch_exchange_details,
     fetch_provider_schedule_exchange_codes,
@@ -32,18 +33,23 @@ async def exchange_schedule_flow(
     provider_schedule_exchange_codes: list[str] | None = None,
     batch_size: int = 10,
     provider_batch_delay_seconds: float = 0.0,
+    run_dbt_build: bool = False,
 ) -> dict[str, object]:
     """Ingest exchange schedule and holiday for the provider schedule API universe.
 
     ``batch_size`` caps concurrent provider fetches per batch; landing and Bronze
     writes stay sequential within each batch. ``provider_batch_delay_seconds`` adds
-    a pause between fetch batches to reduce rate-limit and overload errors.
+    a pause between fetch batches to reduce rate-limit and overload errors. Set
+    ``run_dbt_build=True`` to launch ``dbt-build/exchange-build`` after a clean
+    ingestion audit status.
     """
     snapshot_date = snapshot_date or date.today()
     fetch_batch_size = max(1, int(batch_size))
     fetch_batch_delay = max(0.0, float(provider_batch_delay_seconds))
     codes = provider_schedule_exchange_codes or await fetch_provider_schedule_exchange_codes()
     tracker = PipelineRunTracker()
+    run_id: str | None = None
+    run_status: RunStatus | None = None
     summary: dict = {
         "snapshot_date": snapshot_date.isoformat(),
         "exchange": {},
@@ -62,10 +68,12 @@ async def exchange_schedule_flow(
             "provider_schedule_exchange_codes": provider_schedule_exchange_codes,
             "batch_size": fetch_batch_size,
             "provider_batch_delay_seconds": fetch_batch_delay,
+            "run_dbt_build": run_dbt_build,
         },
         target_window_start=snapshot_date,
         target_window_end=snapshot_date,
     ) as run:
+        run_id = str(run.run_id)
         try:
             # Pre-filter exchange already in bronze for this snapshot.
             pending = []
@@ -172,11 +180,12 @@ async def exchange_schedule_flow(
                 skipped=len(summary["skipped"]),
                 failed=len(summary["failed"]),
             )
+            run_status = terminal_status(
+                failed=run.tally.failed,
+                skipped_all=len(codes) == 0 or run.tally.skipped == run.tally.total,
+            )
             run.complete(
-                status=terminal_status(
-                    failed=run.tally.failed,
-                    skipped_all=len(codes) == 0 or run.tally.skipped == run.tally.total,
-                ),
+                status=run_status,
                 counters=_schedule_counters(tally=run.tally, summary=summary),
                 summary=summary,
             )
@@ -184,6 +193,13 @@ async def exchange_schedule_flow(
             if not run.is_terminal:
                 run.fail(exc, counters=_schedule_counters(tally=run.tally, summary=summary), summary=summary)
             raise
+    if run_dbt_build and run_id is not None and run_status is not None:
+        summary["dbt_build"] = await run_dbt_build_after_ingestion(
+            enabled=run_dbt_build,
+            build="exchange-build",
+            upstream_status=run_status,
+            parent_run_id=run_id,
+        )
     return summary
 
 

@@ -23,10 +23,12 @@ from core.ingestion import (
     PipelineRunScope,
     PipelineRunTracker,
     RejectionRecord,
+    RunStatus,
     RunUnitRecord,
     terminal_status,
 )
 from core.ingestion.parser import attach_source_uri
+from core.transforms import run_dbt_build_after_ingestion
 from domains.eod_price.models import EODBar
 from domains.eod_price.parsers import infer_bulk_bar_date, parse_ticker_bars
 from domains.eod_price.tasks import (
@@ -58,6 +60,7 @@ _REJECTION_SAMPLE_LIMIT_PER_UNIT = 100
 async def eod_price_flow(
     trade_date: date | None = None,
     provider_exchange_codes: list[str] | None = None,
+    run_dbt_build: bool = False,
 ) -> dict[str, object]:
     """Ingest EOD price for all (or the given) exchange on trade_date.
 
@@ -67,6 +70,8 @@ async def eod_price_flow(
         provider_exchange_codes: Provider catalog/API codes to ingest. Defaults
             to all provider codes present in the exchange ingestion universe. Pass ["US"] to
             restrict to US equities only.
+        run_dbt_build: When true, launch ``dbt-build/price-build`` after a
+            clean ingestion audit status.
     """
     codes = provider_exchange_codes or await fetch_eod_provider_exchange_codes()
 
@@ -81,6 +86,8 @@ async def eod_price_flow(
     }
 
     tracker = PipelineRunTracker()
+    run_id: str | None = None
+    run_status: RunStatus | None = None
     with tracker.track_run(
         flow_name="eod-price-daily",
         domain="eod_price",
@@ -89,10 +96,12 @@ async def eod_price_flow(
         parameters={
             "trade_date": trade_date.isoformat() if trade_date else None,
             "provider_exchange_codes": provider_exchange_codes,
+            "run_dbt_build": run_dbt_build,
         },
         target_window_start=trade_date,
         target_window_end=trade_date,
     ) as run:
+        run_id = str(run.run_id)
         log.info("price.flow_start", trade_date=trade_date, exchange=len(codes), run_id=run.run_id)
 
         try:
@@ -222,12 +231,13 @@ async def eod_price_flow(
                         rows_written=0,
                     )
 
+            run_status = terminal_status(
+                failed=run.tally.failed,
+                rejected=total_rejected,
+                skipped_all=_all_units_skipped(total=run.tally.total, skipped=run.tally.skipped),
+            )
             run.complete(
-                status=terminal_status(
-                    failed=run.tally.failed,
-                    rejected=total_rejected,
-                    skipped_all=_all_units_skipped(total=run.tally.total, skipped=run.tally.skipped),
-                ),
+                status=run_status,
                 counters=run.tally.counters(
                     rows_raw=total_raw,
                     rows_valid=total_valid,
@@ -257,6 +267,13 @@ async def eod_price_flow(
                 )
             raise
 
+    if run_dbt_build and run_id is not None and run_status is not None:
+        summary["dbt_build"] = await run_dbt_build_after_ingestion(
+            enabled=run_dbt_build,
+            build="price-build",
+            upstream_status=run_status,
+            parent_run_id=run_id,
+        )
     return summary
 
 
@@ -336,6 +353,7 @@ async def eod_price_backfill_flow(
     provider_exchange_codes: list[str] | None = None,
     batch_size: int = 50,
     max_provider_calls: int | None = None,
+    run_dbt_build: bool = False,
 ) -> dict[str, object]:
     """Ingest full OHLCV history for every instrument in bronze.instrument.
 
@@ -368,6 +386,8 @@ async def eod_price_backfill_flow(
             during this run. Re-run later with the same date range to resume from
             ``bronze.eod_price`` plus exact-range ``pipeline.ingestion_coverage``
             pending-symbol detection.
+        run_dbt_build: When true, launch ``dbt-build/price-build`` after a
+            clean ingestion audit status.
     """
     to_date = to_date or date.today()
     codes = provider_exchange_codes or await fetch_eod_provider_exchange_codes()
@@ -393,6 +413,8 @@ async def eod_price_backfill_flow(
     }
 
     tracker = PipelineRunTracker()
+    run_id: str | None = None
+    run_status: RunStatus | None = None
     with tracker.track_run(
         flow_name="eod-price-backfill",
         domain="eod_price",
@@ -404,10 +426,12 @@ async def eod_price_backfill_flow(
             "provider_exchange_codes": provider_exchange_codes,
             "batch_size": batch_size,
             "max_provider_calls": max_provider_calls,
+            "run_dbt_build": run_dbt_build,
         },
         target_window_start=from_date,
         target_window_end=to_date,
     ) as run:
+        run_id = str(run.run_id)
         log.info(
             "backfill.flow_start",
             from_date=from_date,
@@ -692,12 +716,13 @@ async def eod_price_backfill_flow(
                 if stop_after_exchange:
                     break
 
+            run_status = terminal_status(
+                failed=run.tally.failed,
+                rejected=total_rejected,
+                skipped_all=_all_units_skipped(total=run.tally.total, skipped=run.tally.skipped),
+            )
             run.complete(
-                status=terminal_status(
-                    failed=run.tally.failed,
-                    rejected=total_rejected,
-                    skipped_all=_all_units_skipped(total=run.tally.total, skipped=run.tally.skipped),
-                ),
+                status=run_status,
                 counters=run.tally.counters(
                     rows_raw=total_raw,
                     rows_valid=total_valid,
@@ -726,4 +751,11 @@ async def eod_price_backfill_flow(
                 )
             raise
 
+    if run_dbt_build and run_id is not None and run_status is not None:
+        summary["dbt_build"] = await run_dbt_build_after_ingestion(
+            enabled=run_dbt_build,
+            build="price-build",
+            upstream_status=run_status,
+            parent_run_id=run_id,
+        )
     return summary

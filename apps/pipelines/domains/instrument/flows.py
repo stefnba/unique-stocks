@@ -6,7 +6,8 @@ from datetime import date
 import structlog
 from prefect import flow
 
-from core.ingestion import PipelineRunTracker, RunCounters, RunUnitTally, terminal_status
+from core.ingestion import PipelineRunTracker, RunCounters, RunStatus, RunUnitTally, terminal_status
+from core.transforms import run_dbt_build_after_ingestion
 from domains.instrument.tasks import (
     fetch_instrument,
     fetch_instrument_provider_exchange_codes,
@@ -28,6 +29,7 @@ log = structlog.get_logger(__name__)
 async def instrument_flow(
     snapshot_date: date | None = None,
     provider_exchange_codes: list[str] | None = None,
+    run_dbt_build: bool = False,
 ) -> dict[str, object]:
     """Ingest active instrument per exchange.
 
@@ -37,6 +39,8 @@ async def instrument_flow(
     snapshot_date = snapshot_date or date.today()
     codes = provider_exchange_codes or await fetch_instrument_provider_exchange_codes()
     tracker = PipelineRunTracker()
+    run_id: str | None = None
+    run_status: RunStatus | None = None
     summary: dict = {
         "snapshot_date": snapshot_date.isoformat(),
         "exchange": {},
@@ -52,10 +56,12 @@ async def instrument_flow(
         parameters={
             "snapshot_date": snapshot_date.isoformat(),
             "provider_exchange_codes": provider_exchange_codes,
+            "run_dbt_build": run_dbt_build,
         },
         target_window_start=snapshot_date,
         target_window_end=snapshot_date,
     ) as run:
+        run_id = str(run.run_id)
         try:
             pending = []
             for provider_exchange_code in codes:
@@ -128,11 +134,12 @@ async def instrument_flow(
                 skipped=len(summary["skipped"]),
                 failed=len(summary["failed"]),
             )
+            run_status = terminal_status(
+                failed=run.tally.failed,
+                skipped_all=len(codes) == 0 or run.tally.skipped == run.tally.total,
+            )
             run.complete(
-                status=terminal_status(
-                    failed=run.tally.failed,
-                    skipped_all=len(codes) == 0 or run.tally.skipped == run.tally.total,
-                ),
+                status=run_status,
                 counters=_instrument_counters(tally=run.tally, summary=summary),
                 summary=summary,
             )
@@ -140,6 +147,13 @@ async def instrument_flow(
             if not run.is_terminal:
                 run.fail(exc, counters=_instrument_counters(tally=run.tally, summary=summary), summary=summary)
             raise
+    if run_dbt_build and run_id is not None and run_status is not None:
+        summary["dbt_build"] = await run_dbt_build_after_ingestion(
+            enabled=run_dbt_build,
+            build="instrument-build",
+            upstream_status=run_status,
+            parent_run_id=run_id,
+        )
     return summary
 
 
