@@ -57,8 +57,6 @@ SELECT
     fundamentals.latest_snapshot_date AS fundamentals_snapshot_date,
     fundamentals.fundamental_profile_id IS NOT NULL AS has_fundamentals,
     instrument.snapshot_date AS instrument_snapshot_date,
-    instrument.row_hash AS instrument_row_hash,
-    instrument.source_uri AS instrument_source_uri,
     instrument.ingested_at AS instrument_ingested_at
 FROM instrument
 LEFT JOIN fundamentals

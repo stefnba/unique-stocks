@@ -126,12 +126,6 @@ models:
         description: Instrument snapshot date used for this current security.
         data_tests:
           - not_null
-      - name: instrument_row_hash
-        description: Stable hash of the selected instrument row.
-        data_tests:
-          - not_null
-      - name: instrument_source_uri
-        description: S3 URI of the landing object that produced the selected instrument row.
       - name: instrument_ingested_at
         description: Timestamp when the selected instrument row was written to Bronze.
         data_tests:

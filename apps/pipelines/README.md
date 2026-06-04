@@ -316,7 +316,7 @@ make dbt-run-marts
 
 Production dbt execution is also available as Prefect deployments:
 
-- `dbt-build/exchange-build`: exchange staging/intermediate + provider ingestion universe.
+- `dbt-build/exchange-build`: exchange staging/intermediate + exchange marts/provider ingestion universe.
 - `dbt-build/price-build`: price staging and mart models.
 - `dbt-build/fundamental-build`: fundamental staging models.
 

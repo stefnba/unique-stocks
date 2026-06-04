@@ -142,12 +142,6 @@ models:
         description: Stable hash of the selected provider fundamentals payload.
         data_tests:
           - not_null
-      - name: document_row_hash
-        description: Stable hash of the selected fundamentals document row.
-        data_tests:
-          - not_null
-      - name: document_source_uri
-        description: S3 URI of the landing object that produced the selected document row.
       - name: document_ingested_at
         description: Timestamp when the selected document row was written to Bronze.
         data_tests:
@@ -198,12 +192,6 @@ models:
               arguments:
                 values:
                   - eodhd
-      - name: row_hash
-        description: Stable hash of the normalized staging metric row.
-        data_tests:
-          - not_null
-      - name: source_uri
-        description: S3 URI of the landing object that produced the metric row.
       - name: ingested_at
         description: Timestamp when the metric row was written to Bronze.
         data_tests:

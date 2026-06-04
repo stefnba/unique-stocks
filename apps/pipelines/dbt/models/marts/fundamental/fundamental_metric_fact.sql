@@ -15,8 +15,6 @@ WITH stock_metric AS (
         metric_value,
         metric_date,
         data_provider,
-        row_hash,
-        source_uri,
         ingested_at
     FROM {{ ref('stg_fundamental_stock_metric_fact') }}
 ),
@@ -38,8 +36,6 @@ fund_metric AS (
         metric_value,
         metric_date,
         data_provider,
-        row_hash,
-        source_uri,
         ingested_at
     FROM {{ ref('stg_fundamental_fund_metric_fact') }}
 )

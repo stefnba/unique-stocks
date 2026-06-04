@@ -56,7 +56,5 @@ SELECT
     provider_updated_at,
     latest_snapshot_date,
     payload_hash,
-    document_row_hash,
-    document_source_uri,
     document_ingested_at
 FROM {{ ref('int_fundamental_security_profile') }}

@@ -18,7 +18,5 @@ SELECT
     has_after_hours,
     has_lunch_break,
     schedule_snapshot_date,
-    schedule_row_hash,
-    schedule_source_uri,
     schedule_ingested_at
 FROM {{ ref('int_exchange_calendar') }}

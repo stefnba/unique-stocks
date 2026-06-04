@@ -1,6 +1,89 @@
 version: 2
 
 models:
+  - name: dim_exchange
+    description: Gold canonical exchange and market dimension from the latest ISO 10383 MIC registry snapshot.
+    columns:
+      - name: exchange_id
+        description: Stable exchange dimension key, equal to the MIC.
+        data_tests:
+          - not_null
+      - name: mic
+        description: Market Identifier Code for the exchange or segment.
+        data_tests:
+          - not_null
+      - name: operating_mic
+        description: Operating MIC that owns or equals this MIC.
+        data_tests:
+          - not_null
+      - name: mic_type
+        description: MIC type, either OPRT for operating MICs or SGMT for segment MICs.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - OPRT
+                  - SGMT
+      - name: exchange_name
+        description: Canonical exchange or market name.
+        data_tests:
+          - not_null
+      - name: legal_entity_name
+        description: Legal name of the entity owning the market.
+      - name: lei
+        description: Legal Entity Identifier when supplied.
+      - name: market_category_code
+        description: ISO 10383 market category code.
+      - name: acronym
+        description: Known market acronym when supplied.
+      - name: country_iso2
+        description: ISO 3166-1 alpha-2 country code.
+        data_tests:
+          - not_null
+      - name: city
+        description: City where the market is located.
+        data_tests:
+          - not_null
+      - name: website
+        description: Market website when supplied.
+      - name: status
+        description: Lowercase registry lifecycle status.
+        data_tests:
+          - not_null
+      - name: creation_date
+        description: Date the MIC was originally created.
+        data_tests:
+          - not_null
+      - name: last_update_date
+        description: Date the MIC was last modified.
+      - name: last_validation_date
+        description: Date the MIC was last reviewed for correctness.
+      - name: expiry_date
+        description: Date the MIC was deactivated, when applicable.
+      - name: comments
+        description: Registry comments supplied by the source.
+      - name: is_operating_mic
+        description: True when this row is an operating MIC.
+        data_tests:
+          - not_null
+      - name: is_active
+        description: True when the registry status is active.
+        data_tests:
+          - not_null
+      - name: registry_provider
+        description: Provider that supplied the canonical registry row.
+        data_tests:
+          - not_null
+      - name: registry_snapshot_date
+        description: Source registry snapshot date used for this exchange row.
+        data_tests:
+          - not_null
+      - name: registry_ingested_at
+        description: Timestamp when the registry row was written to Bronze.
+        data_tests:
+          - not_null
+
   - name: exchange_calendar
     description: Gold latest provider trading-hours calendar by schedule endpoint code.
     columns:
@@ -70,12 +153,6 @@ models:
         description: Latest schedule snapshot date for this schedule code.
         data_tests:
           - not_null
-      - name: schedule_row_hash
-        description: Stable hash of the normalized Bronze schedule row.
-        data_tests:
-          - not_null
-      - name: schedule_source_uri
-        description: S3 URI of the schedule landing object.
       - name: schedule_ingested_at
         description: Timestamp when the schedule row was written to Bronze.
         data_tests:
@@ -128,12 +205,6 @@ models:
         description: Latest holiday snapshot date for this schedule code.
         data_tests:
           - not_null
-      - name: holiday_row_hash
-        description: Stable hash of the normalized Bronze holiday row.
-        data_tests:
-          - not_null
-      - name: holiday_source_uri
-        description: S3 URI of the holiday landing object.
       - name: holiday_ingested_at
         description: Timestamp when the holiday row was written to Bronze.
         data_tests:
