@@ -1,16 +1,16 @@
 version: 2
 
 models:
-  - name: dim_security
-    description: Gold current tradable security dimension enriched with latest fundamentals where available.
+  - name: dim_instrument
+    description: Gold current tradable instrument dimension enriched with latest fundamentals where available.
     columns:
-      - name: security_pk
-        description: Deterministic hashed primary key for one active tradable provider security.
+      - name: instrument_pk
+        description: Deterministic hashed primary key for one active tradable provider instrument.
         data_tests:
           - not_null
           - unique
       - name: data_provider
-        description: Provider that supplies the security.
+        description: Provider that supplies the instrument.
         data_tests:
           - not_null
           - accepted_values:
@@ -39,16 +39,16 @@ models:
         description: Exchange-qualified provider symbol.
         data_tests:
           - not_null
-      - name: security_name
+      - name: instrument_name
         description: Best available provider display name.
       - name: primary_ticker
         description: Provider primary ticker from fundamentals.
       - name: currency_code
         description: Best available trading or reporting currency code.
       - name: country_name
-        description: Best available security country label.
+        description: Best available instrument country label.
       - name: country_iso
-        description: Best available security country ISO code.
+        description: Best available instrument country ISO code.
       - name: asset_type
         description: Provider asset type label from the instrument list.
       - name: normalized_asset_type
@@ -58,11 +58,11 @@ models:
         data_tests:
           - not_null
       - name: is_stock
-        description: True when the security is stock-like.
+        description: True when the instrument is stock-like.
         data_tests:
           - not_null
       - name: is_fund_like
-        description: True when the security is ETF or fund-like.
+        description: True when the instrument is ETF or fund-like.
         data_tests:
           - not_null
       - name: has_isin
@@ -92,7 +92,7 @@ models:
       - name: gic_sub_industry
         description: GICS sub-industry classification.
       - name: is_delisted
-        description: True when fundamentals identity marks the security as delisted.
+        description: True when fundamentals identity marks the instrument as delisted.
         data_tests:
           - not_null
       - name: delisted_date
@@ -124,7 +124,7 @@ models:
         data_tests:
           - not_null
       - name: instrument_snapshot_date
-        description: Instrument snapshot date used for this current security.
+        description: Instrument snapshot date used for this current instrument.
         data_tests:
           - not_null
       - name: instrument_ingested_at

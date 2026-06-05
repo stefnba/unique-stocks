@@ -321,9 +321,9 @@ For dbt sources, naming, mart-shape, key, lineage, testing, and materialization 
 Production dbt execution is available as Prefect deployments:
 
 - `dbt-build/exchange-build`: exchange staging/intermediate + exchange marts/provider ingestion universe.
-- `dbt-build/instrument-build`: instrument staging/intermediate + security dimension.
+- `dbt-build/instrument-build`: instrument staging/intermediate + instrument dimension.
 - `dbt-build/price-build`: price staging and mart models.
-- `dbt-build/fundamental-build`: fundamental staging/intermediate + fundamental/security marts.
+- `dbt-build/fundamental-build`: fundamental staging/intermediate + fundamental/instrument marts.
 
 Ingestion deployments set `run_dbt_build=true` where Silver/Gold freshness matters. A clean
 domain audit status (`pipeline.runs.status = 'completed'`) launches the matching dbt deployment

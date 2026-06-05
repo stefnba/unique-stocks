@@ -9,13 +9,13 @@ models:
         data_tests:
           - not_null
           - unique
-      - name: security_pk
-        description: Foreign key to dim_security when the priced symbol is in the tradable security dimension.
+      - name: instrument_pk
+        description: Foreign key to dim_instrument when the priced symbol is in the tradable instrument dimension.
         data_tests:
           - relationships:
               arguments:
-                to: ref('dim_security')
-                field: security_pk
+                to: ref('dim_instrument')
+                field: instrument_pk
       - name: data_provider
         description: Provider that supplied the record.
         data_tests:
@@ -29,7 +29,7 @@ models:
         data_tests:
           - not_null
       - name: provider_exchange_code
-        description: Provider exchange code for the listed security, used in endpoint paths and ticker suffixes.
+        description: Provider exchange code for the listed instrument, used in endpoint paths and ticker suffixes.
         data_tests:
           - not_null
       - name: bar_date

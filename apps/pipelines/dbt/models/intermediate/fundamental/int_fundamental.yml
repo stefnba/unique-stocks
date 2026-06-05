@@ -2,7 +2,7 @@ version: 2
 
 models:
   - name: int_fundamental_latest_document
-    description: Latest fundamentals document metadata per provider security.
+    description: Latest fundamentals document metadata per provider instrument.
     columns:
       - name: latest_fundamental_document_id
         description: Stable key for the latest fundamentals document row.
@@ -65,11 +65,11 @@ models:
         data_tests:
           - not_null
 
-  - name: int_fundamental_security_profile
+  - name: int_fundamental_instrument_profile
     description: Curated current fundamentals profile assembled from document, identity, and share-stat snapshots.
     columns:
       - name: fundamental_profile_id
-        description: Stable key for one current provider security fundamentals profile.
+        description: Stable key for one current provider instrument fundamentals profile.
         data_tests:
           - not_null
       - name: data_provider
@@ -100,7 +100,7 @@ models:
         description: Broad instrument family from fundamentals staging.
         data_tests:
           - not_null
-      - name: security_name
+      - name: instrument_name
         description: Best available display name across fundamentals identity sources.
       - name: primary_ticker
         description: Provider primary ticker when supplied.

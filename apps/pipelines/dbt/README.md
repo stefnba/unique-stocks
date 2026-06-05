@@ -24,7 +24,7 @@ Python ingestion owns provider fetches, raw landing writes, parsing, and typed B
 
 Staging models are the first dbt transformation layer. They should map closely to one Bronze source table and handle only type casting, renaming, normalization, and deduplication. This creates a stable Silver interface over raw provider-shaped data without adding business logic.
 
-Intermediate models are optional Silver building blocks used when logic is too reusable or too structural to keep inside one final mart. Use them for joins, latest-snapshot selection, provider-code mapping, exchange/security universe construction, and other transformations that several marts or downstream models may share. Intermediate models are not the final consumer-facing tables.
+Intermediate models are optional Silver building blocks used when logic is too reusable or too structural to keep inside one final mart. Use them for joins, latest-snapshot selection, provider-code mapping, exchange/instrument universe construction, and other transformations that several marts or downstream models may share. Intermediate models are not the final consumer-facing tables.
 
 Gold marts are the final business-ready models. They turn staged and intermediate data into dimensions and facts that downstream analytics, dashboards, and applications can query directly.
 
@@ -51,7 +51,7 @@ Current mart folders are grouped by business area/domain:
 | Folder         | Current purpose                             |
 | -------------- | ------------------------------------------- |
 | `exchange/`    | Exchange dimensions and calendars.          |
-| `security/`    | Security universe and profile dimensions.   |
+| `instrument/`  | Instrument universe and profile dimensions. |
 | `price/`       | Price facts.                                |
 | `fundamental/` | Fundamental metric facts and related marts. |
 
@@ -79,7 +79,7 @@ Import CTEs come first, transformation CTEs come next, and the model ends with a
 
 ### Keys And Columns
 
-The first mart column is the deterministic primary key named after the model grain with a `_pk` suffix, such as `security_pk` or `daily_price_pk`. Use the local `surrogate_key()` macro for hashed keys. Avoid database identity or auto-increment keys in dbt models because they are not reproducible across rebuilds.
+The first mart column is the deterministic primary key named after the model grain with a `_pk` suffix, such as `instrument_pk` or `daily_price_pk`. Use the local `surrogate_key()` macro for hashed keys. Avoid database identity or auto-increment keys in dbt models because they are not reproducible across rebuilds.
 
 Columns are ordered primary key, foreign keys, text/categorical attributes, booleans, metrics/numerics, then dates/timestamps. Boolean columns use `is_` or `has_` prefixes. Date columns end in `_date`; timestamp columns end in `_at`.
 

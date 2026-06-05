@@ -297,7 +297,7 @@ deployments:
 
   - name: instrument-build
     description: >
-      dbt build for instrument staging, latest universe, and security dimension.
+      dbt build for instrument staging, latest universe, and instrument dimension.
       Run after bronze.instrument ingestion and fundamentals when enrichment is desired.
     tags: [dbt, build, instrument]
     parameters:
@@ -306,7 +306,7 @@ deployments:
         - path:models/staging/fundamental
         - +path:models/intermediate/instrument
         - +path:models/intermediate/fundamental
-        - +path:models/marts/security
+        - +path:models/marts/instrument
     <<: *dbt_build
 
   - name: price-build
@@ -328,5 +328,5 @@ deployments:
         - path:models/staging/fundamental
         - +path:models/intermediate/fundamental
         - +path:models/marts/fundamental
-        - +path:models/marts/security
+        - +path:models/marts/instrument
     <<: *dbt_build

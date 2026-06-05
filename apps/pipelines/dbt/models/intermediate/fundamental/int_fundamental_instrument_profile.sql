@@ -62,7 +62,7 @@ SELECT
         mutual_fund_identity.mutual_fund_name,
         index_identity.index_name,
         document.instrument_name
-    ) AS security_name,
+    ) AS instrument_name,
     COALESCE(
         stock_identity.primary_ticker,
         etf_identity.primary_ticker,

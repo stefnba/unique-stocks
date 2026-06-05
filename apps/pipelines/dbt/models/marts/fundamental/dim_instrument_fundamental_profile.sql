@@ -1,18 +1,18 @@
 WITH fundamental_profile AS (
     SELECT *
-    FROM {{ ref('int_fundamental_security_profile') }}
+    FROM {{ ref('int_fundamental_instrument_profile') }}
 ),
 
 final AS (
     SELECT
-        {{ surrogate_key(["data_provider", "ticker"]) }} AS security_fundamental_profile_pk,
+        {{ surrogate_key(["data_provider", "ticker"]) }} AS instrument_fundamental_profile_pk,
         data_provider,
         provider_exchange_code,
         ticker,
         code,
         instrument_type,
         instrument_family,
-        security_name,
+        instrument_name,
         primary_ticker,
         provider_listing_exchange_code,
         currency_code,

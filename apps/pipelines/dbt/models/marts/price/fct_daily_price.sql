@@ -3,18 +3,18 @@ WITH price AS (
     FROM {{ ref('stg_eod_price') }}
 ),
 
-security AS (
+instrument AS (
     SELECT
-        security_pk,
+        instrument_pk,
         data_provider,
         provider_symbol
-    FROM {{ ref('dim_security') }}
+    FROM {{ ref('dim_instrument') }}
 ),
 
 final AS (
     SELECT
         {{ surrogate_key(["price.data_provider", "price.ticker", "price.bar_date"]) }} AS daily_price_pk,
-        security.security_pk,
+        instrument.instrument_pk,
         price.data_provider,
         price.provider_exchange_code,
         price.ticker,
@@ -28,9 +28,9 @@ final AS (
         price.bar_date,
         price.ingested_at
     FROM price
-    LEFT JOIN security
-        ON price.data_provider = security.data_provider
-        AND price.ticker = security.provider_symbol
+    LEFT JOIN instrument
+        ON price.data_provider = instrument.data_provider
+        AND price.ticker = instrument.provider_symbol
 )
 
 SELECT * FROM final

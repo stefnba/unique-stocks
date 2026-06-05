@@ -6,13 +6,13 @@ WITH instrument AS (
 
 fundamentals AS (
     SELECT *
-    FROM {{ ref('int_fundamental_security_profile') }}
+    FROM {{ ref('int_fundamental_instrument_profile') }}
 ),
 
 final AS (
     SELECT
         {{ surrogate_key(["instrument.data_provider", "instrument.provider_exchange_code", "instrument.ticker"]) }}
-            AS security_pk,
+            AS instrument_pk,
         instrument.data_provider,
         instrument.provider_exchange_code,
         instrument.provider_code_kind,
@@ -22,7 +22,7 @@ final AS (
         instrument.exchange_currency,
         instrument.ticker,
         instrument.provider_symbol,
-        COALESCE(fundamentals.security_name, instrument.instrument_name) AS security_name,
+        COALESCE(fundamentals.instrument_name, instrument.instrument_name) AS instrument_name,
         fundamentals.primary_ticker,
         COALESCE(fundamentals.currency_code, instrument.currency) AS currency_code,
         COALESCE(fundamentals.country_name, instrument.country) AS country_name,

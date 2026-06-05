@@ -1,11 +1,11 @@
 version: 2
 
 models:
-  - name: dim_security_fundamental_profile
-    description: Gold current fundamentals profile for securities that have provider fundamentals documents.
+  - name: dim_instrument_fundamental_profile
+    description: Gold current fundamentals profile for instruments that have provider fundamentals documents.
     columns:
-      - name: security_fundamental_profile_pk
-        description: Deterministic hashed primary key for one current provider security fundamentals profile.
+      - name: instrument_fundamental_profile_pk
+        description: Deterministic hashed primary key for one current provider instrument fundamentals profile.
         data_tests:
           - not_null
           - unique
@@ -37,7 +37,7 @@ models:
         description: Broad instrument family from fundamentals staging.
         data_tests:
           - not_null
-      - name: security_name
+      - name: instrument_name
         description: Best available display name across fundamentals identity sources.
       - name: primary_ticker
         description: Provider primary ticker when supplied.
@@ -156,13 +156,13 @@ models:
         data_tests:
           - not_null
           - unique
-      - name: security_pk
-        description: Foreign key to dim_security when the metric belongs to a tradable security.
+      - name: instrument_pk
+        description: Foreign key to dim_instrument when the metric belongs to a tradable instrument.
         data_tests:
           - relationships:
               arguments:
-                to: ref('dim_security')
-                field: security_pk
+                to: ref('dim_instrument')
+                field: instrument_pk
       - name: data_provider
         description: Provider that supplied the metric.
         data_tests:

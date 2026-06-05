@@ -36,12 +36,12 @@ metric AS (
     SELECT * FROM fund_metric
 ),
 
-security AS (
+instrument AS (
     SELECT
-        security_pk,
+        instrument_pk,
         data_provider,
         provider_symbol
-    FROM {{ ref('dim_security') }}
+    FROM {{ ref('dim_instrument') }}
 ),
 
 final AS (
@@ -55,7 +55,7 @@ final AS (
             "metric.metric_category",
             "metric.metric_name"
         ]) }} AS fundamental_metric_pk,
-        security.security_pk,
+        instrument.instrument_pk,
         metric.data_provider,
         metric.provider_exchange_code,
         metric.ticker,
@@ -68,9 +68,9 @@ final AS (
         metric.metric_date,
         metric.ingested_at
     FROM metric
-    LEFT JOIN security
-        ON metric.data_provider = security.data_provider
-        AND metric.ticker = security.provider_symbol
+    LEFT JOIN instrument
+        ON metric.data_provider = instrument.data_provider
+        AND metric.ticker = instrument.provider_symbol
 )
 
 SELECT * FROM final

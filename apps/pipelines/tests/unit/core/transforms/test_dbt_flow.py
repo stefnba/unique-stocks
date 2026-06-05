@@ -103,7 +103,7 @@ def test_run_dbt_command_passes_indirect_selection_for_build(monkeypatch: Monkey
 
     dbt.run_dbt_command.fn(
         command="build",
-        select=["+path:models/marts/security"],
+        select=["+path:models/marts/instrument"],
         exclude=[],
         indirect_selection="buildable",
         project_dir="dbt",
