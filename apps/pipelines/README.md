@@ -13,8 +13,8 @@ The active path is end-of-day price ingestion for the configured market data pro
 | `instrument`  | Reference flow | Weekly.                                            |
 | `fundamental` | Active v1      | Manual or quarterly.                               |
 
-Per-ticker historical backfill resume semantics (`pipeline.ingestion_coverage`,
-pending-symbol rules) are documented in
+Per-instrument historical backfill resume semantics (`pipeline.ingestion_coverage`,
+pending-instrument rules) are documented in
 [`domains/eod_price/README.md`](domains/eod_price/README.md). Fundamentals
 batch-date and quota resume behavior is documented in
 [`domains/fundamental/README.md`](domains/fundamental/README.md).
@@ -28,7 +28,7 @@ The exchange domain has two Bronze sources:
 
 dbt builds these into Silver exchange models. Downstream ingestion flows read provider codes from `silver.int_exchange_provider_ingestion_universe`, not directly from provider APIs or raw Bronze tables. Build the exchange Silver models before running flows that auto-select provider codes.
 
-Some provider endpoint codes are valid symbol namespaces but are not returned by the provider exchange catalog. For EODHD, `INDX` is accepted by `/exchange-symbol-list/INDX`, `/eod/GDAXI.INDX`, and `/eod-bulk-last-day/INDX`, but is omitted from `/exchanges-list`. Keep those cases in dbt seeds under `dbt/seeds/reference/` and union them into the Silver ingestion universe with `source_kind = 'curated_seed'`; do not backfill synthetic rows into `bronze.exchange_catalog`.
+Some provider endpoint codes are valid API symbol namespaces but are not returned by the provider exchange catalog. For EODHD, `INDX` is accepted by `/exchange-symbol-list/INDX`, `/eod/GDAXI.INDX`, and `/eod-bulk-last-day/INDX`, but is omitted from `/exchanges-list`. Keep those cases in dbt seeds under `dbt/seeds/reference/` and union them into the Silver ingestion universe with `source_kind = 'curated_seed'`; do not backfill synthetic rows into `bronze.exchange_catalog`.
 
 Python flows read the Silver provider universe with purpose-specific flags. When Silver exists, pass explicit `provider_exchange_codes` to restrict a manual run to one or two provider namespaces.
 
@@ -71,8 +71,8 @@ Providers can return several exchange-like identifiers. Keep them distinct in Py
 
 | Name                              | Meaning                                                                                                                                                      | Example                       |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------- |
-| `provider_exchange_code`          | Provider catalog/API code, used in endpoint paths and ticker suffixes when the provider uses exchange-qualified symbols.                                     | `US`, `LSE`, `XETRA`          |
-| `provider_code_kind`              | Silver classification for provider request codes, including exchange-backed codes, provider buckets, and curated symbol namespaces.                          | `exchange`, `index_namespace` |
+| `provider_exchange_code`          | Provider catalog/API code, used in endpoint paths and API symbol suffixes when the provider uses exchange-qualified API symbols.                             | `US`, `LSE`, `XETRA`          |
+| `provider_code_kind`              | Silver classification for provider request codes, including exchange-backed codes, provider buckets, and curated API symbol namespaces.                      | `exchange`, `index_namespace` |
 | `operating_mic_codes`             | Official MIC value or comma-separated MIC values supplied by provider metadata. Do not use this as a request code unless an endpoint explicitly asks for it. | `XNAS,XNYS`, `XLON`           |
 | `provider_schedule_exchange_code` | Provider schedule/calendar endpoint code. Some values look like MICs, but this is still the provider-specific request code for that endpoint.                | `US`, `XHKG`, `XETR`          |
 | `provider_listing_exchange_code`  | Exchange-like code returned on an individual instrument row from `/exchange-symbol-list/{EXCHANGE_CODE}`.                                                    | `NASDAQ`, `WAR`               |
@@ -140,7 +140,7 @@ You do not need to create the S3 bucket and IAM user manually in the AWS Console
 
 ## Pipeline audit
 
-The lake `pipeline` schema stores data-plane audit facts for ingestion and transformation runs. Prefect remains the orchestration control plane for scheduling, retries, task states, and logs; the lake audit tables answer data questions such as which exchange/date was skipped, which ticker backfill failed, which landing URI produced Bronze rows, and which dbt model or test failed.
+The lake `pipeline` schema stores data-plane audit facts for ingestion and transformation runs. Prefect remains the orchestration control plane for scheduling, retries, task states, and logs; the lake audit tables answer data questions such as which exchange/date was skipped, which provider-instrument backfill failed, which landing URI produced Bronze rows, and which dbt model or test failed.
 
 Current audit tables are defined in `lake/schema.py` and applied through lake schema migrations:
 
@@ -154,7 +154,7 @@ Current audit tables are defined in `lake/schema.py` and applied through lake sc
 
 `pipeline.ingestion_coverage` stores non-Bronze outcomes that make reruns
 resume-safe, such as EOD backfill `completed` and `no_data` markers for an exact
-ticker/date window. See [docs/pipeline_audit.md](docs/pipeline_audit.md) for
+provider-instrument/date window. See [docs/pipeline_audit.md](docs/pipeline_audit.md) for
 table semantics, statuses, and the integration pattern.
 
 ## Pipeline dashboard
@@ -374,17 +374,17 @@ make dbt-build
 `prefect.yaml` registers one deployment per operational mode (scheduled, manual, backfill, build).
 Each mode maps to the same domain flow with different default parameters.
 
-| Domain                 | Deployments                                                                           | Mode                     |
-| ---------------------- | ------------------------------------------------------------------------------------- | ------------------------ |
-| EOD price (bulk)       | `eod-price-daily/daily`, `/backfill`                                                  | scheduled, backfill      |
-| EOD price (per-ticker) | `eod-price-backfill/historical-backfill`                                              | backfill                 |
-| Exchange catalog / MIC | `exchange-catalog-refresh/manual`, `exchange-mic-registry-refresh/manual`             | bootstrap                |
-| Exchange schedule      | `exchange-schedule-refresh/manual`                                                    | manual                   |
-| Instrument             | `instrument-refresh/weekly`, `/manual`                                                | scheduled, manual        |
-| Fundamental            | `fundamental-quarterly/manual`, `/backfill`, `/replay`                                | manual, backfill, replay |
-| dbt                    | `dbt-build/exchange-build`, `/instrument-build`, `/price-build`, `/fundamental-build` | build                    |
+| Domain                     | Deployments                                                                           | Mode                     |
+| -------------------------- | ------------------------------------------------------------------------------------- | ------------------------ |
+| EOD price (bulk)           | `eod-price-daily/daily`, `/backfill`                                                  | scheduled, backfill      |
+| EOD price (per-instrument) | `eod-price-backfill/historical-backfill`                                              | backfill                 |
+| Exchange catalog / MIC     | `exchange-catalog-refresh/manual`, `exchange-mic-registry-refresh/manual`             | bootstrap                |
+| Exchange schedule          | `exchange-schedule-refresh/manual`                                                    | manual                   |
+| Instrument                 | `instrument-refresh/weekly`, `/manual`                                                | scheduled, manual        |
+| Fundamental                | `fundamental-quarterly/manual`, `/backfill`, `/replay`                                | manual, backfill, replay |
+| dbt                        | `dbt-build/exchange-build`, `/instrument-build`, `/price-build`, `/fundamental-build` | build                    |
 
-Bootstrap order for a new environment: exchange catalog manual → exchange MIC manual → exchange schedule manual → exchange-build → instrument → ingest. In normal operation, ingestion deployments trigger their matching dbt build after a clean audit status; pass `run_dbt_build=false` for Bronze-only runs. Historical EOD backfill also has a preflight guard: the deployment sets `build_selection_views_if_missing=true`, so it runs `dbt-build/price-build` before symbol selection when the required Silver selector views do not exist yet.
+Bootstrap order for a new environment: exchange catalog manual → exchange MIC manual → exchange schedule manual → exchange-build → instrument → ingest. In normal operation, ingestion deployments trigger their matching dbt build after a clean audit status; pass `run_dbt_build=false` for Bronze-only runs. Historical EOD backfill also has a preflight guard: the deployment sets `build_selection_views_if_missing=true`, so it runs `dbt-build/price-build` before provider-instrument selection when the required Silver selector views do not exist yet.
 
 `make deploy` is the source-of-truth sync: it removes orphaned deployments owned by this app
 (entrypoints under `domains.*` or `core.transforms.*`), then applies `prefect.yaml`.
