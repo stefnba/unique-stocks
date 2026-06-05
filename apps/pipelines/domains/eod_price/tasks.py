@@ -5,7 +5,7 @@ fetch, validate, or write. No business logic.
 """
 
 from datetime import UTC, date, datetime
-from typing import TypedDict
+from typing import Any, TypedDict
 
 import structlog
 from prefect import task
@@ -640,10 +640,12 @@ def write_backfill_eod_batch(
     sources: list[BronzeParseResult[EODBar]],
     provider_exchange_code: str,
 ) -> BronzeWrite:
-    """Bulk-insert one batch of per-ticker bars into bronze.eod_price.
+    """Bulk-insert new per-ticker bars into bronze.eod_price.
 
-    Takes parser-produced Bronze sources so all records from the batch land in
-    a single ``executemany`` call rather than one per symbol.
+    Backfill keeps partially completed symbols pending. A fetched range can
+    therefore overlap existing Bronze dates, and some provider payloads can
+    contain duplicate dates for the same ticker. The write is idempotent at the
+    Bronze unique key ``(ticker, bar_date, data_provider)``.
     """
     from core.clients.lake import get_lake_client
 
@@ -651,10 +653,65 @@ def write_backfill_eod_batch(
         return BronzeWrite(rows_written=0, reason="no_sources")
 
     lake = get_lake_client()
-    written = EOD_PRICE_DATASET.write_bronze(lake, sources)
+    records, duplicates = _deduplicate_eod_price_records(sources)
+    written = _insert_eod_price_records_ignore_existing(lake, records)
     log.info(
         "backfill.batch_written",
         provider_exchange_code=provider_exchange_code,
         rows=written,
+        duplicates_dropped=duplicates,
+        sources=len(sources),
     )
-    return BronzeWrite(rows_written=written)
+    reason = "already_ingested" if written == 0 and records else None
+    return BronzeWrite(rows_written=written, reason=reason)
+
+
+def _deduplicate_eod_price_records(
+    sources: list[BronzeParseResult[EODBar]],
+) -> tuple[list[dict[str, Any]], int]:
+    """Serialize and de-duplicate EOD price records by Bronze unique key."""
+    records_by_key: dict[tuple[str, date, str], dict[str, Any]] = {}
+    duplicates = 0
+    for source in sources:
+        record = EOD_PRICE_DATASET.bronze_record(source)
+        key = (
+            str(record["ticker"]),
+            record["bar_date"],
+            str(record["data_provider"]),
+        )
+        if key in records_by_key:
+            duplicates += 1
+            continue
+        records_by_key[key] = record
+    return list(records_by_key.values()), duplicates
+
+
+def _insert_eod_price_records_ignore_existing(lake: Any, records: list[dict[str, Any]]) -> int:
+    """Insert records, ignoring rows already present by the Bronze unique key."""
+    if not records:
+        return 0
+
+    if not lake.table_exists(EOD_PRICE_DATASET.schema, EOD_PRICE_DATASET.table_name):
+        lake.execute(EOD_PRICE_DATASET.table.to_ddl())
+
+    qualified = lake.qualified_name(EOD_PRICE_DATASET.schema, EOD_PRICE_DATASET.table_name)
+    before = _table_count(lake, qualified)
+    columns = list(records[0].keys())
+    column_names = ", ".join(_quote_identifier(column) for column in columns)
+    placeholders = ", ".join("?" for _ in columns)
+    values = [[record[column] for column in columns] for record in records]
+    lake.connection.executemany(f"INSERT OR IGNORE INTO {qualified} ({column_names}) VALUES ({placeholders})", values)
+    return _table_count(lake, qualified) - before
+
+
+def _table_count(lake: Any, qualified: str) -> int:
+    """Return the current row count for a qualified table name."""
+    row = lake.query_one(f"SELECT COUNT(*) AS cnt FROM {qualified}")
+    return int(row["cnt"]) if row else 0
+
+
+def _quote_identifier(value: str) -> str:
+    """Quote a DuckDB identifier."""
+    if not value or "\x00" in value:
+        raise ValueError(f"Invalid DuckDB identifier: {value!r}")
+    return '"' + value.replace('"', '""') + '"'

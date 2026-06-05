@@ -2,10 +2,13 @@
 
 from collections.abc import Sequence
 from datetime import date
+from decimal import Decimal
 from typing import Any
 
 import pytest
 
+from core.clients.lake import DataLakeClient
+from core.ingestion import BronzeParseResult
 from core.ingestion.coverage import (
     COVERAGE_STATUS_COMPLETED,
     COVERAGE_STATUS_NO_DATA,
@@ -17,6 +20,7 @@ from domains.eod_price.coverage import (
     EOD_TICKER_BACKFILL_UNIT_TYPE,
     eod_ticker_backfill_unit_key,
 )
+from domains.eod_price.models import EODBar
 from domains.instrument.universe import SilverIngestionContractError
 
 FROM_DATE = date(2026, 5, 1)
@@ -418,3 +422,54 @@ def test_write_eod_deferred_coverage_records_unsubmitted_tickers(monkeypatch: py
     records = [record for _, _, batch in lake.inserted for record in batch]
     assert {record["status"] for record in records} == {COVERAGE_STATUS_PROVIDER_QUOTA_DEFERRED}
     assert {record["unit_key_json"]["ticker"] for record in records} == {"MSFT.US", "GOOG.US"}
+
+
+def test_write_backfill_eod_batch_ignores_existing_and_duplicate_bars(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Backfill batch writes should tolerate partial reruns and provider duplicate dates."""
+    lake = DataLakeClient(connection_string=":memory:")
+    import core.clients.lake as lake_module
+
+    monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
+
+    existing = _eod_source("0P0001OMXU.AS", date(2022, 2, 8))
+    first = tasks.write_backfill_eod_batch.fn([existing], provider_exchange_code="AS")
+
+    overlapping = [
+        _eod_source("0P0001OMXU.AS", date(2022, 2, 8)),
+        _eod_source("0P0001OMXU.AS", date(2022, 2, 9)),
+        _eod_source("0P0001OMXU.AS", date(2022, 2, 9)),
+    ]
+    second = tasks.write_backfill_eod_batch.fn(overlapping, provider_exchange_code="AS")
+
+    rows = lake.load(
+        "eod_price",
+        schema="bronze",
+        columns=["ticker", "bar_date", "data_provider"],
+        order_by="bar_date",
+    )
+    assert first.rows_written == 1
+    assert second.rows_written == 1
+    assert rows == [
+        {"ticker": "0P0001OMXU.AS", "bar_date": date(2022, 2, 8), "data_provider": "eodhd"},
+        {"ticker": "0P0001OMXU.AS", "bar_date": date(2022, 2, 9), "data_provider": "eodhd"},
+    ]
+
+
+def _eod_source(ticker: str, bar_date: date) -> BronzeParseResult[EODBar]:
+    """Build a valid parsed EOD bar source."""
+    return BronzeParseResult(
+        row=EODBar(
+            provider_exchange_code=ticker.rsplit(".", maxsplit=1)[1],
+            ticker=ticker,
+            bar_date=bar_date,
+            open=Decimal("10"),
+            high=Decimal("12"),
+            low=Decimal("9"),
+            close=Decimal("11"),
+            volume=100,
+            adjusted_close=Decimal("11"),
+        ),
+        raw_fragment={"date": bar_date.isoformat()},
+    )
