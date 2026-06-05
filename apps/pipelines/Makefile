@@ -1,7 +1,8 @@
 .DEFAULT_GOAL := help
 .PHONY: help install test test-unit test-integration lint lint-fix format format-check typecheck check \
         python-lint python-lint-fix python-format python-format-check \
-        sql-lint sql-format markdown-format markdown-format-check yaml-lint \
+        sql-lint sql-format prettier-format prettier-format-check \
+        markdown-format markdown-format-check yaml-format yaml-format-check yaml-lint \
         smoke operational-health dashboard \
         prefect-server prefect-worker \
         docker-up docker-down docker-down-volumes docker-logs docker-logs-worker docker-logs-dashboard docker-ps \
@@ -35,9 +36,7 @@ LAKE_UV := UV_CACHE_DIR="$(UV_CACHE_DIR)" uv -q
 LAKE_PY := PIPELINE_LOG_LEVEL="$(LAKE_CLI_LOG_LEVEL)" $(LAKE_UV) run python
 DBT := DBT_DUCKDB_PATH="$(DBT_DUCKDB_PATH)" LAKE_NAME="$(LAKE_NAME)" LOCAL_LAKE_PATH="$(LOCAL_LAKE_PATH)" $(UV) run dbt
 DBT_FLAGS := --project-dir $(DBT_DIR) --profiles-dir $(DBT_DIR) --target $(DBT_TARGET)
-SQLFLUFF_PATHS := $(DBT_DIR) $(LAKE_MIGRATIONS_DIR)
-MARKDOWN_FILES := $(addprefix $(REPO_ROOT)/,$(shell git -C $(REPO_ROOT) ls-files '*.md' ':!:.worktrees/*'))
-YAML_FILES := $(addprefix $(REPO_ROOT)/,$(shell git -C $(REPO_ROOT) ls-files '*.yml' '*.yaml' ':!:.worktrees/*'))
+PRE_COMMIT := cd $(REPO_ROOT) && UV_CACHE_DIR="$(UV_CACHE_DIR)" uv run --project apps/pipelines pre-commit
 
 # ── Colours ────────────────────────────────────────────────────────────────
 BOLD  := \033[1m
@@ -92,35 +91,43 @@ lint: python-lint sql-lint yaml-lint ## Check code style (ruff, sqlfluff, yamlli
 python-lint: ## Check Python code style
 	uv run ruff check .
 
-lint-fix: python-lint-fix sql-format markdown-format ## Auto-fix lint issues
+lint-fix: python-lint-fix sql-format prettier-format ## Auto-fix lint issues
 
 python-lint-fix: ## Auto-fix Python lint issues
 	uv run ruff check . --fix
 
-format: python-format sql-format markdown-format ## Format code and docs
+format: python-format sql-format prettier-format ## Format code and docs
 
 python-format: ## Format Python code
 	uv run ruff format .
 
-format-check: python-format-check markdown-format-check ## Check formatting without modifying files
+format-check: python-format-check prettier-format-check ## Check formatting without modifying files
 
 python-format-check: ## Check Python formatting without modifying files
 	uv run ruff format . --check
 
 sql-lint: ## Lint SQL files
-	$(UV) run sqlfluff lint $(SQLFLUFF_PATHS)
+	$(UV) run sqlfluff lint $(DBT_DIR)/macros $(DBT_DIR)/models $(DBT_DIR)/tests $(LAKE_MIGRATIONS_DIR)
 
 sql-format: ## Format SQL files
-	$(UV) run sqlfluff fix $(SQLFLUFF_PATHS)
+	$(UV) run sqlfluff fix $(DBT_DIR)/macros $(DBT_DIR)/models $(DBT_DIR)/tests $(LAKE_MIGRATIONS_DIR)
 
-markdown-format: ## Format Markdown files
-	$(UV) run mdformat --wrap keep --extensions gfm $(MARKDOWN_FILES)
+prettier-format: ## Format Markdown and YAML files
+	$(PRE_COMMIT) run prettier-format --all-files
 
-markdown-format-check: ## Check Markdown formatting without modifying files
-	$(UV) run mdformat --check --wrap keep --extensions gfm $(MARKDOWN_FILES)
+prettier-format-check: ## Check Markdown and YAML formatting without modifying files
+	$(PRE_COMMIT) run prettier-check --hook-stage manual --all-files
+
+markdown-format: prettier-format ## Format Markdown files
+
+markdown-format-check: prettier-format-check ## Check Markdown formatting without modifying files
+
+yaml-format: prettier-format ## Format YAML files
+
+yaml-format-check: prettier-format-check ## Check YAML formatting without modifying files
 
 yaml-lint: ## Lint YAML files
-	$(UV) run yamllint -c $(REPO_ROOT)/.yamllint $(YAML_FILES)
+	$(UV) run yamllint -c $(REPO_ROOT)/.yamllint $(REPO_ROOT)
 
 typecheck: ## Run static type checks (basedpyright)
 	$(UV) run --extra dashboard basedpyright
