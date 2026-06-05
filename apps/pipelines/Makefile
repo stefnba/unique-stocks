@@ -170,7 +170,7 @@ lake-reset-local: lake-env-guard ## Delete and recreate the local DuckDB lake (d
 lake-migration: lake-env-guard lake-ensure-database ## Generate a lake schema migration (NAME="..." optional, EMPTY=1 for manual)
 	$(UV) run python -m core.lake.migration.generate --tables "$(LAKE_TABLES_REF)" --migrations-dir "$(LAKE_MIGRATIONS_DIR)"
 
-lake-ensure-database: lake-env-guard ## Create MotherDuck database or local lake parent dir when missing
+lake-ensure-database: lake-env-guard ## Create MotherDuck database or local DuckDB file when missing
 	$(UV) run python -c "from config.settings import get_settings; from core.lake.database import ensure_lake_database; ensure_lake_database(get_settings())"
 
 lake-migrate: lake-env-guard lake-ensure-database ## Apply pending lake schema migrations

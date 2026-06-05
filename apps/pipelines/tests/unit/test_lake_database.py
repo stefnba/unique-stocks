@@ -3,6 +3,7 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import duckdb
 import pytest
 from pydantic import SecretStr
 
@@ -43,13 +44,36 @@ def test_ensure_motherduck_uses_settings_database_name(monkeypatch: pytest.Monke
 
 
 def test_ensure_local_lake_path_creates_parent_directory(tmp_path: Path) -> None:
-    """Local bootstrap should create missing parent directories before connect."""
+    """Local bootstrap should create missing parent directories and the database file."""
     lake_file = tmp_path / "nested" / "lake.duckdb"
     settings = Settings(motherduck_token=SecretStr(""), local_lake_path=str(lake_file))
 
     ensure_lake_database(settings)
 
     assert lake_file.parent.is_dir()
+    assert lake_file.is_file()
+
+
+def test_ensure_local_lake_database_leaves_schema_empty(tmp_path: Path) -> None:
+    """A freshly bootstrapped local lake should diff like an empty catalog."""
+    lake_file = tmp_path / "lake.duckdb"
+    settings = Settings(motherduck_token=SecretStr(""), local_lake_path=str(lake_file))
+
+    ensure_lake_database(settings)
+
+    conn = duckdb.connect(str(lake_file), read_only=True)
+    try:
+        rows = conn.execute(
+            """
+            SELECT table_schema, table_name
+            FROM information_schema.tables
+            WHERE table_schema IN ('bronze', 'silver', 'gold', 'pipeline', 'lake')
+            """
+        ).fetchall()
+    finally:
+        conn.close()
+
+    assert rows == []
 
 
 @patch("core.lake.database.duckdb.connect")
@@ -67,10 +91,12 @@ def test_ensure_motherduck_database_creates_when_missing(connect: MagicMock) -> 
 
 
 @patch("core.lake.database.duckdb.connect")
-def test_ensure_motherduck_skips_blank_token(connect: MagicMock) -> None:
-    """Whitespace MotherDuck tokens should not attempt a remote bootstrap."""
-    settings = Settings(motherduck_token=SecretStr("   "))
+def test_ensure_motherduck_blank_token_uses_local_bootstrap(connect: MagicMock, tmp_path: Path) -> None:
+    """Whitespace MotherDuck tokens should fall back to local bootstrap."""
+    lake_file = tmp_path / "lake.duckdb"
+    settings = Settings(motherduck_token=SecretStr("   "), local_lake_path=str(lake_file))
 
     ensure_lake_database(settings)
 
-    connect.assert_not_called()
+    connect.assert_called_once_with(str(lake_file))
+    connect.return_value.close.assert_called_once()

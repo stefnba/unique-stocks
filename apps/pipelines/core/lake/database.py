@@ -16,8 +16,8 @@ def ensure_lake_database(settings: Settings) -> None:
     """Create the lake database or local file when it does not exist yet.
 
     MotherDuck requires an explicit ``CREATE DATABASE`` before ``md:<name>`` can
-    connect. Local DuckDB creates the file on connect; this only ensures parent
-    directories exist for custom ``LOCAL_LAKE_PATH`` values.
+    connect. Local DuckDB creates the file on connect, so local bootstrap opens
+    and closes the configured path without creating lake schemas or tables.
 
     Args:
         settings: Application settings with lake backend and path configuration.
@@ -29,7 +29,7 @@ def ensure_lake_database(settings: Settings) -> None:
             motherduck_token=settings.motherduck_token.get_secret_value(),
         )
         return
-    _ensure_local_lake_path(settings.resolved_local_lake_path())
+    _ensure_local_lake_database(settings.resolved_local_lake_path())
 
 
 def motherduck_connection_string(
@@ -69,16 +69,18 @@ def _ensure_motherduck_database(*, database_name: str, motherduck_token: str) ->
         conn.close()
 
 
-def _ensure_local_lake_path(path: str) -> None:
-    """Ensure the parent directory for a local DuckDB file exists.
+def _ensure_local_lake_database(path: str) -> None:
+    """Ensure a local DuckDB database file exists.
 
     Args:
         path: Absolute or relative path to the DuckDB file.
     """
     lake_path = Path(path)
-    if lake_path.parent == lake_path:
-        return
-    lake_path.parent.mkdir(parents=True, exist_ok=True)
+    if lake_path.parent != lake_path:
+        lake_path.parent.mkdir(parents=True, exist_ok=True)
+    if not lake_path.exists():
+        conn = duckdb.connect(str(lake_path))
+        conn.close()
     log.info("lake.ensure_database", backend="local", path=str(lake_path))
 
 
