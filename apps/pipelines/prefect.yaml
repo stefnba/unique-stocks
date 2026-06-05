@@ -59,6 +59,7 @@ definitions:
     parameters:
       command: build
       exclude: null
+      indirect_selection: buildable
       project_dir: dbt
       profiles_dir: dbt
       target: null

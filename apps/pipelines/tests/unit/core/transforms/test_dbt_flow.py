@@ -80,6 +80,43 @@ def test_run_dbt_command_uses_app_root_paths_and_env_overlay(
     assert env["DBT_DUCKDB_PATH"] == str(APP_ROOT / "unique_stocks.duckdb")
 
 
+def test_run_dbt_command_passes_indirect_selection_for_build(monkeypatch: MonkeyPatch) -> None:
+    """Partial deployment builds should avoid eager tests outside the selected graph."""
+    settings = Settings(local_lake_path="unique_stocks.duckdb", motherduck_token=SecretStr(""))
+    captured: dict[str, object] = {}
+
+    def fake_run(
+        args: Sequence[str],
+        *,
+        check: bool,
+        capture_output: bool,
+        text: bool,
+        cwd: Path,
+        env: Mapping[str, str],
+    ) -> subprocess.CompletedProcess[str]:
+        captured["args"] = list(args)
+        return subprocess.CompletedProcess(args=list(args), returncode=0, stdout="ok", stderr="")
+
+    monkeypatch.setattr(dbt, "get_settings", lambda: settings)
+    monkeypatch.setattr(dbt, "_dbt_base_command", lambda: ["dbt"])
+    monkeypatch.setattr(dbt.subprocess, "run", fake_run)
+
+    dbt.run_dbt_command.fn(
+        command="build",
+        select=["+path:models/marts/security"],
+        exclude=[],
+        indirect_selection="buildable",
+        project_dir="dbt",
+        profiles_dir="dbt",
+        target=None,
+    )
+
+    args = captured["args"]
+    assert isinstance(args, list)
+    assert "--indirect-selection" in args
+    assert args[args.index("--indirect-selection") + 1] == "buildable"
+
+
 def test_run_dbt_command_ensures_motherduck_database_for_prod(monkeypatch: MonkeyPatch) -> None:
     """Prod dbt runs should create the MotherDuck database before connecting."""
     settings = Settings(motherduck_token=SecretStr("test-token"))

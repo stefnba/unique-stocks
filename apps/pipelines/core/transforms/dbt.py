@@ -25,6 +25,7 @@ from core.lake.database import ensure_lake_database
 log = structlog.get_logger(__name__)
 
 type DbtCommand = Literal["build", "run", "test", "compile"]
+type DbtIndirectSelection = Literal["eager", "cautious", "buildable", "empty"]
 
 
 class DbtCommandResult(BaseModel):
@@ -53,6 +54,7 @@ async def dbt_build_flow(
     command: DbtCommand = "build",
     select: list[str] | None = None,
     exclude: list[str] | None = None,
+    indirect_selection: DbtIndirectSelection | None = "buildable",
     project_dir: str = "dbt",
     profiles_dir: str = "dbt",
     target: str | None = None,
@@ -78,6 +80,7 @@ async def dbt_build_flow(
             "command": command,
             "select": select,
             "exclude": exclude,
+            "indirect_selection": indirect_selection,
             "project_dir": str(project_path),
             "profiles_dir": str(profiles_path),
             "target": resolved_target,
@@ -90,6 +93,7 @@ async def dbt_build_flow(
                 command=command,
                 select=select,
                 exclude=exclude,
+                indirect_selection=indirect_selection,
                 project_dir=str(project_path),
                 profiles_dir=str(profiles_path),
                 target=resolved_target,
@@ -153,6 +157,7 @@ def run_dbt_command(
     command: DbtCommand,
     select: list[str],
     exclude: list[str],
+    indirect_selection: DbtIndirectSelection | None = "buildable",
     project_dir: str,
     profiles_dir: str,
     target: str | None,
@@ -171,9 +176,18 @@ def run_dbt_command(
         args.extend(["--select", *select])
     if exclude:
         args.extend(["--exclude", *exclude])
+    if indirect_selection and command in {"build", "test"}:
+        args.extend(["--indirect-selection", indirect_selection])
 
     started = _now()
-    log.info("dbt.command_start", command=command, project_dir=str(project_path), target=resolved_target, select=select)
+    log.info(
+        "dbt.command_start",
+        command=command,
+        project_dir=str(project_path),
+        target=resolved_target,
+        select=select,
+        indirect_selection=indirect_selection,
+    )
     completed_process = subprocess.run(
         args,
         check=False,
