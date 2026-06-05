@@ -4,9 +4,9 @@ Prefect flows and tasks for end-of-day OHLCV ingestion from EODHD.
 
 ## Flows
 
-| Flow                 | Endpoint grain                               | Lake output                                       |
-| -------------------- | -------------------------------------------- | ------------------------------------------------- |
-| `eod-price-daily`    | One bulk call per exchange per trade date    | `bronze.eod_price`                                |
+| Flow                 | Endpoint grain                                | Lake output                                       |
+| -------------------- | --------------------------------------------- | ------------------------------------------------- |
+| `eod-price-daily`    | One bulk call per exchange per trade date     | `bronze.eod_price`                                |
 | `eod-price-backfill` | One call per qualified ticker and date window | `bronze.eod_price`, `pipeline.ingestion_coverage` |
 
 Deployments are defined in `prefect.yaml` (`eod-price-daily`, `eod-price-backfill`).
@@ -42,13 +42,13 @@ written for quota failures. Deferred tickers stay pending for the next run.
 
 Cross-domain pipeline table; EOD backfill uses:
 
-| Field           | EOD value                                                        |
-| --------------- | ---------------------------------------------------------------- |
-| `domain`        | `eod_price`                                                      |
-| `unit_type`     | `ticker_backfill`                                                |
-| `unit_key_json` | `{provider_exchange_code, ticker, from_date, to_date}`           |
+| Field           | EOD value                                                                                                                                                      |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `domain`        | `eod_price`                                                                                                                                                    |
+| `unit_type`     | `ticker_backfill`                                                                                                                                              |
+| `unit_key_json` | `{provider_exchange_code, ticker, from_date, to_date}`                                                                                                         |
 | `status`        | `completed` after valid Bronze rows are written; `no_data` after fetch+landing returned no rows; `provider_quota_deferred` for unsubmitted quota-deferred work |
-| `reason`        | `price_rows_completed`, `no_valid_rows`, or the quota deferral reason |
+| `reason`        | `price_rows_completed`, `no_valid_rows`, or the quota deferral reason                                                                                          |
 
 Helpers: `domains/eod_price/coverage.py` (unit key builder), `core/ingestion/coverage.py` (generic write/idempotency). dbt exposes EOD terminal rows through `silver.int_eod_price_backfill_terminal_coverage`; Python pending selection does not parse coverage JSON directly.
 
