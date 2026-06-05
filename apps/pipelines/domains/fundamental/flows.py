@@ -370,7 +370,11 @@ async def fundamental_flow(
                         delete_fundamental_snapshot_rows(ticker, snapshot_date)
 
                     document_write = write_bronze_fundamental_document(document, source_uri=landing.source_uri)
-                    identity_write = write_bronze_fundamental_stock_identity(identity, source_uri=landing.source_uri)
+                    identity_write = write_bronze_fundamental_stock_identity(
+                        identity,
+                        source_uri=landing.source_uri,
+                        ticker=ticker,
+                    )
                     statement_facts_write = write_bronze_fundamental_statement_facts(
                         statement_facts,
                         ticker=ticker,
@@ -386,6 +390,7 @@ async def fundamental_flow(
                     shares_stats_write = write_bronze_fundamental_stock_shares_stats(
                         shares_stats,
                         source_uri=landing.source_uri,
+                        ticker=ticker,
                     )
                     outstanding_shares_write = write_bronze_fundamental_stock_outstanding_shares(
                         outstanding_shares,
@@ -408,6 +413,7 @@ async def fundamental_flow(
                     splits_dividends_write = write_bronze_fundamental_stock_splits_dividends(
                         splits_dividends,
                         source_uri=landing.source_uri,
+                        ticker=ticker,
                     )
                     dividend_counts_write = write_bronze_fundamental_stock_dividend_counts(
                         dividend_counts,
@@ -430,14 +436,17 @@ async def fundamental_flow(
                     etf_identity_write = write_bronze_fundamental_etf_identity(
                         etf_identity,
                         source_uri=landing.source_uri,
+                        ticker=ticker,
                     )
                     mutual_fund_identity_write = write_bronze_fundamental_mutual_fund_identity(
                         mutual_fund_identity,
                         source_uri=landing.source_uri,
+                        ticker=ticker,
                     )
                     index_identity_write = write_bronze_fundamental_index_identity(
                         index_identity,
                         source_uri=landing.source_uri,
+                        ticker=ticker,
                     )
                     etf_holdings_write = write_bronze_fundamental_etf_holdings(
                         etf_holdings,

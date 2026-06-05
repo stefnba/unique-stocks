@@ -30,7 +30,12 @@ async def fetch_instrument_provider_exchange_codes() -> list[str]:
     return codes
 
 
-@task(name="fetch-instrument", retries=3, retry_delay_seconds=10)
+@task(
+    name="fetch-instrument",
+    task_run_name="fetch-instrument-{provider_exchange_code}",
+    retries=3,
+    retry_delay_seconds=10,
+)
 async def fetch_instrument(provider_exchange_code: str) -> list[Instrument]:
     """Fetch all active instrument for one exchange.
 
@@ -49,7 +54,10 @@ async def fetch_instrument(provider_exchange_code: str) -> list[Instrument]:
     return instrument
 
 
-@task(name="write-instrument-landing")
+@task(
+    name="write-instrument-landing",
+    task_run_name="write-instrument-landing-{provider_exchange_code}",
+)
 async def write_instrument_to_landing_zone(
     instrument: list[Instrument],
     provider_exchange_code: str,
@@ -81,7 +89,10 @@ async def write_instrument_to_landing_zone(
     )
 
 
-@task(name="write-bronze-instrument")
+@task(
+    name="write-bronze-instrument",
+    task_run_name="write-bronze-instrument-{provider_exchange_code}",
+)
 def write_bronze_instrument(
     instrument: list[Instrument],
     provider_exchange_code: str,
@@ -141,7 +152,10 @@ def write_bronze_instrument(
     return BronzeWrite(rows_written=written)
 
 
-@task(name="instrument-already-ingested")
+@task(
+    name="instrument-already-ingested",
+    task_run_name="instrument-already-ingested-{provider_exchange_code}",
+)
 def instrument_already_ingested(provider_exchange_code: str, snapshot_date: date) -> bool:
     """Return True when instrument data for this exchange and snapshot already exists."""
     from core.clients.lake import get_lake_client

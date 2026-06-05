@@ -1,12 +1,12 @@
 """Prefect tasks for fundamentals ingestion."""
 
 from datetime import UTC, date, datetime
-from typing import Protocol
+from typing import Any, Protocol, cast
 
 import structlog
 from prefect import task
 from prefect.client.schemas.objects import State, TaskRun
-from prefect.tasks import exponential_backoff
+from prefect.tasks import TaskRunNameCallbackWithParameters, exponential_backoff
 from pydantic import ValidationError
 
 from config.blocks import BlockRegistry
@@ -103,6 +103,20 @@ def _is_retryable(task: object, task_run: TaskRun, state: State) -> bool:
     """Retry transient errors only; never retry schema drift or provider quota exhaustion."""
     exc = state.result(raise_on_failure=False)
     return not isinstance(exc, ValidationError | ProviderRateLimitError)
+
+
+def _ticker_task_run_name(task_name: str) -> TaskRunNameCallbackWithParameters:
+    """Build a task-run-name callback for tasks keyed by ticker."""
+
+    def name(parameters: dict[str, Any]) -> str:
+        ticker = parameters.get("ticker")
+        if not ticker:
+            source = parameters.get("source")
+            row = getattr(source, "row", None)
+            ticker = getattr(row, "ticker", None)
+        return f"{task_name}-{ticker or 'unknown'}"
+
+    return cast(TaskRunNameCallbackWithParameters, name)
 
 
 @task(name="fetch-fundamental-provider-exchange-codes")
@@ -250,7 +264,10 @@ def resolve_fundamental_snapshot_date_task(
     }
 
 
-@task(name="fundamental-document-already-ingested")
+@task(
+    name="fundamental-document-already-ingested",
+    task_run_name="fundamental-document-already-ingested-{ticker}",
+)
 def fundamental_document_already_ingested(ticker: str, snapshot_date: date) -> bool:
     """Return True when the fundamentals document already exists for this ticker snapshot."""
     from core.clients.lake import get_lake_client
@@ -259,7 +276,10 @@ def fundamental_document_already_ingested(ticker: str, snapshot_date: date) -> b
     return FUNDAMENTAL_DOCUMENT_DATASET.already_ingested(lake, snapshot_date=snapshot_date, ticker=ticker)
 
 
-@task(name="load-fundamental-document-payload-hash")
+@task(
+    name="load-fundamental-document-payload-hash",
+    task_run_name="load-fundamental-document-payload-hash-{ticker}",
+)
 def load_fundamental_document_payload_hash(ticker: str, snapshot_date: date) -> str | None:
     """Return the stored payload hash for a ticker snapshot when one exists."""
     from core.clients.lake import get_lake_client
@@ -284,7 +304,10 @@ def load_fundamental_document_payload_hash(ticker: str, snapshot_date: date) -> 
     return str(row["payload_hash"]) if row and row.get("payload_hash") else None
 
 
-@task(name="delete-fundamental-snapshot-rows")
+@task(
+    name="delete-fundamental-snapshot-rows",
+    task_run_name="delete-fundamental-snapshot-rows-{ticker}",
+)
 def delete_fundamental_snapshot_rows(ticker: str, snapshot_date: date) -> int:
     """Delete existing fundamentals Bronze rows for an explicit ticker snapshot.
 
@@ -336,6 +359,7 @@ def delete_fundamental_snapshot_rows(ticker: str, snapshot_date: date) -> int:
 
 @task(
     name="fetch-fundamental-ticker",
+    task_run_name="fetch-fundamental-ticker-{ticker}",
     retries=3,
     retry_delay_seconds=exponential_backoff(10),
     retry_condition_fn=_is_retryable,
@@ -352,7 +376,10 @@ async def fetch_fundamental_ticker(ticker: str) -> FundamentalRaw:
     return raw
 
 
-@task(name="load-fundamental-from-landing")
+@task(
+    name="load-fundamental-from-landing",
+    task_run_name="load-fundamental-from-landing-{ticker}",
+)
 async def load_fundamental_from_landing(
     ticker: str,
     snapshot_date: date,
@@ -383,7 +410,10 @@ async def load_fundamental_from_landing(
     return raw, landing
 
 
-@task(name="write-fundamental-landing")
+@task(
+    name="write-fundamental-landing",
+    task_run_name="write-fundamental-landing-{ticker}",
+)
 async def write_fundamental_to_landing(
     raw: FundamentalRaw,
     ticker: str,
@@ -455,7 +485,10 @@ def _landing_bucket(s3: _LandingStorage) -> str:
     return str(bucket)
 
 
-@task(name="parse-fundamental-stock")
+@task(
+    name="parse-fundamental-stock",
+    task_run_name="parse-fundamental-stock-{ticker}",
+)
 def parse_fundamental_stock(
     raw: FundamentalRaw,
     ticker: str,
@@ -583,7 +616,10 @@ def parse_fundamental_stock(
     )
 
 
-@task(name="write-bronze-fundamental-document")
+@task(
+    name="write-bronze-fundamental-document",
+    task_run_name=_ticker_task_run_name("write-bronze-fundamental-document"),
+)
 def write_bronze_fundamental_document(
     source: BronzeParseResult[FundamentalDocument],
     source_uri: str | None = None,
@@ -603,10 +639,14 @@ def write_bronze_fundamental_document(
     return BronzeWrite(rows_written=written)
 
 
-@task(name="write-bronze-fundamental-stock-identity")
+@task(
+    name="write-bronze-fundamental-stock-identity",
+    task_run_name=_ticker_task_run_name("write-bronze-fundamental-stock-identity"),
+)
 def write_bronze_fundamental_stock_identity(
     source: BronzeParseResult[FundamentalStockIdentitySnapshot] | None,
     source_uri: str | None = None,
+    ticker: str | None = None,
 ) -> BronzeWrite:
     """Write one stock identity row to ``bronze.fundamental_stock_identity``."""
     from core.clients.lake import get_lake_client
@@ -626,7 +666,10 @@ def write_bronze_fundamental_stock_identity(
     return BronzeWrite(rows_written=written)
 
 
-@task(name="write-bronze-fundamental-statement-facts")
+@task(
+    name="write-bronze-fundamental-statement-facts",
+    task_run_name="write-bronze-fundamental-statement-facts-{ticker}",
+)
 def write_bronze_fundamental_statement_facts(
     sources: list[BronzeParseResult[FundamentalStatementFact]],
     ticker: str,
@@ -647,7 +690,10 @@ def write_bronze_fundamental_statement_facts(
     return BronzeWrite(rows_written=written)
 
 
-@task(name="write-bronze-fundamental-stock-earnings-facts")
+@task(
+    name="write-bronze-fundamental-stock-earnings-facts",
+    task_run_name="write-bronze-fundamental-stock-earnings-facts-{ticker}",
+)
 def write_bronze_fundamental_stock_earnings_facts(
     sources: list[BronzeParseResult[FundamentalStockEarningsFact]],
     ticker: str,
@@ -672,10 +718,14 @@ def write_bronze_fundamental_stock_earnings_facts(
     return BronzeWrite(rows_written=written)
 
 
-@task(name="write-bronze-fundamental-stock-shares-stats")
+@task(
+    name="write-bronze-fundamental-stock-shares-stats",
+    task_run_name=_ticker_task_run_name("write-bronze-fundamental-stock-shares-stats"),
+)
 def write_bronze_fundamental_stock_shares_stats(
     source: BronzeParseResult[FundamentalStockSharesStatsSnapshot] | None,
     source_uri: str | None = None,
+    ticker: str | None = None,
 ) -> BronzeWrite:
     """Write one stock shares-statistics row to ``bronze.fundamental_stock_shares_stats``."""
     from core.clients.lake import get_lake_client
@@ -695,7 +745,10 @@ def write_bronze_fundamental_stock_shares_stats(
     return BronzeWrite(rows_written=written)
 
 
-@task(name="write-bronze-fundamental-stock-outstanding-shares")
+@task(
+    name="write-bronze-fundamental-stock-outstanding-shares",
+    task_run_name="write-bronze-fundamental-stock-outstanding-shares-{ticker}",
+)
 def write_bronze_fundamental_stock_outstanding_shares(
     sources: list[BronzeParseResult[FundamentalStockOutstandingShares]],
     ticker: str,
@@ -720,7 +773,10 @@ def write_bronze_fundamental_stock_outstanding_shares(
     return BronzeWrite(rows_written=written)
 
 
-@task(name="write-bronze-fundamental-stock-holders")
+@task(
+    name="write-bronze-fundamental-stock-holders",
+    task_run_name="write-bronze-fundamental-stock-holders-{ticker}",
+)
 def write_bronze_fundamental_stock_holders(
     sources: list[BronzeParseResult[FundamentalStockHolder]],
     ticker: str,
@@ -741,7 +797,10 @@ def write_bronze_fundamental_stock_holders(
     return BronzeWrite(rows_written=written)
 
 
-@task(name="write-bronze-fundamental-stock-insider-transactions")
+@task(
+    name="write-bronze-fundamental-stock-insider-transactions",
+    task_run_name="write-bronze-fundamental-stock-insider-transactions-{ticker}",
+)
 def write_bronze_fundamental_stock_insider_transactions(
     sources: list[BronzeParseResult[FundamentalStockInsiderTransaction]],
     ticker: str,
@@ -766,10 +825,14 @@ def write_bronze_fundamental_stock_insider_transactions(
     return BronzeWrite(rows_written=written)
 
 
-@task(name="write-bronze-fundamental-stock-splits-dividends")
+@task(
+    name="write-bronze-fundamental-stock-splits-dividends",
+    task_run_name=_ticker_task_run_name("write-bronze-fundamental-stock-splits-dividends"),
+)
 def write_bronze_fundamental_stock_splits_dividends(
     source: BronzeParseResult[FundamentalStockSplitsDividendsSnapshot] | None,
     source_uri: str | None = None,
+    ticker: str | None = None,
 ) -> BronzeWrite:
     """Write one stock splits/dividends row to ``bronze.fundamental_stock_splits_dividends``."""
     from core.clients.lake import get_lake_client
@@ -789,7 +852,10 @@ def write_bronze_fundamental_stock_splits_dividends(
     return BronzeWrite(rows_written=written)
 
 
-@task(name="write-bronze-fundamental-stock-dividend-counts")
+@task(
+    name="write-bronze-fundamental-stock-dividend-counts",
+    task_run_name="write-bronze-fundamental-stock-dividend-counts-{ticker}",
+)
 def write_bronze_fundamental_stock_dividend_counts(
     sources: list[BronzeParseResult[FundamentalStockDividendCount]],
     ticker: str,
@@ -810,7 +876,10 @@ def write_bronze_fundamental_stock_dividend_counts(
     return BronzeWrite(rows_written=written)
 
 
-@task(name="write-bronze-fundamental-stock-metric-facts")
+@task(
+    name="write-bronze-fundamental-stock-metric-facts",
+    task_run_name="write-bronze-fundamental-stock-metric-facts-{ticker}",
+)
 def write_bronze_fundamental_stock_metric_facts(
     sources: list[BronzeParseResult[FundamentalStockMetricFact]],
     ticker: str,
@@ -831,7 +900,10 @@ def write_bronze_fundamental_stock_metric_facts(
     return BronzeWrite(rows_written=written)
 
 
-@task(name="write-bronze-fundamental-stock-esg-activities")
+@task(
+    name="write-bronze-fundamental-stock-esg-activities",
+    task_run_name="write-bronze-fundamental-stock-esg-activities-{ticker}",
+)
 def write_bronze_fundamental_stock_esg_activities(
     sources: list[BronzeParseResult[FundamentalStockEsgActivity]],
     ticker: str,
@@ -852,10 +924,14 @@ def write_bronze_fundamental_stock_esg_activities(
     return BronzeWrite(rows_written=written)
 
 
-@task(name="write-bronze-fundamental-etf-identity")
+@task(
+    name="write-bronze-fundamental-etf-identity",
+    task_run_name=_ticker_task_run_name("write-bronze-fundamental-etf-identity"),
+)
 def write_bronze_fundamental_etf_identity(
     source: BronzeParseResult[FundamentalEtfIdentitySnapshot] | None,
     source_uri: str | None = None,
+    ticker: str | None = None,
 ) -> BronzeWrite:
     """Write one ETF identity row to ``bronze.fundamental_etf_identity``."""
     from core.clients.lake import get_lake_client
@@ -875,10 +951,14 @@ def write_bronze_fundamental_etf_identity(
     return BronzeWrite(rows_written=written)
 
 
-@task(name="write-bronze-fundamental-mutual-fund-identity")
+@task(
+    name="write-bronze-fundamental-mutual-fund-identity",
+    task_run_name=_ticker_task_run_name("write-bronze-fundamental-mutual-fund-identity"),
+)
 def write_bronze_fundamental_mutual_fund_identity(
     source: BronzeParseResult[FundamentalMutualFundIdentitySnapshot] | None,
     source_uri: str | None = None,
+    ticker: str | None = None,
 ) -> BronzeWrite:
     """Write one mutual fund identity row to ``bronze.fundamental_mutual_fund_identity``."""
     from core.clients.lake import get_lake_client
@@ -898,10 +978,14 @@ def write_bronze_fundamental_mutual_fund_identity(
     return BronzeWrite(rows_written=written)
 
 
-@task(name="write-bronze-fundamental-index-identity")
+@task(
+    name="write-bronze-fundamental-index-identity",
+    task_run_name=_ticker_task_run_name("write-bronze-fundamental-index-identity"),
+)
 def write_bronze_fundamental_index_identity(
     source: BronzeParseResult[FundamentalIndexIdentitySnapshot] | None,
     source_uri: str | None = None,
+    ticker: str | None = None,
 ) -> BronzeWrite:
     """Write one index identity row to ``bronze.fundamental_index_identity``."""
     from core.clients.lake import get_lake_client
@@ -921,7 +1005,10 @@ def write_bronze_fundamental_index_identity(
     return BronzeWrite(rows_written=written)
 
 
-@task(name="write-bronze-fundamental-etf-holdings")
+@task(
+    name="write-bronze-fundamental-etf-holdings",
+    task_run_name="write-bronze-fundamental-etf-holdings-{ticker}",
+)
 def write_bronze_fundamental_etf_holdings(
     sources: list[BronzeParseResult[FundamentalEtfHolding]],
     ticker: str,
@@ -942,7 +1029,10 @@ def write_bronze_fundamental_etf_holdings(
     return BronzeWrite(rows_written=written)
 
 
-@task(name="write-bronze-fundamental-mutual-fund-holdings")
+@task(
+    name="write-bronze-fundamental-mutual-fund-holdings",
+    task_run_name="write-bronze-fundamental-mutual-fund-holdings-{ticker}",
+)
 def write_bronze_fundamental_mutual_fund_holdings(
     sources: list[BronzeParseResult[FundamentalMutualFundHolding]],
     ticker: str,
@@ -963,7 +1053,10 @@ def write_bronze_fundamental_mutual_fund_holdings(
     return BronzeWrite(rows_written=written)
 
 
-@task(name="write-bronze-fundamental-fund-metric-facts")
+@task(
+    name="write-bronze-fundamental-fund-metric-facts",
+    task_run_name="write-bronze-fundamental-fund-metric-facts-{ticker}",
+)
 def write_bronze_fundamental_fund_metric_facts(
     sources: list[BronzeParseResult[FundamentalFundMetricFact]],
     ticker: str,
@@ -984,7 +1077,10 @@ def write_bronze_fundamental_fund_metric_facts(
     return BronzeWrite(rows_written=written)
 
 
-@task(name="write-bronze-fundamental-index-components")
+@task(
+    name="write-bronze-fundamental-index-components",
+    task_run_name="write-bronze-fundamental-index-components-{ticker}",
+)
 def write_bronze_fundamental_index_components(
     sources: list[BronzeParseResult[FundamentalIndexComponent]],
     ticker: str,
@@ -1005,7 +1101,10 @@ def write_bronze_fundamental_index_components(
     return BronzeWrite(rows_written=written)
 
 
-@task(name="write-bronze-fundamental-index-historical-components")
+@task(
+    name="write-bronze-fundamental-index-historical-components",
+    task_run_name="write-bronze-fundamental-index-historical-components-{ticker}",
+)
 def write_bronze_fundamental_index_historical_components(
     sources: list[BronzeParseResult[FundamentalIndexHistoricalComponent]],
     ticker: str,

@@ -63,6 +63,7 @@ def _is_retryable(task: object, task_run: TaskRun, state: State) -> bool:
 
 @task(
     name="fetch-eod-price-bulk",
+    task_run_name="fetch-eod-price-bulk-{provider_exchange_code}",
     retries=3,
     retry_delay_seconds=exponential_backoff(10),
     retry_condition_fn=_is_retryable,
@@ -86,7 +87,10 @@ async def fetch_eod_price_bulk(
     return rows
 
 
-@task(name="write-eod-price-landing")
+@task(
+    name="write-eod-price-landing",
+    task_run_name="write-eod-price-landing-{provider_exchange_code}",
+)
 async def write_eod_price_to_landing(
     raw_rows: list[EODBulkPriceRaw],
     provider_exchange_code: str,
@@ -119,7 +123,10 @@ async def write_eod_price_to_landing(
     )
 
 
-@task(name="write-ticker-eod-history-landing")
+@task(
+    name="write-ticker-eod-history-landing",
+    task_run_name="write-ticker-eod-history-landing-{symbol}",
+)
 async def write_ticker_eod_history_to_landing(
     raw_bars: list[EODPriceBarRaw],
     symbol: str,
@@ -158,7 +165,10 @@ async def write_ticker_eod_history_to_landing(
     )
 
 
-@task(name="parse-eod-price")
+@task(
+    name="parse-eod-price",
+    task_run_name="parse-eod-price-{provider_exchange_code}",
+)
 def parse_eod_price(
     raw_rows: list[EODBulkPriceRaw],
     bar_date: date,
@@ -191,7 +201,10 @@ def parse_eod_price(
     return valid, rejected
 
 
-@task(name="write-bronze-eod-price")
+@task(
+    name="write-bronze-eod-price",
+    task_run_name="write-bronze-eod-price-{provider_exchange_code}",
+)
 def write_bronze_eod_price(
     sources: list[BronzeParseResult[EODBar]],
     provider_exchange_code: str,
@@ -236,7 +249,10 @@ def write_bronze_eod_price(
 # ---------------------------------------------------------------------------
 
 
-@task(name="load-backfill-pending-symbols")
+@task(
+    name="load-backfill-pending-symbols",
+    task_run_name="load-backfill-pending-symbols-{provider_exchange_code}",
+)
 def load_backfill_pending_symbols(provider_exchange_code: str, from_date: date, to_date: date) -> list[str]:
     """Symbols that still need historical EOD data for the given exchange.
 
@@ -330,7 +346,10 @@ def load_backfill_pending_symbols(provider_exchange_code: str, from_date: date, 
     return [qualified_ticker(code, provider_exchange_code) for code in pending]
 
 
-@task(name="write-eod-backfill-deferred-coverage")
+@task(
+    name="write-eod-backfill-deferred-coverage",
+    task_run_name="write-eod-backfill-deferred-coverage-{provider_exchange_code}",
+)
 def write_eod_backfill_deferred_coverage(
     *,
     run_id: str,
@@ -379,7 +398,10 @@ def write_eod_backfill_deferred_coverage(
     return BronzeWrite(rows_written=written, reason=reason if written == 0 else None)
 
 
-@task(name="write-eod-backfill-coverage")
+@task(
+    name="write-eod-backfill-coverage",
+    task_run_name="write-eod-backfill-coverage-{ticker}",
+)
 def write_eod_backfill_coverage(
     *,
     run_id: str,
@@ -456,6 +478,7 @@ def write_eod_backfill_coverage(
 
 @task(
     name="fetch-ticker-eod-history",
+    task_run_name="fetch-ticker-eod-history-{symbol}",
     retries=2,
     retry_delay_seconds=30,
     retry_condition_fn=_is_retryable,
@@ -478,7 +501,10 @@ async def fetch_ticker_eod_history(
     return bars
 
 
-@task(name="write-backfill-eod-batch")
+@task(
+    name="write-backfill-eod-batch",
+    task_run_name="write-backfill-eod-batch-{provider_exchange_code}",
+)
 def write_backfill_eod_batch(
     sources: list[BronzeParseResult[EODBar]],
     provider_exchange_code: str,

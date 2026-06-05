@@ -115,7 +115,10 @@ async def write_schedule_to_landing_zone(
     )
 
 
-@task(name="write-bronze-exchange-schedule")
+@task(
+    name="write-bronze-exchange-schedule",
+    task_run_name="write-bronze-exchange-schedule-{details.provider_schedule_exchange_code}",
+)
 def write_bronze_exchange_schedule(
     details: ExchangeSchedule,
     snapshot_date: date,
@@ -152,7 +155,10 @@ def write_bronze_exchange_schedule(
     return BronzeWrite(rows_written=written)
 
 
-@task(name="write-bronze-exchange-holiday")
+@task(
+    name="write-bronze-exchange-holiday",
+    task_run_name="write-bronze-exchange-holiday-{details.provider_schedule_exchange_code}",
+)
 def write_bronze_exchange_holiday(
     details: ExchangeSchedule,
     snapshot_date: date,
