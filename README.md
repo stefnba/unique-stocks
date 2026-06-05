@@ -6,13 +6,13 @@ The goal is a lean, reliable stack that can run cheaply on a single VPS while st
 
 ## Current status
 
-| Area                 | Status               | Notes                                                          |
-| -------------------- | -------------------- | -------------------------------------------------------------- |
-| `apps/pipelines`     | Active               | Prefect 3 ingestion app for EODHD market data and run monitoring. |
-| `apps/pipelines/dbt` | Initial scaffold     | dbt Core project for Bronze -> Silver -> Gold transformations. |
-| `apps/api`           | Not implemented      | API boundary is still an open decision.                        |
-| `apps/studio`        | Not implemented      | Studio stack is still an open decision.                        |
-| `docker-compose.yml` | Active               | Root compose entrypoint — includes per-app stacks.             |
+| Area                 | Status           | Notes                                                             |
+| -------------------- | ---------------- | ----------------------------------------------------------------- |
+| `apps/pipelines`     | Active           | Prefect 3 ingestion app for EODHD market data and run monitoring. |
+| `apps/pipelines/dbt` | Initial scaffold | dbt Core project for Bronze -> Silver -> Gold transformations.    |
+| `apps/api`           | Not implemented  | API boundary is still an open decision.                           |
+| `apps/studio`        | Not implemented  | Studio stack is still an open decision.                           |
+| `docker-compose.yml` | Active           | Root compose entrypoint — includes per-app stacks.                |
 
 ## Architecture
 

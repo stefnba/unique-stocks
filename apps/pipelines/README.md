@@ -363,7 +363,8 @@ make sql-format
 make format-check
 make markdown-format-check
 make markdown-format
-make yaml-lint
+make yaml-format-check
+make yaml-format
 make typecheck
 make dbt-install
 make dbt-build

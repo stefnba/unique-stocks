@@ -2,7 +2,7 @@
 .PHONY: help install test test-unit test-integration lint lint-fix format format-check typecheck check \
         python-lint python-lint-fix python-format python-format-check \
         sql-lint sql-format prettier-format prettier-format-check \
-        markdown-format markdown-format-check yaml-format yaml-format-check yaml-lint \
+        markdown-format markdown-format-check yaml-format yaml-format-check \
         smoke operational-health dashboard \
         prefect-server prefect-worker \
         docker-up docker-down docker-down-volumes docker-logs docker-logs-worker docker-logs-dashboard docker-ps \
@@ -86,7 +86,7 @@ test: ## Run all tests
 test-unit: ## Run unit tests only
 	uv run pytest tests/unit/ -v
 
-lint: python-lint sql-lint yaml-lint ## Check code style (ruff, sqlfluff, yamllint)
+lint: python-lint sql-lint ## Check code style (ruff, sqlfluff)
 
 python-lint: ## Check Python code style
 	uv run ruff check .
@@ -125,9 +125,6 @@ markdown-format-check: prettier-format-check ## Check Markdown formatting withou
 yaml-format: prettier-format ## Format YAML files
 
 yaml-format-check: prettier-format-check ## Check YAML formatting without modifying files
-
-yaml-lint: ## Lint YAML files
-	$(UV) run yamllint -c $(REPO_ROOT)/.yamllint $(REPO_ROOT)
 
 typecheck: ## Run static type checks (basedpyright)
 	$(UV) run --extra dashboard basedpyright
