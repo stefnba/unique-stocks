@@ -53,14 +53,14 @@ def load_provider_exchange_codes(
     - ``"eod_price"`` uses ``is_enabled_for_eod_price`` and is used by the
       bulk EOD price flow.
     - ``"fundamental"`` uses ``is_enabled_for_fundamental`` and is used by the
-      fundamentals flow before it auto-selects tickers from the Silver
-      ingestion universe.
+      fundamentals flow before it auto-selects split provider instruments from
+      the Silver ingestion universe.
     - ``"ingestion"`` uses the aggregate ``is_enabled_for_ingestion`` flag and
       is kept as a backward-compatible default for generic callers.
 
-    Fundamental ingestion still works with explicit exchange-qualified tickers
+    Fundamental ingestion still works with explicit split provider instruments
     regardless of this universe. The ``fundamental`` purpose applies only to
-    automatic ticker discovery from
+    automatic instrument discovery from
     ``silver.int_fundamental_ingestion_universe``.
     A provider namespace must still be enabled for instrument ingestion first,
     otherwise its instruments will not exist in the Silver instrument universe

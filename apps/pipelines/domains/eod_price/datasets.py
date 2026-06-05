@@ -27,14 +27,14 @@ class EODPriceBackfillPartition(LandingPartitionSchema):
 
     Attributes:
         provider_exchange_code: Provider exchange code requested from EODHD.
-        ticker: Qualified ticker being backfilled.
+        provider_instrument_code: Provider instrument code being backfilled.
         from_date: Inclusive backfill start date, or ``"all"`` when the
             provider start parameter is omitted.
         to_date: Inclusive backfill end date.
     """
 
     provider_exchange_code: str
-    ticker: str
+    provider_instrument_code: str
     from_date: date | str
     to_date: date
 
@@ -58,7 +58,7 @@ class EODPriceLandings:
 
     Attributes:
         daily: Bulk exchange/date landing target.
-        backfill: Historical per-ticker backfill landing target.
+        backfill: Historical per-instrument backfill landing target.
     """
 
     daily: PartitionedLandingTarget[EODPriceDailyPartition]

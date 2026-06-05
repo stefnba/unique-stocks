@@ -17,7 +17,6 @@ from core.ingestion.parser import (
 from providers.eodhd.models import EODBulkPriceRaw, EODPriceBarRaw
 
 from .models import EODBar
-from .symbols import exchange_from_qualified_ticker, qualified_ticker
 
 log = structlog.get_logger(__name__)
 
@@ -29,21 +28,21 @@ def parse_eod_bars(
 ) -> tuple[list[BronzeParseResult[EODBar]], list[EODBulkPriceRaw]]:
     """Validate and parse raw API rows into EODBar domain models.
 
-    The provider exchange code is required to construct the fully-qualified ticker symbol
-    (e.g. provider returns ``code="AAPL"`` on the US exchange → ``ticker="AAPL.US"``).
+    The provider exchange code is paired with the row code to form the split
+    provider identity stored in Bronze.
 
     Returns:
         (valid_bars, rejected_rows) — rejected rows are the original raw objects.
 
-    We log rejections but never raise — a few bad tickers should not abort
-    an entire exchange's worth of data.
+    We log rejections but never raise — a few bad instrument rows should not
+    abort an entire exchange's worth of data.
     """
     result = parse_best_effort_rows(
         raw_rows,
         lambda row: _build_eod_bar(row, expected_date=expected_date, provider_exchange_code=provider_exchange_code),
         on_rejected=lambda row, exc: log.warning(
             "price.parse_rejected",
-            ticker=row.code,
+            provider_instrument_code=row.code,
             provider_exchange_code=provider_exchange_code,
             error=str(exc),
         ),
@@ -58,22 +57,27 @@ def infer_bulk_bar_date(raw_rows: list[EODBulkPriceRaw]) -> date:
     return max(parse_date(row.date) for row in raw_rows)
 
 
-def parse_ticker_bars(
+def parse_instrument_bars(
     raw_bars: list[EODPriceBarRaw],
-    ticker: str,
+    provider_exchange_code: str,
+    provider_instrument_code: str,
 ) -> tuple[list[BronzeParseResult[EODBar]], list[EODPriceBarRaw]]:
-    """Parse per-ticker historical bars into EODBar domain models.
+    """Parse per-instrument historical bars into EODBar domain models.
 
-    Unlike ``parse_eod_bars``, the ticker is already fully-qualified (e.g.
-    ``AAPL.US``) and no date-mismatch filtering is applied — the per-ticker
-    endpoint returns exactly the requested range.
+    Unlike ``parse_eod_bars``, no date-mismatch filtering is applied because
+    the provider's per-instrument endpoint returns the requested range.
     """
     result = parse_best_effort_rows(
         raw_bars,
-        lambda row: _build_ticker_bar(row, ticker=ticker),
+        lambda row: _build_instrument_bar(
+            row,
+            provider_exchange_code=provider_exchange_code,
+            provider_instrument_code=provider_instrument_code,
+        ),
         on_rejected=lambda row, exc: log.warning(
             "backfill.parse_rejected",
-            ticker=ticker,
+            provider_exchange_code=provider_exchange_code,
+            provider_instrument_code=provider_instrument_code,
             date=row.date,
             error=str(exc),
         ),
@@ -90,7 +94,7 @@ def _build_eod_bar(
     bar = EODBar.model_validate(
         {
             "provider_exchange_code": provider_exchange_code,
-            "ticker": qualified_ticker(row.code, provider_exchange_code),
+            "provider_instrument_code": row.code,
             # EODBar is strict=True — must pass a date object, not a string
             "bar_date": parse_date(row.date),
             "open": parse_decimal(row.open),
@@ -106,7 +110,8 @@ def _build_eod_bar(
     if bar.bar_date != expected_date:
         log.debug(
             "price.date_mismatch",
-            ticker=bar.ticker,
+            provider_exchange_code=provider_exchange_code,
+            provider_instrument_code=bar.provider_instrument_code,
             expected=expected_date,
             got=bar.bar_date,
         )
@@ -114,11 +119,16 @@ def _build_eod_bar(
     return bar
 
 
-def _build_ticker_bar(row: EODPriceBarRaw, *, ticker: str) -> EODBar:
+def _build_instrument_bar(
+    row: EODPriceBarRaw,
+    *,
+    provider_exchange_code: str,
+    provider_instrument_code: str,
+) -> EODBar:
     return EODBar.model_validate(
         {
-            "provider_exchange_code": exchange_from_qualified_ticker(ticker),
-            "ticker": ticker,
+            "provider_exchange_code": provider_exchange_code,
+            "provider_instrument_code": provider_instrument_code,
             "bar_date": parse_date(row.date),
             "open": parse_decimal(row.open),
             "high": parse_decimal(row.high),

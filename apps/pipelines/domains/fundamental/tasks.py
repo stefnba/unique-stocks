@@ -15,7 +15,6 @@ from core.clients.http.base import ProviderRateLimitError
 from core.ingestion import BronzeParseResult, BronzeWrite, LandingWrite
 from core.ingestion.coverage import COVERAGE_STATUS_PROVIDER_QUOTA_DEFERRED, record_ingestion_coverage
 from core.ingestion.keys import ObjectStorageKey
-from domains.eod_price.symbols import exchange_from_qualified_ticker
 from domains.fundamental.batch import resolve_fundamental_snapshot_date
 from domains.fundamental.datasets import (
     FUNDAMENTAL_DOCUMENT_DATASET,
@@ -88,20 +87,21 @@ from domains.instrument.universe import (
     FUNDAMENTAL_INGESTION_UNIVERSE_TABLE,
     require_silver_ingestion_model,
 )
+from providers.eodhd.identifiers import EODHDInstrumentRef, eodhd_api_symbol
 from providers.eodhd.models import FundamentalRaw
 
 log = structlog.get_logger(__name__)
 
 FUNDAMENTAL_DOMAIN = "fundamental"
 FUNDAMENTAL_PROVIDER = "eodhd"
-FUNDAMENTAL_TICKER_SNAPSHOT_UNIT_TYPE = "ticker_snapshot"
+FUNDAMENTAL_INSTRUMENT_SNAPSHOT_UNIT_TYPE = "instrument_snapshot"
 
 
 @dataclass(frozen=True, slots=True)
-class FundamentalTickerSelection:
-    """Ticker selection result plus completion-filter metadata."""
+class FundamentalInstrumentSelection:
+    """Instrument selection result plus completion-filter metadata."""
 
-    tickers: list[str]
+    instruments: list[EODHDInstrumentRef]
     completion_filter_applied: bool
 
 
@@ -119,16 +119,18 @@ def _is_retryable(task: object, task_run: TaskRun, state: State) -> bool:
     return not isinstance(exc, ValidationError | ProviderRateLimitError)
 
 
-def _ticker_task_run_name(task_name: str) -> TaskRunNameCallbackWithParameters:
-    """Build a task-run-name callback for tasks keyed by ticker."""
+def _instrument_task_run_name(task_name: str) -> TaskRunNameCallbackWithParameters:
+    """Build a task-run-name callback for tasks keyed by provider instrument."""
 
     def name(parameters: dict[str, Any]) -> str:
-        ticker = parameters.get("ticker")
-        if not ticker:
+        provider_exchange_code = parameters.get("provider_exchange_code")
+        provider_instrument_code = parameters.get("provider_instrument_code")
+        if not provider_instrument_code:
             source = parameters.get("source")
             row = getattr(source, "row", None)
-            ticker = getattr(row, "ticker", None)
-        return f"{task_name}-{ticker or 'unknown'}"
+            provider_exchange_code = getattr(row, "provider_exchange_code", provider_exchange_code)
+            provider_instrument_code = getattr(row, "provider_instrument_code", None)
+        return f"{task_name}-{provider_exchange_code or 'unknown'}-{provider_instrument_code or 'unknown'}"
 
     return cast(TaskRunNameCallbackWithParameters, name)
 
@@ -143,13 +145,13 @@ def fetch_fundamental_provider_exchange_codes() -> list[str]:
     return codes
 
 
-def _load_fundamental_ticker_selection(
+def _load_fundamental_instrument_selection(
     provider_exchange_codes: list[str] | None = None,
     limit: int | None = None,
     *,
     snapshot_date: date | None = None,
     skip_completed: bool = False,
-) -> FundamentalTickerSelection:
+) -> FundamentalInstrumentSelection:
     """Load provider instruments from Silver and report whether completion filtering ran."""
     from core.clients.lake import get_lake_client
 
@@ -181,7 +183,8 @@ def _load_fundamental_ticker_selection(
               SELECT 1
               FROM {completion_q} AS completion
               WHERE completion.data_provider = universe.data_provider
-                AND completion.provider_symbol = universe.provider_symbol
+                AND completion.provider_exchange_code = universe.provider_exchange_code
+                AND completion.provider_instrument_code = universe.provider_instrument_code
                 AND completion.snapshot_date = ?
           )
         """
@@ -194,39 +197,47 @@ def _load_fundamental_ticker_selection(
 
     rows = lake.query(
         f"""
-        SELECT universe.provider_symbol
+        SELECT
+            universe.provider_exchange_code,
+            universe.provider_instrument_code
         FROM {universe_q} AS universe
         WHERE universe.data_provider = ?
           {exchange_filter}
           {completion_filter}
-        ORDER BY universe.provider_exchange_code, universe.provider_symbol
+        ORDER BY universe.provider_exchange_code, universe.provider_instrument_code
         {limit_clause}
         """,
         params,
     )
-    tickers = [str(row["provider_symbol"]) for row in rows]
+    instruments = [
+        EODHDInstrumentRef(
+            provider_exchange_code=str(row["provider_exchange_code"]),
+            provider_instrument_code=str(row["provider_instrument_code"]),
+        )
+        for row in rows
+    ]
     log.info(
-        "fundamental.tickers_loaded",
-        count=len(tickers),
+        "fundamental.instruments_loaded",
+        count=len(instruments),
         skip_completed_requested=skip_completed,
         completion_filter_applied=skip_completed,
     )
-    return FundamentalTickerSelection(
-        tickers=tickers,
+    return FundamentalInstrumentSelection(
+        instruments=instruments,
         completion_filter_applied=skip_completed,
     )
 
 
-@task(name="load-fundamental-ticker-selection")
-def load_fundamental_ticker_selection(
+@task(name="load-fundamental-instrument-selection")
+def load_fundamental_instrument_selection(
     provider_exchange_codes: list[str] | None = None,
     limit: int | None = None,
     *,
     snapshot_date: date | None = None,
     skip_completed: bool = False,
-) -> FundamentalTickerSelection:
+) -> FundamentalInstrumentSelection:
     """Load latest provider instruments plus completion-filter metadata."""
-    return _load_fundamental_ticker_selection(
+    return _load_fundamental_instrument_selection(
         provider_exchange_codes=provider_exchange_codes,
         limit=limit,
         snapshot_date=snapshot_date,
@@ -234,52 +245,56 @@ def load_fundamental_ticker_selection(
     )
 
 
-@task(name="load-fundamental-tickers")
-def load_fundamental_tickers(
+@task(name="load-fundamental-instruments")
+def load_fundamental_instruments(
     provider_exchange_codes: list[str] | None = None,
     limit: int | None = None,
     *,
     snapshot_date: date | None = None,
     skip_completed: bool = False,
-) -> list[str]:
+) -> list[EODHDInstrumentRef]:
     """Load latest provider instruments from the Silver ingestion universe.
 
     If ``skip_completed=True``, this requires
     ``silver.int_fundamental_document_completion`` and anti-joins against it.
     """
-    return _load_fundamental_ticker_selection(
+    return _load_fundamental_instrument_selection(
         provider_exchange_codes=provider_exchange_codes,
         limit=limit,
         snapshot_date=snapshot_date,
         skip_completed=skip_completed,
-    ).tickers
+    ).instruments
 
 
 @task(name="write-fundamental-deferred-coverage")
 def write_fundamental_deferred_coverage(
     *,
     run_id: str,
-    tickers: list[str],
+    instruments: list[EODHDInstrumentRef],
     snapshot_date: date,
     reason: str,
 ) -> BronzeWrite:
     """Record unsubmitted fundamentals units deferred by provider quota controls."""
     from core.clients.lake import get_lake_client
 
-    if not tickers:
-        return BronzeWrite(rows_written=0, reason="no_tickers")
+    if not instruments:
+        return BronzeWrite(rows_written=0, reason="no_instruments")
 
     lake = get_lake_client()
     written = 0
     recorded_at = datetime.now(UTC)
-    for ticker in tickers:
+    for instrument in instruments:
         written += record_ingestion_coverage(
             lake,
             run_id=run_id,
             domain=FUNDAMENTAL_DOMAIN,
             provider=FUNDAMENTAL_PROVIDER,
-            unit_type=FUNDAMENTAL_TICKER_SNAPSHOT_UNIT_TYPE,
-            unit_key={"ticker": ticker, "snapshot_date": snapshot_date.isoformat()},
+            unit_type=FUNDAMENTAL_INSTRUMENT_SNAPSHOT_UNIT_TYPE,
+            unit_key={
+                "provider_exchange_code": instrument.provider_exchange_code,
+                "provider_instrument_code": instrument.provider_instrument_code,
+                "snapshot_date": snapshot_date.isoformat(),
+            },
             status=COVERAGE_STATUS_PROVIDER_QUOTA_DEFERRED,
             reason=reason,
             recorded_at=recorded_at,
@@ -288,7 +303,7 @@ def write_fundamental_deferred_coverage(
     log.info(
         "fundamental.deferred_coverage_written",
         run_id=run_id,
-        tickers=len(tickers),
+        instruments=len(instruments),
         rows=written,
         reason=reason,
     )
@@ -349,22 +364,35 @@ def resolve_fundamental_snapshot_date_task(
 
 @task(
     name="fundamental-document-already-ingested",
-    task_run_name="fundamental-document-already-ingested-{ticker}",
+    task_run_name="fundamental-document-already-ingested-{provider_exchange_code}-{provider_instrument_code}",
 )
-def fundamental_document_already_ingested(ticker: str, snapshot_date: date) -> bool:
-    """Return True when the fundamentals document already exists for this ticker snapshot."""
+def fundamental_document_already_ingested(
+    provider_exchange_code: str,
+    provider_instrument_code: str,
+    snapshot_date: date,
+) -> bool:
+    """Return True when the fundamentals document already exists for this provider_instrument_code snapshot."""
     from core.clients.lake import get_lake_client
 
     lake = get_lake_client()
-    return FUNDAMENTAL_DOCUMENT_DATASET.already_ingested(lake, snapshot_date=snapshot_date, ticker=ticker)
+    return FUNDAMENTAL_DOCUMENT_DATASET.already_ingested(
+        lake,
+        snapshot_date=snapshot_date,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+    )
 
 
 @task(
     name="load-fundamental-document-payload-hash",
-    task_run_name="load-fundamental-document-payload-hash-{ticker}",
+    task_run_name="load-fundamental-document-payload-hash-{provider_exchange_code}-{provider_instrument_code}",
 )
-def load_fundamental_document_payload_hash(ticker: str, snapshot_date: date) -> str | None:
-    """Return the stored payload hash for a ticker snapshot when one exists."""
+def load_fundamental_document_payload_hash(
+    provider_exchange_code: str,
+    provider_instrument_code: str,
+    snapshot_date: date,
+) -> str | None:
+    """Return the stored payload hash for a provider_instrument_code snapshot when one exists."""
     from core.clients.lake import get_lake_client
 
     lake = get_lake_client()
@@ -377,22 +405,32 @@ def load_fundamental_document_payload_hash(ticker: str, snapshot_date: date) -> 
         SELECT payload_hash
         FROM {qualified}
         WHERE snapshot_date = ?
-          AND ticker = ?
+          AND provider_exchange_code = ?
+          AND provider_instrument_code = ?
           AND data_provider = ?
         ORDER BY ingested_at DESC
         LIMIT 1
         """,
-        [snapshot_date.isoformat(), ticker, str(FUNDAMENTAL_DOCUMENT_DATASET.provider)],
+        [
+            snapshot_date.isoformat(),
+            provider_exchange_code,
+            provider_instrument_code,
+            str(FUNDAMENTAL_DOCUMENT_DATASET.provider),
+        ],
     )
     return str(row["payload_hash"]) if row and row.get("payload_hash") else None
 
 
 @task(
     name="delete-fundamental-snapshot-rows",
-    task_run_name="delete-fundamental-snapshot-rows-{ticker}",
+    task_run_name="delete-fundamental-snapshot-rows-{provider_exchange_code}-{provider_instrument_code}",
 )
-def delete_fundamental_snapshot_rows(ticker: str, snapshot_date: date) -> int:
-    """Delete existing fundamentals Bronze rows for an explicit ticker snapshot.
+def delete_fundamental_snapshot_rows(
+    provider_exchange_code: str,
+    provider_instrument_code: str,
+    snapshot_date: date,
+) -> int:
+    """Delete existing fundamentals Bronze rows for an explicit provider_instrument_code snapshot.
 
     Used only by refresh mode after a changed provider document has already
     landed, so the same-day snapshot can be replaced without violating Bronze
@@ -430,83 +468,117 @@ def delete_fundamental_snapshot_rows(ticker: str, snapshot_date: date) -> int:
             f"""
             DELETE FROM {lake.qualified_name(dataset.schema, dataset.table_name)}
             WHERE snapshot_date = ?
-              AND ticker = ?
+              AND provider_exchange_code = ?
+              AND provider_instrument_code = ?
               AND data_provider = ?
             """,
-            [snapshot_date.isoformat(), ticker, str(dataset.provider)],
+            [snapshot_date.isoformat(), provider_exchange_code, provider_instrument_code, str(dataset.provider)],
         )
         deleted_tables += 1
-    log.info("fundamental.snapshot_deleted", ticker=ticker, snapshot_date=snapshot_date, tables=deleted_tables)
+    log.info(
+        "fundamental.snapshot_deleted",
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+        snapshot_date=snapshot_date,
+        tables=deleted_tables,
+    )
     return deleted_tables
 
 
 @task(
-    name="fetch-fundamental-ticker",
-    task_run_name="fetch-fundamental-ticker-{ticker}",
+    name="fetch-fundamental-instrument",
+    task_run_name="fetch-fundamental-instrument-{provider_exchange_code}-{provider_instrument_code}",
     retries=3,
     retry_delay_seconds=exponential_backoff(10),
     retry_condition_fn=_is_retryable,
 )
-async def fetch_fundamental_ticker(ticker: str) -> FundamentalRaw:
+async def fetch_fundamental_instrument(provider_exchange_code: str, provider_instrument_code: str) -> FundamentalRaw:
     """Fetch and top-level schema-validate one fundamentals document."""
     from providers.eodhd.client import EODHDClient
 
-    log.info("fundamental.fetch_start", ticker=ticker)
+    api_symbol = eodhd_api_symbol(
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+    )
+    log.info(
+        "fundamental.fetch_start",
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+        api_symbol=api_symbol,
+    )
     api_key = (await BlockRegistry.EODHD_API_KEY.load_async()).get()
     async with EODHDClient(api_key=api_key) as client:
-        raw = await client.get_fundamental(ticker)
-    log.info("fundamental.fetch_done", ticker=ticker, sections=len(raw.model_dump(exclude_none=True)))
+        raw = await client.get_fundamental(api_symbol)
+    log.info(
+        "fundamental.fetch_done",
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+        api_symbol=api_symbol,
+        sections=len(raw.model_dump(exclude_none=True)),
+    )
     return raw
 
 
 @task(
     name="load-fundamental-from-landing",
-    task_run_name="load-fundamental-from-landing-{ticker}",
+    task_run_name="load-fundamental-from-landing-{provider_instrument_code}",
 )
 async def load_fundamental_from_landing(
-    ticker: str,
+    provider_exchange_code: str,
+    provider_instrument_code: str,
     snapshot_date: date,
     source_uri: str | None = None,
 ) -> tuple[FundamentalRaw, LandingWrite]:
     """Load one landed fundamentals document without calling the provider.
 
-    If ``source_uri`` is omitted, the latest landing object for the ticker and
+    If ``source_uri`` is omitted, the latest landing object for the provider_instrument_code and
     snapshot date is selected by its path-safe ``ingested_at`` partition.
     """
     from core.clients.storage.s3 import S3StorageClient
 
     s3 = await S3StorageClient.from_block_entry(BlockRegistry.S3_BUCKET)
-    resolved_uri = source_uri or _latest_fundamental_landing_uri(s3, ticker=ticker, snapshot_date=snapshot_date)
+    resolved_uri = source_uri or _latest_fundamental_landing_uri(
+        s3,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+        snapshot_date=snapshot_date,
+    )
     payload = s3.load(resolved_uri, format="json")
     raw = FundamentalRaw.model_validate(payload)
     landing = LandingWrite(
         dataset=FUNDAMENTAL_DOCUMENT_DATASET.landings.document.audit_dataset_name,
         source_uri=resolved_uri,
         partition={
-            "provider_exchange_code": exchange_from_qualified_ticker(ticker),
-            "ticker": ticker,
+            "provider_exchange_code": provider_exchange_code,
+            "provider_instrument_code": provider_instrument_code,
             "snapshot_date": snapshot_date,
         },
         rows_raw=1,
     )
-    log.info("fundamental.landing_loaded", ticker=ticker, snapshot_date=snapshot_date, uri=resolved_uri)
+    log.info(
+        "fundamental.landing_loaded",
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+        snapshot_date=snapshot_date,
+        uri=resolved_uri,
+    )
     return raw, landing
 
 
 @task(
     name="write-fundamental-landing",
-    task_run_name="write-fundamental-landing-{ticker}",
+    task_run_name="write-fundamental-landing-{provider_instrument_code}",
 )
 async def write_fundamental_to_landing(
     raw: FundamentalRaw,
-    ticker: str,
+    provider_exchange_code: str,
+    provider_instrument_code: str,
     snapshot_date: date,
     ingested_at: datetime | None = None,
 ) -> LandingWrite:
     """Write one raw fundamentals document to the S3 landing zone as JSON."""
     from core.clients.storage.s3 import S3StorageClient
 
-    provider_exchange_code = exchange_from_qualified_ticker(ticker)
     stamp = ingested_at or datetime.now(UTC).replace(microsecond=0)
     s3 = await S3StorageClient.from_block_entry(BlockRegistry.S3_BUCKET)
     ref = FUNDAMENTAL_DOCUMENT_DATASET.landings.document.save(
@@ -515,32 +587,43 @@ async def write_fundamental_to_landing(
         data=raw,
         partitions={
             "provider_exchange_code": provider_exchange_code,
-            "ticker": ticker,
+            "provider_instrument_code": provider_instrument_code,
             "snapshot_date": snapshot_date,
         },
         ingested_at=stamp,
     )
-    log.info("fundamental.landing_written", ticker=ticker, snapshot_date=snapshot_date, uri=ref.uri)
+    log.info(
+        "fundamental.landing_written",
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+        snapshot_date=snapshot_date,
+        uri=ref.uri,
+    )
     return FUNDAMENTAL_DOCUMENT_DATASET.landings.document.landing_write(
         ref,
         partitions={
             "provider_exchange_code": provider_exchange_code,
-            "ticker": ticker,
+            "provider_instrument_code": provider_instrument_code,
             "snapshot_date": snapshot_date,
         },
         rows_raw=1,
     )
 
 
-def _latest_fundamental_landing_uri(s3: _LandingStorage, *, ticker: str, snapshot_date: date) -> str:
-    """Return the newest landed fundamentals object URI for one ticker snapshot."""
-    provider_exchange_code = exchange_from_qualified_ticker(ticker)
+def _latest_fundamental_landing_uri(
+    s3: _LandingStorage,
+    *,
+    provider_exchange_code: str,
+    provider_instrument_code: str,
+    snapshot_date: date,
+) -> str:
+    """Return the newest landed fundamentals object URI for one provider_instrument_code snapshot."""
     key = ObjectStorageKey.partitioned_from_mapping(
         FUNDAMENTAL_DOCUMENT_DATASET.provider,
         FUNDAMENTAL_DOCUMENT_DATASET.landings.document.domain,
         {
             "provider_exchange_code": provider_exchange_code,
-            "ticker": ticker,
+            "provider_instrument_code": provider_instrument_code,
             "snapshot_date": snapshot_date,
             "ingested_at": "",
         },
@@ -553,7 +636,9 @@ def _latest_fundamental_landing_uri(s3: _LandingStorage, *, ticker: str, snapsho
     ]
     if not keys:
         raise FileNotFoundError(
-            f"No landed fundamentals document found for ticker={ticker!r}, snapshot_date={snapshot_date.isoformat()!r}"
+            "No landed fundamentals document found for "
+            f"provider_instrument_code={provider_instrument_code!r}, "
+            f"snapshot_date={snapshot_date.isoformat()!r}"
         )
     latest_key = sorted(keys)[-1]
     bucket = _landing_bucket(s3)
@@ -570,11 +655,12 @@ def _landing_bucket(s3: _LandingStorage) -> str:
 
 @task(
     name="parse-fundamental-stock",
-    task_run_name="parse-fundamental-stock-{ticker}",
+    task_run_name="parse-fundamental-stock-{provider_instrument_code}",
 )
 def parse_fundamental_stock(
     raw: FundamentalRaw,
-    ticker: str,
+    provider_exchange_code: str,
+    provider_instrument_code: str,
     snapshot_date: date,
 ) -> tuple[
     BronzeParseResult[FundamentalDocument],
@@ -600,40 +686,124 @@ def parse_fundamental_stock(
     list[dict[str, object]],
 ]:
     """Parse the stock fundamentals slice currently supported by this domain."""
-    document = parse_fundamental_document(raw, ticker=ticker, snapshot_date=snapshot_date)
-    identity = parse_stock_identity_snapshot(raw, ticker=ticker, snapshot_date=snapshot_date)
-    statement_facts, statement_rejected = parse_stock_statement_facts(raw, ticker=ticker, snapshot_date=snapshot_date)
-    earnings_facts, earnings_rejected = parse_stock_earnings_facts(raw, ticker=ticker, snapshot_date=snapshot_date)
-    shares_stats = parse_stock_shares_stats_snapshot(raw, ticker=ticker, snapshot_date=snapshot_date)
+    document = parse_fundamental_document(
+        raw,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+        snapshot_date=snapshot_date,
+    )
+    identity = parse_stock_identity_snapshot(
+        raw,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+        snapshot_date=snapshot_date,
+    )
+    statement_facts, statement_rejected = parse_stock_statement_facts(
+        raw,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+        snapshot_date=snapshot_date,
+    )
+    earnings_facts, earnings_rejected = parse_stock_earnings_facts(
+        raw,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+        snapshot_date=snapshot_date,
+    )
+    shares_stats = parse_stock_shares_stats_snapshot(
+        raw,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+        snapshot_date=snapshot_date,
+    )
     outstanding_shares, outstanding_rejected = parse_stock_outstanding_shares(
         raw,
-        ticker=ticker,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
         snapshot_date=snapshot_date,
     )
-    holders, holders_rejected = parse_stock_holders(raw, ticker=ticker, snapshot_date=snapshot_date)
+    holders, holders_rejected = parse_stock_holders(
+        raw,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+        snapshot_date=snapshot_date,
+    )
     insider_transactions, insider_transactions_rejected = parse_stock_insider_transactions(
         raw,
-        ticker=ticker,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
         snapshot_date=snapshot_date,
     )
-    splits_dividends = parse_stock_splits_dividends_snapshot(raw, ticker=ticker, snapshot_date=snapshot_date)
-    dividend_counts, dividend_rejected = parse_stock_dividend_counts(raw, ticker=ticker, snapshot_date=snapshot_date)
-    metric_facts = parse_stock_metric_facts(raw, ticker=ticker, snapshot_date=snapshot_date)
-    esg_activities, esg_rejected = parse_stock_esg_activities(raw, ticker=ticker, snapshot_date=snapshot_date)
-    etf_identity = parse_etf_identity_snapshot(raw, ticker=ticker, snapshot_date=snapshot_date)
-    mutual_fund_identity = parse_mutual_fund_identity_snapshot(raw, ticker=ticker, snapshot_date=snapshot_date)
-    index_identity = parse_index_identity_snapshot(raw, ticker=ticker, snapshot_date=snapshot_date)
-    etf_holdings, etf_rejected = parse_etf_holdings(raw, ticker=ticker, snapshot_date=snapshot_date)
+    splits_dividends = parse_stock_splits_dividends_snapshot(
+        raw,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+        snapshot_date=snapshot_date,
+    )
+    dividend_counts, dividend_rejected = parse_stock_dividend_counts(
+        raw,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+        snapshot_date=snapshot_date,
+    )
+    metric_facts = parse_stock_metric_facts(
+        raw,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+        snapshot_date=snapshot_date,
+    )
+    esg_activities, esg_rejected = parse_stock_esg_activities(
+        raw,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+        snapshot_date=snapshot_date,
+    )
+    etf_identity = parse_etf_identity_snapshot(
+        raw,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+        snapshot_date=snapshot_date,
+    )
+    mutual_fund_identity = parse_mutual_fund_identity_snapshot(
+        raw,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+        snapshot_date=snapshot_date,
+    )
+    index_identity = parse_index_identity_snapshot(
+        raw,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+        snapshot_date=snapshot_date,
+    )
+    etf_holdings, etf_rejected = parse_etf_holdings(
+        raw,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+        snapshot_date=snapshot_date,
+    )
     mutual_fund_holdings, mutual_fund_rejected = parse_mutual_fund_holdings(
         raw,
-        ticker=ticker,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
         snapshot_date=snapshot_date,
     )
-    fund_metric_facts = parse_fund_metric_facts(raw, ticker=ticker, snapshot_date=snapshot_date)
-    index_components, index_rejected = parse_index_components(raw, ticker=ticker, snapshot_date=snapshot_date)
+    fund_metric_facts = parse_fund_metric_facts(
+        raw,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+        snapshot_date=snapshot_date,
+    )
+    index_components, index_rejected = parse_index_components(
+        raw,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+        snapshot_date=snapshot_date,
+    )
     index_historical_components, index_historical_rejected = parse_index_historical_components(
         raw,
-        ticker=ticker,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
         snapshot_date=snapshot_date,
     )
     rejected: list[dict[str, object]] = [
@@ -651,7 +821,7 @@ def parse_fundamental_stock(
     ]
     log.info(
         "fundamental.parsed",
-        ticker=ticker,
+        provider_instrument_code=provider_instrument_code,
         family=document.row.instrument_family,
         stock_identity=identity is not None,
         statement_facts=len(statement_facts),
@@ -701,7 +871,7 @@ def parse_fundamental_stock(
 
 @task(
     name="write-bronze-fundamental-document",
-    task_run_name=_ticker_task_run_name("write-bronze-fundamental-document"),
+    task_run_name=_instrument_task_run_name("write-bronze-fundamental-document"),
 )
 def write_bronze_fundamental_document(
     source: BronzeParseResult[FundamentalDocument],
@@ -714,22 +884,23 @@ def write_bronze_fundamental_document(
     if FUNDAMENTAL_DOCUMENT_DATASET.already_ingested(
         lake,
         snapshot_date=source.row.snapshot_date,
-        ticker=source.row.ticker,
+        provider_exchange_code=source.row.provider_exchange_code,
+        provider_instrument_code=source.row.provider_instrument_code,
     ):
         return BronzeWrite(rows_written=0, reason="already_ingested")
     written = FUNDAMENTAL_DOCUMENT_DATASET.write_bronze(lake, [source], source_uri=source_uri)
-    log.info("fundamental.document_written", ticker=source.row.ticker, rows=written)
+    log.info("fundamental.document_written", provider_instrument_code=source.row.provider_instrument_code, rows=written)
     return BronzeWrite(rows_written=written)
 
 
 @task(
     name="write-bronze-fundamental-stock-identity",
-    task_run_name=_ticker_task_run_name("write-bronze-fundamental-stock-identity"),
+    task_run_name=_instrument_task_run_name("write-bronze-fundamental-stock-identity"),
 )
 def write_bronze_fundamental_stock_identity(
     source: BronzeParseResult[FundamentalStockIdentitySnapshot] | None,
     source_uri: str | None = None,
-    ticker: str | None = None,
+    provider_instrument_code: str | None = None,
 ) -> BronzeWrite:
     """Write one stock identity row to ``bronze.fundamental_stock_identity``."""
     from core.clients.lake import get_lake_client
@@ -741,21 +912,24 @@ def write_bronze_fundamental_stock_identity(
     if FUNDAMENTAL_STOCK_IDENTITY_DATASET.already_ingested(
         lake,
         snapshot_date=source.row.snapshot_date,
-        ticker=source.row.ticker,
+        provider_exchange_code=source.row.provider_exchange_code,
+        provider_instrument_code=source.row.provider_instrument_code,
     ):
         return BronzeWrite(rows_written=0, reason="already_ingested")
     written = FUNDAMENTAL_STOCK_IDENTITY_DATASET.write_bronze(lake, [source], source_uri=source_uri)
-    log.info("fundamental.stock_identity_written", ticker=source.row.ticker, rows=written)
+    log.info(
+        "fundamental.stock_identity_written", provider_instrument_code=source.row.provider_instrument_code, rows=written
+    )
     return BronzeWrite(rows_written=written)
 
 
 @task(
     name="write-bronze-fundamental-statement-facts",
-    task_run_name="write-bronze-fundamental-statement-facts-{ticker}",
+    task_run_name="write-bronze-fundamental-statement-facts-{provider_instrument_code}",
 )
 def write_bronze_fundamental_statement_facts(
     sources: list[BronzeParseResult[FundamentalStatementFact]],
-    ticker: str,
+    provider_instrument_code: str,
     snapshot_date: date,
     source_uri: str | None = None,
 ) -> BronzeWrite:
@@ -765,21 +939,27 @@ def write_bronze_fundamental_statement_facts(
     if not sources:
         return BronzeWrite(rows_written=0, reason="no_facts")
 
+    provider_exchange_code = sources[0].row.provider_exchange_code
     lake = get_lake_client()
-    if FUNDAMENTAL_STATEMENT_FACT_DATASET.already_ingested(lake, snapshot_date=snapshot_date, ticker=ticker):
+    if FUNDAMENTAL_STATEMENT_FACT_DATASET.already_ingested(
+        lake,
+        snapshot_date=snapshot_date,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+    ):
         return BronzeWrite(rows_written=0, reason="already_ingested")
     written = FUNDAMENTAL_STATEMENT_FACT_DATASET.write_bronze(lake, sources, source_uri=source_uri)
-    log.info("fundamental.statement_facts_written", ticker=ticker, rows=written)
+    log.info("fundamental.statement_facts_written", provider_instrument_code=provider_instrument_code, rows=written)
     return BronzeWrite(rows_written=written)
 
 
 @task(
     name="write-bronze-fundamental-stock-earnings-facts",
-    task_run_name="write-bronze-fundamental-stock-earnings-facts-{ticker}",
+    task_run_name="write-bronze-fundamental-stock-earnings-facts-{provider_instrument_code}",
 )
 def write_bronze_fundamental_stock_earnings_facts(
     sources: list[BronzeParseResult[FundamentalStockEarningsFact]],
-    ticker: str,
+    provider_instrument_code: str,
     snapshot_date: date,
     source_uri: str | None = None,
 ) -> BronzeWrite:
@@ -789,26 +969,30 @@ def write_bronze_fundamental_stock_earnings_facts(
     if not sources:
         return BronzeWrite(rows_written=0, reason="no_earnings_facts")
 
+    provider_exchange_code = sources[0].row.provider_exchange_code
     lake = get_lake_client()
     if FUNDAMENTAL_STOCK_EARNINGS_FACT_DATASET.already_ingested(
         lake,
         snapshot_date=snapshot_date,
-        ticker=ticker,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
     ):
         return BronzeWrite(rows_written=0, reason="already_ingested")
     written = FUNDAMENTAL_STOCK_EARNINGS_FACT_DATASET.write_bronze(lake, sources, source_uri=source_uri)
-    log.info("fundamental.stock_earnings_facts_written", ticker=ticker, rows=written)
+    log.info(
+        "fundamental.stock_earnings_facts_written", provider_instrument_code=provider_instrument_code, rows=written
+    )
     return BronzeWrite(rows_written=written)
 
 
 @task(
     name="write-bronze-fundamental-stock-shares-stats",
-    task_run_name=_ticker_task_run_name("write-bronze-fundamental-stock-shares-stats"),
+    task_run_name=_instrument_task_run_name("write-bronze-fundamental-stock-shares-stats"),
 )
 def write_bronze_fundamental_stock_shares_stats(
     source: BronzeParseResult[FundamentalStockSharesStatsSnapshot] | None,
     source_uri: str | None = None,
-    ticker: str | None = None,
+    provider_instrument_code: str | None = None,
 ) -> BronzeWrite:
     """Write one stock shares-statistics row to ``bronze.fundamental_stock_shares_stats``."""
     from core.clients.lake import get_lake_client
@@ -820,21 +1004,26 @@ def write_bronze_fundamental_stock_shares_stats(
     if FUNDAMENTAL_STOCK_SHARES_STATS_DATASET.already_ingested(
         lake,
         snapshot_date=source.row.snapshot_date,
-        ticker=source.row.ticker,
+        provider_exchange_code=source.row.provider_exchange_code,
+        provider_instrument_code=source.row.provider_instrument_code,
     ):
         return BronzeWrite(rows_written=0, reason="already_ingested")
     written = FUNDAMENTAL_STOCK_SHARES_STATS_DATASET.write_bronze(lake, [source], source_uri=source_uri)
-    log.info("fundamental.stock_shares_stats_written", ticker=source.row.ticker, rows=written)
+    log.info(
+        "fundamental.stock_shares_stats_written",
+        provider_instrument_code=source.row.provider_instrument_code,
+        rows=written,
+    )
     return BronzeWrite(rows_written=written)
 
 
 @task(
     name="write-bronze-fundamental-stock-outstanding-shares",
-    task_run_name="write-bronze-fundamental-stock-outstanding-shares-{ticker}",
+    task_run_name="write-bronze-fundamental-stock-outstanding-shares-{provider_instrument_code}",
 )
 def write_bronze_fundamental_stock_outstanding_shares(
     sources: list[BronzeParseResult[FundamentalStockOutstandingShares]],
-    ticker: str,
+    provider_instrument_code: str,
     snapshot_date: date,
     source_uri: str | None = None,
 ) -> BronzeWrite:
@@ -844,25 +1033,29 @@ def write_bronze_fundamental_stock_outstanding_shares(
     if not sources:
         return BronzeWrite(rows_written=0, reason="no_outstanding_shares")
 
+    provider_exchange_code = sources[0].row.provider_exchange_code
     lake = get_lake_client()
     if FUNDAMENTAL_STOCK_OUTSTANDING_SHARES_DATASET.already_ingested(
         lake,
         snapshot_date=snapshot_date,
-        ticker=ticker,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
     ):
         return BronzeWrite(rows_written=0, reason="already_ingested")
     written = FUNDAMENTAL_STOCK_OUTSTANDING_SHARES_DATASET.write_bronze(lake, sources, source_uri=source_uri)
-    log.info("fundamental.stock_outstanding_shares_written", ticker=ticker, rows=written)
+    log.info(
+        "fundamental.stock_outstanding_shares_written", provider_instrument_code=provider_instrument_code, rows=written
+    )
     return BronzeWrite(rows_written=written)
 
 
 @task(
     name="write-bronze-fundamental-stock-holders",
-    task_run_name="write-bronze-fundamental-stock-holders-{ticker}",
+    task_run_name="write-bronze-fundamental-stock-holders-{provider_instrument_code}",
 )
 def write_bronze_fundamental_stock_holders(
     sources: list[BronzeParseResult[FundamentalStockHolder]],
-    ticker: str,
+    provider_instrument_code: str,
     snapshot_date: date,
     source_uri: str | None = None,
 ) -> BronzeWrite:
@@ -872,21 +1065,27 @@ def write_bronze_fundamental_stock_holders(
     if not sources:
         return BronzeWrite(rows_written=0, reason="no_holders")
 
+    provider_exchange_code = sources[0].row.provider_exchange_code
     lake = get_lake_client()
-    if FUNDAMENTAL_STOCK_HOLDER_DATASET.already_ingested(lake, snapshot_date=snapshot_date, ticker=ticker):
+    if FUNDAMENTAL_STOCK_HOLDER_DATASET.already_ingested(
+        lake,
+        snapshot_date=snapshot_date,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+    ):
         return BronzeWrite(rows_written=0, reason="already_ingested")
     written = FUNDAMENTAL_STOCK_HOLDER_DATASET.write_bronze(lake, sources, source_uri=source_uri)
-    log.info("fundamental.stock_holders_written", ticker=ticker, rows=written)
+    log.info("fundamental.stock_holders_written", provider_instrument_code=provider_instrument_code, rows=written)
     return BronzeWrite(rows_written=written)
 
 
 @task(
     name="write-bronze-fundamental-stock-insider-transactions",
-    task_run_name="write-bronze-fundamental-stock-insider-transactions-{ticker}",
+    task_run_name="write-bronze-fundamental-stock-insider-transactions-{provider_instrument_code}",
 )
 def write_bronze_fundamental_stock_insider_transactions(
     sources: list[BronzeParseResult[FundamentalStockInsiderTransaction]],
-    ticker: str,
+    provider_instrument_code: str,
     snapshot_date: date,
     source_uri: str | None = None,
 ) -> BronzeWrite:
@@ -896,26 +1095,32 @@ def write_bronze_fundamental_stock_insider_transactions(
     if not sources:
         return BronzeWrite(rows_written=0, reason="no_insider_transactions")
 
+    provider_exchange_code = sources[0].row.provider_exchange_code
     lake = get_lake_client()
     if FUNDAMENTAL_STOCK_INSIDER_TRANSACTION_DATASET.already_ingested(
         lake,
         snapshot_date=snapshot_date,
-        ticker=ticker,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
     ):
         return BronzeWrite(rows_written=0, reason="already_ingested")
     written = FUNDAMENTAL_STOCK_INSIDER_TRANSACTION_DATASET.write_bronze(lake, sources, source_uri=source_uri)
-    log.info("fundamental.stock_insider_transactions_written", ticker=ticker, rows=written)
+    log.info(
+        "fundamental.stock_insider_transactions_written",
+        provider_instrument_code=provider_instrument_code,
+        rows=written,
+    )
     return BronzeWrite(rows_written=written)
 
 
 @task(
     name="write-bronze-fundamental-stock-splits-dividends",
-    task_run_name=_ticker_task_run_name("write-bronze-fundamental-stock-splits-dividends"),
+    task_run_name=_instrument_task_run_name("write-bronze-fundamental-stock-splits-dividends"),
 )
 def write_bronze_fundamental_stock_splits_dividends(
     source: BronzeParseResult[FundamentalStockSplitsDividendsSnapshot] | None,
     source_uri: str | None = None,
-    ticker: str | None = None,
+    provider_instrument_code: str | None = None,
 ) -> BronzeWrite:
     """Write one stock splits/dividends row to ``bronze.fundamental_stock_splits_dividends``."""
     from core.clients.lake import get_lake_client
@@ -927,21 +1132,26 @@ def write_bronze_fundamental_stock_splits_dividends(
     if FUNDAMENTAL_STOCK_SPLITS_DIVIDENDS_DATASET.already_ingested(
         lake,
         snapshot_date=source.row.snapshot_date,
-        ticker=source.row.ticker,
+        provider_exchange_code=source.row.provider_exchange_code,
+        provider_instrument_code=source.row.provider_instrument_code,
     ):
         return BronzeWrite(rows_written=0, reason="already_ingested")
     written = FUNDAMENTAL_STOCK_SPLITS_DIVIDENDS_DATASET.write_bronze(lake, [source], source_uri=source_uri)
-    log.info("fundamental.stock_splits_dividends_written", ticker=source.row.ticker, rows=written)
+    log.info(
+        "fundamental.stock_splits_dividends_written",
+        provider_instrument_code=source.row.provider_instrument_code,
+        rows=written,
+    )
     return BronzeWrite(rows_written=written)
 
 
 @task(
     name="write-bronze-fundamental-stock-dividend-counts",
-    task_run_name="write-bronze-fundamental-stock-dividend-counts-{ticker}",
+    task_run_name="write-bronze-fundamental-stock-dividend-counts-{provider_instrument_code}",
 )
 def write_bronze_fundamental_stock_dividend_counts(
     sources: list[BronzeParseResult[FundamentalStockDividendCount]],
-    ticker: str,
+    provider_instrument_code: str,
     snapshot_date: date,
     source_uri: str | None = None,
 ) -> BronzeWrite:
@@ -951,21 +1161,29 @@ def write_bronze_fundamental_stock_dividend_counts(
     if not sources:
         return BronzeWrite(rows_written=0, reason="no_dividend_counts")
 
+    provider_exchange_code = sources[0].row.provider_exchange_code
     lake = get_lake_client()
-    if FUNDAMENTAL_STOCK_DIVIDEND_COUNT_DATASET.already_ingested(lake, snapshot_date=snapshot_date, ticker=ticker):
+    if FUNDAMENTAL_STOCK_DIVIDEND_COUNT_DATASET.already_ingested(
+        lake,
+        snapshot_date=snapshot_date,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+    ):
         return BronzeWrite(rows_written=0, reason="already_ingested")
     written = FUNDAMENTAL_STOCK_DIVIDEND_COUNT_DATASET.write_bronze(lake, sources, source_uri=source_uri)
-    log.info("fundamental.stock_dividend_counts_written", ticker=ticker, rows=written)
+    log.info(
+        "fundamental.stock_dividend_counts_written", provider_instrument_code=provider_instrument_code, rows=written
+    )
     return BronzeWrite(rows_written=written)
 
 
 @task(
     name="write-bronze-fundamental-stock-metric-facts",
-    task_run_name="write-bronze-fundamental-stock-metric-facts-{ticker}",
+    task_run_name="write-bronze-fundamental-stock-metric-facts-{provider_instrument_code}",
 )
 def write_bronze_fundamental_stock_metric_facts(
     sources: list[BronzeParseResult[FundamentalStockMetricFact]],
-    ticker: str,
+    provider_instrument_code: str,
     snapshot_date: date,
     source_uri: str | None = None,
 ) -> BronzeWrite:
@@ -975,21 +1193,27 @@ def write_bronze_fundamental_stock_metric_facts(
     if not sources:
         return BronzeWrite(rows_written=0, reason="no_metric_facts")
 
+    provider_exchange_code = sources[0].row.provider_exchange_code
     lake = get_lake_client()
-    if FUNDAMENTAL_STOCK_METRIC_FACT_DATASET.already_ingested(lake, snapshot_date=snapshot_date, ticker=ticker):
+    if FUNDAMENTAL_STOCK_METRIC_FACT_DATASET.already_ingested(
+        lake,
+        snapshot_date=snapshot_date,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+    ):
         return BronzeWrite(rows_written=0, reason="already_ingested")
     written = FUNDAMENTAL_STOCK_METRIC_FACT_DATASET.write_bronze(lake, sources, source_uri=source_uri)
-    log.info("fundamental.stock_metric_facts_written", ticker=ticker, rows=written)
+    log.info("fundamental.stock_metric_facts_written", provider_instrument_code=provider_instrument_code, rows=written)
     return BronzeWrite(rows_written=written)
 
 
 @task(
     name="write-bronze-fundamental-stock-esg-activities",
-    task_run_name="write-bronze-fundamental-stock-esg-activities-{ticker}",
+    task_run_name="write-bronze-fundamental-stock-esg-activities-{provider_instrument_code}",
 )
 def write_bronze_fundamental_stock_esg_activities(
     sources: list[BronzeParseResult[FundamentalStockEsgActivity]],
-    ticker: str,
+    provider_instrument_code: str,
     snapshot_date: date,
     source_uri: str | None = None,
 ) -> BronzeWrite:
@@ -999,22 +1223,30 @@ def write_bronze_fundamental_stock_esg_activities(
     if not sources:
         return BronzeWrite(rows_written=0, reason="no_esg_activities")
 
+    provider_exchange_code = sources[0].row.provider_exchange_code
     lake = get_lake_client()
-    if FUNDAMENTAL_STOCK_ESG_ACTIVITY_DATASET.already_ingested(lake, snapshot_date=snapshot_date, ticker=ticker):
+    if FUNDAMENTAL_STOCK_ESG_ACTIVITY_DATASET.already_ingested(
+        lake,
+        snapshot_date=snapshot_date,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+    ):
         return BronzeWrite(rows_written=0, reason="already_ingested")
     written = FUNDAMENTAL_STOCK_ESG_ACTIVITY_DATASET.write_bronze(lake, sources, source_uri=source_uri)
-    log.info("fundamental.stock_esg_activities_written", ticker=ticker, rows=written)
+    log.info(
+        "fundamental.stock_esg_activities_written", provider_instrument_code=provider_instrument_code, rows=written
+    )
     return BronzeWrite(rows_written=written)
 
 
 @task(
     name="write-bronze-fundamental-etf-identity",
-    task_run_name=_ticker_task_run_name("write-bronze-fundamental-etf-identity"),
+    task_run_name=_instrument_task_run_name("write-bronze-fundamental-etf-identity"),
 )
 def write_bronze_fundamental_etf_identity(
     source: BronzeParseResult[FundamentalEtfIdentitySnapshot] | None,
     source_uri: str | None = None,
-    ticker: str | None = None,
+    provider_instrument_code: str | None = None,
 ) -> BronzeWrite:
     """Write one ETF identity row to ``bronze.fundamental_etf_identity``."""
     from core.clients.lake import get_lake_client
@@ -1026,22 +1258,25 @@ def write_bronze_fundamental_etf_identity(
     if FUNDAMENTAL_ETF_IDENTITY_DATASET.already_ingested(
         lake,
         snapshot_date=source.row.snapshot_date,
-        ticker=source.row.ticker,
+        provider_exchange_code=source.row.provider_exchange_code,
+        provider_instrument_code=source.row.provider_instrument_code,
     ):
         return BronzeWrite(rows_written=0, reason="already_ingested")
     written = FUNDAMENTAL_ETF_IDENTITY_DATASET.write_bronze(lake, [source], source_uri=source_uri)
-    log.info("fundamental.etf_identity_written", ticker=source.row.ticker, rows=written)
+    log.info(
+        "fundamental.etf_identity_written", provider_instrument_code=source.row.provider_instrument_code, rows=written
+    )
     return BronzeWrite(rows_written=written)
 
 
 @task(
     name="write-bronze-fundamental-mutual-fund-identity",
-    task_run_name=_ticker_task_run_name("write-bronze-fundamental-mutual-fund-identity"),
+    task_run_name=_instrument_task_run_name("write-bronze-fundamental-mutual-fund-identity"),
 )
 def write_bronze_fundamental_mutual_fund_identity(
     source: BronzeParseResult[FundamentalMutualFundIdentitySnapshot] | None,
     source_uri: str | None = None,
-    ticker: str | None = None,
+    provider_instrument_code: str | None = None,
 ) -> BronzeWrite:
     """Write one mutual fund identity row to ``bronze.fundamental_mutual_fund_identity``."""
     from core.clients.lake import get_lake_client
@@ -1053,22 +1288,27 @@ def write_bronze_fundamental_mutual_fund_identity(
     if FUNDAMENTAL_MUTUAL_FUND_IDENTITY_DATASET.already_ingested(
         lake,
         snapshot_date=source.row.snapshot_date,
-        ticker=source.row.ticker,
+        provider_exchange_code=source.row.provider_exchange_code,
+        provider_instrument_code=source.row.provider_instrument_code,
     ):
         return BronzeWrite(rows_written=0, reason="already_ingested")
     written = FUNDAMENTAL_MUTUAL_FUND_IDENTITY_DATASET.write_bronze(lake, [source], source_uri=source_uri)
-    log.info("fundamental.mutual_fund_identity_written", ticker=source.row.ticker, rows=written)
+    log.info(
+        "fundamental.mutual_fund_identity_written",
+        provider_instrument_code=source.row.provider_instrument_code,
+        rows=written,
+    )
     return BronzeWrite(rows_written=written)
 
 
 @task(
     name="write-bronze-fundamental-index-identity",
-    task_run_name=_ticker_task_run_name("write-bronze-fundamental-index-identity"),
+    task_run_name=_instrument_task_run_name("write-bronze-fundamental-index-identity"),
 )
 def write_bronze_fundamental_index_identity(
     source: BronzeParseResult[FundamentalIndexIdentitySnapshot] | None,
     source_uri: str | None = None,
-    ticker: str | None = None,
+    provider_instrument_code: str | None = None,
 ) -> BronzeWrite:
     """Write one index identity row to ``bronze.fundamental_index_identity``."""
     from core.clients.lake import get_lake_client
@@ -1080,21 +1320,24 @@ def write_bronze_fundamental_index_identity(
     if FUNDAMENTAL_INDEX_IDENTITY_DATASET.already_ingested(
         lake,
         snapshot_date=source.row.snapshot_date,
-        ticker=source.row.ticker,
+        provider_exchange_code=source.row.provider_exchange_code,
+        provider_instrument_code=source.row.provider_instrument_code,
     ):
         return BronzeWrite(rows_written=0, reason="already_ingested")
     written = FUNDAMENTAL_INDEX_IDENTITY_DATASET.write_bronze(lake, [source], source_uri=source_uri)
-    log.info("fundamental.index_identity_written", ticker=source.row.ticker, rows=written)
+    log.info(
+        "fundamental.index_identity_written", provider_instrument_code=source.row.provider_instrument_code, rows=written
+    )
     return BronzeWrite(rows_written=written)
 
 
 @task(
     name="write-bronze-fundamental-etf-holdings",
-    task_run_name="write-bronze-fundamental-etf-holdings-{ticker}",
+    task_run_name="write-bronze-fundamental-etf-holdings-{provider_instrument_code}",
 )
 def write_bronze_fundamental_etf_holdings(
     sources: list[BronzeParseResult[FundamentalEtfHolding]],
-    ticker: str,
+    provider_instrument_code: str,
     snapshot_date: date,
     source_uri: str | None = None,
 ) -> BronzeWrite:
@@ -1104,21 +1347,27 @@ def write_bronze_fundamental_etf_holdings(
     if not sources:
         return BronzeWrite(rows_written=0, reason="no_etf_holdings")
 
+    provider_exchange_code = sources[0].row.provider_exchange_code
     lake = get_lake_client()
-    if FUNDAMENTAL_ETF_HOLDING_DATASET.already_ingested(lake, snapshot_date=snapshot_date, ticker=ticker):
+    if FUNDAMENTAL_ETF_HOLDING_DATASET.already_ingested(
+        lake,
+        snapshot_date=snapshot_date,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+    ):
         return BronzeWrite(rows_written=0, reason="already_ingested")
     written = FUNDAMENTAL_ETF_HOLDING_DATASET.write_bronze(lake, sources, source_uri=source_uri)
-    log.info("fundamental.etf_holdings_written", ticker=ticker, rows=written)
+    log.info("fundamental.etf_holdings_written", provider_instrument_code=provider_instrument_code, rows=written)
     return BronzeWrite(rows_written=written)
 
 
 @task(
     name="write-bronze-fundamental-mutual-fund-holdings",
-    task_run_name="write-bronze-fundamental-mutual-fund-holdings-{ticker}",
+    task_run_name="write-bronze-fundamental-mutual-fund-holdings-{provider_instrument_code}",
 )
 def write_bronze_fundamental_mutual_fund_holdings(
     sources: list[BronzeParseResult[FundamentalMutualFundHolding]],
-    ticker: str,
+    provider_instrument_code: str,
     snapshot_date: date,
     source_uri: str | None = None,
 ) -> BronzeWrite:
@@ -1128,21 +1377,29 @@ def write_bronze_fundamental_mutual_fund_holdings(
     if not sources:
         return BronzeWrite(rows_written=0, reason="no_mutual_fund_holdings")
 
+    provider_exchange_code = sources[0].row.provider_exchange_code
     lake = get_lake_client()
-    if FUNDAMENTAL_MUTUAL_FUND_HOLDING_DATASET.already_ingested(lake, snapshot_date=snapshot_date, ticker=ticker):
+    if FUNDAMENTAL_MUTUAL_FUND_HOLDING_DATASET.already_ingested(
+        lake,
+        snapshot_date=snapshot_date,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+    ):
         return BronzeWrite(rows_written=0, reason="already_ingested")
     written = FUNDAMENTAL_MUTUAL_FUND_HOLDING_DATASET.write_bronze(lake, sources, source_uri=source_uri)
-    log.info("fundamental.mutual_fund_holdings_written", ticker=ticker, rows=written)
+    log.info(
+        "fundamental.mutual_fund_holdings_written", provider_instrument_code=provider_instrument_code, rows=written
+    )
     return BronzeWrite(rows_written=written)
 
 
 @task(
     name="write-bronze-fundamental-fund-metric-facts",
-    task_run_name="write-bronze-fundamental-fund-metric-facts-{ticker}",
+    task_run_name="write-bronze-fundamental-fund-metric-facts-{provider_instrument_code}",
 )
 def write_bronze_fundamental_fund_metric_facts(
     sources: list[BronzeParseResult[FundamentalFundMetricFact]],
-    ticker: str,
+    provider_instrument_code: str,
     snapshot_date: date,
     source_uri: str | None = None,
 ) -> BronzeWrite:
@@ -1152,21 +1409,27 @@ def write_bronze_fundamental_fund_metric_facts(
     if not sources:
         return BronzeWrite(rows_written=0, reason="no_fund_metric_facts")
 
+    provider_exchange_code = sources[0].row.provider_exchange_code
     lake = get_lake_client()
-    if FUNDAMENTAL_FUND_METRIC_FACT_DATASET.already_ingested(lake, snapshot_date=snapshot_date, ticker=ticker):
+    if FUNDAMENTAL_FUND_METRIC_FACT_DATASET.already_ingested(
+        lake,
+        snapshot_date=snapshot_date,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+    ):
         return BronzeWrite(rows_written=0, reason="already_ingested")
     written = FUNDAMENTAL_FUND_METRIC_FACT_DATASET.write_bronze(lake, sources, source_uri=source_uri)
-    log.info("fundamental.fund_metric_facts_written", ticker=ticker, rows=written)
+    log.info("fundamental.fund_metric_facts_written", provider_instrument_code=provider_instrument_code, rows=written)
     return BronzeWrite(rows_written=written)
 
 
 @task(
     name="write-bronze-fundamental-index-components",
-    task_run_name="write-bronze-fundamental-index-components-{ticker}",
+    task_run_name="write-bronze-fundamental-index-components-{provider_instrument_code}",
 )
 def write_bronze_fundamental_index_components(
     sources: list[BronzeParseResult[FundamentalIndexComponent]],
-    ticker: str,
+    provider_instrument_code: str,
     snapshot_date: date,
     source_uri: str | None = None,
 ) -> BronzeWrite:
@@ -1176,21 +1439,27 @@ def write_bronze_fundamental_index_components(
     if not sources:
         return BronzeWrite(rows_written=0, reason="no_index_components")
 
+    provider_exchange_code = sources[0].row.provider_exchange_code
     lake = get_lake_client()
-    if FUNDAMENTAL_INDEX_COMPONENT_DATASET.already_ingested(lake, snapshot_date=snapshot_date, ticker=ticker):
+    if FUNDAMENTAL_INDEX_COMPONENT_DATASET.already_ingested(
+        lake,
+        snapshot_date=snapshot_date,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+    ):
         return BronzeWrite(rows_written=0, reason="already_ingested")
     written = FUNDAMENTAL_INDEX_COMPONENT_DATASET.write_bronze(lake, sources, source_uri=source_uri)
-    log.info("fundamental.index_components_written", ticker=ticker, rows=written)
+    log.info("fundamental.index_components_written", provider_instrument_code=provider_instrument_code, rows=written)
     return BronzeWrite(rows_written=written)
 
 
 @task(
     name="write-bronze-fundamental-index-historical-components",
-    task_run_name="write-bronze-fundamental-index-historical-components-{ticker}",
+    task_run_name="write-bronze-fundamental-index-historical-components-{provider_instrument_code}",
 )
 def write_bronze_fundamental_index_historical_components(
     sources: list[BronzeParseResult[FundamentalIndexHistoricalComponent]],
-    ticker: str,
+    provider_instrument_code: str,
     snapshot_date: date,
     source_uri: str | None = None,
 ) -> BronzeWrite:
@@ -1200,13 +1469,19 @@ def write_bronze_fundamental_index_historical_components(
     if not sources:
         return BronzeWrite(rows_written=0, reason="no_index_historical_components")
 
+    provider_exchange_code = sources[0].row.provider_exchange_code
     lake = get_lake_client()
     if FUNDAMENTAL_INDEX_HISTORICAL_COMPONENT_DATASET.already_ingested(
         lake,
         snapshot_date=snapshot_date,
-        ticker=ticker,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
     ):
         return BronzeWrite(rows_written=0, reason="already_ingested")
     written = FUNDAMENTAL_INDEX_HISTORICAL_COMPONENT_DATASET.write_bronze(lake, sources, source_uri=source_uri)
-    log.info("fundamental.index_historical_components_written", ticker=ticker, rows=written)
+    log.info(
+        "fundamental.index_historical_components_written",
+        provider_instrument_code=provider_instrument_code,
+        rows=written,
+    )
     return BronzeWrite(rows_written=written)

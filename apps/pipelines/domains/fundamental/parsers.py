@@ -11,7 +11,6 @@ import structlog
 from core.ingestion import BronzeParseResult
 from core.ingestion.parser import parse_date, parse_decimal, parse_result
 from core.ingestion.serialization import canonical_json
-from domains.eod_price.symbols import exchange_from_qualified_ticker, ticker_without_exchange
 from domains.fundamental.models import (
     FundamentalDocument,
     FundamentalEtfHolding,
@@ -117,18 +116,17 @@ _FUND_METRIC_IDENTITY_FIELDS = {
 def parse_fundamental_document(
     raw: FundamentalRaw,
     *,
-    ticker: str,
+    provider_exchange_code: str,
+    provider_instrument_code: str,
     snapshot_date: date,
 ) -> BronzeParseResult[FundamentalDocument]:
     """Parse document-level metadata for a fundamentals payload."""
     general = raw.general
-    provider_exchange_code = exchange_from_qualified_ticker(ticker)
     instrument_type = _optional_str(general.get("Type")) or "Unknown"
     row = FundamentalDocument(
         snapshot_date=snapshot_date,
         provider_exchange_code=provider_exchange_code,
-        ticker=ticker,
-        code=_optional_str(general.get("Code")) or ticker_without_exchange(ticker, provider_exchange_code),
+        provider_instrument_code=provider_instrument_code,
         name=_optional_str(general.get("Name")),
         instrument_type=instrument_type,
         instrument_family=instrument_family_from_type(instrument_type),
@@ -144,7 +142,8 @@ def parse_fundamental_document(
 def parse_stock_identity_snapshot(
     raw: FundamentalRaw,
     *,
-    ticker: str,
+    provider_exchange_code: str,
+    provider_instrument_code: str,
     snapshot_date: date,
 ) -> BronzeParseResult[FundamentalStockIdentitySnapshot] | None:
     """Parse stock-only identity metadata from the ``General`` section."""
@@ -153,12 +152,10 @@ def parse_stock_identity_snapshot(
     if instrument_family_from_type(instrument_type) != "stock":
         return None
 
-    provider_exchange_code = exchange_from_qualified_ticker(ticker)
     row = FundamentalStockIdentitySnapshot(
         snapshot_date=snapshot_date,
         provider_exchange_code=provider_exchange_code,
-        ticker=ticker,
-        code=_optional_str(general.get("Code")) or ticker_without_exchange(ticker, provider_exchange_code),
+        provider_instrument_code=provider_instrument_code,
         name=_optional_str(general.get("Name")),
         primary_ticker=_optional_str(general.get("PrimaryTicker")),
         provider_listing_exchange_code=_optional_str(general.get("Exchange")),
@@ -193,7 +190,8 @@ def parse_stock_identity_snapshot(
 def parse_stock_statement_facts(
     raw: FundamentalRaw,
     *,
-    ticker: str,
+    provider_exchange_code: str,
+    provider_instrument_code: str,
     snapshot_date: date,
 ) -> tuple[list[BronzeParseResult[FundamentalStatementFact]], list[dict[str, Any]]]:
     """Flatten stock financial statements into long-form numeric facts."""
@@ -202,7 +200,6 @@ def parse_stock_statement_facts(
     if instrument_family_from_type(instrument_type) != "stock" or not raw.financials:
         return [], []
 
-    provider_exchange_code = exchange_from_qualified_ticker(ticker)
     valid: list[BronzeParseResult[FundamentalStatementFact]] = []
     rejected: list[dict[str, Any]] = []
 
@@ -220,7 +217,7 @@ def parse_stock_statement_facts(
                 if not isinstance(report_payload, Mapping):
                     rejected.append(
                         _statement_rejection(
-                            ticker=ticker,
+                            provider_instrument_code=provider_instrument_code,
                             statement_type=statement_type,
                             period_type=period_type,
                             period_key=str(period_key),
@@ -235,7 +232,7 @@ def parse_stock_statement_facts(
                         continue
 
                     raw_fragment = {
-                        "ticker": ticker,
+                        "provider_instrument_code": provider_instrument_code,
                         "statement_type": statement_type,
                         "period_type": period_type,
                         "period_key": str(period_key),
@@ -246,7 +243,7 @@ def parse_stock_statement_facts(
                         fact = FundamentalStatementFact(
                             snapshot_date=snapshot_date,
                             provider_exchange_code=provider_exchange_code,
-                            ticker=ticker,
+                            provider_instrument_code=provider_instrument_code,
                             statement_type=statement_type,
                             period_type=period_type,
                             period_end_date=parse_date(report_payload.get("date") or period_key),
@@ -258,7 +255,7 @@ def parse_stock_statement_facts(
                     except Exception as exc:
                         log.warning(
                             "fundamental.statement_fact_rejected",
-                            ticker=ticker,
+                            provider_instrument_code=provider_instrument_code,
                             statement_type=statement_type,
                             period_type=period_type,
                             period_key=str(period_key),
@@ -276,7 +273,8 @@ def parse_stock_statement_facts(
 def parse_stock_earnings_facts(
     raw: FundamentalRaw,
     *,
-    ticker: str,
+    provider_exchange_code: str,
+    provider_instrument_code: str,
     snapshot_date: date,
 ) -> tuple[list[BronzeParseResult[FundamentalStockEarningsFact]], list[dict[str, Any]]]:
     """Flatten stock earnings sections into long-form numeric facts."""
@@ -285,13 +283,12 @@ def parse_stock_earnings_facts(
     if instrument_family_from_type(instrument_type) != "stock" or not raw.earnings:
         return [], []
 
-    provider_exchange_code = exchange_from_qualified_ticker(ticker)
     valid: list[BronzeParseResult[FundamentalStockEarningsFact]] = []
     rejected: list[dict[str, Any]] = []
 
     _parse_earnings_period_map(
         raw.earnings.get("Annual"),
-        ticker=ticker,
+        provider_instrument_code=provider_instrument_code,
         snapshot_date=snapshot_date,
         provider_exchange_code=provider_exchange_code,
         earnings_section="annual",
@@ -301,7 +298,7 @@ def parse_stock_earnings_facts(
     )
     _parse_earnings_period_map(
         raw.earnings.get("History"),
-        ticker=ticker,
+        provider_instrument_code=provider_instrument_code,
         snapshot_date=snapshot_date,
         provider_exchange_code=provider_exchange_code,
         earnings_section="history",
@@ -318,7 +315,7 @@ def parse_stock_earnings_facts(
                 continue
             _parse_earnings_period_map(
                 period_payload,
-                ticker=ticker,
+                provider_instrument_code=provider_instrument_code,
                 snapshot_date=snapshot_date,
                 provider_exchange_code=provider_exchange_code,
                 earnings_section="trend",
@@ -329,7 +326,7 @@ def parse_stock_earnings_facts(
     elif trend is not None:
         rejected.append(
             _earnings_rejection(
-                ticker=ticker,
+                provider_instrument_code=provider_instrument_code,
                 earnings_section="trend",
                 period_type=None,
                 period_key="Trend",
@@ -344,7 +341,8 @@ def parse_stock_earnings_facts(
 def parse_stock_shares_stats_snapshot(
     raw: FundamentalRaw,
     *,
-    ticker: str,
+    provider_exchange_code: str,
+    provider_instrument_code: str,
     snapshot_date: date,
 ) -> BronzeParseResult[FundamentalStockSharesStatsSnapshot] | None:
     """Parse stock share-statistics snapshot fields."""
@@ -353,12 +351,11 @@ def parse_stock_shares_stats_snapshot(
     if instrument_family_from_type(instrument_type) != "stock" or raw.shares_stats is None:
         return None
 
-    provider_exchange_code = exchange_from_qualified_ticker(ticker)
     payload = raw.shares_stats
     row = FundamentalStockSharesStatsSnapshot(
         snapshot_date=snapshot_date,
         provider_exchange_code=provider_exchange_code,
-        ticker=ticker,
+        provider_instrument_code=provider_instrument_code,
         shares_outstanding=_optional_decimal(payload.get("SharesOutstanding")),
         shares_float=_optional_decimal(payload.get("SharesFloat")),
         percent_insiders=_optional_decimal(payload.get("PercentInsiders")),
@@ -375,7 +372,8 @@ def parse_stock_shares_stats_snapshot(
 def parse_stock_outstanding_shares(
     raw: FundamentalRaw,
     *,
-    ticker: str,
+    provider_exchange_code: str,
+    provider_instrument_code: str,
     snapshot_date: date,
 ) -> tuple[list[BronzeParseResult[FundamentalStockOutstandingShares]], list[dict[str, Any]]]:
     """Parse historical stock outstanding-shares rows."""
@@ -384,7 +382,6 @@ def parse_stock_outstanding_shares(
     if instrument_family_from_type(instrument_type) != "stock" or not raw.outstanding_shares:
         return [], []
 
-    provider_exchange_code = exchange_from_qualified_ticker(ticker)
     valid: list[BronzeParseResult[FundamentalStockOutstandingShares]] = []
     rejected: list[dict[str, Any]] = []
 
@@ -394,7 +391,7 @@ def parse_stock_outstanding_shares(
             continue
         _parse_outstanding_shares_period_map(
             period_payload,
-            ticker=ticker,
+            provider_instrument_code=provider_instrument_code,
             snapshot_date=snapshot_date,
             provider_exchange_code=provider_exchange_code,
             period_type=period_type,
@@ -408,7 +405,8 @@ def parse_stock_outstanding_shares(
 def parse_stock_holders(
     raw: FundamentalRaw,
     *,
-    ticker: str,
+    provider_exchange_code: str,
+    provider_instrument_code: str,
     snapshot_date: date,
 ) -> tuple[list[BronzeParseResult[FundamentalStockHolder]], list[dict[str, Any]]]:
     """Parse stock holder rows from institution and fund holder maps."""
@@ -417,7 +415,6 @@ def parse_stock_holders(
     if instrument_family_from_type(instrument_type) != "stock" or not raw.holders:
         return [], []
 
-    provider_exchange_code = exchange_from_qualified_ticker(ticker)
     valid: list[BronzeParseResult[FundamentalStockHolder]] = []
     rejected: list[dict[str, Any]] = []
 
@@ -427,7 +424,7 @@ def parse_stock_holders(
             continue
         _parse_holder_map(
             holder_payload,
-            ticker=ticker,
+            provider_instrument_code=provider_instrument_code,
             snapshot_date=snapshot_date,
             provider_exchange_code=provider_exchange_code,
             holder_type=holder_type,
@@ -441,7 +438,8 @@ def parse_stock_holders(
 def parse_stock_insider_transactions(
     raw: FundamentalRaw,
     *,
-    ticker: str,
+    provider_exchange_code: str,
+    provider_instrument_code: str,
     snapshot_date: date,
 ) -> tuple[list[BronzeParseResult[FundamentalStockInsiderTransaction]], list[dict[str, Any]]]:
     """Parse stock insider transaction rows from fundamentals."""
@@ -453,21 +451,20 @@ def parse_stock_insider_transactions(
     if not isinstance(raw.insider_transactions, Mapping):
         return [], [
             _insider_transaction_rejection(
-                ticker=ticker,
+                provider_instrument_code=provider_instrument_code,
                 period_key="insider_transactions",
                 reason="section_not_object",
                 raw_value=raw.insider_transactions,
             )
         ]
 
-    provider_exchange_code = exchange_from_qualified_ticker(ticker)
     valid: list[BronzeParseResult[FundamentalStockInsiderTransaction]] = []
     rejected: list[dict[str, Any]] = []
     for period_key, transaction_payload in raw.insider_transactions.items():
         if not isinstance(transaction_payload, Mapping):
             rejected.append(
                 _insider_transaction_rejection(
-                    ticker=ticker,
+                    provider_instrument_code=provider_instrument_code,
                     period_key=str(period_key),
                     reason="report_not_object",
                     raw_value=transaction_payload,
@@ -477,7 +474,7 @@ def parse_stock_insider_transactions(
 
         transaction = dict(transaction_payload.items())
         raw_fragment = {
-            "ticker": ticker,
+            "provider_instrument_code": provider_instrument_code,
             "section": "insider_transactions",
             "period_key": str(period_key),
             "owner_name": transaction.get("ownerName"),
@@ -494,7 +491,7 @@ def parse_stock_insider_transactions(
             row = FundamentalStockInsiderTransaction(
                 snapshot_date=snapshot_date,
                 provider_exchange_code=provider_exchange_code,
-                ticker=ticker,
+                provider_instrument_code=provider_instrument_code,
                 provider_position=_optional_int(period_key),
                 filing_date=_optional_date(transaction.get("date")),
                 owner_cik=_optional_str(transaction.get("ownerCik")),
@@ -510,7 +507,7 @@ def parse_stock_insider_transactions(
         except Exception as exc:
             log.warning(
                 "fundamental.insider_transaction_rejected",
-                ticker=ticker,
+                provider_instrument_code=provider_instrument_code,
                 period_key=str(period_key),
                 error=str(exc),
             )
@@ -525,7 +522,8 @@ def parse_stock_insider_transactions(
 def parse_stock_splits_dividends_snapshot(
     raw: FundamentalRaw,
     *,
-    ticker: str,
+    provider_exchange_code: str,
+    provider_instrument_code: str,
     snapshot_date: date,
 ) -> BronzeParseResult[FundamentalStockSplitsDividendsSnapshot] | None:
     """Parse the stock splits/dividends snapshot fields."""
@@ -534,12 +532,11 @@ def parse_stock_splits_dividends_snapshot(
     if instrument_family_from_type(instrument_type) != "stock" or raw.splits_dividends is None:
         return None
 
-    provider_exchange_code = exchange_from_qualified_ticker(ticker)
     payload = raw.splits_dividends
     row = FundamentalStockSplitsDividendsSnapshot(
         snapshot_date=snapshot_date,
         provider_exchange_code=provider_exchange_code,
-        ticker=ticker,
+        provider_instrument_code=provider_instrument_code,
         forward_annual_dividend_rate=_optional_decimal(payload.get("ForwardAnnualDividendRate")),
         forward_annual_dividend_yield=_optional_decimal(payload.get("ForwardAnnualDividendYield")),
         payout_ratio=_optional_decimal(payload.get("PayoutRatio")),
@@ -554,7 +551,8 @@ def parse_stock_splits_dividends_snapshot(
 def parse_stock_dividend_counts(
     raw: FundamentalRaw,
     *,
-    ticker: str,
+    provider_exchange_code: str,
+    provider_instrument_code: str,
     snapshot_date: date,
 ) -> tuple[list[BronzeParseResult[FundamentalStockDividendCount]], list[dict[str, Any]]]:
     """Parse yearly dividend-count rows from the splits/dividends section."""
@@ -567,13 +565,12 @@ def parse_stock_dividend_counts(
     if counts is None:
         return [], []
 
-    provider_exchange_code = exchange_from_qualified_ticker(ticker)
     valid: list[BronzeParseResult[FundamentalStockDividendCount]] = []
     rejected: list[dict[str, Any]] = []
     if not isinstance(counts, Mapping):
         return [], [
             {
-                "ticker": ticker,
+                "provider_instrument_code": provider_instrument_code,
                 "section": "dividend_counts",
                 "reason": "section_not_object",
                 "raw_value": counts,
@@ -584,7 +581,7 @@ def parse_stock_dividend_counts(
         if not isinstance(row_payload, Mapping):
             rejected.append(
                 {
-                    "ticker": ticker,
+                    "provider_instrument_code": provider_instrument_code,
                     "section": "dividend_counts",
                     "period_key": str(period_key),
                     "reason": "report_not_object",
@@ -594,7 +591,7 @@ def parse_stock_dividend_counts(
             continue
         payload = dict(row_payload.items())
         raw_fragment = {
-            "ticker": ticker,
+            "provider_instrument_code": provider_instrument_code,
             "section": "dividend_counts",
             "period_key": str(period_key),
             "year": payload.get("Year"),
@@ -603,7 +600,7 @@ def parse_stock_dividend_counts(
             row = FundamentalStockDividendCount(
                 snapshot_date=snapshot_date,
                 provider_exchange_code=provider_exchange_code,
-                ticker=ticker,
+                provider_instrument_code=provider_instrument_code,
                 year=_required_int(payload.get("Year")),
                 dividend_count=_required_int(payload.get("Count")),
             )
@@ -618,7 +615,8 @@ def parse_stock_dividend_counts(
 def parse_stock_metric_facts(
     raw: FundamentalRaw,
     *,
-    ticker: str,
+    provider_exchange_code: str,
+    provider_instrument_code: str,
     snapshot_date: date,
 ) -> list[BronzeParseResult[FundamentalStockMetricFact]]:
     """Parse compact numeric stock metrics into long-form facts."""
@@ -627,7 +625,6 @@ def parse_stock_metric_facts(
     if instrument_family_from_type(instrument_type) != "stock":
         return []
 
-    provider_exchange_code = exchange_from_qualified_ticker(ticker)
     valid: list[BronzeParseResult[FundamentalStockMetricFact]] = []
     raw_by_alias = raw.model_dump(mode="python", by_alias=True, exclude_none=True)
     for metric_group, provider_section in _STOCK_METRIC_GROUPS:
@@ -645,7 +642,7 @@ def parse_stock_metric_facts(
             if metric_decimal is None:
                 continue
             raw_fragment = {
-                "ticker": ticker,
+                "provider_instrument_code": provider_instrument_code,
                 "section": metric_group,
                 "metric_name": metric_name,
                 "metric_value": metric_value,
@@ -655,7 +652,7 @@ def parse_stock_metric_facts(
                     FundamentalStockMetricFact(
                         snapshot_date=snapshot_date,
                         provider_exchange_code=provider_exchange_code,
-                        ticker=ticker,
+                        provider_instrument_code=provider_instrument_code,
                         metric_group=metric_group,
                         metric_name=metric_name,
                         metric_value=metric_decimal,
@@ -671,7 +668,8 @@ def parse_stock_metric_facts(
 def parse_stock_esg_activities(
     raw: FundamentalRaw,
     *,
-    ticker: str,
+    provider_exchange_code: str,
+    provider_instrument_code: str,
     snapshot_date: date,
 ) -> tuple[list[BronzeParseResult[FundamentalStockEsgActivity]], list[dict[str, Any]]]:
     """Parse ESG activity involvement rows when supplied."""
@@ -684,14 +682,13 @@ def parse_stock_esg_activities(
     if activities is None:
         return [], []
 
-    provider_exchange_code = exchange_from_qualified_ticker(ticker)
     rating_date = _optional_date(raw.esg_scores.get("RatingDate"))
     valid: list[BronzeParseResult[FundamentalStockEsgActivity]] = []
     rejected: list[dict[str, Any]] = []
     if not isinstance(activities, Mapping):
         return [], [
             {
-                "ticker": ticker,
+                "provider_instrument_code": provider_instrument_code,
                 "section": "esg_activities",
                 "reason": "section_not_object",
                 "raw_value": activities,
@@ -702,7 +699,7 @@ def parse_stock_esg_activities(
         if not isinstance(activity_payload, Mapping):
             rejected.append(
                 {
-                    "ticker": ticker,
+                    "provider_instrument_code": provider_instrument_code,
                     "section": "esg_activities",
                     "period_key": str(period_key),
                     "reason": "report_not_object",
@@ -717,7 +714,7 @@ def parse_stock_esg_activities(
         row = FundamentalStockEsgActivity(
             snapshot_date=snapshot_date,
             provider_exchange_code=provider_exchange_code,
-            ticker=ticker,
+            provider_instrument_code=provider_instrument_code,
             rating_date=rating_date,
             activity=activity,
             involvement=_optional_str(payload.get("Involvement")),
@@ -726,7 +723,7 @@ def parse_stock_esg_activities(
             parse_result(
                 row,
                 {
-                    "ticker": ticker,
+                    "provider_instrument_code": provider_instrument_code,
                     "section": "esg_activities",
                     "period_key": str(period_key),
                     "activity": activity,
@@ -740,7 +737,8 @@ def parse_stock_esg_activities(
 def parse_etf_identity_snapshot(
     raw: FundamentalRaw,
     *,
-    ticker: str,
+    provider_exchange_code: str,
+    provider_instrument_code: str,
     snapshot_date: date,
 ) -> BronzeParseResult[FundamentalEtfIdentitySnapshot] | None:
     """Parse ETF-specific identity metadata."""
@@ -748,13 +746,11 @@ def parse_etf_identity_snapshot(
     if instrument_family_from_type(_optional_str(general.get("Type"))) != "etf" or raw.etf_data is None:
         return None
 
-    provider_exchange_code = exchange_from_qualified_ticker(ticker)
     etf = raw.etf_data
     row = FundamentalEtfIdentitySnapshot(
         snapshot_date=snapshot_date,
         provider_exchange_code=provider_exchange_code,
-        ticker=ticker,
-        code=_optional_str(general.get("Code")) or ticker_without_exchange(ticker, provider_exchange_code),
+        provider_instrument_code=provider_instrument_code,
         name=_optional_str(general.get("Name")),
         primary_ticker=_optional_str(general.get("PrimaryTicker")),
         provider_listing_exchange_code=_optional_str(general.get("Exchange")),
@@ -779,7 +775,8 @@ def parse_etf_identity_snapshot(
 def parse_mutual_fund_identity_snapshot(
     raw: FundamentalRaw,
     *,
-    ticker: str,
+    provider_exchange_code: str,
+    provider_instrument_code: str,
     snapshot_date: date,
 ) -> BronzeParseResult[FundamentalMutualFundIdentitySnapshot] | None:
     """Parse mutual-fund-specific identity metadata."""
@@ -787,13 +784,11 @@ def parse_mutual_fund_identity_snapshot(
     if instrument_family_from_type(_optional_str(general.get("Type"))) != "fund" or raw.mutual_fund_data is None:
         return None
 
-    provider_exchange_code = exchange_from_qualified_ticker(ticker)
     fund = raw.mutual_fund_data
     row = FundamentalMutualFundIdentitySnapshot(
         snapshot_date=snapshot_date,
         provider_exchange_code=provider_exchange_code,
-        ticker=ticker,
-        code=_optional_str(general.get("Code")) or ticker_without_exchange(ticker, provider_exchange_code),
+        provider_instrument_code=provider_instrument_code,
         name=_optional_str(general.get("Name")),
         primary_ticker=_optional_str(general.get("PrimaryTicker")),
         provider_listing_exchange_code=_optional_str(general.get("Exchange")),
@@ -818,7 +813,8 @@ def parse_mutual_fund_identity_snapshot(
 def parse_index_identity_snapshot(
     raw: FundamentalRaw,
     *,
-    ticker: str,
+    provider_exchange_code: str,
+    provider_instrument_code: str,
     snapshot_date: date,
 ) -> BronzeParseResult[FundamentalIndexIdentitySnapshot] | None:
     """Parse index-specific identity metadata."""
@@ -826,12 +822,10 @@ def parse_index_identity_snapshot(
     if instrument_family_from_type(_optional_str(general.get("Type"))) != "index":
         return None
 
-    provider_exchange_code = exchange_from_qualified_ticker(ticker)
     row = FundamentalIndexIdentitySnapshot(
         snapshot_date=snapshot_date,
         provider_exchange_code=provider_exchange_code,
-        ticker=ticker,
-        code=_optional_str(general.get("Code")) or ticker_without_exchange(ticker, provider_exchange_code),
+        provider_instrument_code=provider_instrument_code,
         name=_optional_str(general.get("Name")),
         provider_listing_exchange_code=_optional_str(general.get("Exchange")),
         currency_code=_optional_str(general.get("CurrencyCode")),
@@ -847,7 +841,8 @@ def parse_index_identity_snapshot(
 def parse_etf_holdings(
     raw: FundamentalRaw,
     *,
-    ticker: str,
+    provider_exchange_code: str,
+    provider_instrument_code: str,
     snapshot_date: date,
 ) -> tuple[list[BronzeParseResult[FundamentalEtfHolding]], list[dict[str, Any]]]:
     """Parse ETF holdings from ETF_Data.Holdings or Top_10_Holdings."""
@@ -855,7 +850,6 @@ def parse_etf_holdings(
     if instrument_family_from_type(_optional_str(general.get("Type"))) != "etf" or not raw.etf_data:
         return [], []
 
-    provider_exchange_code = exchange_from_qualified_ticker(ticker)
     holdings = raw.etf_data.get("Holdings") or raw.etf_data.get("Top_10_Holdings")
     top_10 = raw.etf_data.get("Top_10_Holdings")
     top_10_symbols = set(top_10) if isinstance(top_10, Mapping) else set()
@@ -866,35 +860,35 @@ def parse_etf_holdings(
     if not isinstance(holdings, Mapping):
         return [], [
             _family_rejection(
-                ticker=ticker,
+                provider_instrument_code=provider_instrument_code,
                 section="etf_holdings",
                 reason="section_not_object",
                 raw_value=holdings,
             )
         ]
 
-    for holding_symbol, holding_payload in holdings.items():
+    for holding_provider_key, holding_payload in holdings.items():
         if not isinstance(holding_payload, Mapping):
             rejected.append(
                 _family_rejection(
-                    ticker=ticker,
+                    provider_instrument_code=provider_instrument_code,
                     section="etf_holdings",
                     reason="report_not_object",
                     raw_value=holding_payload,
-                    entity_key=str(holding_symbol),
+                    entity_key=str(holding_provider_key),
                 )
             )
             continue
         holding = dict(holding_payload.items())
-        symbol = str(holding_symbol)
+        symbol = str(holding_provider_key)
         try:
             row = FundamentalEtfHolding(
                 snapshot_date=snapshot_date,
                 provider_exchange_code=provider_exchange_code,
-                ticker=ticker,
-                holding_symbol=symbol,
-                holding_code=_optional_str(holding.get("Code")),
-                holding_exchange=_optional_str(holding.get("Exchange")),
+                provider_instrument_code=provider_instrument_code,
+                holding_provider_key=symbol,
+                holding_provider_instrument_code=_optional_str(holding.get("Code")),
+                holding_provider_exchange_code=_optional_str(holding.get("Exchange")),
                 holding_name=_optional_str(holding.get("Name")),
                 sector=_optional_str(holding.get("Sector")),
                 industry=_optional_str(holding.get("Industry")),
@@ -906,7 +900,7 @@ def parse_etf_holdings(
         except Exception as exc:
             rejected.append(
                 _family_rejection(
-                    ticker=ticker,
+                    provider_instrument_code=provider_instrument_code,
                     section="etf_holdings",
                     reason="parse_error",
                     raw_value=holding,
@@ -915,7 +909,16 @@ def parse_etf_holdings(
                 )
             )
             continue
-        valid.append(parse_result(row, {"ticker": ticker, "section": "etf_holdings", "holding_symbol": symbol}))
+        valid.append(
+            parse_result(
+                row,
+                {
+                    "provider_instrument_code": provider_instrument_code,
+                    "section": "etf_holdings",
+                    "holding_provider_key": symbol,
+                },
+            )
+        )
 
     return valid, rejected
 
@@ -923,7 +926,8 @@ def parse_etf_holdings(
 def parse_mutual_fund_holdings(
     raw: FundamentalRaw,
     *,
-    ticker: str,
+    provider_exchange_code: str,
+    provider_instrument_code: str,
     snapshot_date: date,
 ) -> tuple[list[BronzeParseResult[FundamentalMutualFundHolding]], list[dict[str, Any]]]:
     """Parse mutual fund top holdings."""
@@ -937,21 +941,20 @@ def parse_mutual_fund_holdings(
     if not isinstance(holdings, Mapping):
         return [], [
             _family_rejection(
-                ticker=ticker,
+                provider_instrument_code=provider_instrument_code,
                 section="mutual_fund_holdings",
                 reason="section_not_object",
                 raw_value=holdings,
             )
         ]
 
-    provider_exchange_code = exchange_from_qualified_ticker(ticker)
     valid: list[BronzeParseResult[FundamentalMutualFundHolding]] = []
     rejected: list[dict[str, Any]] = []
     for period_key, holding_payload in holdings.items():
         if not isinstance(holding_payload, Mapping):
             rejected.append(
                 _family_rejection(
-                    ticker=ticker,
+                    provider_instrument_code=provider_instrument_code,
                     section="mutual_fund_holdings",
                     reason="report_not_object",
                     raw_value=holding_payload,
@@ -966,13 +969,20 @@ def parse_mutual_fund_holdings(
         row = FundamentalMutualFundHolding(
             snapshot_date=snapshot_date,
             provider_exchange_code=provider_exchange_code,
-            ticker=ticker,
+            provider_instrument_code=provider_instrument_code,
             provider_position=_optional_int(period_key),
             holding_name=holding_name,
             weight_percent=_percent_decimal(holding.get("Weight")),
         )
         valid.append(
-            parse_result(row, {"ticker": ticker, "section": "mutual_fund_holdings", "period_key": str(period_key)})
+            parse_result(
+                row,
+                {
+                    "provider_instrument_code": provider_instrument_code,
+                    "section": "mutual_fund_holdings",
+                    "period_key": str(period_key),
+                },
+            )
         )
 
     return valid, rejected
@@ -981,7 +991,8 @@ def parse_mutual_fund_holdings(
 def parse_fund_metric_facts(
     raw: FundamentalRaw,
     *,
-    ticker: str,
+    provider_exchange_code: str,
+    provider_instrument_code: str,
     snapshot_date: date,
 ) -> list[BronzeParseResult[FundamentalFundMetricFact]]:
     """Parse ETF and mutual fund nested numeric metrics."""
@@ -996,7 +1007,6 @@ def parse_fund_metric_facts(
     if not payload:
         return []
 
-    provider_exchange_code = exchange_from_qualified_ticker(ticker)
     valid: list[BronzeParseResult[FundamentalFundMetricFact]] = []
     for group_raw, group_payload in payload.items():
         group = str(group_raw)
@@ -1011,7 +1021,7 @@ def parse_fund_metric_facts(
                     FundamentalFundMetricFact(
                         snapshot_date=snapshot_date,
                         provider_exchange_code=provider_exchange_code,
-                        ticker=ticker,
+                        provider_instrument_code=provider_instrument_code,
                         instrument_family=family,
                         metric_group="profile",
                         metric_category=None,
@@ -1019,7 +1029,12 @@ def parse_fund_metric_facts(
                         metric_value=metric_value,
                         metric_date=_fund_metric_date(group, payload),
                     ),
-                    {"ticker": ticker, "section": "fund_metric", "metric_group": "profile", "metric_name": group},
+                    {
+                        "provider_instrument_code": provider_instrument_code,
+                        "section": "fund_metric",
+                        "metric_group": "profile",
+                        "metric_name": group,
+                    },
                 )
             )
             continue
@@ -1030,7 +1045,7 @@ def parse_fund_metric_facts(
                     FundamentalFundMetricFact(
                         snapshot_date=snapshot_date,
                         provider_exchange_code=provider_exchange_code,
-                        ticker=ticker,
+                        provider_instrument_code=provider_instrument_code,
                         instrument_family=family,
                         metric_group=group,
                         metric_category=category,
@@ -1039,7 +1054,7 @@ def parse_fund_metric_facts(
                         metric_date=_fund_metric_date(group, payload),
                     ),
                     {
-                        "ticker": ticker,
+                        "provider_instrument_code": provider_instrument_code,
                         "section": "fund_metric",
                         "metric_group": group,
                         "metric_category": category,
@@ -1054,7 +1069,8 @@ def parse_fund_metric_facts(
 def parse_index_components(
     raw: FundamentalRaw,
     *,
-    ticker: str,
+    provider_exchange_code: str,
+    provider_instrument_code: str,
     snapshot_date: date,
 ) -> tuple[list[BronzeParseResult[FundamentalIndexComponent]], list[dict[str, Any]]]:
     """Parse current index component rows."""
@@ -1062,14 +1078,13 @@ def parse_index_components(
     if instrument_family_from_type(_optional_str(general.get("Type"))) != "index" or not raw.components:
         return [], []
 
-    provider_exchange_code = exchange_from_qualified_ticker(ticker)
     valid: list[BronzeParseResult[FundamentalIndexComponent]] = []
     rejected: list[dict[str, Any]] = []
     for period_key, component_payload in raw.components.items():
         if not isinstance(component_payload, Mapping):
             rejected.append(
                 _family_rejection(
-                    ticker=ticker,
+                    provider_instrument_code=provider_instrument_code,
                     section="index_components",
                     reason="report_not_object",
                     raw_value=component_payload,
@@ -1085,18 +1100,24 @@ def parse_index_components(
         row = FundamentalIndexComponent(
             snapshot_date=snapshot_date,
             provider_exchange_code=provider_exchange_code,
-            ticker=ticker,
+            provider_instrument_code=provider_instrument_code,
             provider_position=_optional_int(period_key),
-            component_code=code,
-            component_exchange=exchange,
-            component_ticker=f"{code}.{exchange}" if exchange else None,
+            component_provider_instrument_code=code,
+            component_provider_exchange_code=exchange,
             component_name=_optional_str(component.get("Name")),
             sector=_optional_str(component.get("Sector")),
             industry=_optional_str(component.get("Industry")),
             weight=_optional_decimal(component.get("Weight")),
         )
         valid.append(
-            parse_result(row, {"ticker": ticker, "section": "index_components", "period_key": str(period_key)})
+            parse_result(
+                row,
+                {
+                    "provider_instrument_code": provider_instrument_code,
+                    "section": "index_components",
+                    "period_key": str(period_key),
+                },
+            )
         )
 
     return valid, rejected
@@ -1105,7 +1126,8 @@ def parse_index_components(
 def parse_index_historical_components(
     raw: FundamentalRaw,
     *,
-    ticker: str,
+    provider_exchange_code: str,
+    provider_instrument_code: str,
     snapshot_date: date,
 ) -> tuple[list[BronzeParseResult[FundamentalIndexHistoricalComponent]], list[dict[str, Any]]]:
     """Parse historical index constituent membership rows."""
@@ -1116,14 +1138,13 @@ def parse_index_historical_components(
     ):
         return [], []
 
-    provider_exchange_code = exchange_from_qualified_ticker(ticker)
     valid: list[BronzeParseResult[FundamentalIndexHistoricalComponent]] = []
     rejected: list[dict[str, Any]] = []
     for period_key, component_payload in raw.historical_ticker_components.items():
         if not isinstance(component_payload, Mapping):
             rejected.append(
                 _family_rejection(
-                    ticker=ticker,
+                    provider_instrument_code=provider_instrument_code,
                     section="index_historical_components",
                     reason="report_not_object",
                     raw_value=component_payload,
@@ -1138,9 +1159,9 @@ def parse_index_historical_components(
         row = FundamentalIndexHistoricalComponent(
             snapshot_date=snapshot_date,
             provider_exchange_code=provider_exchange_code,
-            ticker=ticker,
+            provider_instrument_code=provider_instrument_code,
             provider_position=_optional_int(period_key),
-            component_code=code,
+            component_provider_instrument_code=code,
             component_name=_optional_str(component.get("Name")),
             start_date=_optional_date(component.get("StartDate")),
             end_date=_optional_date(component.get("EndDate")),
@@ -1150,7 +1171,11 @@ def parse_index_historical_components(
         valid.append(
             parse_result(
                 row,
-                {"ticker": ticker, "section": "index_historical_components", "period_key": str(period_key)},
+                {
+                    "provider_instrument_code": provider_instrument_code,
+                    "section": "index_historical_components",
+                    "period_key": str(period_key),
+                },
             )
         )
 
@@ -1290,9 +1315,9 @@ def _fund_metric_date(metric_name: str, payload: Mapping[str, Any]) -> date | No
 def _parse_earnings_period_map(
     payload: object,
     *,
-    ticker: str,
-    snapshot_date: date,
     provider_exchange_code: str,
+    provider_instrument_code: str,
+    snapshot_date: date,
     earnings_section: str,
     period_type: str | None,
     valid: list[BronzeParseResult[FundamentalStockEarningsFact]],
@@ -1303,7 +1328,7 @@ def _parse_earnings_period_map(
     if not isinstance(payload, Mapping):
         rejected.append(
             _earnings_rejection(
-                ticker=ticker,
+                provider_instrument_code=provider_instrument_code,
                 earnings_section=earnings_section,
                 period_type=period_type,
                 period_key=earnings_section,
@@ -1317,7 +1342,7 @@ def _parse_earnings_period_map(
         if not isinstance(report_payload, Mapping):
             rejected.append(
                 _earnings_rejection(
-                    ticker=ticker,
+                    provider_instrument_code=provider_instrument_code,
                     earnings_section=earnings_section,
                     period_type=period_type,
                     period_key=str(period_key),
@@ -1334,7 +1359,7 @@ def _parse_earnings_period_map(
                 continue
 
             raw_fragment = {
-                "ticker": ticker,
+                "provider_instrument_code": provider_instrument_code,
                 "section": "earnings",
                 "earnings_section": earnings_section,
                 "period_type": period_type,
@@ -1346,7 +1371,7 @@ def _parse_earnings_period_map(
                 fact = FundamentalStockEarningsFact(
                     snapshot_date=snapshot_date,
                     provider_exchange_code=provider_exchange_code,
-                    ticker=ticker,
+                    provider_instrument_code=provider_instrument_code,
                     earnings_section=earnings_section,
                     period_type=period_type,
                     fiscal_period_end=parse_date(report.get("date") or period_key),
@@ -1361,7 +1386,7 @@ def _parse_earnings_period_map(
             except Exception as exc:
                 log.warning(
                     "fundamental.earnings_fact_rejected",
-                    ticker=ticker,
+                    provider_instrument_code=provider_instrument_code,
                     earnings_section=earnings_section,
                     period_type=period_type,
                     period_key=str(period_key),
@@ -1377,9 +1402,9 @@ def _parse_earnings_period_map(
 def _parse_holder_map(
     payload: object,
     *,
-    ticker: str,
-    snapshot_date: date,
     provider_exchange_code: str,
+    provider_instrument_code: str,
+    snapshot_date: date,
     holder_type: str,
     valid: list[BronzeParseResult[FundamentalStockHolder]],
     rejected: list[dict[str, Any]],
@@ -1389,7 +1414,7 @@ def _parse_holder_map(
     if not isinstance(payload, Mapping):
         rejected.append(
             _holder_rejection(
-                ticker=ticker,
+                provider_instrument_code=provider_instrument_code,
                 holder_type=holder_type,
                 period_key=holder_type,
                 reason="section_not_object",
@@ -1402,7 +1427,7 @@ def _parse_holder_map(
         if not isinstance(holder_payload, Mapping):
             rejected.append(
                 _holder_rejection(
-                    ticker=ticker,
+                    provider_instrument_code=provider_instrument_code,
                     holder_type=holder_type,
                     period_key=str(period_key),
                     reason="report_not_object",
@@ -1413,7 +1438,7 @@ def _parse_holder_map(
 
         holder = dict(holder_payload.items())
         raw_fragment = {
-            "ticker": ticker,
+            "provider_instrument_code": provider_instrument_code,
             "section": "holders",
             "holder_type": holder_type,
             "period_key": str(period_key),
@@ -1426,7 +1451,7 @@ def _parse_holder_map(
             row = FundamentalStockHolder(
                 snapshot_date=snapshot_date,
                 provider_exchange_code=provider_exchange_code,
-                ticker=ticker,
+                provider_instrument_code=provider_instrument_code,
                 holder_type=holder_type,
                 provider_position=_optional_int(period_key),
                 holder_name=holder_name,
@@ -1440,7 +1465,7 @@ def _parse_holder_map(
         except Exception as exc:
             log.warning(
                 "fundamental.holder_rejected",
-                ticker=ticker,
+                provider_instrument_code=provider_instrument_code,
                 holder_type=holder_type,
                 period_key=str(period_key),
                 error=str(exc),
@@ -1454,9 +1479,9 @@ def _parse_holder_map(
 def _parse_outstanding_shares_period_map(
     payload: object,
     *,
-    ticker: str,
-    snapshot_date: date,
     provider_exchange_code: str,
+    provider_instrument_code: str,
+    snapshot_date: date,
     period_type: str,
     valid: list[BronzeParseResult[FundamentalStockOutstandingShares]],
     rejected: list[dict[str, Any]],
@@ -1466,7 +1491,7 @@ def _parse_outstanding_shares_period_map(
     if not isinstance(payload, Mapping):
         rejected.append(
             _shares_rejection(
-                ticker=ticker,
+                provider_instrument_code=provider_instrument_code,
                 period_type=period_type,
                 period_key=period_type,
                 reason="section_not_object",
@@ -1479,7 +1504,7 @@ def _parse_outstanding_shares_period_map(
         if not isinstance(report_payload, Mapping):
             rejected.append(
                 _shares_rejection(
-                    ticker=ticker,
+                    provider_instrument_code=provider_instrument_code,
                     period_type=period_type,
                     period_key=str(period_key),
                     reason="report_not_object",
@@ -1490,7 +1515,7 @@ def _parse_outstanding_shares_period_map(
 
         report = dict(report_payload.items())
         raw_fragment = {
-            "ticker": ticker,
+            "provider_instrument_code": provider_instrument_code,
             "section": "outstanding_shares",
             "period_type": period_type,
             "period_key": str(period_key),
@@ -1500,7 +1525,7 @@ def _parse_outstanding_shares_period_map(
             row = FundamentalStockOutstandingShares(
                 snapshot_date=snapshot_date,
                 provider_exchange_code=provider_exchange_code,
-                ticker=ticker,
+                provider_instrument_code=provider_instrument_code,
                 period_type=period_type,
                 provider_period_label=str(report.get("date") or period_key),
                 period_end_date=_outstanding_shares_period_end(report),
@@ -1510,7 +1535,7 @@ def _parse_outstanding_shares_period_map(
         except Exception as exc:
             log.warning(
                 "fundamental.outstanding_shares_rejected",
-                ticker=ticker,
+                provider_instrument_code=provider_instrument_code,
                 period_type=period_type,
                 period_key=str(period_key),
                 error=str(exc),
@@ -1549,7 +1574,7 @@ def _stock_metric_date(metric_group: str, payload: Mapping[object, object]) -> d
 
 def _statement_rejection(
     *,
-    ticker: str,
+    provider_instrument_code: str,
     statement_type: str,
     period_type: str,
     period_key: str,
@@ -1557,7 +1582,7 @@ def _statement_rejection(
     raw_value: object,
 ) -> dict[str, Any]:
     return {
-        "ticker": ticker,
+        "provider_instrument_code": provider_instrument_code,
         "statement_type": statement_type,
         "period_type": period_type,
         "period_key": period_key,
@@ -1568,7 +1593,7 @@ def _statement_rejection(
 
 def _earnings_rejection(
     *,
-    ticker: str,
+    provider_instrument_code: str,
     earnings_section: str,
     period_type: str | None,
     period_key: str,
@@ -1576,7 +1601,7 @@ def _earnings_rejection(
     raw_value: object,
 ) -> dict[str, Any]:
     return {
-        "ticker": ticker,
+        "provider_instrument_code": provider_instrument_code,
         "section": "earnings",
         "earnings_section": earnings_section,
         "period_type": period_type,
@@ -1588,14 +1613,14 @@ def _earnings_rejection(
 
 def _shares_rejection(
     *,
-    ticker: str,
+    provider_instrument_code: str,
     period_type: str,
     period_key: str,
     reason: str,
     raw_value: object,
 ) -> dict[str, Any]:
     return {
-        "ticker": ticker,
+        "provider_instrument_code": provider_instrument_code,
         "section": "outstanding_shares",
         "period_type": period_type,
         "period_key": period_key,
@@ -1606,13 +1631,13 @@ def _shares_rejection(
 
 def _insider_transaction_rejection(
     *,
-    ticker: str,
+    provider_instrument_code: str,
     period_key: str,
     reason: str,
     raw_value: object,
 ) -> dict[str, Any]:
     return {
-        "ticker": ticker,
+        "provider_instrument_code": provider_instrument_code,
         "section": "insider_transactions",
         "period_key": period_key,
         "reason": reason,
@@ -1622,14 +1647,14 @@ def _insider_transaction_rejection(
 
 def _holder_rejection(
     *,
-    ticker: str,
+    provider_instrument_code: str,
     holder_type: str,
     period_key: str,
     reason: str,
     raw_value: object,
 ) -> dict[str, Any]:
     return {
-        "ticker": ticker,
+        "provider_instrument_code": provider_instrument_code,
         "section": "holders",
         "holder_type": holder_type,
         "period_key": period_key,
@@ -1640,7 +1665,7 @@ def _holder_rejection(
 
 def _family_rejection(
     *,
-    ticker: str,
+    provider_instrument_code: str,
     section: str,
     reason: str,
     raw_value: object,
@@ -1648,7 +1673,7 @@ def _family_rejection(
     error: str | None = None,
 ) -> dict[str, Any]:
     rejection: dict[str, Any] = {
-        "ticker": ticker,
+        "provider_instrument_code": provider_instrument_code,
         "section": section,
         "reason": reason,
         "raw_value": raw_value,

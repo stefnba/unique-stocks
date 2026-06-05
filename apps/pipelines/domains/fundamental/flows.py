@@ -21,12 +21,12 @@ from core.ingestion import (
 from core.transforms import run_dbt_build_after_ingestion
 from domains.fundamental.tasks import (
     delete_fundamental_snapshot_rows,
+    fetch_fundamental_instrument,
     fetch_fundamental_provider_exchange_codes,
-    fetch_fundamental_ticker,
     fundamental_document_already_ingested,
     load_fundamental_document_payload_hash,
     load_fundamental_from_landing,
-    load_fundamental_ticker_selection,
+    load_fundamental_instrument_selection,
     parse_fundamental_stock,
     write_bronze_fundamental_document,
     write_bronze_fundamental_etf_holdings,
@@ -51,21 +51,22 @@ from domains.fundamental.tasks import (
     write_fundamental_deferred_coverage,
     write_fundamental_to_landing,
 )
+from providers.eodhd.identifiers import EODHDInstrumentRef, eodhd_instrument_key
 from providers.eodhd.models import FundamentalRaw
 
 log = structlog.get_logger(__name__)
-_REJECTION_SAMPLE_LIMIT_PER_TICKER = 100
+_REJECTION_SAMPLE_LIMIT_PER_INSTRUMENT = 100
 
 
 @flow(
     name="fundamental-quarterly",
     description=(
-        "Ingest EODHD fundamental JSON per ticker: identity, statements, metrics, holders, "
+        "Ingest EODHD fundamental JSON per provider_instrument_code: identity, statements, metrics, holders, "
         "insider transactions, dividends, and more. Writes S3 landing + multiple bronze.fundamental_* tables."
     ),
 )
 async def fundamental_flow(
-    tickers: list[str] | None = None,
+    provider_instruments: list[dict[str, str]] | None = None,
     snapshot_date: date | None = None,
     ingestion_batch_date: date | None = None,
     continue_ingestion_batch: bool = False,
@@ -74,28 +75,28 @@ async def fundamental_flow(
     skip_existing: bool = True,
     refresh_existing: bool = False,
     replay_landing: bool = False,
-    landing_source_uris_by_ticker: dict[str, str] | None = None,
+    landing_source_uris_by_instrument: dict[str, str] | None = None,
     batch_size: int = 1,
     provider_batch_delay_seconds: float = 0.0,
     provider_credits_per_call: int = 10,
     max_provider_credits: int | None = None,
     run_dbt_build: bool = False,
 ) -> dict[str, object]:
-    """Ingest fundamentals for explicit tickers or latest provider instruments.
+    """Ingest fundamentals for explicit provider instruments or latest provider instruments.
 
-    Automatic ticker selection reads all latest EODHD provider instruments from
+    Automatic provider_instrument_code selection reads all latest EODHD provider instruments from
     ``silver.int_fundamental_ingestion_universe``; run instrument and
-    fundamental dbt builds before auto-selecting tickers. The flow writes every
+    fundamental dbt builds before auto-selecting instruments. The flow writes every
     fundamentals document row and then extracts the family-specific slices that
     the domain currently models.
     ``snapshot_date`` and ``ingestion_batch_date`` are the bronze partition key
-    ``(snapshot_date, ticker)``. Use ``ingestion_batch_date`` to pin a multi-day
+    ``(snapshot_date, provider_instrument_code)``. Use ``ingestion_batch_date`` to pin a multi-day
     backfill campaign. With ``continue_ingestion_batch=True`` and no explicit
     date, the flow reuses ``MAX(snapshot_date)`` from ``bronze.fundamental_document``
-    so a later run does not treat every ticker as pending again. Manual runs
+    so a later run does not treat every provider_instrument_code as pending again. Manual runs
     without those flags still default to today. By default, already-ingested
-    ticker snapshots are skipped before fetching to avoid spending provider
-    credits. Set ``refresh_existing=True`` to fetch existing ticker snapshots,
+    provider_instrument_code snapshots are skipped before fetching to avoid spending provider
+    credits. Set ``refresh_existing=True`` to fetch existing provider_instrument_code snapshots,
     compare payload hashes, and replace same-day Bronze rows only when the
     provider document changed. Passing ``skip_existing=False`` uses the same
     changed-payload refresh behavior. Set ``replay_landing=True`` to load
@@ -104,7 +105,7 @@ async def fundamental_flow(
     Bronze writes stay sequential. ``max_provider_credits`` can cap provider
     calls for fundamentals backfills where each EODHD call costs 10 credits.
     If the provider returns HTTP 429, the flow stops after the active fetch
-    batch and records unsubmitted tickers as deferred so the same batch date can
+    batch and records unsubmitted instruments as deferred so the same batch date can
     continue after the provider quota resets. Set ``run_dbt_build=True`` to
     launch ``dbt-build/fundamental-build`` after a clean ingestion audit status.
     """
@@ -126,19 +127,19 @@ async def fundamental_flow(
 
     refresh_changed_existing = refresh_existing or not skip_existing
     auto_selection_anti_joined = False
-    if tickers:
-        requested_tickers = tickers
+    if provider_instruments:
+        requested_instruments = _coerce_instrument_refs(provider_instruments)
     else:
         selected_provider_exchange_codes = provider_exchange_codes or fetch_fundamental_provider_exchange_codes()
         skip_completed = skip_existing and not refresh_changed_existing
-        ticker_selection = load_fundamental_ticker_selection(
+        instrument_selection = load_fundamental_instrument_selection(
             selected_provider_exchange_codes,
             limit,
             snapshot_date=snapshot_date,
             skip_completed=skip_completed,
         )
-        requested_tickers = ticker_selection.tickers
-        auto_selection_anti_joined = ticker_selection.completion_filter_applied
+        requested_instruments = instrument_selection.instruments
+        auto_selection_anti_joined = instrument_selection.completion_filter_applied
     fetch_batch_size = max(1, int(batch_size))
     fetch_batch_delay = max(0.0, float(provider_batch_delay_seconds))
     provider_credit_cost = max(1, int(provider_credits_per_call))
@@ -146,7 +147,7 @@ async def fundamental_flow(
     summary: dict = {
         "snapshot_date": snapshot_date.isoformat(),
         "snapshot_date_source": snapshot_date_source,
-        "tickers": {},
+        "instruments": {},
         "skipped": [],
         "failed": [],
         "deferred": [],
@@ -167,7 +168,7 @@ async def fundamental_flow(
         run_kind="snapshot",
         provider="eodhd",
         parameters={
-            "tickers": tickers,
+            "provider_instruments": provider_instruments,
             "snapshot_date": snapshot_date.isoformat(),
             "ingestion_batch_date": ingestion_batch_date.isoformat() if ingestion_batch_date else None,
             "continue_ingestion_batch": continue_ingestion_batch,
@@ -178,7 +179,7 @@ async def fundamental_flow(
             "refresh_existing": refresh_existing,
             "refresh_changed_existing": refresh_changed_existing,
             "replay_landing": replay_landing,
-            "landing_source_uris_by_ticker": landing_source_uris_by_ticker,
+            "landing_source_uris_by_instrument": landing_source_uris_by_instrument,
             "batch_size": fetch_batch_size,
             "provider_batch_delay_seconds": fetch_batch_delay,
             "provider_credits_per_call": provider_credit_cost,
@@ -190,70 +191,92 @@ async def fundamental_flow(
     ) as run:
         run_id = str(run.run_id)
         try:
-            pending_tickers: list[str] = []
-            for ticker in requested_tickers:
-                unit_key: dict[str, object] = {"ticker": ticker, "snapshot_date": snapshot_date.isoformat()}
+            pending_instruments: list[EODHDInstrumentRef] = []
+            for instrument in requested_instruments:
+                instrument_key = _instrument_key(instrument)
+                unit_key: dict[str, object] = {
+                    "provider_exchange_code": instrument.provider_exchange_code,
+                    "provider_instrument_code": instrument.provider_instrument_code,
+                    "snapshot_date": snapshot_date.isoformat(),
+                }
                 if (
                     not auto_selection_anti_joined
                     and skip_existing
                     and not refresh_changed_existing
-                    and fundamental_document_already_ingested(ticker, snapshot_date)
+                    and fundamental_document_already_ingested(
+                        instrument.provider_exchange_code,
+                        instrument.provider_instrument_code,
+                        snapshot_date,
+                    )
                 ):
-                    summary["skipped"].append(ticker)
+                    summary["skipped"].append(instrument_key)
                     run.record_unit(
-                        unit_type="ticker_snapshot",
+                        unit_type="instrument_snapshot",
                         unit_key=unit_key,
                         status="skipped",
                         reason="already_ingested",
                         rows_written=0,
                     )
                     continue
-                pending_tickers.append(ticker)
+                pending_instruments.append(instrument)
 
             if not replay_landing and max_provider_credits is not None:
                 max_provider_calls = max(0, int(max_provider_credits) // provider_credit_cost)
-                skipped_for_budget = pending_tickers[max_provider_calls:]
-                pending_tickers = pending_tickers[:max_provider_calls]
+                skipped_for_budget = pending_instruments[max_provider_calls:]
+                pending_instruments = pending_instruments[:max_provider_calls]
                 if skipped_for_budget:
                     write_fundamental_deferred_coverage(
                         run_id=str(run.run_id),
-                        tickers=skipped_for_budget,
+                        instruments=skipped_for_budget,
                         snapshot_date=snapshot_date,
                         reason="credit_budget_exhausted",
                     )
-                for ticker in skipped_for_budget:
-                    summary["skipped"].append(ticker)
+                for instrument in skipped_for_budget:
+                    instrument_key = _instrument_key(instrument)
+                    summary["skipped"].append(instrument_key)
                     run.record_unit(
-                        unit_type="ticker_snapshot",
-                        unit_key={"ticker": ticker, "snapshot_date": snapshot_date.isoformat()},
+                        unit_type="instrument_snapshot",
+                        unit_key={
+                            "provider_exchange_code": instrument.provider_exchange_code,
+                            "provider_instrument_code": instrument.provider_instrument_code,
+                            "snapshot_date": snapshot_date.isoformat(),
+                        },
                         status="skipped",
                         reason="credit_budget_exhausted",
                         rows_written=0,
                     )
 
-            processed_tickers: set[str] = set()
+            processed_instruments: set[str] = set()
             stop_after_fetch_batch = False
-            async for ticker, result, is_batch_end in _fundamental_raw_results(
-                pending_tickers,
+            async for instrument, result, is_batch_end in _fundamental_raw_results(
+                pending_instruments,
                 snapshot_date=snapshot_date,
                 replay_landing=replay_landing,
-                landing_source_uris_by_ticker=landing_source_uris_by_ticker,
+                landing_source_uris_by_instrument=landing_source_uris_by_instrument,
                 fetch_batch_size=fetch_batch_size,
                 fetch_batch_delay=fetch_batch_delay,
             ):
-                processed_tickers.add(ticker)
-                unit_key = {"ticker": ticker, "snapshot_date": snapshot_date.isoformat()}
+                instrument_key = _instrument_key(instrument)
+                provider_exchange_code = instrument.provider_exchange_code
+                provider_instrument_code = instrument.provider_instrument_code
+                processed_instruments.add(instrument_key)
+                unit_key = {
+                    "provider_exchange_code": provider_exchange_code,
+                    "provider_instrument_code": provider_instrument_code,
+                    "snapshot_date": snapshot_date.isoformat(),
+                }
                 if isinstance(result, ProviderRateLimitError):
                     log.warning(
                         "fundamental.provider_quota_exhausted",
-                        ticker=ticker,
+                        provider_exchange_code=provider_exchange_code,
+                        provider_instrument_code=provider_instrument_code,
                         retry_after=result.retry_after,
                     )
                     summary["provider_quota_exhausted"] = True
-                    summary["failed"].append(ticker)
-                    summary["deferred"].append(ticker)
+                    summary["failed"].append(instrument_key)
+                    summary["deferred"].append(instrument_key)
                     run.record_unit(
-                        unit_type="ticker_snapshot",
+                        unit_type="instrument_snapshot",
                         unit_key=unit_key,
                         status="failed",
                         reason="provider_rate_limited",
@@ -262,18 +285,18 @@ async def fundamental_flow(
                     )
                     stop_after_fetch_batch = True
                     if is_batch_end:
-                        _defer_provider_rate_limited_tickers(
+                        _defer_provider_rate_limited_instruments(
                             run=run,
                             summary=summary,
-                            tickers=_unprocessed_tickers(pending_tickers, processed_tickers),
+                            instruments=_unprocessed_instruments(pending_instruments, processed_instruments),
                             snapshot_date=snapshot_date,
                         )
                         break
                     continue
                 if isinstance(result, ValidationError):
-                    summary["failed"].append(ticker)
+                    summary["failed"].append(instrument_key)
                     run.record_unit(
-                        unit_type="ticker_snapshot",
+                        unit_type="instrument_snapshot",
                         unit_key=unit_key,
                         status="failed",
                         error=result,
@@ -291,10 +314,15 @@ async def fundamental_flow(
                     )
                     raise result
                 if isinstance(result, BaseException):
-                    log.error("fundamental.ticker_failed", ticker=ticker, error=str(result))
-                    summary["failed"].append(ticker)
+                    log.error(
+                        "fundamental.instrument_failed",
+                        provider_exchange_code=provider_exchange_code,
+                        provider_instrument_code=provider_instrument_code,
+                        error=str(result),
+                    )
+                    summary["failed"].append(instrument_key)
                     run.record_unit(
-                        unit_type="ticker_snapshot",
+                        unit_type="instrument_snapshot",
                         unit_key=unit_key,
                         status="failed",
                         error=result,
@@ -330,7 +358,7 @@ async def fundamental_flow(
                         index_components,
                         index_historical_components,
                         rejected_rows,
-                    ) = parse_fundamental_stock(raw, ticker, snapshot_date)
+                    ) = parse_fundamental_stock(raw, provider_exchange_code, provider_instrument_code, snapshot_date)
                     rows_valid = (
                         1
                         + (1 if identity is not None else 0)
@@ -359,14 +387,18 @@ async def fundamental_flow(
                     total_rejected += rejected
 
                     existing_payload_hash = (
-                        load_fundamental_document_payload_hash(ticker, snapshot_date)
+                        load_fundamental_document_payload_hash(
+                            provider_exchange_code,
+                            provider_instrument_code,
+                            snapshot_date,
+                        )
                         if refresh_changed_existing
                         else None
                     )
                     if existing_payload_hash == document.row.payload_hash:
-                        summary["skipped"].append(ticker)
+                        summary["skipped"].append(instrument_key)
                         run.record_unit(
-                            unit_type="ticker_snapshot",
+                            unit_type="instrument_snapshot",
                             unit_key=unit_key,
                             status="skipped",
                             reason="payload_unchanged",
@@ -378,116 +410,125 @@ async def fundamental_flow(
                         continue
 
                     if landing is None:
-                        landing = await write_fundamental_to_landing(raw, ticker, snapshot_date)
+                        landing = await write_fundamental_to_landing(
+                            raw,
+                            provider_exchange_code,
+                            provider_instrument_code,
+                            snapshot_date,
+                        )
                     if existing_payload_hash is not None:
-                        delete_fundamental_snapshot_rows(ticker, snapshot_date)
+                        delete_fundamental_snapshot_rows(
+                            provider_exchange_code,
+                            provider_instrument_code,
+                            snapshot_date,
+                        )
 
                     document_write = write_bronze_fundamental_document(document, source_uri=landing.source_uri)
                     identity_write = write_bronze_fundamental_stock_identity(
                         identity,
                         source_uri=landing.source_uri,
-                        ticker=ticker,
+                        provider_instrument_code=provider_instrument_code,
                     )
                     statement_facts_write = write_bronze_fundamental_statement_facts(
                         statement_facts,
-                        ticker=ticker,
+                        provider_instrument_code=provider_instrument_code,
                         snapshot_date=snapshot_date,
                         source_uri=landing.source_uri,
                     )
                     earnings_facts_write = write_bronze_fundamental_stock_earnings_facts(
                         earnings_facts,
-                        ticker=ticker,
+                        provider_instrument_code=provider_instrument_code,
                         snapshot_date=snapshot_date,
                         source_uri=landing.source_uri,
                     )
                     shares_stats_write = write_bronze_fundamental_stock_shares_stats(
                         shares_stats,
                         source_uri=landing.source_uri,
-                        ticker=ticker,
+                        provider_instrument_code=provider_instrument_code,
                     )
                     outstanding_shares_write = write_bronze_fundamental_stock_outstanding_shares(
                         outstanding_shares,
-                        ticker=ticker,
+                        provider_instrument_code=provider_instrument_code,
                         snapshot_date=snapshot_date,
                         source_uri=landing.source_uri,
                     )
                     holders_write = write_bronze_fundamental_stock_holders(
                         holders,
-                        ticker=ticker,
+                        provider_instrument_code=provider_instrument_code,
                         snapshot_date=snapshot_date,
                         source_uri=landing.source_uri,
                     )
                     insider_transactions_write = write_bronze_fundamental_stock_insider_transactions(
                         insider_transactions,
-                        ticker=ticker,
+                        provider_instrument_code=provider_instrument_code,
                         snapshot_date=snapshot_date,
                         source_uri=landing.source_uri,
                     )
                     splits_dividends_write = write_bronze_fundamental_stock_splits_dividends(
                         splits_dividends,
                         source_uri=landing.source_uri,
-                        ticker=ticker,
+                        provider_instrument_code=provider_instrument_code,
                     )
                     dividend_counts_write = write_bronze_fundamental_stock_dividend_counts(
                         dividend_counts,
-                        ticker=ticker,
+                        provider_instrument_code=provider_instrument_code,
                         snapshot_date=snapshot_date,
                         source_uri=landing.source_uri,
                     )
                     metric_facts_write = write_bronze_fundamental_stock_metric_facts(
                         metric_facts,
-                        ticker=ticker,
+                        provider_instrument_code=provider_instrument_code,
                         snapshot_date=snapshot_date,
                         source_uri=landing.source_uri,
                     )
                     esg_activities_write = write_bronze_fundamental_stock_esg_activities(
                         esg_activities,
-                        ticker=ticker,
+                        provider_instrument_code=provider_instrument_code,
                         snapshot_date=snapshot_date,
                         source_uri=landing.source_uri,
                     )
                     etf_identity_write = write_bronze_fundamental_etf_identity(
                         etf_identity,
                         source_uri=landing.source_uri,
-                        ticker=ticker,
+                        provider_instrument_code=provider_instrument_code,
                     )
                     mutual_fund_identity_write = write_bronze_fundamental_mutual_fund_identity(
                         mutual_fund_identity,
                         source_uri=landing.source_uri,
-                        ticker=ticker,
+                        provider_instrument_code=provider_instrument_code,
                     )
                     index_identity_write = write_bronze_fundamental_index_identity(
                         index_identity,
                         source_uri=landing.source_uri,
-                        ticker=ticker,
+                        provider_instrument_code=provider_instrument_code,
                     )
                     etf_holdings_write = write_bronze_fundamental_etf_holdings(
                         etf_holdings,
-                        ticker=ticker,
+                        provider_instrument_code=provider_instrument_code,
                         snapshot_date=snapshot_date,
                         source_uri=landing.source_uri,
                     )
                     mutual_fund_holdings_write = write_bronze_fundamental_mutual_fund_holdings(
                         mutual_fund_holdings,
-                        ticker=ticker,
+                        provider_instrument_code=provider_instrument_code,
                         snapshot_date=snapshot_date,
                         source_uri=landing.source_uri,
                     )
                     fund_metric_facts_write = write_bronze_fundamental_fund_metric_facts(
                         fund_metric_facts,
-                        ticker=ticker,
+                        provider_instrument_code=provider_instrument_code,
                         snapshot_date=snapshot_date,
                         source_uri=landing.source_uri,
                     )
                     index_components_write = write_bronze_fundamental_index_components(
                         index_components,
-                        ticker=ticker,
+                        provider_instrument_code=provider_instrument_code,
                         snapshot_date=snapshot_date,
                         source_uri=landing.source_uri,
                     )
                     index_historical_components_write = write_bronze_fundamental_index_historical_components(
                         index_historical_components,
-                        ticker=ticker,
+                        provider_instrument_code=provider_instrument_code,
                         snapshot_date=snapshot_date,
                         source_uri=landing.source_uri,
                     )
@@ -518,7 +559,7 @@ async def fundamental_flow(
 
                     unit_id = run.record_unit_with_landing(
                         landing,
-                        unit_type="ticker_snapshot",
+                        unit_type="instrument_snapshot",
                         unit_key=unit_key,
                         status="completed",
                         reason=_write_reason(
@@ -552,12 +593,13 @@ async def fundamental_flow(
                         _fundamental_rejection_records(
                             run=run,
                             unit_id=unit_id,
-                            ticker=ticker,
+                            provider_exchange_code=provider_exchange_code,
+                            provider_instrument_code=provider_instrument_code,
                             source_uri=landing.source_uri,
                             rejected_rows=rejected_rows,
                         )
                     )
-                    summary["tickers"][ticker] = {
+                    summary["instruments"][instrument_key] = {
                         "family": document.row.instrument_family,
                         "statement_facts": len(statement_facts),
                         "earnings_facts": len(earnings_facts),
@@ -578,9 +620,9 @@ async def fundamental_flow(
                     }
 
                 except ValidationError as exc:
-                    summary["failed"].append(ticker)
+                    summary["failed"].append(instrument_key)
                     run.record_unit(
-                        unit_type="ticker_snapshot",
+                        unit_type="instrument_snapshot",
                         unit_key=unit_key,
                         status="failed",
                         error=exc,
@@ -598,10 +640,15 @@ async def fundamental_flow(
                     )
                     raise
                 except Exception as exc:
-                    log.error("fundamental.ticker_failed", ticker=ticker, error=str(exc))
-                    summary["failed"].append(ticker)
+                    log.error(
+                        "fundamental.instrument_failed",
+                        provider_exchange_code=provider_exchange_code,
+                        provider_instrument_code=provider_instrument_code,
+                        error=str(exc),
+                    )
+                    summary["failed"].append(instrument_key)
                     run.record_unit(
-                        unit_type="ticker_snapshot",
+                        unit_type="instrument_snapshot",
                         unit_key=unit_key,
                         status="failed",
                         error=exc,
@@ -609,10 +656,10 @@ async def fundamental_flow(
                     )
 
                 if stop_after_fetch_batch and is_batch_end:
-                    _defer_provider_rate_limited_tickers(
+                    _defer_provider_rate_limited_instruments(
                         run=run,
                         summary=summary,
-                        tickers=_unprocessed_tickers(pending_tickers, processed_tickers),
+                        instruments=_unprocessed_instruments(pending_instruments, processed_instruments),
                         snapshot_date=snapshot_date,
                     )
                     break
@@ -620,7 +667,7 @@ async def fundamental_flow(
             run_status = terminal_status(
                 failed=run.tally.failed,
                 rejected=total_rejected,
-                skipped_all=len(requested_tickers) == 0 or run.tally.skipped == run.tally.total,
+                skipped_all=len(requested_instruments) == 0 or run.tally.skipped == run.tally.total,
             )
             run.complete(
                 status=run_status,
@@ -635,7 +682,7 @@ async def fundamental_flow(
             log.info(
                 "fundamental.flow_done",
                 snapshot_date=snapshot_date,
-                ingested=len(summary["tickers"]),
+                ingested=len(summary["instruments"]),
                 skipped=len(summary["skipped"]),
                 failed=len(summary["failed"]),
             )
@@ -664,40 +711,49 @@ async def fundamental_flow(
 
 
 async def _fundamental_raw_results(
-    tickers: list[str],
+    instruments: list[EODHDInstrumentRef],
     *,
     snapshot_date: date,
     replay_landing: bool,
-    landing_source_uris_by_ticker: dict[str, str] | None,
+    landing_source_uris_by_instrument: dict[str, str] | None,
     fetch_batch_size: int,
     fetch_batch_delay: float,
-) -> AsyncIterator[tuple[str, FundamentalRaw | tuple[FundamentalRaw, LandingWrite] | BaseException, bool]]:
+) -> AsyncIterator[
+    tuple[EODHDInstrumentRef, FundamentalRaw | tuple[FundamentalRaw, LandingWrite] | BaseException, bool]
+]:
     """Yield fetched or replayed fundamentals payloads one batch at a time."""
-    for i in range(0, len(tickers), fetch_batch_size):
-        batch_tickers = tickers[i : i + fetch_batch_size]
+    for i in range(0, len(instruments), fetch_batch_size):
+        batch_instruments = instruments[i : i + fetch_batch_size]
         if replay_landing:
             raw_results = await asyncio.gather(
                 *[
                     load_fundamental_from_landing(
-                        ticker,
+                        instrument.provider_exchange_code,
+                        instrument.provider_instrument_code,
                         snapshot_date,
-                        source_uri=(landing_source_uris_by_ticker or {}).get(ticker),
+                        source_uri=(landing_source_uris_by_instrument or {}).get(_instrument_key(instrument)),
                     )
-                    for ticker in batch_tickers
+                    for instrument in batch_instruments
                 ],
                 return_exceptions=True,
             )
         else:
             raw_results = await asyncio.gather(
-                *[fetch_fundamental_ticker(ticker) for ticker in batch_tickers],
+                *[
+                    fetch_fundamental_instrument(
+                        instrument.provider_exchange_code,
+                        instrument.provider_instrument_code,
+                    )
+                    for instrument in batch_instruments
+                ],
                 return_exceptions=True,
             )
 
-        last_index = len(batch_tickers) - 1
-        for batch_index, (ticker, result) in enumerate(zip(batch_tickers, raw_results, strict=True)):
-            yield ticker, result, batch_index == last_index
+        last_index = len(batch_instruments) - 1
+        for batch_index, (instrument, result) in enumerate(zip(batch_instruments, raw_results, strict=True)):
+            yield instrument, result, batch_index == last_index
 
-        if not replay_landing and fetch_batch_delay > 0 and i + fetch_batch_size < len(tickers):
+        if not replay_landing and fetch_batch_delay > 0 and i + fetch_batch_size < len(instruments):
             await asyncio.sleep(fetch_batch_delay)
 
 
@@ -707,33 +763,62 @@ def _write_reason(*reasons: str | None) -> str | None:
     return ",".join(reason_set) if reason_set else None
 
 
-def _unprocessed_tickers(tickers: list[str], processed_tickers: set[str]) -> list[str]:
-    """Return pending tickers that have not had a fetch result processed."""
-    return [ticker for ticker in tickers if ticker not in processed_tickers]
+def _coerce_instrument_refs(values: list[dict[str, str]]) -> list[EODHDInstrumentRef]:
+    """Coerce flow parameter dictionaries into provider instrument refs."""
+    refs: list[EODHDInstrumentRef] = []
+    for value in values:
+        refs.append(
+            EODHDInstrumentRef(
+                provider_exchange_code=str(value["provider_exchange_code"]),
+                provider_instrument_code=str(value["provider_instrument_code"]),
+            )
+        )
+    return refs
 
 
-def _defer_provider_rate_limited_tickers(
+def _instrument_key(instrument: EODHDInstrumentRef) -> str:
+    """Return a stable display key for one provider instrument ref."""
+    return eodhd_instrument_key(
+        provider_exchange_code=instrument.provider_exchange_code,
+        provider_instrument_code=instrument.provider_instrument_code,
+    )
+
+
+def _unprocessed_instruments(
+    instruments: list[EODHDInstrumentRef],
+    processed_instruments: set[str],
+) -> list[EODHDInstrumentRef]:
+    """Return pending instruments that have not had a fetch result processed."""
+    return [instrument for instrument in instruments if _instrument_key(instrument) not in processed_instruments]
+
+
+def _defer_provider_rate_limited_instruments(
     *,
     run: PipelineRunScope,
     summary: dict,
-    tickers: list[str],
+    instruments: list[EODHDInstrumentRef],
     snapshot_date: date,
 ) -> None:
     """Record unsubmitted fundamentals work that should resume after quota reset."""
-    if not tickers:
+    if not instruments:
         return
     write_fundamental_deferred_coverage(
         run_id=str(run.run_id),
-        tickers=tickers,
+        instruments=instruments,
         snapshot_date=snapshot_date,
         reason="provider_rate_limited",
     )
-    for ticker in tickers:
-        summary["skipped"].append(ticker)
-        summary["deferred"].append(ticker)
+    for instrument in instruments:
+        instrument_key = _instrument_key(instrument)
+        summary["skipped"].append(instrument_key)
+        summary["deferred"].append(instrument_key)
         run.record_unit(
-            unit_type="ticker_snapshot",
-            unit_key={"ticker": ticker, "snapshot_date": snapshot_date.isoformat()},
+            unit_type="instrument_snapshot",
+            unit_key={
+                "provider_exchange_code": instrument.provider_exchange_code,
+                "provider_instrument_code": instrument.provider_instrument_code,
+                "snapshot_date": snapshot_date.isoformat(),
+            },
             status="skipped",
             reason="provider_rate_limited",
             rows_written=0,
@@ -744,7 +829,8 @@ def _fundamental_rejection_records(
     *,
     run: PipelineRunScope,
     unit_id: str,
-    ticker: str,
+    provider_exchange_code: str,
+    provider_instrument_code: str,
     source_uri: str,
     rejected_rows: list[dict[str, object]],
 ) -> list[RejectionRecord]:
@@ -753,7 +839,8 @@ def _fundamental_rejection_records(
         run.rejection_record(
             unit_id=unit_id,
             entity_key={
-                "ticker": ticker,
+                "provider_exchange_code": provider_exchange_code,
+                "provider_instrument_code": provider_instrument_code,
                 "section": row.get("section"),
                 "earnings_section": row.get("earnings_section"),
                 "holder_type": row.get("holder_type"),
@@ -766,5 +853,5 @@ def _fundamental_rejection_records(
             raw_fragment=row,
             reason=str(row.get("reason", "parse_rejected")),
         )
-        for row in rejected_rows[:_REJECTION_SAMPLE_LIMIT_PER_TICKER]
+        for row in rejected_rows[:_REJECTION_SAMPLE_LIMIT_PER_INSTRUMENT]
     ]

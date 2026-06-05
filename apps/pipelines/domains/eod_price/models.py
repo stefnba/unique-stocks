@@ -8,7 +8,7 @@ from core.models import BronzeModel
 
 
 class EODBar(BronzeModel):
-    """End-of-day price bar for a single ticker.
+    """End-of-day price bar for a single provider instrument.
 
     A "bar" is the standard trading term for one OHLCV data point covering a
     time period — in this case a full trading day. Fields follow the
@@ -16,8 +16,9 @@ class EODBar(BronzeModel):
 
     Attributes:
         provider_exchange_code: Provider-specific exchange/catalog code used
-            by endpoint paths and ticker suffixes (for example ``US``).
-        ticker: Exchange-qualified symbol, e.g. ``AAPL.US``.
+            by endpoint paths and API symbol suffixes (for example ``US``).
+        provider_instrument_code: Provider instrument code without exchange suffix,
+            e.g. ``AAPL``.
         bar_date: The trading date this bar covers (NYSE session date).
         open: First traded price of the session.
         high: Highest traded price of the session.
@@ -36,7 +37,7 @@ class EODBar(BronzeModel):
     model_config = ConfigDict(strict=True)
 
     provider_exchange_code: str
-    ticker: str
+    provider_instrument_code: str
     bar_date: date
     open: Decimal
     high: Decimal
@@ -50,12 +51,12 @@ class EODBar(BronzeModel):
         """Validate OHLC price ordering invariants."""
         if not (self.low <= self.open <= self.high):
             raise ValueError(
-                f"OHLC invariant violated for {self.ticker} on {self.bar_date}: "
+                f"OHLC invariant violated for {self.provider_instrument_code} on {self.bar_date}: "
                 f"open={self.open} not in [{self.low}, {self.high}]"
             )
         if not (self.low <= self.close <= self.high):
             raise ValueError(
-                f"Close outside high/low for {self.ticker} on {self.bar_date}: "
+                f"Close outside high/low for {self.provider_instrument_code} on {self.bar_date}: "
                 f"close={self.close} not in [{self.low}, {self.high}]"
             )
         return self

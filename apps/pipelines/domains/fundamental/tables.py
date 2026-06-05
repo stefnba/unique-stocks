@@ -30,8 +30,8 @@ class FundamentalDocumentTable(BronzeTableModel):
 
     table_name = "fundamental_document"
     row_model = FundamentalDocument
-    unique_columns = ("snapshot_date", "ticker", "data_provider")
-    idempotency_columns = ("snapshot_date", "ticker")
+    unique_columns = ("snapshot_date", "provider_exchange_code", "provider_instrument_code", "data_provider")
+    idempotency_columns = ("snapshot_date", "provider_exchange_code", "provider_instrument_code")
 
 
 class FundamentalStockIdentityTable(BronzeTableModel):
@@ -39,8 +39,8 @@ class FundamentalStockIdentityTable(BronzeTableModel):
 
     table_name = "fundamental_stock_identity"
     row_model = FundamentalStockIdentitySnapshot
-    unique_columns = ("snapshot_date", "ticker", "data_provider")
-    idempotency_columns = ("snapshot_date", "ticker")
+    unique_columns = ("snapshot_date", "provider_exchange_code", "provider_instrument_code", "data_provider")
+    idempotency_columns = ("snapshot_date", "provider_exchange_code", "provider_instrument_code")
 
 
 class FundamentalStatementFactTable(BronzeTableModel):
@@ -50,14 +50,14 @@ class FundamentalStatementFactTable(BronzeTableModel):
     row_model = FundamentalStatementFact
     unique_columns = (
         "snapshot_date",
-        "ticker",
+        "provider_instrument_code",
         "statement_type",
         "period_type",
         "period_end_date",
         "metric_name",
         "data_provider",
     )
-    idempotency_columns = ("snapshot_date", "ticker")
+    idempotency_columns = ("snapshot_date", "provider_exchange_code", "provider_instrument_code")
 
 
 class FundamentalStockEarningsFactTable(BronzeTableModel):
@@ -67,14 +67,14 @@ class FundamentalStockEarningsFactTable(BronzeTableModel):
     row_model = FundamentalStockEarningsFact
     unique_columns = (
         "snapshot_date",
-        "ticker",
+        "provider_instrument_code",
         "earnings_section",
         "period_type",
         "fiscal_period_end",
         "metric_name",
         "data_provider",
     )
-    idempotency_columns = ("snapshot_date", "ticker")
+    idempotency_columns = ("snapshot_date", "provider_exchange_code", "provider_instrument_code")
 
 
 class FundamentalStockSharesStatsTable(BronzeTableModel):
@@ -82,8 +82,8 @@ class FundamentalStockSharesStatsTable(BronzeTableModel):
 
     table_name = "fundamental_stock_shares_stats"
     row_model = FundamentalStockSharesStatsSnapshot
-    unique_columns = ("snapshot_date", "ticker", "data_provider")
-    idempotency_columns = ("snapshot_date", "ticker")
+    unique_columns = ("snapshot_date", "provider_exchange_code", "provider_instrument_code", "data_provider")
+    idempotency_columns = ("snapshot_date", "provider_exchange_code", "provider_instrument_code")
 
 
 class FundamentalStockOutstandingSharesTable(BronzeTableModel):
@@ -93,12 +93,12 @@ class FundamentalStockOutstandingSharesTable(BronzeTableModel):
     row_model = FundamentalStockOutstandingShares
     unique_columns = (
         "snapshot_date",
-        "ticker",
+        "provider_instrument_code",
         "period_type",
         "period_end_date",
         "data_provider",
     )
-    idempotency_columns = ("snapshot_date", "ticker")
+    idempotency_columns = ("snapshot_date", "provider_exchange_code", "provider_instrument_code")
 
 
 class FundamentalStockHolderTable(BronzeTableModel):
@@ -108,13 +108,13 @@ class FundamentalStockHolderTable(BronzeTableModel):
     row_model = FundamentalStockHolder
     unique_columns = (
         "snapshot_date",
-        "ticker",
+        "provider_instrument_code",
         "holder_type",
         "holder_name",
         "report_date",
         "data_provider",
     )
-    idempotency_columns = ("snapshot_date", "ticker")
+    idempotency_columns = ("snapshot_date", "provider_exchange_code", "provider_instrument_code")
 
 
 class FundamentalStockInsiderTransactionTable(BronzeTableModel):
@@ -124,14 +124,14 @@ class FundamentalStockInsiderTransactionTable(BronzeTableModel):
     row_model = FundamentalStockInsiderTransaction
     unique_columns = (
         "snapshot_date",
-        "ticker",
+        "provider_instrument_code",
         "provider_position",
         "owner_name",
         "transaction_date",
         "transaction_code",
         "data_provider",
     )
-    idempotency_columns = ("snapshot_date", "ticker")
+    idempotency_columns = ("snapshot_date", "provider_exchange_code", "provider_instrument_code")
 
 
 class FundamentalStockSplitsDividendsTable(BronzeTableModel):
@@ -139,8 +139,8 @@ class FundamentalStockSplitsDividendsTable(BronzeTableModel):
 
     table_name = "fundamental_stock_splits_dividends"
     row_model = FundamentalStockSplitsDividendsSnapshot
-    unique_columns = ("snapshot_date", "ticker", "data_provider")
-    idempotency_columns = ("snapshot_date", "ticker")
+    unique_columns = ("snapshot_date", "provider_exchange_code", "provider_instrument_code", "data_provider")
+    idempotency_columns = ("snapshot_date", "provider_exchange_code", "provider_instrument_code")
 
 
 class FundamentalStockDividendCountTable(BronzeTableModel):
@@ -148,8 +148,8 @@ class FundamentalStockDividendCountTable(BronzeTableModel):
 
     table_name = "fundamental_stock_dividend_count"
     row_model = FundamentalStockDividendCount
-    unique_columns = ("snapshot_date", "ticker", "year", "data_provider")
-    idempotency_columns = ("snapshot_date", "ticker")
+    unique_columns = ("snapshot_date", "provider_exchange_code", "provider_instrument_code", "year", "data_provider")
+    idempotency_columns = ("snapshot_date", "provider_exchange_code", "provider_instrument_code")
 
 
 class FundamentalStockMetricFactTable(BronzeTableModel):
@@ -157,8 +157,15 @@ class FundamentalStockMetricFactTable(BronzeTableModel):
 
     table_name = "fundamental_stock_metric_fact"
     row_model = FundamentalStockMetricFact
-    unique_columns = ("snapshot_date", "ticker", "metric_group", "metric_name", "data_provider")
-    idempotency_columns = ("snapshot_date", "ticker")
+    unique_columns = (
+        "snapshot_date",
+        "provider_exchange_code",
+        "provider_instrument_code",
+        "metric_group",
+        "metric_name",
+        "data_provider",
+    )
+    idempotency_columns = ("snapshot_date", "provider_exchange_code", "provider_instrument_code")
 
 
 class FundamentalStockEsgActivityTable(BronzeTableModel):
@@ -166,8 +173,14 @@ class FundamentalStockEsgActivityTable(BronzeTableModel):
 
     table_name = "fundamental_stock_esg_activity"
     row_model = FundamentalStockEsgActivity
-    unique_columns = ("snapshot_date", "ticker", "activity", "data_provider")
-    idempotency_columns = ("snapshot_date", "ticker")
+    unique_columns = (
+        "snapshot_date",
+        "provider_exchange_code",
+        "provider_instrument_code",
+        "activity",
+        "data_provider",
+    )
+    idempotency_columns = ("snapshot_date", "provider_exchange_code", "provider_instrument_code")
 
 
 class FundamentalEtfIdentityTable(BronzeTableModel):
@@ -175,8 +188,8 @@ class FundamentalEtfIdentityTable(BronzeTableModel):
 
     table_name = "fundamental_etf_identity"
     row_model = FundamentalEtfIdentitySnapshot
-    unique_columns = ("snapshot_date", "ticker", "data_provider")
-    idempotency_columns = ("snapshot_date", "ticker")
+    unique_columns = ("snapshot_date", "provider_exchange_code", "provider_instrument_code", "data_provider")
+    idempotency_columns = ("snapshot_date", "provider_exchange_code", "provider_instrument_code")
 
 
 class FundamentalMutualFundIdentityTable(BronzeTableModel):
@@ -184,8 +197,8 @@ class FundamentalMutualFundIdentityTable(BronzeTableModel):
 
     table_name = "fundamental_mutual_fund_identity"
     row_model = FundamentalMutualFundIdentitySnapshot
-    unique_columns = ("snapshot_date", "ticker", "data_provider")
-    idempotency_columns = ("snapshot_date", "ticker")
+    unique_columns = ("snapshot_date", "provider_exchange_code", "provider_instrument_code", "data_provider")
+    idempotency_columns = ("snapshot_date", "provider_exchange_code", "provider_instrument_code")
 
 
 class FundamentalIndexIdentityTable(BronzeTableModel):
@@ -193,8 +206,8 @@ class FundamentalIndexIdentityTable(BronzeTableModel):
 
     table_name = "fundamental_index_identity"
     row_model = FundamentalIndexIdentitySnapshot
-    unique_columns = ("snapshot_date", "ticker", "data_provider")
-    idempotency_columns = ("snapshot_date", "ticker")
+    unique_columns = ("snapshot_date", "provider_exchange_code", "provider_instrument_code", "data_provider")
+    idempotency_columns = ("snapshot_date", "provider_exchange_code", "provider_instrument_code")
 
 
 class FundamentalEtfHoldingTable(BronzeTableModel):
@@ -202,8 +215,14 @@ class FundamentalEtfHoldingTable(BronzeTableModel):
 
     table_name = "fundamental_etf_holding"
     row_model = FundamentalEtfHolding
-    unique_columns = ("snapshot_date", "ticker", "holding_symbol", "data_provider")
-    idempotency_columns = ("snapshot_date", "ticker")
+    unique_columns = (
+        "snapshot_date",
+        "provider_exchange_code",
+        "provider_instrument_code",
+        "holding_provider_key",
+        "data_provider",
+    )
+    idempotency_columns = ("snapshot_date", "provider_exchange_code", "provider_instrument_code")
 
 
 class FundamentalMutualFundHoldingTable(BronzeTableModel):
@@ -211,8 +230,15 @@ class FundamentalMutualFundHoldingTable(BronzeTableModel):
 
     table_name = "fundamental_mutual_fund_holding"
     row_model = FundamentalMutualFundHolding
-    unique_columns = ("snapshot_date", "ticker", "provider_position", "holding_name", "data_provider")
-    idempotency_columns = ("snapshot_date", "ticker")
+    unique_columns = (
+        "snapshot_date",
+        "provider_exchange_code",
+        "provider_instrument_code",
+        "provider_position",
+        "holding_name",
+        "data_provider",
+    )
+    idempotency_columns = ("snapshot_date", "provider_exchange_code", "provider_instrument_code")
 
 
 class FundamentalFundMetricFactTable(BronzeTableModel):
@@ -222,14 +248,14 @@ class FundamentalFundMetricFactTable(BronzeTableModel):
     row_model = FundamentalFundMetricFact
     unique_columns = (
         "snapshot_date",
-        "ticker",
+        "provider_instrument_code",
         "instrument_family",
         "metric_group",
         "metric_category",
         "metric_name",
         "data_provider",
     )
-    idempotency_columns = ("snapshot_date", "ticker")
+    idempotency_columns = ("snapshot_date", "provider_exchange_code", "provider_instrument_code")
 
 
 class FundamentalIndexComponentTable(BronzeTableModel):
@@ -237,8 +263,15 @@ class FundamentalIndexComponentTable(BronzeTableModel):
 
     table_name = "fundamental_index_component"
     row_model = FundamentalIndexComponent
-    unique_columns = ("snapshot_date", "ticker", "component_code", "component_exchange", "data_provider")
-    idempotency_columns = ("snapshot_date", "ticker")
+    unique_columns = (
+        "snapshot_date",
+        "provider_exchange_code",
+        "provider_instrument_code",
+        "component_provider_instrument_code",
+        "component_provider_exchange_code",
+        "data_provider",
+    )
+    idempotency_columns = ("snapshot_date", "provider_exchange_code", "provider_instrument_code")
 
 
 class FundamentalIndexHistoricalComponentTable(BronzeTableModel):
@@ -246,8 +279,15 @@ class FundamentalIndexHistoricalComponentTable(BronzeTableModel):
 
     table_name = "fundamental_index_historical_component"
     row_model = FundamentalIndexHistoricalComponent
-    unique_columns = ("snapshot_date", "ticker", "component_code", "start_date", "data_provider")
-    idempotency_columns = ("snapshot_date", "ticker")
+    unique_columns = (
+        "snapshot_date",
+        "provider_exchange_code",
+        "provider_instrument_code",
+        "component_provider_instrument_code",
+        "start_date",
+        "data_provider",
+    )
+    idempotency_columns = ("snapshot_date", "provider_exchange_code", "provider_instrument_code")
 
 
 FUNDAMENTAL_DOCUMENT_TABLE = FundamentalDocumentTable

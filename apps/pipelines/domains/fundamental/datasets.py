@@ -35,7 +35,7 @@ class FundamentalDocumentPartition(LandingPartitionSchema):
     """Fundamentals document landing partitions."""
 
     provider_exchange_code: str
-    ticker: str
+    provider_instrument_code: str
     snapshot_date: date
 
 

@@ -14,7 +14,7 @@ class ResolvedFundamentalSnapshotDate:
     """Effective ``snapshot_date`` for bronze partitions and idempotency checks.
 
     Attributes:
-        snapshot_date: Date used for all ``(snapshot_date, ticker)`` keys in this run.
+        snapshot_date: Date used for all split instrument snapshot keys in this run.
         source: How the date was chosen (for run summaries and debugging).
     """
 
@@ -37,7 +37,7 @@ def resolve_fundamental_snapshot_date(
     1. ``ingestion_batch_date`` — explicit campaign pin (backfill deployments).
     2. ``snapshot_date`` — legacy/alternate explicit pin.
     3. ``latest_bronze_snapshot_date`` when ``continue_ingestion_batch`` — resume
-       multi-day backfills without re-opening every ticker under a new partition.
+       multi-day backfills without re-opening every instrument under a new partition.
     4. ``default_date`` — typically today for incremental manual runs.
     """
     if ingestion_batch_date is not None:

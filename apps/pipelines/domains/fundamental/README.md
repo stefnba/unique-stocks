@@ -1,10 +1,10 @@
 # Fundamental domain
 
-Prefect flow `fundamental-quarterly` ingests EODHD fundamentals JSON per ticker into S3 landing and multiple `bronze.fundamental_*` tables.
+Prefect flow `fundamental-quarterly` ingests EODHD fundamentals JSON per instrument into S3 landing and multiple `bronze.fundamental_*` tables.
 
 ## Ingestion batch date (`snapshot_date`)
 
-Bronze idempotency is keyed by **`(snapshot_date, ticker)`**. That date is the **ingestion batch**, not the provider's economic "as of" field inside the JSON.
+Bronze idempotency is keyed by **`(snapshot_date, provider_exchange_code, provider_instrument_code)`**. That date is the **ingestion batch**, not the provider's economic "as of" field inside the JSON.
 
 | Run style                 | How to set the batch                                                                                                                            |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -12,7 +12,7 @@ Bronze idempotency is keyed by **`(snapshot_date, ticker)`**. That date is the *
 | **Multi-day backfill**    | Use deployment `fundamental/backfill` with `continue_ingestion_batch: true`; reuses **`MAX(snapshot_date)`** from `bronze.fundamental_document` |
 | **New backfill campaign** | Pass **`ingestion_batch_date`** or **`snapshot_date`** once at the start (e.g. `2026-06-02`) and keep using it                                  |
 
-Without continuation, each calendar day opens a **new partition** and every ticker looks pending again even when you only hit a 429 quota limit yesterday.
+Without continuation, each calendar day opens a **new partition** and every instrument looks pending again even when you only hit a 429 quota limit yesterday.
 
 ### Parameters
 
@@ -30,15 +30,15 @@ spend before the EODHD daily quota. Each fundamentals call defaults to
 controlled `max_provider_credits` and `continue_ingestion_batch: true`.
 
 If EODHD returns HTTP 429, the flow stops after the current fetch batch, records
-the rate-limited ticker as failed, marks unscheduled tickers as skipped/deferred
+the rate-limited instrument as failed, marks unscheduled instruments as skipped/deferred
 run units, writes `pipeline.ingestion_coverage` rows with
 `status = 'provider_quota_deferred'`, and leaves them pending for the next run
 under the same batch date. Credit-budget deferrals use the same audit status
 with `reason = 'credit_budget_exhausted'`.
 
-`provider_quota_deferred` is not a completion marker. It records why a ticker was
+`provider_quota_deferred` is not a completion marker. It records why an instrument was
 not submitted in this run; Bronze idempotency still controls whether a future
-run treats that ticker snapshot as done.
+run treats that instrument snapshot as done.
 
 ## Deployments
 

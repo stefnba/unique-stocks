@@ -9,7 +9,7 @@ from core.models import BronzeModel
 
 
 class FundamentalDocument(BronzeModel):
-    """One landed fundamentals document for a ticker snapshot.
+    """One landed fundamentals document for a provider_instrument_code snapshot.
 
     The full provider payload is kept in the standard Bronze ``raw_json``
     envelope. This row stores only stable document-level metadata needed for
@@ -20,8 +20,7 @@ class FundamentalDocument(BronzeModel):
 
     snapshot_date: date
     provider_exchange_code: str
-    ticker: str
-    code: str
+    provider_instrument_code: str
     name: str | None = None
     instrument_type: str
     instrument_family: str
@@ -39,8 +38,7 @@ class FundamentalStockIdentitySnapshot(BronzeModel):
 
     snapshot_date: date
     provider_exchange_code: str
-    ticker: str
-    code: str
+    provider_instrument_code: str
     name: str | None = None
     primary_ticker: str | None = None
     provider_listing_exchange_code: str | None = None
@@ -77,7 +75,7 @@ class FundamentalStatementFact(BronzeModel):
 
     snapshot_date: date
     provider_exchange_code: str
-    ticker: str
+    provider_instrument_code: str
     statement_type: str
     period_type: str
     period_end_date: date
@@ -94,7 +92,7 @@ class FundamentalStockEarningsFact(BronzeModel):
 
     snapshot_date: date
     provider_exchange_code: str
-    ticker: str
+    provider_instrument_code: str
     earnings_section: str
     period_type: str | None = None
     fiscal_period_end: date
@@ -114,7 +112,7 @@ class FundamentalStockSharesStatsSnapshot(BronzeModel):
 
     snapshot_date: date
     provider_exchange_code: str
-    ticker: str
+    provider_instrument_code: str
     shares_outstanding: Decimal | None = None
     shares_float: Decimal | None = None
     percent_insiders: Decimal | None = None
@@ -133,7 +131,7 @@ class FundamentalStockOutstandingShares(BronzeModel):
 
     snapshot_date: date
     provider_exchange_code: str
-    ticker: str
+    provider_instrument_code: str
     period_type: str
     provider_period_label: str
     period_end_date: date
@@ -148,7 +146,7 @@ class FundamentalStockHolder(BronzeModel):
 
     snapshot_date: date
     provider_exchange_code: str
-    ticker: str
+    provider_instrument_code: str
     holder_type: str
     provider_position: int | None = None
     holder_name: str
@@ -167,7 +165,7 @@ class FundamentalStockInsiderTransaction(BronzeModel):
 
     snapshot_date: date
     provider_exchange_code: str
-    ticker: str
+    provider_instrument_code: str
     provider_position: int | None = None
     filing_date: date | None = None
     owner_cik: str | None = None
@@ -188,7 +186,7 @@ class FundamentalStockSplitsDividendsSnapshot(BronzeModel):
 
     snapshot_date: date
     provider_exchange_code: str
-    ticker: str
+    provider_instrument_code: str
     forward_annual_dividend_rate: Decimal | None = None
     forward_annual_dividend_yield: Decimal | None = None
     payout_ratio: Decimal | None = None
@@ -205,7 +203,7 @@ class FundamentalStockDividendCount(BronzeModel):
 
     snapshot_date: date
     provider_exchange_code: str
-    ticker: str
+    provider_instrument_code: str
     year: int
     dividend_count: int
 
@@ -217,7 +215,7 @@ class FundamentalStockMetricFact(BronzeModel):
 
     snapshot_date: date
     provider_exchange_code: str
-    ticker: str
+    provider_instrument_code: str
     metric_group: str
     metric_name: str
     metric_value: Decimal
@@ -231,7 +229,7 @@ class FundamentalStockEsgActivity(BronzeModel):
 
     snapshot_date: date
     provider_exchange_code: str
-    ticker: str
+    provider_instrument_code: str
     rating_date: date | None = None
     activity: str
     involvement: str | None = None
@@ -244,8 +242,7 @@ class FundamentalEtfIdentitySnapshot(BronzeModel):
 
     snapshot_date: date
     provider_exchange_code: str
-    ticker: str
-    code: str
+    provider_instrument_code: str
     name: str | None = None
     primary_ticker: str | None = None
     provider_listing_exchange_code: str | None = None
@@ -272,8 +269,7 @@ class FundamentalMutualFundIdentitySnapshot(BronzeModel):
 
     snapshot_date: date
     provider_exchange_code: str
-    ticker: str
-    code: str
+    provider_instrument_code: str
     name: str | None = None
     primary_ticker: str | None = None
     provider_listing_exchange_code: str | None = None
@@ -300,8 +296,7 @@ class FundamentalIndexIdentitySnapshot(BronzeModel):
 
     snapshot_date: date
     provider_exchange_code: str
-    ticker: str
-    code: str
+    provider_instrument_code: str
     name: str | None = None
     provider_listing_exchange_code: str | None = None
     currency_code: str | None = None
@@ -319,10 +314,10 @@ class FundamentalEtfHolding(BronzeModel):
 
     snapshot_date: date
     provider_exchange_code: str
-    ticker: str
-    holding_symbol: str
-    holding_code: str | None = None
-    holding_exchange: str | None = None
+    provider_instrument_code: str
+    holding_provider_key: str
+    holding_provider_instrument_code: str | None = None
+    holding_provider_exchange_code: str | None = None
     holding_name: str | None = None
     sector: str | None = None
     industry: str | None = None
@@ -339,7 +334,7 @@ class FundamentalMutualFundHolding(BronzeModel):
 
     snapshot_date: date
     provider_exchange_code: str
-    ticker: str
+    provider_instrument_code: str
     provider_position: int | None = None
     holding_name: str
     weight_percent: Decimal | None = None
@@ -352,7 +347,7 @@ class FundamentalFundMetricFact(BronzeModel):
 
     snapshot_date: date
     provider_exchange_code: str
-    ticker: str
+    provider_instrument_code: str
     instrument_family: str
     metric_group: str
     metric_category: str | None = None
@@ -368,11 +363,10 @@ class FundamentalIndexComponent(BronzeModel):
 
     snapshot_date: date
     provider_exchange_code: str
-    ticker: str
+    provider_instrument_code: str
     provider_position: int | None = None
-    component_code: str
-    component_exchange: str | None = None
-    component_ticker: str | None = None
+    component_provider_instrument_code: str
+    component_provider_exchange_code: str | None = None
     component_name: str | None = None
     sector: str | None = None
     industry: str | None = None
@@ -386,9 +380,9 @@ class FundamentalIndexHistoricalComponent(BronzeModel):
 
     snapshot_date: date
     provider_exchange_code: str
-    ticker: str
+    provider_instrument_code: str
     provider_position: int | None = None
-    component_code: str
+    component_provider_instrument_code: str
     component_name: str | None = None
     start_date: date | None = None
     end_date: date | None = None
