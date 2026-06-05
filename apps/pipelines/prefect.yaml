@@ -103,17 +103,17 @@ deployments:
     <<: *manual
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # EOD price — per-ticker endpoint (one API call per symbol, any date range)
+  # EOD price — per-instrument endpoint (one API call per instrument, any date range)
   # ═══════════════════════════════════════════════════════════════════════════
 
   - name: historical-backfill
     description: >
-      Historical EOD backfill via the per-ticker endpoint. By default, requests
-      each symbol's full available provider history through to_date.
+      Historical EOD backfill via the per-instrument endpoint. By default, requests
+      each instrument's full available provider history through to_date.
 
       For each latest EODHD provider instrument: OHLCV from the optional
       from_date (or provider earliest when omitted) → to_date
-      → S3 landing → bronze.eod_price. Skips symbols already in bronze or marked
+      → S3 landing → bronze.eod_price. Skips instruments already in bronze or marked
       terminal in pipeline.ingestion_coverage for the same backfill unit (resume-safe).
       If the required Silver selector views are missing, runs dbt-build/price-build first.
       On clean ingestion completion, triggers dbt-build/price-build.
@@ -175,7 +175,7 @@ deployments:
     <<: *manual
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # Instrument — symbol lists per exchange (requires exchange-build first)
+  # Instrument — instrument lists per exchange (requires exchange-build first)
   # ═══════════════════════════════════════════════════════════════════════════
 
   - name: weekly
@@ -183,7 +183,7 @@ deployments:
     description: >
       Scheduled weekly instrument refresh for all provider exchange codes.
 
-      Fetches symbol lists per exchange → S3 landing → bronze.instrument.
+      Fetches instrument lists per exchange → S3 landing → bronze.instrument.
       Skips exchanges already ingested for snapshot_date.
       On clean ingestion completion, triggers dbt-build/instrument-build.
       Schedule: Monday 8am America/New_York.
@@ -214,7 +214,7 @@ deployments:
     <<: *manual
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # Fundamental — per-ticker EODHD documents (requires instrument bronze)
+  # Fundamental — per-instrument EODHD documents (requires instrument bronze)
   # ═══════════════════════════════════════════════════════════════════════════
 
   - name: manual
@@ -222,9 +222,9 @@ deployments:
     description: >
       On-demand fundamentals ingestion with skip-existing enabled (default flow behaviour).
 
-      Per-ticker API fetch → S3 landing → bronze.fundamental_* tables.
+      Per-instrument API fetch → S3 landing → bronze.fundamental_* tables.
       On clean ingestion completion, triggers dbt-build/fundamental-build.
-      Optional: tickers, provider_exchange_codes, limit, snapshot_date.
+      Optional: provider_instruments, provider_exchange_codes, limit, snapshot_date.
     entrypoint: domains.fundamental.flows:fundamental_flow
     tags: [fundamental, manual]
     parameters:
@@ -267,7 +267,7 @@ deployments:
 
       Use after parser changes or to rebuild bronze from landed documents.
       On clean ingestion completion, triggers dbt-build/fundamental-build.
-      Optional: tickers, landing_source_uris_by_ticker, provider_exchange_codes, limit.
+      Optional: provider_instruments, landing_source_uris_by_instrument, provider_exchange_codes, limit.
     entrypoint: domains.fundamental.flows:fundamental_flow
     tags: [fundamental, replay]
     parameters:
