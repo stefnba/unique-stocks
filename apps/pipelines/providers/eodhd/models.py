@@ -17,8 +17,8 @@ class EODHDProviderModel(ProviderModel):
 class EODBulkPriceRaw(EODHDProviderModel):
     """One row from the EODHD bulk EOD endpoint (GET /eod-bulk-last-day/{exchange}).
 
-    Includes a ``code`` field because the bulk response contains all tickers
-    for the exchange. The ticker is unknown from context alone.
+    Includes a ``code`` field because the bulk response contains all instruments
+    for the exchange. The instrument code is unknown from context alone.
     """
 
     code: str
@@ -33,9 +33,9 @@ class EODBulkPriceRaw(EODHDProviderModel):
 
 
 class EODPriceBarRaw(EODHDProviderModel):
-    """One OHLCV bar from the per-ticker historical EOD endpoint (GET /eod/{symbol}).
+    """One OHLCV bar from the per-instrument historical EOD endpoint (GET /eod/{api_symbol}).
 
-    No ``code`` field — the ticker is the URL path parameter and known by the caller.
+    No ``code`` field; the EODHD API symbol is the URL path parameter and known by the caller.
     """
 
     date: str
@@ -79,8 +79,8 @@ class FundamentalRaw(EODHDProviderModel):
 class SupportedExchange(EODHDProviderModel):
     """One exchange from the EODHD supported exchanges endpoint.
 
-    ``Code`` is the provider-specific code used in EODHD endpoints and ticker
-    suffixes (for example ``US`` or ``LSE``). ``OperatingMIC`` contains one or
+    ``Code`` is the provider-specific exchange code used in EODHD endpoints and
+    API symbol suffixes (for example ``US`` or ``LSE``). ``OperatingMIC`` contains one or
     more official MIC values when EODHD supplies them.
     """
 
@@ -148,7 +148,7 @@ class Instrument(EODHDProviderModel):
     ``provider_exchange_code``.
     """
 
-    ticker: str = Field(alias="Code")
+    provider_instrument_code: str = Field(alias="Code")
     name: str = Field(alias="Name")
     country: str | None = Field(alias="Country", default=None)
     provider_listing_exchange_code: str | None = Field(alias="Exchange", default=None)

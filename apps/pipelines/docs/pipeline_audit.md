@@ -7,24 +7,24 @@ what partitions were attempted, skipped, failed, landed, parsed, rejected, and w
 
 ## Tables
 
-| Table                         | Purpose                                                                                                                                                                                                                |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pipeline.runs`               | One row per logical pipeline invocation, including the Prefect flow run id when available.                                                                                                                             |
-| `pipeline.run_units`          | One row per domain work unit, such as an exchange/date, ticker backfill range, schedule code, or future fundamental period.                                                                                            |
+| Table                         | Purpose                                                                                                                                                                                                                             |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pipeline.runs`               | One row per logical pipeline invocation, including the Prefect flow run id when available.                                                                                                                                          |
+| `pipeline.run_units`          | One row per domain work unit, such as an exchange/date, provider-instrument backfill range, schedule code, or future fundamental period.                                                                                            |
 | `pipeline.ingestion_coverage` | Cross-domain partition coverage/audit facts for resumable ingestion (`completed`, `no_data`, `provider_quota_deferred`, etc.). Same unit grain as `run_units` via `domain` + `unit_type` + `unit_key_json`. Not bronze market data. |
-| `pipeline.landing_objects`    | Raw S3 landing objects produced or consumed by a run, linked to the run and optional work unit.                                                                                                                        |
-| `pipeline.rejections`         | Sampled structured parser rejection records. Counts on runs/units are exhaustive; row samples are capped to keep audit volume bounded.                                                                                 |
-| `pipeline.dbt_invocations`    | One row per dbt command run by the dbt Prefect flow.                                                                                                                                                                   |
-| `pipeline.dbt_node_results`   | Per-model/per-test results loaded from dbt `target/run_results.json`.                                                                                                                                                  |
+| `pipeline.landing_objects`    | Raw S3 landing objects produced or consumed by a run, linked to the run and optional work unit.                                                                                                                                     |
+| `pipeline.rejections`         | Sampled structured parser rejection records. Counts on runs/units are exhaustive; row samples are capped to keep audit volume bounded.                                                                                              |
+| `pipeline.dbt_invocations`    | One row per dbt command run by the dbt Prefect flow.                                                                                                                                                                                |
+| `pipeline.dbt_node_results`   | Per-model/per-test results loaded from dbt `target/run_results.json`.                                                                                                                                                               |
 
 ## Runs vs Run Units
 
 `pipeline.runs` and `pipeline.run_units` have different grains:
 
-| Table                | Grain                                   | Main question it answers                                                            |
-| -------------------- | --------------------------------------- | ----------------------------------------------------------------------------------- |
-| `pipeline.runs`      | One row per flow invocation             | Did this logical pipeline run finish, partially finish, fail, or skip?              |
-| `pipeline.run_units` | One row per auditable unit inside a run | Which exact exchange, ticker, date, or schedule code succeeded, failed, or skipped? |
+| Table                | Grain                                   | Main question it answers                                                                         |
+| -------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `pipeline.runs`      | One row per flow invocation             | Did this logical pipeline run finish, partially finish, fail, or skip?                           |
+| `pipeline.run_units` | One row per auditable unit inside a run | Which exact exchange, provider instrument, date, or schedule code succeeded, failed, or skipped? |
 
 Use `pipeline.runs` for health dashboards and SLA checks. It stores the run-level parameters, Prefect flow run id,
 overall status, start/end timestamps, aggregate counters, and compact summary/error fields.
@@ -35,8 +35,8 @@ reason, source URI, per-unit row counters, and per-unit error details.
 Use `pipeline.ingestion_coverage` for partition facts that should survive across runs but are not Bronze market data.
 For example, EOD historical backfill writes a `completed` coverage row after valid bars are written to Bronze, and a
 `no_data` coverage row only after a provider fetch and landing write succeed but the provider returns no bars for the
-exact ticker/date-window unit. Later backfill runs use those terminal coverage rows, together with `bronze.eod_price`,
-to compute pending symbols. `provider_quota_deferred` rows are different: they explain work that was not submitted
+exact provider-instrument/date-window unit. Later backfill runs use those terminal coverage rows, together with `bronze.eod_price`,
+to compute pending provider instruments. `provider_quota_deferred` rows are different: they explain work that was not submitted
 because a provider quota or credit cap stopped scheduling. They are audit breadcrumbs, not completion markers, and
 those units remain retryable.
 
@@ -52,8 +52,8 @@ pipeline.runs
 
 pipeline.run_units
   run_id = 018f..., unit_type = exchange_backfill, unit_key = {"provider_exchange_code": "US", ...}
-  run_id = 018f..., unit_type = ticker_backfill,   unit_key = {"ticker": "AAPL.US", ...}
-  run_id = 018f..., unit_type = ticker_backfill,   unit_key = {"ticker": "MSFT.US", ...}
+  run_id = 018f..., unit_type = instrument_backfill, unit_key = {"provider_exchange_code": "US", "provider_instrument_code": "AAPL", ...}
+  run_id = 018f..., unit_type = instrument_backfill, unit_key = {"provider_exchange_code": "US", "provider_instrument_code": "MSFT", ...}
 ```
 
 Every `run_units.run_id` should point at one `runs.run_id`. The current DuckDB/MotherDuck schema keeps that
@@ -74,7 +74,7 @@ Run statuses are intentionally data-oriented:
 | `cancelled` | Reserved for explicit cancellation handling.                                             |
 
 Work-unit statuses are `completed`, `failed`, `skipped`, and `unsupported`. Reasons carry the domain detail,
-for example `already_ingested`, `no_data`, `provider_404`, `no_new_rows`, or `symbol_failures`.
+for example `already_ingested`, `no_data`, `provider_404`, `no_new_rows`, or `instrument_failures`.
 
 ## Integration Pattern
 
@@ -151,16 +151,16 @@ ORDER BY started_at;
 ```
 
 `pipeline.runs.units_total`, `units_succeeded`, `units_failed`, and `units_skipped` count actual rows written to
-`pipeline.run_units`. Domain-specific planning metrics, such as exchange count or requested ticker count, belong in
+`pipeline.run_units`. Domain-specific planning metrics, such as exchange count or requested provider-instrument count, belong in
 `summary_json` so dashboards do not mix planned scope with recorded work units.
 
 When a Bronze write is performed at a coarser grain than the work unit, keep `rows_written` at that coarser grain.
-For example, EOD backfill writes ticker rows in batches, so ticker units store `rows_raw`, `rows_valid`, and
+For example, EOD backfill writes provider-instrument rows in batches, so instrument units store `rows_raw`, `rows_valid`, and
 `rows_rejected`, while the exchange backfill rollup stores the batch-written `rows_written` total.
 
 Parser rejection counts on `pipeline.runs` and `pipeline.run_units` are complete. `pipeline.rejections` intentionally
 stores only a capped sample per unit, enough to debug the failure shape without turning the audit schema into a second
-raw landing zone. Its `raw_hash` includes the entity key context so two tickers with identical malformed raw bars do
+raw landing zone. Its `raw_hash` includes the entity key context so two provider instruments with identical malformed raw bars do
 not collide in the same run.
 
 ## dbt

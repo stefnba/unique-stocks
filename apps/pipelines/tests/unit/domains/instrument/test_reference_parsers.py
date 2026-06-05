@@ -25,7 +25,7 @@ def test_parse_instrument_snapshots() -> None:
     assert not rejected
     assert valid[0].row.provider_exchange_code == "US"
     assert valid[0].row.provider_listing_exchange_code == "NASDAQ"
-    assert valid[0].row.ticker == "AAPL"
+    assert valid[0].row.provider_instrument_code == "AAPL"
     assert valid[0].raw_fragment is raw
     assert json.loads(INSTRUMENT_DATASET.bronze_record(valid[0])["raw_json"])["Code"] == "AAPL"
 

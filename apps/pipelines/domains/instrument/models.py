@@ -16,7 +16,7 @@ class InstrumentSnapshot(BronzeModel):
 
     snapshot_date: date
     provider_exchange_code: str
-    ticker: str
+    provider_instrument_code: str
     name: str
     country: str | None = None
     provider_listing_exchange_code: str | None = None

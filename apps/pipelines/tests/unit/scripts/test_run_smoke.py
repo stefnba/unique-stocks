@@ -26,7 +26,7 @@ async def test_run_preset_rejects_production(monkeypatch: MonkeyPatch) -> None:
 
 @pytest.mark.asyncio
 async def test_run_preset_fundamental_defaults(monkeypatch: MonkeyPatch) -> None:
-    """Fundamental smoke should run one explicit ticker with a one-call credit cap."""
+    """Fundamental smoke should run one explicit instrument with a one-call credit cap."""
     calls: list[dict[str, object]] = []
 
     async def fake_fundamental_flow(**kwargs: object) -> dict[str, object]:
@@ -41,7 +41,12 @@ async def test_run_preset_fundamental_defaults(monkeypatch: MonkeyPatch) -> None
     assert summary == {"ok": True}
     assert calls == [
         {
-            "tickers": ["AAPL.US"],
+            "provider_instruments": [
+                {
+                    "provider_exchange_code": "US",
+                    "provider_instrument_code": "AAPL",
+                }
+            ],
             "snapshot_date": None,
             "batch_size": 1,
             "max_provider_credits": 10,
@@ -51,7 +56,7 @@ async def test_run_preset_fundamental_defaults(monkeypatch: MonkeyPatch) -> None
 
 @pytest.mark.asyncio
 async def test_run_preset_fundamental_overrides(monkeypatch: MonkeyPatch) -> None:
-    """Fundamental smoke should pass explicit ticker and snapshot date overrides."""
+    """Fundamental smoke should pass explicit instrument and snapshot date overrides."""
     calls: list[dict[str, object]] = []
 
     async def fake_fundamental_flow(**kwargs: object) -> dict[str, object]:
@@ -60,13 +65,20 @@ async def test_run_preset_fundamental_overrides(monkeypatch: MonkeyPatch) -> Non
 
     monkeypatch.setattr(run_smoke, "fundamental_flow", fake_fundamental_flow)
 
-    args = run_smoke.build_parser().parse_args(["fundamental", "--ticker", "MSFT.US", "--snapshot-date", "2026-05-31"])
+    args = run_smoke.build_parser().parse_args(
+        ["fundamental", "--exchange", "US", "--instrument", "MSFT", "--snapshot-date", "2026-05-31"]
+    )
     summary = await run_smoke.run_preset(args)
 
     assert summary == {"ok": True}
     assert calls == [
         {
-            "tickers": ["MSFT.US"],
+            "provider_instruments": [
+                {
+                    "provider_exchange_code": "US",
+                    "provider_instrument_code": "MSFT",
+                }
+            ],
             "snapshot_date": date(2026, 5, 31),
             "batch_size": 1,
             "max_provider_credits": 10,

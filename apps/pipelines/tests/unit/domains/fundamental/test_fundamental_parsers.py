@@ -45,12 +45,21 @@ def _real_fixture_payload(name: str) -> dict[str, Any]:
     return json.loads((REAL_FIXTURE_ROOT / name).read_text())
 
 
-def _qualified_ticker(raw: FundamentalRaw) -> str:
-    """Return a usable qualified ticker for fixtures with no PrimaryTicker."""
+def _api_symbol_from_raw(raw: FundamentalRaw) -> str:
+    """Return a usable API symbol for fixtures with no PrimaryTicker."""
     primary = raw.general.get("PrimaryTicker")
     if isinstance(primary, str) and primary:
         return primary
     return f"{raw.general['Code']}.{raw.general['Exchange']}"
+
+
+def _provider_ref(api_symbol: str) -> dict[str, str]:
+    """Split an EODHD API symbol into parser identity kwargs."""
+    provider_instrument_code, provider_exchange_code = api_symbol.rsplit(".", maxsplit=1)
+    return {
+        "provider_exchange_code": provider_exchange_code,
+        "provider_instrument_code": provider_instrument_code,
+    }
 
 
 def _stock_payload() -> dict[str, Any]:
@@ -318,8 +327,8 @@ def test_parse_document_and_stock_identity() -> None:
     """Stock fundamentals produce document metadata and a stock identity row."""
     raw = FundamentalRaw.model_validate(_stock_payload())
 
-    document = parse_fundamental_document(raw, ticker="AAPL.US", snapshot_date=SNAPSHOT_DATE)
-    identity = parse_stock_identity_snapshot(raw, ticker="AAPL.US", snapshot_date=SNAPSHOT_DATE)
+    document = parse_fundamental_document(raw, **_provider_ref("AAPL.US"), snapshot_date=SNAPSHOT_DATE)
+    identity = parse_stock_identity_snapshot(raw, **_provider_ref("AAPL.US"), snapshot_date=SNAPSHOT_DATE)
 
     assert document.row.provider_exchange_code == "US"
     assert document.row.instrument_family == "stock"
@@ -337,7 +346,7 @@ def test_parse_stock_statement_facts_long_form_with_rejections() -> None:
     """Financial statements flatten into long-form facts and isolate bad metrics."""
     raw = FundamentalRaw.model_validate(_stock_payload())
 
-    facts, rejected = parse_stock_statement_facts(raw, ticker="AAPL.US", snapshot_date=SNAPSHOT_DATE)
+    facts, rejected = parse_stock_statement_facts(raw, **_provider_ref("AAPL.US"), snapshot_date=SNAPSHOT_DATE)
 
     assert len(facts) == 3
     assert len(rejected) == 1
@@ -359,7 +368,7 @@ def test_parse_stock_earnings_facts_long_form_with_rejections() -> None:
     """Earnings annual, history, and trend maps flatten into long-form facts."""
     raw = FundamentalRaw.model_validate(_stock_earnings_payload())
 
-    facts, rejected = parse_stock_earnings_facts(raw, ticker="AAPL.US", snapshot_date=SNAPSHOT_DATE)
+    facts, rejected = parse_stock_earnings_facts(raw, **_provider_ref("AAPL.US"), snapshot_date=SNAPSHOT_DATE)
 
     assert len(facts) == 8
     assert len(rejected) == 1
@@ -392,10 +401,10 @@ def test_parse_stock_shares_stats_and_outstanding_shares() -> None:
     """SharesStats and outstandingShares produce separate Bronze rows."""
     raw = FundamentalRaw.model_validate(_stock_shares_payload())
 
-    shares_stats = parse_stock_shares_stats_snapshot(raw, ticker="AAPL.US", snapshot_date=SNAPSHOT_DATE)
+    shares_stats = parse_stock_shares_stats_snapshot(raw, **_provider_ref("AAPL.US"), snapshot_date=SNAPSHOT_DATE)
     outstanding_shares, rejected = parse_stock_outstanding_shares(
         raw,
-        ticker="AAPL.US",
+        **_provider_ref("AAPL.US"),
         snapshot_date=SNAPSHOT_DATE,
     )
 
@@ -424,22 +433,22 @@ def test_parse_remaining_stock_sections() -> None:
     """Holders, insider transactions, splits/dividends, compact metrics, and ESG activities parse cleanly."""
     raw = FundamentalRaw.model_validate(_stock_remaining_payload())
 
-    holders, holder_rejected = parse_stock_holders(raw, ticker="AAPL.US", snapshot_date=SNAPSHOT_DATE)
+    holders, holder_rejected = parse_stock_holders(raw, **_provider_ref("AAPL.US"), snapshot_date=SNAPSHOT_DATE)
     insider_transactions, insider_rejected = parse_stock_insider_transactions(
         raw,
-        ticker="AAPL.US",
+        **_provider_ref("AAPL.US"),
         snapshot_date=SNAPSHOT_DATE,
     )
-    splits = parse_stock_splits_dividends_snapshot(raw, ticker="AAPL.US", snapshot_date=SNAPSHOT_DATE)
+    splits = parse_stock_splits_dividends_snapshot(raw, **_provider_ref("AAPL.US"), snapshot_date=SNAPSHOT_DATE)
     dividend_counts, dividend_rejected = parse_stock_dividend_counts(
         raw,
-        ticker="AAPL.US",
+        **_provider_ref("AAPL.US"),
         snapshot_date=SNAPSHOT_DATE,
     )
-    metric_facts = parse_stock_metric_facts(raw, ticker="AAPL.US", snapshot_date=SNAPSHOT_DATE)
+    metric_facts = parse_stock_metric_facts(raw, **_provider_ref("AAPL.US"), snapshot_date=SNAPSHOT_DATE)
     esg_activities, esg_rejected = parse_stock_esg_activities(
         raw,
-        ticker="AAPL.US",
+        **_provider_ref("AAPL.US"),
         snapshot_date=SNAPSHOT_DATE,
     )
 
@@ -493,7 +502,7 @@ def test_parse_stock_splits_dividends_treats_provider_zero_date_as_missing() -> 
     payload["SplitsDividends"]["LastSplitDate"] = "0000-00-00"
     raw = FundamentalRaw.model_validate(payload)
 
-    splits = parse_stock_splits_dividends_snapshot(raw, ticker="AAPL.US", snapshot_date=SNAPSHOT_DATE)
+    splits = parse_stock_splits_dividends_snapshot(raw, **_provider_ref("AAPL.US"), snapshot_date=SNAPSHOT_DATE)
 
     assert splits is not None
     assert splits.row.last_split_date is None
@@ -503,35 +512,35 @@ def test_aapl_fixture_slice_parses_balance_sheet_and_preserves_earnings_trend() 
     """Real AAPL-shaped fixture covers statement and earnings trend nesting."""
     raw = FundamentalRaw.model_validate(_real_fixture_payload("common_stock_AAPL.json"))
 
-    document = parse_fundamental_document(raw, ticker="AAPL.US", snapshot_date=SNAPSHOT_DATE)
-    facts, rejected = parse_stock_statement_facts(raw, ticker="AAPL.US", snapshot_date=SNAPSHOT_DATE)
+    document = parse_fundamental_document(raw, **_provider_ref("AAPL.US"), snapshot_date=SNAPSHOT_DATE)
+    facts, rejected = parse_stock_statement_facts(raw, **_provider_ref("AAPL.US"), snapshot_date=SNAPSHOT_DATE)
     earnings_facts, earnings_rejected = parse_stock_earnings_facts(
         raw,
-        ticker="AAPL.US",
+        **_provider_ref("AAPL.US"),
         snapshot_date=SNAPSHOT_DATE,
     )
-    shares_stats = parse_stock_shares_stats_snapshot(raw, ticker="AAPL.US", snapshot_date=SNAPSHOT_DATE)
+    shares_stats = parse_stock_shares_stats_snapshot(raw, **_provider_ref("AAPL.US"), snapshot_date=SNAPSHOT_DATE)
     outstanding_shares, outstanding_rejected = parse_stock_outstanding_shares(
         raw,
-        ticker="AAPL.US",
+        **_provider_ref("AAPL.US"),
         snapshot_date=SNAPSHOT_DATE,
     )
-    holders, holder_rejected = parse_stock_holders(raw, ticker="AAPL.US", snapshot_date=SNAPSHOT_DATE)
+    holders, holder_rejected = parse_stock_holders(raw, **_provider_ref("AAPL.US"), snapshot_date=SNAPSHOT_DATE)
     insider_transactions, insider_rejected = parse_stock_insider_transactions(
         raw,
-        ticker="AAPL.US",
+        **_provider_ref("AAPL.US"),
         snapshot_date=SNAPSHOT_DATE,
     )
-    splits = parse_stock_splits_dividends_snapshot(raw, ticker="AAPL.US", snapshot_date=SNAPSHOT_DATE)
+    splits = parse_stock_splits_dividends_snapshot(raw, **_provider_ref("AAPL.US"), snapshot_date=SNAPSHOT_DATE)
     dividend_counts, dividend_rejected = parse_stock_dividend_counts(
         raw,
-        ticker="AAPL.US",
+        **_provider_ref("AAPL.US"),
         snapshot_date=SNAPSHOT_DATE,
     )
-    metric_facts = parse_stock_metric_facts(raw, ticker="AAPL.US", snapshot_date=SNAPSHOT_DATE)
+    metric_facts = parse_stock_metric_facts(raw, **_provider_ref("AAPL.US"), snapshot_date=SNAPSHOT_DATE)
     esg_activities, esg_rejected = parse_stock_esg_activities(
         raw,
-        ticker="AAPL.US",
+        **_provider_ref("AAPL.US"),
         snapshot_date=SNAPSHOT_DATE,
     )
 
@@ -599,34 +608,43 @@ def test_real_fundamental_fixtures_validate_and_route(
 ) -> None:
     """Full real fixtures validate and route through the current family parsers."""
     raw = FundamentalRaw.model_validate(_real_fixture_payload(fixture_name))
-    ticker = _qualified_ticker(raw)
+    api_symbol = _api_symbol_from_raw(raw)
 
-    document = parse_fundamental_document(raw, ticker=ticker, snapshot_date=SNAPSHOT_DATE)
-    identity = parse_stock_identity_snapshot(raw, ticker=ticker, snapshot_date=SNAPSHOT_DATE)
-    facts, rejected = parse_stock_statement_facts(raw, ticker=ticker, snapshot_date=SNAPSHOT_DATE)
-    earnings_facts, earnings_rejected = parse_stock_earnings_facts(raw, ticker=ticker, snapshot_date=SNAPSHOT_DATE)
-    shares_stats = parse_stock_shares_stats_snapshot(raw, ticker=ticker, snapshot_date=SNAPSHOT_DATE)
+    document = parse_fundamental_document(raw, **_provider_ref(api_symbol), snapshot_date=SNAPSHOT_DATE)
+    identity = parse_stock_identity_snapshot(raw, **_provider_ref(api_symbol), snapshot_date=SNAPSHOT_DATE)
+    facts, rejected = parse_stock_statement_facts(raw, **_provider_ref(api_symbol), snapshot_date=SNAPSHOT_DATE)
+    earnings_facts, earnings_rejected = parse_stock_earnings_facts(
+        raw, **_provider_ref(api_symbol), snapshot_date=SNAPSHOT_DATE
+    )
+    shares_stats = parse_stock_shares_stats_snapshot(raw, **_provider_ref(api_symbol), snapshot_date=SNAPSHOT_DATE)
     outstanding_shares, outstanding_rejected = parse_stock_outstanding_shares(
         raw,
-        ticker=ticker,
+        **_provider_ref(api_symbol),
         snapshot_date=SNAPSHOT_DATE,
     )
-    holders, holder_rejected = parse_stock_holders(raw, ticker=ticker, snapshot_date=SNAPSHOT_DATE)
+    holders, holder_rejected = parse_stock_holders(raw, **_provider_ref(api_symbol), snapshot_date=SNAPSHOT_DATE)
     insider_transactions, insider_rejected = parse_stock_insider_transactions(
         raw,
-        ticker=ticker,
+        **_provider_ref(api_symbol),
         snapshot_date=SNAPSHOT_DATE,
     )
-    splits = parse_stock_splits_dividends_snapshot(raw, ticker=ticker, snapshot_date=SNAPSHOT_DATE)
-    dividend_counts, dividend_rejected = parse_stock_dividend_counts(raw, ticker=ticker, snapshot_date=SNAPSHOT_DATE)
-    metric_facts = parse_stock_metric_facts(raw, ticker=ticker, snapshot_date=SNAPSHOT_DATE)
-    esg_activities, esg_rejected = parse_stock_esg_activities(raw, ticker=ticker, snapshot_date=SNAPSHOT_DATE)
-    etf_identity = parse_etf_identity_snapshot(raw, ticker=ticker, snapshot_date=SNAPSHOT_DATE)
-    mutual_fund_identity = parse_mutual_fund_identity_snapshot(raw, ticker=ticker, snapshot_date=SNAPSHOT_DATE)
-    index_identity = parse_index_identity_snapshot(raw, ticker=ticker, snapshot_date=SNAPSHOT_DATE)
+    splits = parse_stock_splits_dividends_snapshot(raw, **_provider_ref(api_symbol), snapshot_date=SNAPSHOT_DATE)
+    dividend_counts, dividend_rejected = parse_stock_dividend_counts(
+        raw, **_provider_ref(api_symbol), snapshot_date=SNAPSHOT_DATE
+    )
+    metric_facts = parse_stock_metric_facts(raw, **_provider_ref(api_symbol), snapshot_date=SNAPSHOT_DATE)
+    esg_activities, esg_rejected = parse_stock_esg_activities(
+        raw, **_provider_ref(api_symbol), snapshot_date=SNAPSHOT_DATE
+    )
+    etf_identity = parse_etf_identity_snapshot(raw, **_provider_ref(api_symbol), snapshot_date=SNAPSHOT_DATE)
+    mutual_fund_identity = parse_mutual_fund_identity_snapshot(
+        raw, **_provider_ref(api_symbol), snapshot_date=SNAPSHOT_DATE
+    )
+    index_identity = parse_index_identity_snapshot(raw, **_provider_ref(api_symbol), snapshot_date=SNAPSHOT_DATE)
 
-    assert document.row.ticker == ticker
-    assert document.row.code == raw.general["Code"]
+    provider_ref = _provider_ref(api_symbol)
+    assert document.row.provider_exchange_code == provider_ref["provider_exchange_code"]
+    assert document.row.provider_instrument_code == provider_ref["provider_instrument_code"]
     assert document.row.instrument_family == expected_family
     assert document.row.payload_hash
     assert document.row.top_level_sections
@@ -671,11 +689,11 @@ def test_real_fundamental_fixtures_validate_and_route(
 def test_etf_fixture_parses_identity_holdings_and_metrics() -> None:
     """ETF fixture emits ETF identity, holding edges, and fund metric facts."""
     raw = FundamentalRaw.model_validate(_real_fixture_payload("etf_DAXEX.json"))
-    ticker = _qualified_ticker(raw)
+    api_symbol = _api_symbol_from_raw(raw)
 
-    identity = parse_etf_identity_snapshot(raw, ticker=ticker, snapshot_date=SNAPSHOT_DATE)
-    holdings, rejected = parse_etf_holdings(raw, ticker=ticker, snapshot_date=SNAPSHOT_DATE)
-    metric_facts = parse_fund_metric_facts(raw, ticker=ticker, snapshot_date=SNAPSHOT_DATE)
+    identity = parse_etf_identity_snapshot(raw, **_provider_ref(api_symbol), snapshot_date=SNAPSHOT_DATE)
+    holdings, rejected = parse_etf_holdings(raw, **_provider_ref(api_symbol), snapshot_date=SNAPSHOT_DATE)
+    metric_facts = parse_fund_metric_facts(raw, **_provider_ref(api_symbol), snapshot_date=SNAPSHOT_DATE)
 
     assert identity is not None
     assert identity.row.isin == "DE0005933931"
@@ -686,9 +704,9 @@ def test_etf_fixture_parses_identity_holdings_and_metrics() -> None:
     assert len(holdings) == 10
     assert rejected == []
     first = holdings[0].row
-    assert first.holding_symbol == "SIE.XETRA"
-    assert first.holding_code == "SIE"
-    assert first.holding_exchange == "XETRA"
+    assert first.holding_provider_key == "SIE.XETRA"
+    assert first.holding_provider_instrument_code == "SIE"
+    assert first.holding_provider_exchange_code == "XETRA"
     assert first.assets_percent == Decimal("10.94759")
     assert first.is_top_10 is True
     assert len(metric_facts) > 0
@@ -699,11 +717,11 @@ def test_etf_fixture_parses_identity_holdings_and_metrics() -> None:
 def test_mutual_fund_fixture_parses_identity_holdings_and_metrics() -> None:
     """Mutual fund fixture emits fund identity, top holdings, and metric facts."""
     raw = FundamentalRaw.model_validate(_real_fixture_payload("fund_URNQX.json"))
-    ticker = _qualified_ticker(raw)
+    api_symbol = _api_symbol_from_raw(raw)
 
-    identity = parse_mutual_fund_identity_snapshot(raw, ticker=ticker, snapshot_date=SNAPSHOT_DATE)
-    holdings, rejected = parse_mutual_fund_holdings(raw, ticker=ticker, snapshot_date=SNAPSHOT_DATE)
-    metric_facts = parse_fund_metric_facts(raw, ticker=ticker, snapshot_date=SNAPSHOT_DATE)
+    identity = parse_mutual_fund_identity_snapshot(raw, **_provider_ref(api_symbol), snapshot_date=SNAPSHOT_DATE)
+    holdings, rejected = parse_mutual_fund_holdings(raw, **_provider_ref(api_symbol), snapshot_date=SNAPSHOT_DATE)
+    metric_facts = parse_fund_metric_facts(raw, **_provider_ref(api_symbol), snapshot_date=SNAPSHOT_DATE)
 
     assert identity is not None
     assert identity.row.fund_category == "Large Growth"
@@ -722,13 +740,17 @@ def test_index_fixtures_parse_identity_and_components() -> None:
     dax = FundamentalRaw.model_validate(_real_fixture_payload("index_GDAXI.json"))
     spx = FundamentalRaw.model_validate(_real_fixture_payload("index_GSPC.json"))
 
-    dax_identity = parse_index_identity_snapshot(dax, ticker="GDAXI.INDX", snapshot_date=SNAPSHOT_DATE)
-    dax_components, dax_rejected = parse_index_components(dax, ticker="GDAXI.INDX", snapshot_date=SNAPSHOT_DATE)
-    spx_identity = parse_index_identity_snapshot(spx, ticker="GSPC.INDX", snapshot_date=SNAPSHOT_DATE)
-    spx_components, spx_rejected = parse_index_components(spx, ticker="GSPC.INDX", snapshot_date=SNAPSHOT_DATE)
+    dax_identity = parse_index_identity_snapshot(dax, **_provider_ref("GDAXI.INDX"), snapshot_date=SNAPSHOT_DATE)
+    dax_components, dax_rejected = parse_index_components(
+        dax, **_provider_ref("GDAXI.INDX"), snapshot_date=SNAPSHOT_DATE
+    )
+    spx_identity = parse_index_identity_snapshot(spx, **_provider_ref("GSPC.INDX"), snapshot_date=SNAPSHOT_DATE)
+    spx_components, spx_rejected = parse_index_components(
+        spx, **_provider_ref("GSPC.INDX"), snapshot_date=SNAPSHOT_DATE
+    )
     historical, historical_rejected = parse_index_historical_components(
         spx,
-        ticker="GSPC.INDX",
+        **_provider_ref("GSPC.INDX"),
         snapshot_date=SNAPSHOT_DATE,
     )
 
@@ -736,18 +758,18 @@ def test_index_fixtures_parse_identity_and_components() -> None:
     assert dax_identity.row.currency_code == "EUR"
     assert len(dax_components) == 39
     assert dax_rejected == []
-    assert dax_components[0].row.component_code == "RWE"
-    assert dax_components[0].row.component_exchange == "XETRA"
+    assert dax_components[0].row.component_provider_instrument_code == "RWE"
+    assert dax_components[0].row.component_provider_exchange_code == "XETRA"
 
     assert spx_identity is not None
     assert spx_identity.row.market_cap == Decimal("64030364996329")
     assert len(spx_components) == 503
     assert spx_rejected == []
-    assert spx_components[0].row.component_code == "AIZ"
+    assert spx_components[0].row.component_provider_instrument_code == "AIZ"
     assert spx_components[0].row.weight == Decimal("0.0002")
     assert len(historical) == 812
     assert historical_rejected == []
-    assert historical[0].row.component_code == "A"
+    assert historical[0].row.component_provider_instrument_code == "A"
     assert historical[0].row.start_date == date(2000, 6, 5)
     assert historical[0].row.is_active_now is True
 
@@ -756,7 +778,9 @@ def test_tsla_fixture_parses_insider_transactions() -> None:
     """TSLA fixture emits stock insider transaction rows."""
     raw = FundamentalRaw.model_validate(_real_fixture_payload("common_stock_TSLA.json"))
 
-    transactions, rejected = parse_stock_insider_transactions(raw, ticker="TSLA.US", snapshot_date=SNAPSHOT_DATE)
+    transactions, rejected = parse_stock_insider_transactions(
+        raw, **_provider_ref("TSLA.US"), snapshot_date=SNAPSHOT_DATE
+    )
 
     assert len(transactions) == 20
     assert rejected == []
@@ -786,36 +810,36 @@ def test_non_stock_document_does_not_emit_stock_rows() -> None:
     }
     raw = FundamentalRaw.model_validate(payload)
 
-    document = parse_fundamental_document(raw, ticker="SPY.US", snapshot_date=SNAPSHOT_DATE)
-    identity = parse_stock_identity_snapshot(raw, ticker="SPY.US", snapshot_date=SNAPSHOT_DATE)
-    facts, rejected = parse_stock_statement_facts(raw, ticker="SPY.US", snapshot_date=SNAPSHOT_DATE)
+    document = parse_fundamental_document(raw, **_provider_ref("SPY.US"), snapshot_date=SNAPSHOT_DATE)
+    identity = parse_stock_identity_snapshot(raw, **_provider_ref("SPY.US"), snapshot_date=SNAPSHOT_DATE)
+    facts, rejected = parse_stock_statement_facts(raw, **_provider_ref("SPY.US"), snapshot_date=SNAPSHOT_DATE)
     earnings_facts, earnings_rejected = parse_stock_earnings_facts(
         raw,
-        ticker="SPY.US",
+        **_provider_ref("SPY.US"),
         snapshot_date=SNAPSHOT_DATE,
     )
-    shares_stats = parse_stock_shares_stats_snapshot(raw, ticker="SPY.US", snapshot_date=SNAPSHOT_DATE)
+    shares_stats = parse_stock_shares_stats_snapshot(raw, **_provider_ref("SPY.US"), snapshot_date=SNAPSHOT_DATE)
     outstanding_shares, outstanding_rejected = parse_stock_outstanding_shares(
         raw,
-        ticker="SPY.US",
+        **_provider_ref("SPY.US"),
         snapshot_date=SNAPSHOT_DATE,
     )
-    holders, holder_rejected = parse_stock_holders(raw, ticker="SPY.US", snapshot_date=SNAPSHOT_DATE)
+    holders, holder_rejected = parse_stock_holders(raw, **_provider_ref("SPY.US"), snapshot_date=SNAPSHOT_DATE)
     insider_transactions, insider_rejected = parse_stock_insider_transactions(
         raw,
-        ticker="SPY.US",
+        **_provider_ref("SPY.US"),
         snapshot_date=SNAPSHOT_DATE,
     )
-    splits = parse_stock_splits_dividends_snapshot(raw, ticker="SPY.US", snapshot_date=SNAPSHOT_DATE)
+    splits = parse_stock_splits_dividends_snapshot(raw, **_provider_ref("SPY.US"), snapshot_date=SNAPSHOT_DATE)
     dividend_counts, dividend_rejected = parse_stock_dividend_counts(
         raw,
-        ticker="SPY.US",
+        **_provider_ref("SPY.US"),
         snapshot_date=SNAPSHOT_DATE,
     )
-    metric_facts = parse_stock_metric_facts(raw, ticker="SPY.US", snapshot_date=SNAPSHOT_DATE)
+    metric_facts = parse_stock_metric_facts(raw, **_provider_ref("SPY.US"), snapshot_date=SNAPSHOT_DATE)
     esg_activities, esg_rejected = parse_stock_esg_activities(
         raw,
-        ticker="SPY.US",
+        **_provider_ref("SPY.US"),
         snapshot_date=SNAPSHOT_DATE,
     )
 

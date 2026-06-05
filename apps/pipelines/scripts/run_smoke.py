@@ -5,15 +5,15 @@ It calls live provider code and the normal landing/Bronze write path, but passes
 explicit small parameters so a quick check does not expand to the full dbt-built
 provider universe.
 
-Use it for questions like "does this flow still run end-to-end for one ticker or
-one provider namespace from my current checkout?" Scoped presets pass explicit
+Use it for questions like "does this flow still run end-to-end for one instrument
+or one provider namespace from my current checkout?" Scoped presets pass explicit
 flow parameters, so they do not require the dbt provider-universe view. Do not
 use this script as a production scheduler or as a replacement for Prefect
 deployment parameters.
 
 Default presets:
 
-- ``fundamental`` fetches one explicit fundamentals ticker, ``AAPL.US``, with a
+- ``fundamental`` fetches one explicit fundamentals instrument, ``US`` / ``AAPL``, with a
   one-call credit cap.
 - ``instrument`` fetches one provider namespace, ``XETRA``.
 - ``eod-price`` / ``eod_price`` fetches one provider namespace, ``XETRA``.
@@ -26,7 +26,7 @@ Default presets:
 
 Examples:
     uv run python scripts/run_smoke.py fundamental
-    uv run python scripts/run_smoke.py fundamental --ticker MSFT.US
+    uv run python scripts/run_smoke.py fundamental --exchange US --instrument MSFT
     uv run python scripts/run_smoke.py exchange
     uv run python scripts/run_smoke.py exchange_schedule --exchange XETR
     uv run python scripts/run_smoke.py instrument --exchange US
@@ -50,7 +50,8 @@ from domains.instrument.flows import instrument_flow
 
 type SmokePreset = Literal["fundamental", "instrument", "eod-price", "exchange", "exchange-schedule"]
 
-DEFAULT_FUNDAMENTAL_TICKER = "AAPL.US"
+DEFAULT_FUNDAMENTAL_PROVIDER_EXCHANGE_CODE = "US"
+DEFAULT_FUNDAMENTAL_PROVIDER_INSTRUMENT_CODE = "AAPL"
 DEFAULT_PROVIDER_EXCHANGE_CODE = "XETRA"
 DEFAULT_SCHEDULE_EXCHANGE_CODE = "US"
 
@@ -58,7 +59,7 @@ log = structlog.get_logger(__name__)
 
 _EXAMPLES = """examples:
   uv run python scripts/run_smoke.py fundamental
-  uv run python scripts/run_smoke.py fundamental --ticker MSFT.US
+  uv run python scripts/run_smoke.py fundamental --exchange US --instrument MSFT
   uv run python scripts/run_smoke.py exchange
   uv run python scripts/run_smoke.py exchange_schedule --exchange XETR
   uv run python scripts/run_smoke.py instrument --exchange US
@@ -100,8 +101,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="preset", required=True)
 
-    fundamental = subparsers.add_parser("fundamental", help="Run one EODHD fundamentals ticker.")
-    fundamental.add_argument("--ticker", default=DEFAULT_FUNDAMENTAL_TICKER, help="Exchange-qualified ticker.")
+    fundamental = subparsers.add_parser("fundamental", help="Run one EODHD fundamentals instrument.")
+    fundamental.add_argument(
+        "--exchange",
+        default=DEFAULT_FUNDAMENTAL_PROVIDER_EXCHANGE_CODE,
+        help="Provider exchange code.",
+    )
+    fundamental.add_argument(
+        "--instrument",
+        default=DEFAULT_FUNDAMENTAL_PROVIDER_INSTRUMENT_CODE,
+        help="Provider instrument code.",
+    )
     fundamental.add_argument("--snapshot-date", type=parse_iso_date, default=None, help="Optional YYYY-MM-DD date.")
 
     subparsers.add_parser("exchange", help="Run exchange catalog and MIC registry refreshes.")
@@ -167,7 +177,7 @@ async def run_preset(args: argparse.Namespace) -> dict[str, object]:
 
     Each branch passes explicit scoping parameters to the real flow:
 
-    - fundamentals uses ``tickers`` rather than provider-universe discovery;
+    - fundamentals uses ``provider_instruments`` rather than provider-universe discovery;
     - exchange runs the two reference refreshes directly;
     - exchange schedule uses ``provider_schedule_exchange_codes`` with one code;
     - instrument uses ``provider_exchange_codes`` with one namespace;
@@ -182,7 +192,12 @@ async def run_preset(args: argparse.Namespace) -> dict[str, object]:
 
     if preset == "fundamental":
         summary = await fundamental_flow(
-            tickers=[str(args.ticker)],
+            provider_instruments=[
+                {
+                    "provider_exchange_code": str(args.exchange),
+                    "provider_instrument_code": str(args.instrument),
+                }
+            ],
             snapshot_date=args.snapshot_date,
             batch_size=1,
             max_provider_credits=10,

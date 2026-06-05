@@ -24,7 +24,7 @@ async def test_eodhd_indx_namespace_supports_instruments_and_eod_price() -> None
     async with EODHDClient(api_key=api_key) as client:
         instruments = await client.get_instrument("INDX")
         assert any(
-            instrument.ticker == "GDAXI"
+            instrument.provider_instrument_code == "GDAXI"
             and instrument.provider_listing_exchange_code == "INDX"
             and instrument.asset_type == "INDEX"
             for instrument in instruments

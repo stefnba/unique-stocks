@@ -14,9 +14,34 @@ from core.ingestion.run_tracking import UnitStatus
 from domains.fundamental import flows, tasks
 from domains.fundamental.parsers import parse_fundamental_document
 from domains.instrument.universe import SilverIngestionContractError
+from providers.eodhd.identifiers import EODHDInstrumentRef, eodhd_instrument_key
 from providers.eodhd.models import FundamentalRaw
 
 SNAPSHOT_DATE = date(2026, 5, 29)
+
+
+def _instrument(provider_exchange_code: str = "US", provider_instrument_code: str = "AAPL") -> dict[str, str]:
+    """Build a provider instrument flow parameter."""
+    return {
+        "provider_exchange_code": provider_exchange_code,
+        "provider_instrument_code": provider_instrument_code,
+    }
+
+
+def _instrument_ref(provider_exchange_code: str = "US", provider_instrument_code: str = "AAPL") -> EODHDInstrumentRef:
+    """Build an EODHD provider instrument ref for selection tests."""
+    return EODHDInstrumentRef(
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+    )
+
+
+def _instrument_key(provider_exchange_code: str = "US", provider_instrument_code: str = "AAPL") -> str:
+    """Return the flow summary key for one provider instrument."""
+    return eodhd_instrument_key(
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+    )
 
 
 def _provider_rate_limit_error(symbol: str) -> ProviderRateLimitError:
@@ -100,7 +125,7 @@ class FakeLake:
 
 
 class FundamentalSelectionLake:
-    """Minimal fake for fundamentals ticker selection queries."""
+    """Minimal fake for fundamentals instrument selection queries."""
 
     def __init__(
         self,
@@ -189,7 +214,7 @@ async def test_continue_ingestion_batch_uses_resolved_snapshot_date(monkeypatch:
     monkeypatch.setattr(flows, "fundamental_document_already_ingested", lambda *_: True)
 
     summary = await flows.fundamental_flow.fn(
-        tickers=["AAPL.US"],
+        provider_instruments=[_instrument()],
         continue_ingestion_batch=True,
     )
 
@@ -199,7 +224,7 @@ async def test_continue_ingestion_batch_uses_resolved_snapshot_date(monkeypatch:
 
 
 @pytest.mark.asyncio
-async def test_fundamental_flow_uses_provider_universe_for_default_tickers(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_fundamental_flow_uses_provider_universe_for_default_instruments(monkeypatch: pytest.MonkeyPatch) -> None:
     """Automatic fundamentals selection should use fundamentals-approved provider codes."""
     run = FakeRun()
     loaded_codes: list[list[str]] = []
@@ -207,66 +232,67 @@ async def test_fundamental_flow_uses_provider_universe_for_default_tickers(monke
     def fetch_codes() -> list[str]:
         return ["US"]
 
-    def load_tickers(
+    def load_instruments(
         provider_exchange_codes: list[str] | None,
         limit: int | None = None,
         *,
         snapshot_date: date | None = None,
         skip_completed: bool = False,
-    ) -> tasks.FundamentalTickerSelection:
+    ) -> tasks.FundamentalInstrumentSelection:
         loaded_codes.append(list(provider_exchange_codes or []))
         assert limit == 5
         assert snapshot_date == SNAPSHOT_DATE
         assert skip_completed is True
-        return tasks.FundamentalTickerSelection(
-            tickers=[],
+        return tasks.FundamentalInstrumentSelection(
+            instruments=[],
             completion_filter_applied=True,
         )
 
     monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
     _stub_snapshot_resolver(monkeypatch)
     monkeypatch.setattr(flows, "fetch_fundamental_provider_exchange_codes", fetch_codes)
-    monkeypatch.setattr(flows, "load_fundamental_ticker_selection", load_tickers)
+    monkeypatch.setattr(flows, "load_fundamental_instrument_selection", load_instruments)
 
     summary = await flows.fundamental_flow.fn(snapshot_date=SNAPSHOT_DATE, limit=5)
 
     assert loaded_codes == [["US"]]
-    assert summary["tickers"] == {}
+    assert summary["instruments"] == {}
     assert run.completed_summary == summary
 
 
-def test_load_fundamental_tickers_uses_silver_and_qualified_anti_join(
+def test_load_fundamental_instruments_uses_silver_and_qualified_anti_join(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Missing-only fundamentals selection uses Silver provider symbols and document completion rows."""
-    lake = FundamentalSelectionLake(rows=[{"provider_symbol": "MSFT.US"}])
+    """Missing-only fundamentals selection uses Silver provider instruments and document completion rows."""
+    lake = FundamentalSelectionLake(rows=[_instrument("US", "MSFT")])
     import core.clients.lake as lake_module
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
-    tickers = tasks.load_fundamental_tickers.fn(
+    instruments = tasks.load_fundamental_instruments.fn(
         ["US"],
         limit=10,
         snapshot_date=SNAPSHOT_DATE,
         skip_completed=True,
     )
 
-    assert tickers == ["MSFT.US"]
+    assert instruments == [_instrument_ref("US", "MSFT")]
     sql, params = lake.queries[0]
     assert "silver.int_fundamental_ingestion_universe" in sql
     assert "silver.int_fundamental_document_completion" in sql
-    assert "completion.provider_symbol = universe.provider_symbol" in sql
+    assert "completion.provider_exchange_code = universe.provider_exchange_code" in sql
+    assert "completion.provider_instrument_code = universe.provider_instrument_code" in sql
     assert "universe.data_provider = ?" in sql
     assert "LIMIT ?" in sql
     assert params == ["eodhd", "US", SNAPSHOT_DATE.isoformat(), 10]
 
 
-def test_load_fundamental_tickers_requires_completion_view_when_skipping_completed(
+def test_load_fundamental_instruments_requires_completion_view_when_skipping_completed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Missing completion view should fail instead of silently skipping the anti-join."""
     lake = FundamentalSelectionLake(
-        rows=[{"provider_symbol": "AAPL.US"}],
+        rows=[_instrument()],
         tables={("silver", "int_fundamental_ingestion_universe")},
     )
     import core.clients.lake as lake_module
@@ -274,14 +300,14 @@ def test_load_fundamental_tickers_requires_completion_view_when_skipping_complet
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
     with pytest.raises(SilverIngestionContractError, match="int_fundamental_document_completion"):
-        tasks.load_fundamental_ticker_selection.fn(
+        tasks.load_fundamental_instrument_selection.fn(
             ["US"],
             snapshot_date=SNAPSHOT_DATE,
             skip_completed=True,
         )
 
 
-def test_load_fundamental_tickers_requires_ingestion_universe(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_load_fundamental_instruments_requires_ingestion_universe(monkeypatch: pytest.MonkeyPatch) -> None:
     """Auto-selected fundamentals should fail clearly when the dbt ingestion universe is unavailable."""
     lake = FundamentalSelectionLake(tables={("silver", "int_fundamental_document_completion")})
     import core.clients.lake as lake_module
@@ -289,37 +315,37 @@ def test_load_fundamental_tickers_requires_ingestion_universe(monkeypatch: pytes
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
     with pytest.raises(SilverIngestionContractError, match="int_fundamental_ingestion_universe"):
-        tasks.load_fundamental_tickers.fn(["US"], snapshot_date=SNAPSHOT_DATE, skip_completed=True)
+        tasks.load_fundamental_instruments.fn(["US"], snapshot_date=SNAPSHOT_DATE, skip_completed=True)
 
 
 @pytest.mark.asyncio
 async def test_auto_selected_anti_join_skips_redundant_existing_guard(monkeypatch: pytest.MonkeyPatch) -> None:
-    """SQL anti-joined auto-selection should not spawn per-ticker existing checks."""
+    """SQL anti-joined auto-selection should not spawn per-instrument existing checks."""
     run = FakeRun()
 
-    def load_tickers(
+    def load_instruments(
         provider_exchange_codes: list[str] | None,
         limit: int | None = None,
         *,
         snapshot_date: date | None = None,
         skip_completed: bool = False,
-    ) -> list[str]:
+    ) -> list[EODHDInstrumentRef]:
         assert provider_exchange_codes == ["US"]
         assert limit is None
         assert snapshot_date == SNAPSHOT_DATE
         assert skip_completed is True
-        return ["AAPL.US"]
+        return [_instrument_ref()]
 
     def fail_existing_check(*_: object) -> bool:
-        raise AssertionError("anti-joined auto-selection should not call the per-ticker guard")
+        raise AssertionError("anti-joined auto-selection should not call the per-instrument guard")
 
     monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
     _stub_snapshot_resolver(monkeypatch)
     monkeypatch.setattr(
         flows,
-        "load_fundamental_ticker_selection",
-        lambda *args, **kwargs: tasks.FundamentalTickerSelection(
-            tickers=load_tickers(*args, **kwargs),
+        "load_fundamental_instrument_selection",
+        lambda *args, **kwargs: tasks.FundamentalInstrumentSelection(
+            instruments=load_instruments(*args, **kwargs),
             completion_filter_applied=True,
         ),
     )
@@ -333,35 +359,35 @@ async def test_auto_selected_anti_join_skips_redundant_existing_guard(monkeypatc
     )
 
     assert summary["auto_selection_anti_joined"] is True
-    assert summary["skipped"] == ["AAPL.US"]
+    assert summary["skipped"] == [_instrument_key()]
     assert run.units[0]["reason"] == "credit_budget_exhausted"
 
 
 @pytest.mark.asyncio
-async def test_refresh_auto_selection_keeps_completed_tickers_in_scope(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_refresh_auto_selection_keeps_completed_instruments_in_scope(monkeypatch: pytest.MonkeyPatch) -> None:
     """Refresh mode should not apply the missing-only completion anti-join."""
     run = FakeRun()
     calls: list[bool] = []
 
-    def load_tickers(
+    def load_instruments(
         provider_exchange_codes: list[str] | None,
         limit: int | None = None,
         *,
         snapshot_date: date | None = None,
         skip_completed: bool = False,
-    ) -> tasks.FundamentalTickerSelection:
+    ) -> tasks.FundamentalInstrumentSelection:
         assert provider_exchange_codes == ["US"]
         assert limit is None
         assert snapshot_date == SNAPSHOT_DATE
         calls.append(skip_completed)
-        return tasks.FundamentalTickerSelection(
-            tickers=["AAPL.US"],
+        return tasks.FundamentalInstrumentSelection(
+            instruments=[_instrument_ref()],
             completion_filter_applied=False,
         )
 
     monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
     _stub_snapshot_resolver(monkeypatch)
-    monkeypatch.setattr(flows, "load_fundamental_ticker_selection", load_tickers)
+    monkeypatch.setattr(flows, "load_fundamental_instrument_selection", load_instruments)
     monkeypatch.setattr(flows, "write_fundamental_deferred_coverage", lambda **_: BronzeWrite(rows_written=1))
 
     summary = await flows.fundamental_flow.fn(
@@ -373,19 +399,19 @@ async def test_refresh_auto_selection_keeps_completed_tickers_in_scope(monkeypat
 
     assert calls == [False]
     assert summary["auto_selection_anti_joined"] is False
-    assert summary["skipped"] == ["AAPL.US"]
+    assert summary["skipped"] == [_instrument_key()]
 
 
 @pytest.mark.asyncio
 async def test_skip_existing_false_uses_changed_payload_refresh(monkeypatch: pytest.MonkeyPatch) -> None:
     """skip_existing=False fetches and skips unchanged same-day payloads."""
     raw = _raw_stock_payload()
-    payload_hash = parse_fundamental_document(raw, ticker="AAPL.US", snapshot_date=SNAPSHOT_DATE).row.payload_hash
+    payload_hash = parse_fundamental_document(raw, **_instrument(), snapshot_date=SNAPSHOT_DATE).row.payload_hash
     run = FakeRun()
     calls: list[str] = []
 
-    async def fetch(_: str) -> FundamentalRaw:
-        calls.append("fetch")
+    async def fetch(provider_exchange_code: str, provider_instrument_code: str) -> FundamentalRaw:
+        calls.append(f"{provider_exchange_code}:{provider_instrument_code}")
         return raw
 
     def fail_if_called(*_: object, **__: object) -> None:
@@ -393,7 +419,7 @@ async def test_skip_existing_false_uses_changed_payload_refresh(monkeypatch: pyt
 
     monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
     _stub_snapshot_resolver(monkeypatch)
-    monkeypatch.setattr(flows, "fetch_fundamental_ticker", fetch)
+    monkeypatch.setattr(flows, "fetch_fundamental_instrument", fetch)
     monkeypatch.setattr(flows, "parse_fundamental_stock", tasks.parse_fundamental_stock.fn)
     monkeypatch.setattr(flows, "load_fundamental_document_payload_hash", lambda *_: payload_hash)
     monkeypatch.setattr(flows, "write_fundamental_to_landing", fail_if_called)
@@ -420,15 +446,15 @@ async def test_skip_existing_false_uses_changed_payload_refresh(monkeypatch: pyt
     monkeypatch.setattr(flows, "write_bronze_fundamental_index_historical_components", fail_if_called)
 
     summary = await flows.fundamental_flow.fn(
-        tickers=["AAPL.US"],
+        provider_instruments=[_instrument()],
         snapshot_date=SNAPSHOT_DATE,
         skip_existing=False,
         refresh_existing=False,
     )
 
-    assert calls == ["fetch"]
-    assert summary["skipped"] == ["AAPL.US"]
-    assert summary["tickers"] == {}
+    assert calls == [_instrument_key()]
+    assert summary["skipped"] == [_instrument_key()]
+    assert summary["instruments"] == {}
     assert run.units[0]["reason"] == "payload_unchanged"
     assert run.units[0]["rows_raw"] == 1
     assert run.is_terminal is True
@@ -440,18 +466,30 @@ async def test_replay_landing_uses_landed_json_without_provider_fetch(monkeypatc
     raw = _raw_stock_payload()
     run = FakeRun()
     calls: list[str] = []
-    source_uri = "s3://lake/landing/fundamental/provider=eodhd/provider_exchange_code=US/ticker=AAPL.US/data.json"
+    source_uri = (
+        "s3://lake/landing/fundamental/provider=eodhd/provider_exchange_code=US/provider_instrument_code=AAPL/data.json"
+    )
 
-    async def load_landing(_: str, __: date, *, source_uri: str | None = None) -> tuple[FundamentalRaw, LandingWrite]:
+    async def load_landing(
+        provider_exchange_code: str,
+        provider_instrument_code: str,
+        _: date,
+        *,
+        source_uri: str | None = None,
+    ) -> tuple[FundamentalRaw, LandingWrite]:
         calls.append(f"load:{source_uri}")
         return raw, LandingWrite(
             dataset="fundamental.document",
             source_uri=source_uri or "s3://lake/latest.json",
-            partition={"ticker": "AAPL.US", "snapshot_date": SNAPSHOT_DATE},
+            partition={
+                "provider_exchange_code": provider_exchange_code,
+                "provider_instrument_code": provider_instrument_code,
+                "snapshot_date": SNAPSHOT_DATE,
+            },
             rows_raw=1,
         )
 
-    async def fail_fetch(_: str) -> FundamentalRaw:
+    async def fail_fetch(*_: object) -> FundamentalRaw:
         raise AssertionError("replay should not fetch from provider")
 
     async def fail_landing(*_: object, **__: object) -> None:
@@ -466,7 +504,7 @@ async def test_replay_landing_uses_landed_json_without_provider_fetch(monkeypatc
     monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
     _stub_snapshot_resolver(monkeypatch)
     monkeypatch.setattr(flows, "fundamental_document_already_ingested", lambda *_: False)
-    monkeypatch.setattr(flows, "fetch_fundamental_ticker", fail_fetch)
+    monkeypatch.setattr(flows, "fetch_fundamental_instrument", fail_fetch)
     monkeypatch.setattr(flows, "load_fundamental_from_landing", load_landing)
     monkeypatch.setattr(flows, "parse_fundamental_stock", tasks.parse_fundamental_stock.fn)
     monkeypatch.setattr(flows, "load_fundamental_document_payload_hash", lambda *_: None)
@@ -496,29 +534,29 @@ async def test_replay_landing_uses_landed_json_without_provider_fetch(monkeypatc
         monkeypatch.setattr(flows, name, write_none)
 
     summary = await flows.fundamental_flow.fn(
-        tickers=["AAPL.US"],
+        provider_instruments=[_instrument()],
         snapshot_date=SNAPSHOT_DATE,
         replay_landing=True,
-        landing_source_uris_by_ticker={"AAPL.US": source_uri},
+        landing_source_uris_by_instrument={_instrument_key(): source_uri},
     )
 
     assert calls == [f"load:{source_uri}"]
-    ticker_summary = cast(dict[str, object], cast(dict[str, object], summary["tickers"])["AAPL.US"])
-    assert ticker_summary["rows_written"] == 3
+    instrument_summary = cast(dict[str, object], cast(dict[str, object], summary["instruments"])[_instrument_key()])
+    assert instrument_summary["rows_written"] == 3
     assert run.units[0]["source_uri"] == source_uri
     assert run.is_terminal is True
 
 
 @pytest.mark.asyncio
-async def test_provider_credit_budget_skips_tickers_before_fetch(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_provider_credit_budget_skips_instruments_before_fetch(monkeypatch: pytest.MonkeyPatch) -> None:
     """max_provider_credits caps paid fundamentals calls before fetch tasks are submitted."""
     raw = _raw_stock_payload()
-    payload_hash = parse_fundamental_document(raw, ticker="AAPL.US", snapshot_date=SNAPSHOT_DATE).row.payload_hash
+    payload_hash = parse_fundamental_document(raw, **_instrument(), snapshot_date=SNAPSHOT_DATE).row.payload_hash
     run = FakeRun()
     calls: list[str] = []
 
-    async def fetch(ticker: str) -> FundamentalRaw:
-        calls.append(ticker)
+    async def fetch(provider_exchange_code: str, provider_instrument_code: str) -> FundamentalRaw:
+        calls.append(f"{provider_exchange_code}:{provider_instrument_code}")
         return raw
 
     def fail_if_called(*_: object, **__: object) -> None:
@@ -526,7 +564,7 @@ async def test_provider_credit_budget_skips_tickers_before_fetch(monkeypatch: py
 
     monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
     _stub_snapshot_resolver(monkeypatch)
-    monkeypatch.setattr(flows, "fetch_fundamental_ticker", fetch)
+    monkeypatch.setattr(flows, "fetch_fundamental_instrument", fetch)
     monkeypatch.setattr(flows, "parse_fundamental_stock", tasks.parse_fundamental_stock.fn)
     monkeypatch.setattr(flows, "load_fundamental_document_payload_hash", lambda *_: payload_hash)
     monkeypatch.setattr(flows, "write_fundamental_to_landing", fail_if_called)
@@ -535,49 +573,52 @@ async def test_provider_credit_budget_skips_tickers_before_fetch(monkeypatch: py
     deferred_calls: list[list[str]] = []
 
     def record_deferred(**kwargs: object) -> BronzeWrite:
-        tickers = list(cast(list[str], kwargs["tickers"]))
-        deferred_calls.append(tickers)
-        return BronzeWrite(rows_written=len(tickers))
+        instruments = list(cast(list[EODHDInstrumentRef], kwargs["instruments"]))
+        deferred_calls.append(
+            [_instrument_key(item.provider_exchange_code, item.provider_instrument_code) for item in instruments]
+        )
+        return BronzeWrite(rows_written=len(instruments))
 
     monkeypatch.setattr(flows, "write_fundamental_deferred_coverage", record_deferred)
 
     summary = await flows.fundamental_flow.fn(
-        tickers=["AAPL.US", "MSFT.US"],
+        provider_instruments=[_instrument(), _instrument("US", "MSFT")],
         snapshot_date=SNAPSHOT_DATE,
         skip_existing=False,
         max_provider_credits=10,
         provider_credits_per_call=10,
     )
 
-    assert calls == ["AAPL.US"]
-    assert deferred_calls == [["MSFT.US"]]
-    assert summary["skipped"] == ["MSFT.US", "AAPL.US"]
+    assert calls == [_instrument_key()]
+    assert deferred_calls == [[_instrument_key("US", "MSFT")]]
+    assert summary["skipped"] == [_instrument_key("US", "MSFT"), _instrument_key()]
     assert [unit["reason"] for unit in run.units] == ["credit_budget_exhausted", "payload_unchanged"]
 
 
 @pytest.mark.asyncio
-async def test_fundamental_flow_defers_remaining_tickers_after_provider_rate_limit(
+async def test_fundamental_flow_defers_remaining_instruments_after_provider_rate_limit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A 429 stops later fetch batches so the next run can resume from Bronze idempotency."""
     raw = _raw_stock_payload()
-    payload_hash = parse_fundamental_document(raw, ticker="AAPL.US", snapshot_date=SNAPSHOT_DATE).row.payload_hash
+    payload_hash = parse_fundamental_document(raw, **_instrument(), snapshot_date=SNAPSHOT_DATE).row.payload_hash
     run = FakeRun()
     calls: list[str] = []
 
-    async def fetch(ticker: str) -> FundamentalRaw:
-        calls.append(ticker)
-        if ticker == "MSFT.US":
-            raise _provider_rate_limit_error(ticker)
+    async def fetch(provider_exchange_code: str, provider_instrument_code: str) -> FundamentalRaw:
+        instrument_key = _instrument_key(provider_exchange_code, provider_instrument_code)
+        calls.append(instrument_key)
+        if provider_instrument_code == "MSFT":
+            raise _provider_rate_limit_error(f"{provider_instrument_code}.{provider_exchange_code}")
         return raw
 
     def fail_if_called(*_: object, **__: object) -> None:
-        raise AssertionError("unchanged or deferred tickers should not land, delete, or write")
+        raise AssertionError("unchanged or deferred instruments should not land, delete, or write")
 
     monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
     _stub_snapshot_resolver(monkeypatch)
     monkeypatch.setattr(flows, "fundamental_document_already_ingested", lambda *_: False)
-    monkeypatch.setattr(flows, "fetch_fundamental_ticker", fetch)
+    monkeypatch.setattr(flows, "fetch_fundamental_instrument", fetch)
     monkeypatch.setattr(flows, "parse_fundamental_stock", tasks.parse_fundamental_stock.fn)
     monkeypatch.setattr(flows, "load_fundamental_document_payload_hash", lambda *_: payload_hash)
     monkeypatch.setattr(flows, "write_fundamental_to_landing", fail_if_called)
@@ -586,25 +627,27 @@ async def test_fundamental_flow_defers_remaining_tickers_after_provider_rate_lim
     deferred_calls: list[list[str]] = []
 
     def record_deferred(**kwargs: object) -> BronzeWrite:
-        tickers = list(cast(list[str], kwargs["tickers"]))
-        deferred_calls.append(tickers)
-        return BronzeWrite(rows_written=len(tickers))
+        instruments = list(cast(list[EODHDInstrumentRef], kwargs["instruments"]))
+        deferred_calls.append(
+            [_instrument_key(item.provider_exchange_code, item.provider_instrument_code) for item in instruments]
+        )
+        return BronzeWrite(rows_written=len(instruments))
 
     monkeypatch.setattr(flows, "write_fundamental_deferred_coverage", record_deferred)
 
     summary = await flows.fundamental_flow.fn(
-        tickers=["AAPL.US", "MSFT.US", "GOOG.US"],
+        provider_instruments=[_instrument(), _instrument("US", "MSFT"), _instrument("US", "GOOG")],
         snapshot_date=SNAPSHOT_DATE,
         skip_existing=False,
         batch_size=1,
     )
 
-    assert calls == ["AAPL.US", "MSFT.US"]
+    assert calls == [_instrument_key(), _instrument_key("US", "MSFT")]
     assert summary["provider_quota_exhausted"] is True
-    assert summary["failed"] == ["MSFT.US"]
-    assert summary["deferred"] == ["MSFT.US", "GOOG.US"]
-    assert deferred_calls == [["GOOG.US"]]
-    assert summary["skipped"] == ["AAPL.US", "GOOG.US"]
+    assert summary["failed"] == [_instrument_key("US", "MSFT")]
+    assert summary["deferred"] == [_instrument_key("US", "MSFT"), _instrument_key("US", "GOOG")]
+    assert deferred_calls == [[_instrument_key("US", "GOOG")]]
+    assert summary["skipped"] == [_instrument_key(), _instrument_key("US", "GOOG")]
     assert [unit["reason"] for unit in run.units] == [
         "payload_unchanged",
         "provider_rate_limited",
@@ -621,7 +664,7 @@ def test_delete_fundamental_snapshot_rows_deletes_child_tables_before_document(
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
-    deleted_tables = tasks.delete_fundamental_snapshot_rows.fn("AAPL.US", SNAPSHOT_DATE)
+    deleted_tables = tasks.delete_fundamental_snapshot_rows.fn("US", "AAPL", SNAPSHOT_DATE)
 
     assert deleted_tables == 20
     assert [sql.split("DELETE FROM ", maxsplit=1)[1].split()[0] for sql, _ in lake.executed] == [
@@ -646,4 +689,4 @@ def test_delete_fundamental_snapshot_rows_deletes_child_tables_before_document(
         "bronze.fundamental_stock_identity",
         "bronze.fundamental_document",
     ]
-    assert all(params == [SNAPSHOT_DATE.isoformat(), "AAPL.US", "eodhd"] for _, params in lake.executed)
+    assert all(params == [SNAPSHOT_DATE.isoformat(), "US", "AAPL", "eodhd"] for _, params in lake.executed)

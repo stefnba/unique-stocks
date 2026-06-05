@@ -17,8 +17,8 @@ from core.ingestion.coverage import (
 )
 from domains.eod_price import tasks
 from domains.eod_price.coverage import (
-    EOD_TICKER_BACKFILL_UNIT_TYPE,
-    eod_ticker_backfill_unit_key,
+    EOD_INSTRUMENT_BACKFILL_UNIT_TYPE,
+    eod_instrument_backfill_unit_key,
 )
 from domains.eod_price.models import EODBar
 from domains.instrument.universe import SilverIngestionContractError
@@ -34,19 +34,19 @@ class FakeLake:
         self,
         *,
         instrument_rows: list[dict[str, str]] | None = None,
-        price_tickers: list[str] | None = None,
+        price_instruments: list[str] | None = None,
         price_ranges: dict[str, tuple[date, date]] | None = None,
         selection_coverage_rows: list[dict[str, object]] | None = None,
         tables: set[tuple[str, str]] | None = None,
     ) -> None:
         """Configure query results and table existence."""
         self.instrument_rows = instrument_rows or []
-        self.price_tickers = price_tickers or []
-        self.price_ranges = price_ranges or {ticker: (FROM_DATE, TO_DATE) for ticker in self.price_tickers}
+        self.price_instruments = price_instruments or []
+        self.price_ranges = price_ranges or {instrument: (FROM_DATE, TO_DATE) for instrument in self.price_instruments}
         self.selection_coverage_rows = selection_coverage_rows or []
         self.coverage_rows: list[dict[str, object]] = []
         self.tables = tables or {
-            ("silver", "int_eod_price_backfill_symbol_status"),
+            ("silver", "int_eod_price_backfill_instrument_status"),
             ("silver", "int_eod_price_backfill_no_data_coverage"),
             ("silver", "int_eod_price_backfill_terminal_coverage"),
             ("pipeline", "ingestion_coverage"),
@@ -65,52 +65,52 @@ class FakeLake:
     def query(self, sql: str, params: Sequence[Any] | None = None) -> list[dict[str, Any]]:
         """Return rows based on which table the SQL targets."""
         self.queries.append((sql, params))
-        if "silver.int_eod_price_backfill_symbol_status" in sql:
-            pending, done, covered = self._pending_provider_symbols(params or [])
+        if "silver.int_eod_price_backfill_instrument_status" in sql:
+            pending, done, covered = self._pending_provider_instruments(params or [])
             return [
                 {
-                    "provider_symbol": symbol,
-                    "total_symbols": len(self.instrument_rows),
-                    "completed_price_symbols": len(done),
-                    "terminal_no_data_symbols": len(covered),
+                    "provider_instrument_code": instrument,
+                    "total_instruments": len(self.instrument_rows),
+                    "completed_price_instruments": len(done),
+                    "terminal_no_data_instruments": len(covered),
                 }
-                for symbol in pending
+                for instrument in pending
             ]
         return []
 
-    def _pending_provider_symbols(self, params: Sequence[Any]) -> tuple[list[str], set[str], set[str]]:
-        """Evaluate the combined pending-symbol query for the fake lake."""
+    def _pending_provider_instruments(self, params: Sequence[Any]) -> tuple[list[str], set[str], set[str]]:
+        """Evaluate the combined pending-instrument query for the fake lake."""
         requested_from: date | None = FROM_DATE
         requested_to = TO_DATE
         if len(params) >= 5:
             requested_from = date.fromisoformat(str(params[2])) if params[2] is not None else None
             requested_to = date.fromisoformat(str(params[4]))
-        all_symbols = sorted(str(row["provider_symbol"]) for row in self.instrument_rows)
+        all_instruments = sorted(str(row["provider_instrument_code"]) for row in self.instrument_rows)
         completed_coverage = {
-            str(row["provider_symbol"])
+            str(row["provider_instrument_code"])
             for row in self.selection_coverage_rows
             if row.get("provider_exchange_code") == "US"
             and row.get("from_date") == requested_from
             and row.get("to_date") == requested_to
             and row.get("status") == COVERAGE_STATUS_COMPLETED
-            and row.get("provider_symbol")
+            and row.get("provider_instrument_code")
         }
         done = {
-            ticker
-            for ticker, (min_date, max_date) in self.price_ranges.items()
+            instrument
+            for instrument, (min_date, max_date) in self.price_ranges.items()
             if requested_from is not None and min_date <= requested_from and max_date >= requested_to
         }
         done.update(completed_coverage)
         covered = {
-            str(row["provider_symbol"])
+            str(row["provider_instrument_code"])
             for row in self.selection_coverage_rows
             if row.get("provider_exchange_code") == "US"
             and row.get("from_date") == requested_from
             and row.get("to_date") == requested_to
             and row.get("status", COVERAGE_STATUS_NO_DATA) == COVERAGE_STATUS_NO_DATA
-            and row.get("provider_symbol")
+            and row.get("provider_instrument_code")
         }
-        pending = [symbol for symbol in all_symbols if symbol not in done and symbol not in covered]
+        pending = [instrument for instrument in all_instruments if instrument not in done and instrument not in covered]
         return pending, done, covered
 
     def query_one(self, sql: str, params: Sequence[Any] | None = None) -> dict[str, Any] | None:
@@ -133,25 +133,25 @@ class FakeLake:
 def test_load_backfill_pending_excludes_price_and_no_data_coverage(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Pending symbols omit price rows and exact-range terminal no_data coverage."""
+    """Pending instruments omit price rows and exact-range terminal no_data coverage."""
     lake = FakeLake(
         instrument_rows=[
-            {"provider_symbol": "AAPL.US"},
-            {"provider_symbol": "MSFT.US"},
-            {"provider_symbol": "DELIST.US"},
-            {"provider_symbol": "WIDER.US"},
+            {"provider_instrument_code": "AAPL"},
+            {"provider_instrument_code": "MSFT"},
+            {"provider_instrument_code": "DELIST"},
+            {"provider_instrument_code": "WIDER"},
         ],
-        price_tickers=["AAPL.US"],
+        price_instruments=["AAPL"],
         selection_coverage_rows=[
             {
                 "provider_exchange_code": "US",
-                "provider_symbol": "DELIST.US",
+                "provider_instrument_code": "DELIST",
                 "from_date": FROM_DATE,
                 "to_date": TO_DATE,
             },
             {
                 "provider_exchange_code": "US",
-                "provider_symbol": "WIDER.US",
+                "provider_instrument_code": "WIDER",
                 "from_date": FROM_DATE,
                 "to_date": date(2026, 6, 30),
             },
@@ -161,15 +161,15 @@ def test_load_backfill_pending_excludes_price_and_no_data_coverage(
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
-    pending = tasks.load_backfill_pending_symbols.fn("US", FROM_DATE, TO_DATE)
+    pending = tasks.load_backfill_pending_instruments.fn("US", FROM_DATE, TO_DATE)
 
-    assert pending == ["MSFT.US", "WIDER.US"]
+    assert pending == ["MSFT", "WIDER"]
     sql, params = lake.queries[0]
-    assert "silver.int_eod_price_backfill_symbol_status" in sql
+    assert "silver.int_eod_price_backfill_instrument_status" in sql
     assert "silver.int_eod_price_backfill_terminal_coverage" in sql
     assert "status.data_provider = ?" in sql
     assert "coverage.status = 'completed'" in sql
-    assert "COUNT(*) OVER () AS total_symbols" in sql
+    assert "COUNT(*) OVER () AS total_instruments" in sql
     assert params and params[8] == "eodhd"
     assert "unit_key_json" not in sql
     assert params == [
@@ -192,21 +192,21 @@ def test_load_backfill_pending_keeps_partial_price_history_pending(
     """A recent daily bar should not make a full historical backfill look complete."""
     lake = FakeLake(
         instrument_rows=[
-            {"provider_symbol": "AAPL.US"},
-            {"provider_symbol": "MSFT.US"},
+            {"provider_instrument_code": "AAPL"},
+            {"provider_instrument_code": "MSFT"},
         ],
         price_ranges={
-            "AAPL.US": (date(2026, 5, 31), date(2026, 5, 31)),
-            "MSFT.US": (FROM_DATE, TO_DATE),
+            "AAPL": (date(2026, 5, 31), date(2026, 5, 31)),
+            "MSFT": (FROM_DATE, TO_DATE),
         },
     )
     import core.clients.lake as lake_module
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
-    pending = tasks.load_backfill_pending_symbols.fn("US", FROM_DATE, TO_DATE)
+    pending = tasks.load_backfill_pending_instruments.fn("US", FROM_DATE, TO_DATE)
 
-    assert pending == ["AAPL.US"]
+    assert pending == ["AAPL"]
 
 
 def test_load_backfill_pending_full_history_requires_completed_coverage(
@@ -215,17 +215,17 @@ def test_load_backfill_pending_full_history_requires_completed_coverage(
     """Open-start backfills should not treat daily-only Bronze rows as full history."""
     lake = FakeLake(
         instrument_rows=[
-            {"provider_symbol": "AAPL.US"},
-            {"provider_symbol": "MSFT.US"},
+            {"provider_instrument_code": "AAPL"},
+            {"provider_instrument_code": "MSFT"},
         ],
         price_ranges={
-            "AAPL.US": (date(2026, 5, 31), date(2026, 5, 31)),
-            "MSFT.US": (FROM_DATE, TO_DATE),
+            "AAPL": (date(2026, 5, 31), date(2026, 5, 31)),
+            "MSFT": (FROM_DATE, TO_DATE),
         },
         selection_coverage_rows=[
             {
                 "provider_exchange_code": "US",
-                "provider_symbol": "MSFT.US",
+                "provider_instrument_code": "MSFT",
                 "from_date": None,
                 "to_date": TO_DATE,
                 "status": COVERAGE_STATUS_COMPLETED,
@@ -236,9 +236,9 @@ def test_load_backfill_pending_full_history_requires_completed_coverage(
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
-    pending = tasks.load_backfill_pending_symbols.fn("US", None, TO_DATE)
+    pending = tasks.load_backfill_pending_instruments.fn("US", None, TO_DATE)
 
-    assert pending == ["AAPL.US"]
+    assert pending == ["AAPL"]
     _, params = lake.queries[0]
     assert params == [
         "eodhd",
@@ -259,19 +259,19 @@ def test_load_backfill_pending_ignores_provider_quota_deferred_coverage(
 ) -> None:
     """Quota-deferred audit rows stay pending because the no-data Silver view filters them out."""
     lake = FakeLake(
-        instrument_rows=[{"provider_symbol": "MSFT.US"}],
+        instrument_rows=[{"provider_instrument_code": "MSFT"}],
         selection_coverage_rows=[],
     )
     import core.clients.lake as lake_module
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
-    pending = tasks.load_backfill_pending_symbols.fn("US", FROM_DATE, TO_DATE)
+    pending = tasks.load_backfill_pending_instruments.fn("US", FROM_DATE, TO_DATE)
 
-    assert pending == ["MSFT.US"]
+    assert pending == ["MSFT"]
 
 
-def test_load_backfill_pending_requires_symbol_status_view(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_load_backfill_pending_requires_instrument_status_view(monkeypatch: pytest.MonkeyPatch) -> None:
     """Backfill auto-selection should fail clearly when the dbt status contract is unavailable."""
     lake = FakeLake(
         tables={
@@ -283,26 +283,26 @@ def test_load_backfill_pending_requires_symbol_status_view(monkeypatch: pytest.M
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
-    with pytest.raises(SilverIngestionContractError, match="int_eod_price_backfill_symbol_status"):
-        tasks.load_backfill_pending_symbols.fn("US", FROM_DATE, TO_DATE)
+    with pytest.raises(SilverIngestionContractError, match="int_eod_price_backfill_instrument_status"):
+        tasks.load_backfill_pending_instruments.fn("US", FROM_DATE, TO_DATE)
 
 
 def test_load_backfill_pending_requires_terminal_coverage_view(monkeypatch: pytest.MonkeyPatch) -> None:
     """Backfill auto-selection should fail clearly when the dbt coverage contract is unavailable."""
-    lake = FakeLake(tables={("silver", "int_eod_price_backfill_symbol_status"), ("pipeline", "ingestion_coverage")})
+    lake = FakeLake(tables={("silver", "int_eod_price_backfill_instrument_status"), ("pipeline", "ingestion_coverage")})
     import core.clients.lake as lake_module
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
     with pytest.raises(SilverIngestionContractError, match="int_eod_price_backfill_terminal_coverage"):
-        tasks.load_backfill_pending_symbols.fn("US", FROM_DATE, TO_DATE)
+        tasks.load_backfill_pending_instruments.fn("US", FROM_DATE, TO_DATE)
 
 
 def test_load_missing_eod_backfill_selection_views_reports_absent_contracts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Backfill preflight should identify which Silver selector views need a build."""
-    lake = FakeLake(tables={("silver", "int_eod_price_backfill_symbol_status")})
+    lake = FakeLake(tables={("silver", "int_eod_price_backfill_instrument_status")})
     import core.clients.lake as lake_module
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
@@ -322,7 +322,7 @@ def test_write_eod_backfill_coverage_is_idempotent(monkeypatch: pytest.MonkeyPat
     first = tasks.write_eod_backfill_coverage.fn(
         run_id="018f0000-0000-7000-8000-000000000001",
         provider_exchange_code="US",
-        ticker="AAPL.US",
+        provider_instrument_code="AAPL",
         from_date=FROM_DATE,
         to_date=TO_DATE,
         rows_raw=0,
@@ -330,9 +330,9 @@ def test_write_eod_backfill_coverage_is_idempotent(monkeypatch: pytest.MonkeyPat
         rows_rejected=0,
         source_uri="s3://bucket/landing.jsonl",
     )
-    done_key = eod_ticker_backfill_unit_key(
+    done_key = eod_instrument_backfill_unit_key(
         provider_exchange_code="US",
-        ticker="DONE.US",
+        provider_instrument_code="DONE",
         from_date=FROM_DATE,
         to_date=TO_DATE,
     )
@@ -345,7 +345,7 @@ def test_write_eod_backfill_coverage_is_idempotent(monkeypatch: pytest.MonkeyPat
     second = tasks.write_eod_backfill_coverage.fn(
         run_id="018f0000-0000-7000-8000-000000000002",
         provider_exchange_code="US",
-        ticker="DONE.US",
+        provider_instrument_code="DONE",
         from_date=FROM_DATE,
         to_date=TO_DATE,
         rows_raw=0,
@@ -363,8 +363,8 @@ def test_write_eod_backfill_coverage_is_idempotent(monkeypatch: pytest.MonkeyPat
     assert table == "ingestion_coverage"
     record = records[0]
     assert record["status"] == COVERAGE_STATUS_NO_DATA
-    assert record["unit_type"] == EOD_TICKER_BACKFILL_UNIT_TYPE
-    assert record["unit_key_json"]["ticker"] == "AAPL.US"
+    assert record["unit_type"] == EOD_INSTRUMENT_BACKFILL_UNIT_TYPE
+    assert record["unit_key_json"]["provider_instrument_code"] == "AAPL"
 
 
 def test_write_eod_completed_coverage_records_open_start_window(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -381,7 +381,7 @@ def test_write_eod_completed_coverage_records_open_start_window(monkeypatch: pyt
         to_date=TO_DATE,
         outcomes=[
             {
-                "ticker": "AAPL.US",
+                "provider_instrument_code": "AAPL",
                 "rows_raw": 2,
                 "rows_valid": 2,
                 "rows_rejected": 0,
@@ -396,12 +396,12 @@ def test_write_eod_completed_coverage_records_open_start_window(monkeypatch: pyt
     assert table == "ingestion_coverage"
     record = records[0]
     assert record["status"] == COVERAGE_STATUS_COMPLETED
-    assert record["unit_key_json"]["ticker"] == "AAPL.US"
+    assert record["unit_key_json"]["provider_instrument_code"] == "AAPL"
     assert record["unit_key_json"]["from_date"] is None
     assert record["unit_key_json"]["to_date"] == TO_DATE.isoformat()
 
 
-def test_write_eod_deferred_coverage_records_unsubmitted_tickers(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_write_eod_deferred_coverage_records_unsubmitted_instruments(monkeypatch: pytest.MonkeyPatch) -> None:
     """Provider-deferred backfill units are audited without marking them no_data."""
     lake = FakeLake(tables={("pipeline", "ingestion_coverage")})
     import core.clients.lake as lake_module
@@ -411,7 +411,7 @@ def test_write_eod_deferred_coverage_records_unsubmitted_tickers(monkeypatch: py
     result = tasks.write_eod_backfill_deferred_coverage.fn(
         run_id="018f0000-0000-7000-8000-000000000003",
         provider_exchange_code="US",
-        tickers=["MSFT.US", "GOOG.US"],
+        provider_instrument_codes=["MSFT", "GOOG"],
         from_date=FROM_DATE,
         to_date=TO_DATE,
         reason="provider_rate_limited",
@@ -421,7 +421,7 @@ def test_write_eod_deferred_coverage_records_unsubmitted_tickers(monkeypatch: py
     assert {(schema, table) for schema, table, _ in lake.inserted} == {("pipeline", "ingestion_coverage")}
     records = [record for _, _, batch in lake.inserted for record in batch]
     assert {record["status"] for record in records} == {COVERAGE_STATUS_PROVIDER_QUOTA_DEFERRED}
-    assert {record["unit_key_json"]["ticker"] for record in records} == {"MSFT.US", "GOOG.US"}
+    assert {record["unit_key_json"]["provider_instrument_code"] for record in records} == {"MSFT", "GOOG"}
 
 
 def test_write_backfill_eod_batch_ignores_existing_and_duplicate_bars(
@@ -433,36 +433,48 @@ def test_write_backfill_eod_batch_ignores_existing_and_duplicate_bars(
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
-    existing = _eod_source("0P0001OMXU.AS", date(2022, 2, 8))
+    existing = _eod_source("AS", "0P0001OMXU", date(2022, 2, 8))
     first = tasks.write_backfill_eod_batch.fn([existing], provider_exchange_code="AS")
 
     overlapping = [
-        _eod_source("0P0001OMXU.AS", date(2022, 2, 8)),
-        _eod_source("0P0001OMXU.AS", date(2022, 2, 9)),
-        _eod_source("0P0001OMXU.AS", date(2022, 2, 9)),
+        _eod_source("AS", "0P0001OMXU", date(2022, 2, 8)),
+        _eod_source("AS", "0P0001OMXU", date(2022, 2, 9)),
+        _eod_source("AS", "0P0001OMXU", date(2022, 2, 9)),
     ]
     second = tasks.write_backfill_eod_batch.fn(overlapping, provider_exchange_code="AS")
 
     rows = lake.load(
         "eod_price",
         schema="bronze",
-        columns=["ticker", "bar_date", "data_provider"],
+        columns=["provider_exchange_code", "provider_instrument_code", "bar_date", "data_provider"],
         order_by="bar_date",
     )
     assert first.rows_written == 1
     assert second.rows_written == 1
     assert rows == [
-        {"ticker": "0P0001OMXU.AS", "bar_date": date(2022, 2, 8), "data_provider": "eodhd"},
-        {"ticker": "0P0001OMXU.AS", "bar_date": date(2022, 2, 9), "data_provider": "eodhd"},
+        {
+            "provider_exchange_code": "AS",
+            "provider_instrument_code": "0P0001OMXU",
+            "bar_date": date(2022, 2, 8),
+            "data_provider": "eodhd",
+        },
+        {
+            "provider_exchange_code": "AS",
+            "provider_instrument_code": "0P0001OMXU",
+            "bar_date": date(2022, 2, 9),
+            "data_provider": "eodhd",
+        },
     ]
 
 
-def _eod_source(ticker: str, bar_date: date) -> BronzeParseResult[EODBar]:
+def _eod_source(
+    provider_exchange_code: str, provider_instrument_code: str, bar_date: date
+) -> BronzeParseResult[EODBar]:
     """Build a valid parsed EOD bar source."""
     return BronzeParseResult(
         row=EODBar(
-            provider_exchange_code=ticker.rsplit(".", maxsplit=1)[1],
-            ticker=ticker,
+            provider_exchange_code=provider_exchange_code,
+            provider_instrument_code=provider_instrument_code,
             bar_date=bar_date,
             open=Decimal("10"),
             high=Decimal("12"),

@@ -8,7 +8,7 @@ from typing import Any
 from core.ingestion import BronzeParseResult
 from domains.eod_price.datasets import EOD_PRICE_DATASET
 from domains.eod_price.models import EODBar
-from domains.eod_price.parsers import infer_bulk_bar_date, parse_eod_bars, parse_ticker_bars
+from domains.eod_price.parsers import infer_bulk_bar_date, parse_eod_bars, parse_instrument_bars
 from providers.eodhd.models import EODBulkPriceRaw, EODPriceBarRaw
 
 TARGET_DATE = date(2026, 5, 9)
@@ -30,7 +30,7 @@ def _row(**kwargs: Any) -> EODBulkPriceRaw:
     return EODBulkPriceRaw(**{**base, **kwargs})
 
 
-def _ticker_row(**kwargs: Any) -> EODPriceBarRaw:
+def _instrument_row(**kwargs: Any) -> EODPriceBarRaw:
     """Build an EODPriceBarRaw without the bulk endpoint's code field."""
     base: dict[str, Any] = {
         "date": "2026-05-09",
@@ -48,13 +48,13 @@ class TestParseEodBars:
     """Tests for parse_eod_bars validation and transformation logic."""
 
     def test_valid_row(self) -> None:
-        """Valid row passes through with correct ticker and close price."""
+        """Valid row passes through with correct provider instrument and close price."""
         valid, rejected = parse_eod_bars([_row()], TARGET_DATE, EXCHANGE)
         assert len(valid) == 1
         assert len(rejected) == 0
         bar = valid[0].row
         assert bar.provider_exchange_code == "US"
-        assert bar.ticker == "AAPL.US"
+        assert bar.provider_instrument_code == "AAPL"
         assert bar.close == Decimal("190.75")
         assert valid[0].raw_fragment.code == "AAPL"
 
@@ -107,11 +107,12 @@ class TestParseEodBars:
         assert len(valid) == 1
         assert valid[0].row.adjusted_close is None
 
-    def test_ticker_has_exchange_suffix(self) -> None:
-        """Ticker is constructed as code.exchange."""
+    def test_provider_instrument_code_is_not_exchange_qualified(self) -> None:
+        """Bulk parsing stores provider instrument code separately from exchange code."""
         row = _row(code="TSLA")
         valid, _ = parse_eod_bars([row], TARGET_DATE, "NASDAQ")
-        assert valid[0].row.ticker == "TSLA.NASDAQ"
+        assert valid[0].row.provider_exchange_code == "NASDAQ"
+        assert valid[0].row.provider_instrument_code == "TSLA"
 
     def test_bulk_bar_date_infers_latest_provider_date(self) -> None:
         """Daily runs without an explicit date use the latest returned provider date."""
@@ -119,41 +120,33 @@ class TestParseEodBars:
         assert infer_bulk_bar_date(rows) == TARGET_DATE
 
 
-class TestParseTickerBars:
-    """Tests for per-ticker backfill parser behavior."""
+class TestParseInstrumentBars:
+    """Tests for per-instrument backfill parser behavior."""
 
-    def test_valid_row_uses_qualified_ticker_context(self) -> None:
-        """Per-ticker rows get ticker and exchange from the requested symbol."""
-        raw = _ticker_row()
-        valid, rejected = parse_ticker_bars([raw], ticker="AAPL.US")
+    def test_valid_row_uses_split_instrument_context(self) -> None:
+        """Per-instrument rows get exchange and instrument code from the caller."""
+        raw = _instrument_row()
+        valid, rejected = parse_instrument_bars([raw], provider_exchange_code="US", provider_instrument_code="AAPL")
 
         assert rejected == []
         assert len(valid) == 1
         assert valid[0].row.provider_exchange_code == "US"
-        assert valid[0].row.ticker == "AAPL.US"
+        assert valid[0].row.provider_instrument_code == "AAPL"
         assert valid[0].row.close == Decimal("190.75")
         assert valid[0].raw_fragment is raw
 
-    def test_unqualified_ticker_rejected(self) -> None:
-        """Backfill parsing rejects rows when the caller omits the exchange suffix."""
-        raw = _ticker_row()
-        valid, rejected = parse_ticker_bars([raw], ticker="AAPL")
-
-        assert valid == []
-        assert rejected == [raw]
-
     def test_ohlc_invariant_rejected(self) -> None:
-        """Per-ticker rows use the same OHLC validation as bulk rows."""
-        raw = _ticker_row(close=195.00)
-        valid, rejected = parse_ticker_bars([raw], ticker="AAPL.US")
+        """Per-instrument rows use the same OHLC validation as bulk rows."""
+        raw = _instrument_row(close=195.00)
+        valid, rejected = parse_instrument_bars([raw], provider_exchange_code="US", provider_instrument_code="AAPL")
 
         assert valid == []
         assert rejected == [raw]
 
     def test_dates_are_not_filtered_by_daily_target(self) -> None:
         """Historical backfills keep every provider row in the requested range."""
-        rows = [_ticker_row(date="2026-05-08"), _ticker_row(date="2026-05-09")]
-        valid, rejected = parse_ticker_bars(rows, ticker="AAPL.US")
+        rows = [_instrument_row(date="2026-05-08"), _instrument_row(date="2026-05-09")]
+        valid, rejected = parse_instrument_bars(rows, provider_exchange_code="US", provider_instrument_code="AAPL")
 
         assert rejected == []
         assert [source.row.bar_date for source in valid] == [date(2026, 5, 8), date(2026, 5, 9)]
@@ -166,7 +159,7 @@ class TestEodBarBronzeRecord:
         """Bronze record includes a 64-char SHA-256 row_hash."""
         bar = EODBar(
             provider_exchange_code="US",
-            ticker="AAPL.US",
+            provider_instrument_code="AAPL",
             bar_date=date(2026, 5, 9),
             open=Decimal("189.50"),
             high=Decimal("191.20"),
@@ -186,7 +179,7 @@ class TestEodBarBronzeRecord:
         """Same bar always produces the same row_hash."""
         bar = EODBar(
             provider_exchange_code="US",
-            ticker="AAPL.US",
+            provider_instrument_code="AAPL",
             bar_date=date(2026, 5, 9),
             open=Decimal("189.50"),
             high=Decimal("191.20"),

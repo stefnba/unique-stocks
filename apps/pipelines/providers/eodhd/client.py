@@ -62,7 +62,7 @@ class EODHDClient(HttpClientBase):
         provider_exchange_code: str,
         bar_date: date | None = None,
     ) -> list[EODBulkPriceRaw]:
-        """All tickers for an EODHD exchange code on one date.
+        """All provider instruments for an EODHD exchange code on one date.
 
         If ``bar_date`` is omitted, EODHD returns its latest available trading
         day for the exchange.

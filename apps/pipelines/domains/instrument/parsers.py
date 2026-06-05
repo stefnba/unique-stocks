@@ -23,7 +23,7 @@ def parse_instrument_snapshots(
         lambda raw: InstrumentSnapshot(
             snapshot_date=snapshot_date,
             provider_exchange_code=provider_exchange_code,
-            ticker=raw.ticker,
+            provider_instrument_code=raw.provider_instrument_code,
             name=raw.name,
             country=raw.country,
             provider_listing_exchange_code=raw.provider_listing_exchange_code,
@@ -34,7 +34,7 @@ def parse_instrument_snapshots(
         on_rejected=lambda raw, exc: log.warning(
             "instrument.parse_rejected",
             provider_exchange_code=provider_exchange_code,
-            ticker=raw.ticker,
+            provider_instrument_code=raw.provider_instrument_code,
             error=str(exc),
         ),
     )

@@ -6,7 +6,7 @@ SILVER_SCHEMA = "silver"
 INSTRUMENT_UNIVERSE_TABLE = "int_latest_instrument_universe"
 FUNDAMENTAL_INGESTION_UNIVERSE_TABLE = "int_fundamental_ingestion_universe"
 FUNDAMENTAL_DOCUMENT_COMPLETION_TABLE = "int_fundamental_document_completion"
-EOD_PRICE_BACKFILL_SYMBOL_STATUS_TABLE = "int_eod_price_backfill_symbol_status"
+EOD_PRICE_BACKFILL_INSTRUMENT_STATUS_TABLE = "int_eod_price_backfill_instrument_status"
 EOD_PRICE_BACKFILL_NO_DATA_COVERAGE_TABLE = "int_eod_price_backfill_no_data_coverage"
 EOD_PRICE_BACKFILL_TERMINAL_COVERAGE_TABLE = "int_eod_price_backfill_terminal_coverage"
 
@@ -57,7 +57,7 @@ def require_instrument_universe(lake: InstrumentUniverseLake) -> str:
 
 __all__ = [
     "EOD_PRICE_BACKFILL_NO_DATA_COVERAGE_TABLE",
-    "EOD_PRICE_BACKFILL_SYMBOL_STATUS_TABLE",
+    "EOD_PRICE_BACKFILL_INSTRUMENT_STATUS_TABLE",
     "EOD_PRICE_BACKFILL_TERMINAL_COVERAGE_TABLE",
     "FUNDAMENTAL_DOCUMENT_COMPLETION_TABLE",
     "FUNDAMENTAL_INGESTION_UNIVERSE_TABLE",

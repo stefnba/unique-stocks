@@ -98,18 +98,18 @@ def _provider_rate_limit_error(symbol: str) -> ProviderRateLimitError:
 
 async def _write_empty_landing(
     raw_bars: list[EODPriceBarRaw],
-    symbol: str,
     provider_exchange_code: str,
+    provider_instrument_code: str,
     from_date: date | None,
     to_date: date,
 ) -> LandingWrite:
-    """Return a fake landing record for a fetched symbol."""
+    """Return a fake landing record for a fetched instrument."""
     return LandingWrite(
         dataset="eod_price.backfill",
-        source_uri=f"s3://bucket/eod_price/{symbol}.jsonl",
+        source_uri=f"s3://bucket/eod_price/{provider_exchange_code}/{provider_instrument_code}.jsonl",
         partition={
             "provider_exchange_code": provider_exchange_code,
-            "ticker": symbol,
+            "provider_instrument_code": provider_instrument_code,
             "from_date": from_date,
             "to_date": to_date,
         },
@@ -194,32 +194,37 @@ async def test_eod_daily_provider_latest_still_fetches_without_trade_date(monkey
 
 
 @pytest.mark.asyncio
-async def test_eod_backfill_provider_call_budget_limits_submitted_symbols(
+async def test_eod_backfill_provider_call_budget_limits_submitted_instruments(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """max_provider_calls caps scheduled per-symbol fetches so a later run can resume from Bronze."""
+    """max_provider_calls caps scheduled per-instrument fetches so a later run can resume from Bronze."""
     run = FakeRun()
     calls: list[str] = []
 
-    async def fetch(symbol: str, _: date, __: date) -> list[EODPriceBarRaw]:
-        calls.append(symbol)
+    async def fetch(
+        provider_exchange_code: str,
+        provider_instrument_code: str,
+        _: date,
+        __: date,
+    ) -> list[EODPriceBarRaw]:
+        calls.append(f"{provider_exchange_code}:{provider_instrument_code}")
         return []
 
     monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
-    monkeypatch.setattr(flows, "load_backfill_pending_symbols", lambda *_: ["AAPL.US", "MSFT.US", "GOOG.US"])
-    monkeypatch.setattr(flows, "fetch_ticker_eod_history", fetch)
-    monkeypatch.setattr(flows, "write_ticker_eod_history_to_landing", _write_empty_landing)
+    monkeypatch.setattr(flows, "load_backfill_pending_instruments", lambda *_: ["AAPL", "MSFT", "GOOG"])
+    monkeypatch.setattr(flows, "fetch_instrument_eod_history", fetch)
+    monkeypatch.setattr(flows, "write_instrument_eod_history_to_landing", _write_empty_landing)
     coverage_calls: list[str] = []
     deferred_calls: list[list[str]] = []
 
     def record_coverage(**kwargs: object) -> BronzeWrite:
-        coverage_calls.append(str(kwargs["ticker"]))
+        coverage_calls.append(str(kwargs["provider_instrument_code"]))
         return BronzeWrite(rows_written=1)
 
     def record_deferred(**kwargs: object) -> BronzeWrite:
-        tickers = list(cast(list[str], kwargs["tickers"]))
-        deferred_calls.append(tickers)
-        return BronzeWrite(rows_written=len(tickers))
+        instruments = list(cast(list[str], kwargs["provider_instrument_codes"]))
+        deferred_calls.append(instruments)
+        return BronzeWrite(rows_written=len(instruments))
 
     monkeypatch.setattr(flows, "write_eod_backfill_coverage", record_coverage)
     monkeypatch.setattr(flows, "write_eod_backfill_deferred_coverage", record_deferred)
@@ -232,15 +237,15 @@ async def test_eod_backfill_provider_call_budget_limits_submitted_symbols(
         max_provider_calls=1,
     )
 
-    assert coverage_calls == ["AAPL.US"]
-    assert deferred_calls == [["MSFT.US", "GOOG.US"]]
+    assert coverage_calls == ["AAPL"]
+    assert deferred_calls == [["MSFT", "GOOG"]]
 
-    assert calls == ["AAPL.US"]
+    assert calls == ["US:AAPL"]
     assert summary["provider_quota_exhausted"] is True
     assert summary["provider_calls"] == {"max": 1, "submitted": 1, "deferred": 2}
     exchange = cast(dict[str, dict[str, object]], summary["exchange"])
-    assert exchange["US"]["symbols_pending"] == 3
-    assert exchange["US"]["symbols_deferred"] == 2
+    assert exchange["US"]["instruments_pending"] == 3
+    assert exchange["US"]["instruments_deferred"] == 2
     assert run.completed_summary == summary
 
 
@@ -251,15 +256,20 @@ async def test_eod_backfill_defaults_to_full_history_and_records_completed_cover
     """Omitting from_date should request provider full history and mark the window completed."""
     run = FakeRun()
     pending_calls: list[tuple[str, date | None, date]] = []
-    fetch_calls: list[tuple[str, date | None, date]] = []
+    fetch_calls: list[tuple[str, str, date | None, date]] = []
     completed_calls: list[dict[str, object]] = []
 
     def load_pending(provider_exchange_code: str, from_date: date | None, to_date: date) -> list[str]:
         pending_calls.append((provider_exchange_code, from_date, to_date))
-        return ["AAPL.US"]
+        return ["AAPL"]
 
-    async def fetch(symbol: str, from_date: date | None, to_date: date) -> list[EODPriceBarRaw]:
-        fetch_calls.append((symbol, from_date, to_date))
+    async def fetch(
+        provider_exchange_code: str,
+        provider_instrument_code: str,
+        from_date: date | None,
+        to_date: date,
+    ) -> list[EODPriceBarRaw]:
+        fetch_calls.append((provider_exchange_code, provider_instrument_code, from_date, to_date))
         return [_valid_bar()]
 
     def write_completed(**kwargs: object) -> BronzeWrite:
@@ -268,9 +278,9 @@ async def test_eod_backfill_defaults_to_full_history_and_records_completed_cover
         return BronzeWrite(rows_written=len(outcomes))
 
     monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
-    monkeypatch.setattr(flows, "load_backfill_pending_symbols", load_pending)
-    monkeypatch.setattr(flows, "fetch_ticker_eod_history", fetch)
-    monkeypatch.setattr(flows, "write_ticker_eod_history_to_landing", _write_empty_landing)
+    monkeypatch.setattr(flows, "load_backfill_pending_instruments", load_pending)
+    monkeypatch.setattr(flows, "fetch_instrument_eod_history", fetch)
+    monkeypatch.setattr(flows, "write_instrument_eod_history_to_landing", _write_empty_landing)
     monkeypatch.setattr(flows, "write_backfill_eod_batch", lambda sources, **_: BronzeWrite(rows_written=len(sources)))
     monkeypatch.setattr(flows, "write_eod_backfill_completed_coverage", write_completed)
 
@@ -282,7 +292,7 @@ async def test_eod_backfill_defaults_to_full_history_and_records_completed_cover
 
     assert summary["from_date"] is None
     assert pending_calls == [("US", None, TO_DATE)]
-    assert fetch_calls == [("AAPL.US", None, TO_DATE)]
+    assert fetch_calls == [("US", "AAPL", None, TO_DATE)]
     unit_key = cast(dict[str, object], run.units[0]["unit_key"])
     assert unit_key["from_date"] is None
     assert completed_calls == [
@@ -293,11 +303,11 @@ async def test_eod_backfill_defaults_to_full_history_and_records_completed_cover
             "to_date": TO_DATE,
             "outcomes": [
                 {
-                    "ticker": "AAPL.US",
+                    "provider_instrument_code": "AAPL",
                     "rows_raw": 1,
                     "rows_valid": 1,
                     "rows_rejected": 0,
-                    "source_uri": "s3://bucket/eod_price/AAPL.US.jsonl",
+                    "source_uri": "s3://bucket/eod_price/US/AAPL.jsonl",
                 }
             ],
         }
@@ -311,7 +321,7 @@ async def test_eod_backfill_builds_missing_selection_views_before_pending_select
     """Historical backfill can bootstrap missing Silver selector views before selection."""
     run = FakeRun()
     missing_responses = [
-        ["int_eod_price_backfill_symbol_status", "int_eod_price_backfill_terminal_coverage"],
+        ["int_eod_price_backfill_instrument_status", "int_eod_price_backfill_terminal_coverage"],
         [],
     ]
     pending_calls: list[str] = []
@@ -336,7 +346,7 @@ async def test_eod_backfill_builds_missing_selection_views_before_pending_select
     monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
     monkeypatch.setattr(flows, "load_missing_eod_backfill_selection_views", load_missing_views)
     monkeypatch.setattr(flows, "run_dbt_build_deployment", build_price)
-    monkeypatch.setattr(flows, "load_backfill_pending_symbols", load_pending)
+    monkeypatch.setattr(flows, "load_backfill_pending_instruments", load_pending)
 
     summary = await flows.eod_price_backfill_flow.fn(
         from_date=FROM_DATE,
@@ -359,28 +369,33 @@ async def test_eod_backfill_builds_missing_selection_views_before_pending_select
         "build": "price-build",
         "deployment": "dbt-build/price-build",
         "reason": "missing_selection_views",
-        "missing_before": ["int_eod_price_backfill_symbol_status", "int_eod_price_backfill_terminal_coverage"],
+        "missing_before": ["int_eod_price_backfill_instrument_status", "int_eod_price_backfill_terminal_coverage"],
         "missing_after": [],
     }
-    assert summary["exchange"] == {"US": {"symbols": 0, "rows": 0}}
+    assert summary["exchange"] == {"US": {"instruments": 0, "rows": 0}}
 
 
 @pytest.mark.asyncio
 async def test_eod_backfill_stops_after_provider_rate_limit(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A 429 stops later backfill batches instead of failing every remaining symbol."""
+    """A 429 stops later backfill batches instead of failing every remaining instrument."""
     run = FakeRun()
     calls: list[str] = []
 
-    async def fetch(symbol: str, _: date, __: date) -> list[EODPriceBarRaw]:
-        calls.append(symbol)
-        if symbol == "MSFT.US":
-            raise _provider_rate_limit_error(symbol)
+    async def fetch(
+        provider_exchange_code: str,
+        provider_instrument_code: str,
+        _: date,
+        __: date,
+    ) -> list[EODPriceBarRaw]:
+        calls.append(f"{provider_exchange_code}:{provider_instrument_code}")
+        if provider_instrument_code == "MSFT":
+            raise _provider_rate_limit_error(f"{provider_instrument_code}.{provider_exchange_code}")
         return []
 
     monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
-    monkeypatch.setattr(flows, "load_backfill_pending_symbols", lambda *_: ["AAPL.US", "MSFT.US", "GOOG.US"])
-    monkeypatch.setattr(flows, "fetch_ticker_eod_history", fetch)
-    monkeypatch.setattr(flows, "write_ticker_eod_history_to_landing", _write_empty_landing)
+    monkeypatch.setattr(flows, "load_backfill_pending_instruments", lambda *_: ["AAPL", "MSFT", "GOOG"])
+    monkeypatch.setattr(flows, "fetch_instrument_eod_history", fetch)
+    monkeypatch.setattr(flows, "write_instrument_eod_history_to_landing", _write_empty_landing)
     monkeypatch.setattr(
         flows,
         "write_eod_backfill_coverage",
@@ -389,9 +404,9 @@ async def test_eod_backfill_stops_after_provider_rate_limit(monkeypatch: pytest.
     deferred_calls: list[list[str]] = []
 
     def record_deferred(**kwargs: object) -> BronzeWrite:
-        tickers = list(cast(list[str], kwargs["tickers"]))
-        deferred_calls.append(tickers)
-        return BronzeWrite(rows_written=len(tickers))
+        instruments = list(cast(list[str], kwargs["provider_instrument_codes"]))
+        deferred_calls.append(instruments)
+        return BronzeWrite(rows_written=len(instruments))
 
     monkeypatch.setattr(flows, "write_eod_backfill_deferred_coverage", record_deferred)
 
@@ -402,16 +417,16 @@ async def test_eod_backfill_stops_after_provider_rate_limit(monkeypatch: pytest.
         batch_size=1,
     )
 
-    assert calls == ["AAPL.US", "MSFT.US"]
+    assert calls == ["US:AAPL", "US:MSFT"]
     assert summary["provider_quota_exhausted"] is True
-    assert summary["failed_symbols"] == ["MSFT.US"]
-    assert deferred_calls == [["GOOG.US"]]
+    assert summary["failed_instruments"] == ["MSFT"]
+    assert deferred_calls == [["GOOG"]]
     exchange = cast(dict[str, dict[str, object]], summary["exchange"])
-    assert exchange["US"]["symbols_deferred"] == 1
+    assert exchange["US"]["instruments_deferred"] == 1
     assert [unit.get("reason") for unit in run.units] == [
         "no_valid_rows",
         "provider_rate_limited",
-        "symbol_failures",
+        "instrument_failures",
     ]
 
 
@@ -422,16 +437,16 @@ async def test_eod_backfill_all_rejected_rows_do_not_write_no_data_coverage(
     """Parser failures should remain retryable instead of being marked terminal no_data."""
     run = FakeRun()
 
-    async def fetch(_: str, __: date, ___: date) -> list[EODPriceBarRaw]:
+    async def fetch(_: str, __: str, ___: date, ____: date) -> list[EODPriceBarRaw]:
         return [_rejected_bar()]
 
     def fail_coverage(**_: object) -> BronzeWrite:
         raise AssertionError("all rejected rows should not be recorded as no_data coverage")
 
     monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
-    monkeypatch.setattr(flows, "load_backfill_pending_symbols", lambda *_: ["AAPL.US"])
-    monkeypatch.setattr(flows, "fetch_ticker_eod_history", fetch)
-    monkeypatch.setattr(flows, "write_ticker_eod_history_to_landing", _write_empty_landing)
+    monkeypatch.setattr(flows, "load_backfill_pending_instruments", lambda *_: ["AAPL"])
+    monkeypatch.setattr(flows, "fetch_instrument_eod_history", fetch)
+    monkeypatch.setattr(flows, "write_instrument_eod_history_to_landing", _write_empty_landing)
     monkeypatch.setattr(flows, "write_eod_backfill_coverage", fail_coverage)
     monkeypatch.setattr(
         flows,

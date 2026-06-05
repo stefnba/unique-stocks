@@ -43,15 +43,15 @@ def test_require_instrument_universe_raises_clear_contract_error() -> None:
 
 def test_require_silver_ingestion_model_returns_qualified_name() -> None:
     """Generic ingestion-control contracts should resolve through Silver."""
-    lake = FakeLake({("silver", "int_eod_price_backfill_symbol_status")})
+    lake = FakeLake({("silver", "int_eod_price_backfill_instrument_status")})
 
     assert (
         require_silver_ingestion_model(
             lake,
-            "int_eod_price_backfill_symbol_status",
+            "int_eod_price_backfill_instrument_status",
             build_hint="dbt-build/price-build",
         )
-        == "silver.int_eod_price_backfill_symbol_status"
+        == "silver.int_eod_price_backfill_instrument_status"
     )
 
 
@@ -62,6 +62,6 @@ def test_require_silver_ingestion_model_raises_clear_contract_error() -> None:
     with pytest.raises(SilverIngestionContractError, match="dbt-build/price-build"):
         require_silver_ingestion_model(
             lake,
-            "int_eod_price_backfill_symbol_status",
+            "int_eod_price_backfill_instrument_status",
             build_hint="dbt-build/price-build",
         )

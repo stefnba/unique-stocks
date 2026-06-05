@@ -78,7 +78,7 @@ class PipelineRunsTable(TableModel):
 
 
 class PipelineRunUnitRow(BaseModel):
-    """One audited pipeline work unit, such as one exchange/date or ticker range."""
+    """One audited pipeline work unit, such as one exchange/date or instrument range."""
 
     unit_id: Annotated[UUID | None, SqlColumn(SQL_UUID, nullable=True, default="GEN_RANDOM_UUID()")] = None
     run_id: Annotated[UUID, SqlColumn(SQL_UUID)]
