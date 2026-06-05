@@ -152,10 +152,10 @@ Current audit tables are defined in `lake/schema.py` and applied through lake sc
 - `pipeline.dbt_invocations`
 - `pipeline.dbt_node_results`
 
-`pipeline.ingestion_coverage` stores terminal non-Bronze outcomes that make
-reruns resume-safe, such as EOD backfill `no_data` for an exact ticker/date
-range. See [docs/pipeline_audit.md](docs/pipeline_audit.md) for table
-semantics, statuses, and the integration pattern.
+`pipeline.ingestion_coverage` stores non-Bronze outcomes that make reruns
+resume-safe, such as EOD backfill `completed` and `no_data` markers for an exact
+ticker/date window. See [docs/pipeline_audit.md](docs/pipeline_audit.md) for
+table semantics, statuses, and the integration pattern.
 
 ## Pipeline dashboard
 

@@ -28,13 +28,14 @@ class EODPriceBackfillPartition(LandingPartitionSchema):
     Attributes:
         provider_exchange_code: Provider exchange code requested from EODHD.
         ticker: Qualified ticker being backfilled.
-        from_date: Inclusive backfill start date.
+        from_date: Inclusive backfill start date, or ``"all"`` when the
+            provider start parameter is omitted.
         to_date: Inclusive backfill end date.
     """
 
     provider_exchange_code: str
     ticker: str
-    from_date: date
+    from_date: date | str
     to_date: date
 
 

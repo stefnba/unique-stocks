@@ -100,7 +100,7 @@ async def _write_empty_landing(
     raw_bars: list[EODPriceBarRaw],
     symbol: str,
     provider_exchange_code: str,
-    from_date: date,
+    from_date: date | None,
     to_date: date,
 ) -> LandingWrite:
     """Return a fake landing record for a fetched symbol."""
@@ -128,6 +128,21 @@ def _rejected_bar() -> EODPriceBarRaw:
             "close": 85.0,
             "volume": 100,
             "adjusted_close": 85.0,
+        }
+    )
+
+
+def _valid_bar() -> EODPriceBarRaw:
+    """Build a provider row that passes OHLC validation."""
+    return EODPriceBarRaw.model_validate(
+        {
+            "date": "2026-05-09",
+            "open": 100.0,
+            "high": 110.0,
+            "low": 90.0,
+            "close": 105.0,
+            "volume": 100,
+            "adjusted_close": 105.0,
         }
     )
 
@@ -230,13 +245,73 @@ async def test_eod_backfill_provider_call_budget_limits_submitted_symbols(
 
 
 @pytest.mark.asyncio
+async def test_eod_backfill_defaults_to_full_history_and_records_completed_coverage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Omitting from_date should request provider full history and mark the window completed."""
+    run = FakeRun()
+    pending_calls: list[tuple[str, date | None, date]] = []
+    fetch_calls: list[tuple[str, date | None, date]] = []
+    completed_calls: list[dict[str, object]] = []
+
+    def load_pending(provider_exchange_code: str, from_date: date | None, to_date: date) -> list[str]:
+        pending_calls.append((provider_exchange_code, from_date, to_date))
+        return ["AAPL.US"]
+
+    async def fetch(symbol: str, from_date: date | None, to_date: date) -> list[EODPriceBarRaw]:
+        fetch_calls.append((symbol, from_date, to_date))
+        return [_valid_bar()]
+
+    def write_completed(**kwargs: object) -> BronzeWrite:
+        completed_calls.append(kwargs)
+        outcomes = cast(list[dict[str, object]], kwargs["outcomes"])
+        return BronzeWrite(rows_written=len(outcomes))
+
+    monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
+    monkeypatch.setattr(flows, "load_backfill_pending_symbols", load_pending)
+    monkeypatch.setattr(flows, "fetch_ticker_eod_history", fetch)
+    monkeypatch.setattr(flows, "write_ticker_eod_history_to_landing", _write_empty_landing)
+    monkeypatch.setattr(flows, "write_backfill_eod_batch", lambda sources, **_: BronzeWrite(rows_written=len(sources)))
+    monkeypatch.setattr(flows, "write_eod_backfill_completed_coverage", write_completed)
+
+    summary = await flows.eod_price_backfill_flow.fn(
+        to_date=TO_DATE,
+        provider_exchange_codes=["US"],
+        batch_size=1,
+    )
+
+    assert summary["from_date"] is None
+    assert pending_calls == [("US", None, TO_DATE)]
+    assert fetch_calls == [("AAPL.US", None, TO_DATE)]
+    unit_key = cast(dict[str, object], run.units[0]["unit_key"])
+    assert unit_key["from_date"] is None
+    assert completed_calls == [
+        {
+            "run_id": "run-1",
+            "provider_exchange_code": "US",
+            "from_date": None,
+            "to_date": TO_DATE,
+            "outcomes": [
+                {
+                    "ticker": "AAPL.US",
+                    "rows_raw": 1,
+                    "rows_valid": 1,
+                    "rows_rejected": 0,
+                    "source_uri": "s3://bucket/eod_price/AAPL.US.jsonl",
+                }
+            ],
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_eod_backfill_builds_missing_selection_views_before_pending_selection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Historical backfill can bootstrap missing Silver selector views before selection."""
     run = FakeRun()
     missing_responses = [
-        ["int_eod_price_backfill_symbol_status", "int_eod_price_backfill_no_data_coverage"],
+        ["int_eod_price_backfill_symbol_status", "int_eod_price_backfill_terminal_coverage"],
         [],
     ]
     pending_calls: list[str] = []
@@ -285,7 +360,7 @@ async def test_eod_backfill_builds_missing_selection_views_before_pending_select
         "build": "price-build",
         "deployment": "dbt-build/price-build",
         "reason": "missing_selection_views",
-        "missing_before": ["int_eod_price_backfill_symbol_status", "int_eod_price_backfill_no_data_coverage"],
+        "missing_before": ["int_eod_price_backfill_symbol_status", "int_eod_price_backfill_terminal_coverage"],
         "missing_after": [],
     }
     assert summary["exchange"] == {"US": {"symbols": 0, "rows": 0}}

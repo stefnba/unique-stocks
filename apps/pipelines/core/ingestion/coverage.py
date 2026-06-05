@@ -1,8 +1,9 @@
 """Cross-domain pipeline coverage for resumable ingestion partitions.
 
-``pipeline.ingestion_coverage`` stores durable terminal outcomes per work unit
-(aligned with ``pipeline.run_units`` grain) so flows can skip partitions on
-re-run - for example after HTTP 429 quota exhaustion or an empty provider result.
+``pipeline.ingestion_coverage`` stores durable outcomes per work unit (aligned
+with ``pipeline.run_units`` grain) so flows can skip or defer partitions on
+re-run - for example after a completed open-window backfill, HTTP 429 quota
+exhaustion, or an empty provider result.
 
 Coverage rows are pipeline metadata, not bronze market data. Domains choose
 ``unit_type`` and ``unit_key`` conventions; see domain READMEs for examples.
@@ -22,7 +23,8 @@ from lake.schema import PIPELINE_INGESTION_COVERAGE_TABLE, PipelineIngestionCove
 
 INGESTION_COVERAGE_TABLE_NAME = PIPELINE_INGESTION_COVERAGE_TABLE.table_name
 
-CoverageStatus = Literal["no_data", "provider_quota_deferred"]
+CoverageStatus = Literal["completed", "no_data", "provider_quota_deferred"]
+COVERAGE_STATUS_COMPLETED: CoverageStatus = "completed"
 COVERAGE_STATUS_NO_DATA: CoverageStatus = "no_data"
 COVERAGE_STATUS_PROVIDER_QUOTA_DEFERRED: CoverageStatus = "provider_quota_deferred"
 

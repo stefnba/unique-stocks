@@ -32,6 +32,7 @@ from core.transforms import run_dbt_build_after_ingestion, run_dbt_build_deploym
 from domains.eod_price.models import EODBar
 from domains.eod_price.parsers import infer_bulk_bar_date, parse_ticker_bars
 from domains.eod_price.tasks import (
+    EODBackfillCoverageOutcome,
     eod_price_already_ingested,
     fetch_eod_price_bulk,
     fetch_eod_provider_exchange_codes,
@@ -41,6 +42,7 @@ from domains.eod_price.tasks import (
     parse_eod_price,
     write_backfill_eod_batch,
     write_bronze_eod_price,
+    write_eod_backfill_completed_coverage,
     write_eod_backfill_coverage,
     write_eod_backfill_deferred_coverage,
     write_eod_price_to_landing,
@@ -363,6 +365,11 @@ def _all_units_skipped(*, total: int, skipped: int) -> bool:
     return total == 0 or skipped == total
 
 
+def _iso_date(value: date | None) -> str | None:
+    """Return an ISO date string, preserving open-start backfill windows as null."""
+    return value.isoformat() if value else None
+
+
 async def _build_price_selection_views_if_missing(*, parent_run_id: str) -> dict[str, object]:
     """Build price Silver selector views when historical backfill needs them."""
     missing_before = load_missing_eod_backfill_selection_views()
@@ -403,11 +410,11 @@ async def _build_price_selection_views_if_missing(*, parent_run_id: str) -> dict
     name="eod-price-backfill",
     description=(
         "Historical EOD backfill via the per-ticker endpoint (one API call per symbol, any date range). "
-        "Requires from_date at run time. Skips symbols already present in bronze.eod_price."
+        "Defaults to full provider history through to_date. Skips symbols already completed for the window."
     ),
 )
 async def eod_price_backfill_flow(
-    from_date: date,
+    from_date: date | None = None,
     to_date: date | None = None,
     provider_exchange_codes: list[str] | None = None,
     batch_size: int = 50,
@@ -422,9 +429,11 @@ async def eod_price_backfill_flow(
     batch all bars are committed to bronze before the next batch starts,
     giving natural checkpoints for resume on failure.
 
-    A symbol is skipped when the dbt-built Silver completion view shows
-    ``bronze.eod_price`` spans the requested range, or when the dbt-built
-    no-data coverage view has the exact same backfill unit key:
+    ``from_date = None`` omits the provider ``from`` parameter and requests all
+    available EODHD history through ``to_date``. A symbol is skipped when the
+    dbt-built Silver completion view shows ``bronze.eod_price`` spans an
+    explicit requested range, or when the dbt-built terminal coverage view has
+    the exact same backfill unit key:
     ``provider_exchange_code``, ticker, ``from_date``, and ``to_date``.
     Re-runs are safe after rebuilding those Silver views. To retry a symbol,
     delete its price and/or coverage rows for that exchange partition first.
@@ -435,7 +444,8 @@ async def eod_price_backfill_flow(
     and reference flows.
 
     Args:
-        from_date: Earliest bar date to request from the provider.
+        from_date: Earliest bar date to request from the provider. Omit to
+            retrieve all available provider history.
         to_date: Latest bar date. Defaults to today.
         provider_exchange_codes: Provider catalog/API codes to backfill. Defaults
             to all provider codes present in the exchange ingestion universe.
@@ -444,7 +454,7 @@ async def eod_price_backfill_flow(
             At batch_size=50 and ~0.75 s/call the flow can process ~5 k
             symbols/hour, well within the daily quota.
         max_provider_calls: Optional cap on per-symbol provider fetches submitted
-            during this run. Re-run later with the same date range to resume from
+            during this run. Re-run later with the same date window to resume from
             the Silver completion/no-data coverage pending-symbol detection.
         build_selection_views_if_missing: When true, launch
             ``dbt-build/price-build`` before pending-symbol selection if the
@@ -463,7 +473,7 @@ async def eod_price_backfill_flow(
     total_valid = 0
     total_rejected = 0
     summary: dict = {
-        "from_date": from_date.isoformat(),
+        "from_date": _iso_date(from_date),
         "to_date": to_date.isoformat(),
         "exchange": {},
         "failed_symbols": [],
@@ -484,7 +494,7 @@ async def eod_price_backfill_flow(
         run_kind="historical_backfill",
         provider="eodhd",
         parameters={
-            "from_date": from_date.isoformat(),
+            "from_date": _iso_date(from_date),
             "to_date": to_date.isoformat(),
             "provider_exchange_codes": provider_exchange_codes,
             "batch_size": batch_size,
@@ -522,7 +532,7 @@ async def eod_price_backfill_flow(
                         unit_type="exchange_backfill",
                         unit_key={
                             "provider_exchange_code": provider_exchange_code,
-                            "from_date": from_date.isoformat(),
+                            "from_date": _iso_date(from_date),
                             "to_date": to_date.isoformat(),
                         },
                         status="skipped",
@@ -556,7 +566,7 @@ async def eod_price_backfill_flow(
                             unit_type="exchange_backfill",
                             unit_key={
                                 "provider_exchange_code": provider_exchange_code,
-                                "from_date": from_date.isoformat(),
+                                "from_date": _iso_date(from_date),
                                 "to_date": to_date.isoformat(),
                             },
                             status="skipped",
@@ -600,13 +610,14 @@ async def eod_price_backfill_flow(
                     unit_records: list[RunUnitRecord] = []
                     landing_records: list[LandingObjectRecord] = []
                     rejection_records: list[RejectionRecord] = []
+                    completed_coverage_outcomes: list[EODBackfillCoverageOutcome] = []
 
                     for sym, result in zip(batch_symbols, raw_results, strict=True):
                         unit_id = str(uuid.uuid4())
                         unit_key: dict[str, object] = {
                             "provider_exchange_code": provider_exchange_code,
                             "ticker": sym,
-                            "from_date": from_date.isoformat(),
+                            "from_date": _iso_date(from_date),
                             "to_date": to_date.isoformat(),
                         }
                         if isinstance(result, ValidationError):
@@ -675,6 +686,15 @@ async def eod_price_backfill_flow(
                             log.warning("backfill.parse_rejections", symbol=sym, count=rejected)
                         if valid:
                             batch_sources.extend(attach_source_uri(valid, landing.source_uri))
+                            completed_coverage_outcomes.append(
+                                {
+                                    "ticker": sym,
+                                    "rows_raw": len(result),
+                                    "rows_valid": len(valid),
+                                    "rows_rejected": rejected,
+                                    "source_uri": landing.source_uri,
+                                }
+                            )
                         elif not result:
                             write_eod_backfill_coverage(
                                 run_id=str(run.run_id),
@@ -728,6 +748,13 @@ async def eod_price_backfill_flow(
                         )
                         batch_written = bronze_batch.rows_written
                         exchange_written += batch_written
+                        write_eod_backfill_completed_coverage(
+                            run_id=str(run.run_id),
+                            provider_exchange_code=provider_exchange_code,
+                            from_date=from_date,
+                            to_date=to_date,
+                            outcomes=completed_coverage_outcomes,
+                        )
 
                     run.record_units(unit_records)
                     run.record_landing_objects(landing_records)
@@ -770,7 +797,7 @@ async def eod_price_backfill_flow(
                     unit_type="exchange_backfill",
                     unit_key={
                         "provider_exchange_code": provider_exchange_code,
-                        "from_date": from_date.isoformat(),
+                        "from_date": _iso_date(from_date),
                         "to_date": to_date.isoformat(),
                     },
                     status=exchange_status,

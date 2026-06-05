@@ -7,7 +7,7 @@ Prefect flows and tasks for end-of-day OHLCV ingestion from EODHD.
 | Flow                 | Endpoint grain                               | Lake output                                       |
 | -------------------- | -------------------------------------------- | ------------------------------------------------- |
 | `eod-price-daily`    | One bulk call per exchange per trade date    | `bronze.eod_price`                                |
-| `eod-price-backfill` | One call per qualified ticker and date range | `bronze.eod_price`, `pipeline.ingestion_coverage` |
+| `eod-price-backfill` | One call per qualified ticker and date window | `bronze.eod_price`, `pipeline.ingestion_coverage` |
 
 Deployments are defined in `prefect.yaml` (`eod-price-daily`, `eod-price-backfill`).
 
@@ -17,16 +17,21 @@ Backfill pending symbols are computed in `load_backfill_pending_symbols`:
 
 ```text
 pending = silver.int_eod_price_backfill_symbol_status provider_symbol values for the exchange
-        - tickers whose min/max completed bars span the requested date range
-        - tickers in silver.int_eod_price_backfill_no_data_coverage for the exact date range
+        - tickers whose min/max completed bars span an explicit requested date range
+        - tickers in silver.int_eod_price_backfill_terminal_coverage for the exact requested window
 ```
+
+Omit `from_date` on `eod-price-backfill/historical-backfill` to request each
+symbol's full available EODHD history through `to_date` (default: today). In that
+open-start mode, `from_date` is stored as JSON `null` in the backfill unit key
+and the raw landing object uses `from_date=all`.
 
 Use `max_provider_calls` on `eod-price-backfill/historical-backfill` to stop
 before the provider's daily call quota. For example, if the provider account has
 100k daily calls and the exchange universe is 150k symbols, run with a cap below
-100k, then re-run the next day with the same `from_date`/`to_date`. The next run
+100k, then re-run the next day with the same `from_date`/`to_date` window. The next run
 recomputes pending symbols from the Silver backfill symbol-status view and
-Silver exact-range no-data coverage, then continues with the remaining tickers.
+Silver exact-window terminal coverage, then continues with the remaining tickers.
 
 If the provider returns HTTP 429, the flow stops scheduling later batches. The
 429 ticker is recorded as a failed run unit, unscheduled tickers get
@@ -42,13 +47,12 @@ Cross-domain pipeline table; EOD backfill uses:
 | `domain`        | `eod_price`                                                      |
 | `unit_type`     | `ticker_backfill`                                                |
 | `unit_key_json` | `{provider_exchange_code, ticker, from_date, to_date}`           |
-| `status`        | `no_data` after fetch+landing returned no rows; `provider_quota_deferred` for unsubmitted quota-deferred work |
-| `reason`        | `no_valid_rows`                                                  |
+| `status`        | `completed` after valid Bronze rows are written; `no_data` after fetch+landing returned no rows; `provider_quota_deferred` for unsubmitted quota-deferred work |
+| `reason`        | `price_rows_completed`, `no_valid_rows`, or the quota deferral reason |
 
-Helpers: `domains/eod_price/coverage.py` (unit key builder), `core/ingestion/coverage.py` (generic write/idempotency). dbt exposes EOD no-data rows through `silver.int_eod_price_backfill_no_data_coverage`; Python pending selection does not parse coverage JSON directly.
+Helpers: `domains/eod_price/coverage.py` (unit key builder), `core/ingestion/coverage.py` (generic write/idempotency). dbt exposes EOD terminal rows through `silver.int_eod_price_backfill_terminal_coverage`; Python pending selection does not parse coverage JSON directly.
 
-Only `no_data` coverage removes a ticker from pending-symbol planning. `provider_quota_deferred` is an audit row for
-unsubmitted work and deliberately leaves the ticker pending.
+`completed` and `no_data` coverage remove a ticker from pending-symbol planning for the exact requested window. `provider_quota_deferred` is an audit row for unsubmitted work and deliberately leaves the ticker pending.
 
 **Not written** as `no_data` for fetch failures, HTTP 429, or all-rows-rejected parser outcomes - those symbols stay pending (Bronze idempotency handles completed symbols).
 
@@ -59,9 +63,9 @@ Fundamentals also uses the same table with `domain = 'fundamental'`, `unit_type 
 
 ```sql
 SELECT provider_symbol, unit_key_hash, rows_raw, rows_valid, source_uri
-FROM silver.int_eod_price_backfill_no_data_coverage
+FROM silver.int_eod_price_backfill_terminal_coverage
 WHERE provider_exchange_code = 'US'
-  AND from_date = DATE '2026-05-01'
+  AND from_date IS NULL
   AND to_date = DATE '2026-05-31';
 ```
 

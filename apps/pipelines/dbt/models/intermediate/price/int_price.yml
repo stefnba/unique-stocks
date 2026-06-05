@@ -92,9 +92,7 @@ models:
         data_tests:
           - not_null
       - name: from_date
-        description: Inclusive start date of the no-data backfill range.
-        data_tests:
-          - not_null
+        description: Inclusive start date of the no-data backfill range; null means the provider start parameter was omitted.
       - name: to_date
         description: Inclusive end date of the no-data backfill range.
         data_tests:
@@ -115,5 +113,61 @@ models:
         description: Landing object URI associated with the no-data outcome.
       - name: recorded_at
         description: Timestamp when the no-data coverage was recorded.
+        data_tests:
+          - not_null
+
+  - name: int_eod_price_backfill_terminal_coverage
+    description: Ingestion-control view of exact-window completed and no-data EOD backfill outcomes.
+    config:
+      tags:
+        - ingestion_control
+    columns:
+      - name: data_provider
+        description: Provider for the covered backfill unit.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: provider_exchange_code
+        description: Provider exchange code in the backfill unit key.
+        data_tests:
+          - not_null
+      - name: provider_symbol
+        description: Exchange-qualified provider symbol in the backfill unit key.
+        data_tests:
+          - not_null
+      - name: from_date
+        description: Inclusive start date of the backfill window; null means the provider start parameter was omitted.
+      - name: to_date
+        description: Inclusive end date of the backfill window.
+        data_tests:
+          - not_null
+      - name: unit_key_hash
+        description: Stable hash of the exact backfill unit key.
+        data_tests:
+          - not_null
+      - name: status
+        description: Terminal coverage status for the backfill unit.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - completed
+                  - no_data
+      - name: reason
+        description: Domain reason for the terminal coverage outcome.
+      - name: rows_raw
+        description: Raw rows observed for the backfill unit.
+      - name: rows_valid
+        description: Valid rows observed for the backfill unit.
+      - name: rows_rejected
+        description: Rejected rows observed for the backfill unit.
+      - name: source_uri
+        description: Landing object URI associated with the terminal outcome.
+      - name: recorded_at
+        description: Timestamp when the terminal coverage was recorded.
         data_tests:
           - not_null

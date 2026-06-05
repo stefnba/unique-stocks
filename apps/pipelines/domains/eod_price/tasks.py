@@ -5,6 +5,7 @@ fetch, validate, or write. No business logic.
 """
 
 from datetime import UTC, date, datetime
+from typing import TypedDict
 
 import structlog
 from prefect import task
@@ -16,6 +17,7 @@ from config.blocks import BlockRegistry
 from core.clients.http.base import ProviderRateLimitError
 from core.ingestion import BronzeParseResult, BronzeWrite, LandingWrite
 from core.ingestion.coverage import (
+    COVERAGE_STATUS_COMPLETED,
     COVERAGE_STATUS_NO_DATA,
     COVERAGE_STATUS_PROVIDER_QUOTA_DEFERRED,
     ingestion_coverage_recorded,
@@ -28,6 +30,7 @@ from .coverage import (
     EOD_PRICE_DOMAIN,
     EOD_TICKER_BACKFILL_UNIT_TYPE,
     NO_VALID_ROWS_COVERAGE_REASON,
+    PRICE_ROWS_COMPLETED_COVERAGE_REASON,
     eod_provider,
     eod_ticker_backfill_unit_key,
 )
@@ -36,6 +39,17 @@ from .models import EODBar
 from .parsers import parse_eod_bars
 
 log = structlog.get_logger(__name__)
+_FULL_HISTORY_LANDING_FROM_DATE = "all"
+
+
+class EODBackfillCoverageOutcome(TypedDict):
+    """Successful per-ticker backfill outcome to record after Bronze writes."""
+
+    ticker: str
+    rows_raw: int
+    rows_valid: int
+    rows_rejected: int
+    source_uri: str
 
 
 @task(name="fetch-eod-provider-exchange-codes")
@@ -128,7 +142,7 @@ async def write_ticker_eod_history_to_landing(
     raw_bars: list[EODPriceBarRaw],
     symbol: str,
     provider_exchange_code: str,
-    from_date: date,
+    from_date: date | None,
     to_date: date,
     ingested_at: datetime | None = None,
 ) -> LandingWrite:
@@ -144,7 +158,7 @@ async def write_ticker_eod_history_to_landing(
         partitions={
             "provider_exchange_code": provider_exchange_code,
             "ticker": symbol,
-            "from_date": from_date,
+            "from_date": from_date or _FULL_HISTORY_LANDING_FROM_DATE,
             "to_date": to_date,
         },
         ingested_at=stamp,
@@ -155,7 +169,7 @@ async def write_ticker_eod_history_to_landing(
         partitions={
             "provider_exchange_code": provider_exchange_code,
             "ticker": symbol,
-            "from_date": from_date,
+            "from_date": from_date or _FULL_HISTORY_LANDING_FROM_DATE,
             "to_date": to_date,
         },
         rows_raw=len(raw_bars),
@@ -268,28 +282,32 @@ def eod_price_already_ingested(provider_exchange_code: str, bar_date: date) -> b
     name="load-backfill-pending-symbols",
     task_run_name="load-backfill-pending-symbols-{provider_exchange_code}",
 )
-def load_backfill_pending_symbols(provider_exchange_code: str, from_date: date, to_date: date) -> list[str]:
-    """Symbols that still need historical EOD data for the given exchange.
+def load_backfill_pending_symbols(provider_exchange_code: str, from_date: date | None, to_date: date) -> list[str]:
+    """Symbols that still need historical EOD data for the given exchange/window.
 
     Returns fully-qualified symbols (e.g. ``["AAPL.US", "MSFT.US"]``).
     A symbol is excluded from pending when either:
 
-    - ``silver.int_eod_price_backfill_symbol_status`` spans the requested date range, or
-    - ``silver.int_eod_price_backfill_no_data_coverage`` has the exact range.
+    - ``silver.int_eod_price_backfill_symbol_status`` spans an explicit requested
+      date range,
+    - ``silver.int_eod_price_backfill_terminal_coverage`` has a completed row for
+      the exact requested window, or
+    - ``silver.int_eod_price_backfill_terminal_coverage`` has a no-data row for
+      the exact requested window.
 
     Coverage rows are generic pipeline metadata (not bronze market data). dbt parses
-    the EOD no-data subset into a Silver ingestion-control view so Python does not
+    the EOD terminal subset into a Silver ingestion-control view so Python does not
     read coverage JSON directly. Delete coverage or price rows and rebuild the
-    Silver views to force a retry. The ``no_data`` coverage match includes both
-    ``from_date`` and ``to_date`` because a wider later backfill can become valid.
+    Silver views to force a retry. Coverage matches include both ``from_date``
+    and ``to_date`` because a wider later backfill can become valid.
 
     Source of truth for what *should* be ingested:
     ``silver.int_eod_price_backfill_symbol_status``.
     """
     from core.clients.lake import get_lake_client
     from domains.instrument.universe import (
-        EOD_PRICE_BACKFILL_NO_DATA_COVERAGE_TABLE,
         EOD_PRICE_BACKFILL_SYMBOL_STATUS_TABLE,
+        EOD_PRICE_BACKFILL_TERMINAL_COVERAGE_TABLE,
         require_silver_ingestion_model,
     )
 
@@ -299,26 +317,44 @@ def load_backfill_pending_symbols(provider_exchange_code: str, from_date: date, 
         EOD_PRICE_BACKFILL_SYMBOL_STATUS_TABLE,
         build_hint="dbt-build/price-build",
     )
-    no_data_coverage_q = require_silver_ingestion_model(
+    terminal_coverage_q = require_silver_ingestion_model(
         lake,
-        EOD_PRICE_BACKFILL_NO_DATA_COVERAGE_TABLE,
+        EOD_PRICE_BACKFILL_TERMINAL_COVERAGE_TABLE,
         build_hint="dbt-build/price-build",
     )
+    from_date_param = from_date.isoformat() if from_date else None
+    to_date_param = to_date.isoformat()
 
     rows = lake.query(
         f"""
-        WITH scoped_symbols AS (
+        WITH terminal_coverage AS (
+            SELECT
+                coverage.data_provider,
+                coverage.provider_exchange_code,
+                coverage.provider_symbol,
+                BOOL_OR(coverage.status = 'completed') AS has_completed_coverage,
+                BOOL_OR(coverage.status = 'no_data') AS has_no_data_coverage
+            FROM {terminal_coverage_q} AS coverage
+            WHERE coverage.data_provider = ?
+              AND coverage.provider_exchange_code = ?
+              AND ((? IS NULL AND coverage.from_date IS NULL) OR coverage.from_date = ?)
+              AND coverage.to_date = ?
+            GROUP BY 1, 2, 3
+        ),
+        scoped_symbols AS (
             SELECT
                 status.provider_symbol,
-                COALESCE(status.min_bar_date <= ? AND status.max_bar_date >= ?, FALSE) AS is_done,
-                coverage.provider_symbol IS NOT NULL AS is_covered
+                COALESCE(coverage.has_completed_coverage, FALSE)
+                    OR (
+                        ? IS NOT NULL
+                        AND COALESCE(status.min_bar_date <= ? AND status.max_bar_date >= ?, FALSE)
+                    ) AS is_done,
+                COALESCE(coverage.has_no_data_coverage, FALSE) AS is_covered
             FROM {symbol_status_q} AS status
-            LEFT JOIN {no_data_coverage_q} AS coverage
+            LEFT JOIN terminal_coverage AS coverage
                 ON coverage.data_provider = status.data_provider
                 AND coverage.provider_exchange_code = status.provider_exchange_code
                 AND coverage.provider_symbol = status.provider_symbol
-                AND coverage.from_date = ?
-                AND coverage.to_date = ?
             WHERE status.data_provider = ?
               AND status.provider_exchange_code = ?
         )
@@ -326,17 +362,21 @@ def load_backfill_pending_symbols(provider_exchange_code: str, from_date: date, 
             provider_symbol,
             COUNT(*) OVER () AS total_symbols,
             SUM(CASE WHEN is_done THEN 1 ELSE 0 END) OVER () AS completed_price_symbols,
-            SUM(CASE WHEN is_covered THEN 1 ELSE 0 END) OVER () AS no_data_coverage_symbols
+            SUM(CASE WHEN is_covered THEN 1 ELSE 0 END) OVER () AS terminal_no_data_symbols
         FROM scoped_symbols
         WHERE NOT is_done
           AND NOT is_covered
         ORDER BY provider_symbol
         """,
         [
-            from_date.isoformat(),
-            to_date.isoformat(),
-            from_date.isoformat(),
-            to_date.isoformat(),
+            str(EOD_PRICE_DATASET.provider),
+            provider_exchange_code,
+            from_date_param,
+            from_date_param,
+            to_date_param,
+            from_date_param,
+            from_date_param,
+            to_date_param,
             str(EOD_PRICE_DATASET.provider),
             provider_exchange_code,
         ],
@@ -346,11 +386,11 @@ def load_backfill_pending_symbols(provider_exchange_code: str, from_date: date, 
     log.info(
         "backfill.pending_loaded",
         provider_exchange_code=provider_exchange_code,
-        from_date=from_date.isoformat(),
-        to_date=to_date.isoformat(),
+        from_date=from_date_param,
+        to_date=to_date_param,
         total=stats.get("total_symbols"),
         done=stats.get("completed_price_symbols"),
-        covered=stats.get("no_data_coverage_symbols"),
+        covered=stats.get("terminal_no_data_symbols"),
         pending=len(pending),
     )
     return pending
@@ -361,15 +401,15 @@ def load_missing_eod_backfill_selection_views() -> list[str]:
     """Return required Silver backfill selector views that are missing."""
     from core.clients.lake import get_lake_client
     from domains.instrument.universe import (
-        EOD_PRICE_BACKFILL_NO_DATA_COVERAGE_TABLE,
         EOD_PRICE_BACKFILL_SYMBOL_STATUS_TABLE,
+        EOD_PRICE_BACKFILL_TERMINAL_COVERAGE_TABLE,
         SILVER_SCHEMA,
     )
 
     lake = get_lake_client()
     required = (
         EOD_PRICE_BACKFILL_SYMBOL_STATUS_TABLE,
-        EOD_PRICE_BACKFILL_NO_DATA_COVERAGE_TABLE,
+        EOD_PRICE_BACKFILL_TERMINAL_COVERAGE_TABLE,
     )
     missing = [table for table in required if not lake.table_exists(SILVER_SCHEMA, table)]
     log.info("backfill.selection_views_checked", missing=missing, ready=not missing)
@@ -385,7 +425,7 @@ def write_eod_backfill_deferred_coverage(
     run_id: str,
     provider_exchange_code: str,
     tickers: list[str],
-    from_date: date,
+    from_date: date | None,
     to_date: date,
     reason: str,
 ) -> BronzeWrite:
@@ -437,7 +477,7 @@ def write_eod_backfill_coverage(
     run_id: str,
     provider_exchange_code: str,
     ticker: str,
-    from_date: date,
+    from_date: date | None,
     to_date: date,
     rows_raw: int,
     rows_valid: int,
@@ -507,6 +547,65 @@ def write_eod_backfill_coverage(
 
 
 @task(
+    name="write-eod-backfill-completed-coverage",
+    task_run_name="write-eod-backfill-completed-coverage-{provider_exchange_code}",
+)
+def write_eod_backfill_completed_coverage(
+    *,
+    run_id: str,
+    provider_exchange_code: str,
+    from_date: date | None,
+    to_date: date,
+    outcomes: list[EODBackfillCoverageOutcome],
+) -> BronzeWrite:
+    """Record completed per-ticker backfill outcomes for exact-window resume.
+
+    Bronze rows remain the source of market data truth. This coverage row is
+    orchestration metadata that lets an open-start/full-history backfill skip a
+    symbol on re-run without mistaking a daily one-off bar for full history.
+    """
+    from core.clients.lake import get_lake_client
+
+    if not outcomes:
+        return BronzeWrite(rows_written=0, reason="no_outcomes")
+
+    lake = get_lake_client()
+    written = 0
+    recorded_at = datetime.now(UTC)
+    for outcome in outcomes:
+        unit_key = eod_ticker_backfill_unit_key(
+            provider_exchange_code=provider_exchange_code,
+            ticker=outcome["ticker"],
+            from_date=from_date,
+            to_date=to_date,
+        )
+        written += record_ingestion_coverage(
+            lake,
+            run_id=run_id,
+            domain=EOD_PRICE_DOMAIN,
+            provider=eod_provider(),
+            unit_type=EOD_TICKER_BACKFILL_UNIT_TYPE,
+            unit_key=unit_key,
+            status=COVERAGE_STATUS_COMPLETED,
+            reason=PRICE_ROWS_COMPLETED_COVERAGE_REASON,
+            rows_raw=outcome["rows_raw"],
+            rows_valid=outcome["rows_valid"],
+            rows_rejected=outcome["rows_rejected"],
+            source_uri=outcome["source_uri"],
+            recorded_at=recorded_at,
+        )
+
+    log.info(
+        "backfill.completed_coverage_written",
+        run_id=run_id,
+        provider_exchange_code=provider_exchange_code,
+        outcomes=len(outcomes),
+        rows=written,
+    )
+    return BronzeWrite(rows_written=written, reason="already_recorded" if written == 0 else None)
+
+
+@task(
     name="fetch-ticker-eod-history",
     task_run_name="fetch-ticker-eod-history-{symbol}",
     retries=2,
@@ -515,12 +614,14 @@ def write_eod_backfill_coverage(
 )
 async def fetch_ticker_eod_history(
     symbol: str,
-    from_date: date,
+    from_date: date | None,
     to_date: date,
 ) -> list[EODPriceBarRaw]:
     """Fetch full OHLCV history for one instrument.
 
     One API call regardless of date range length.
+    If ``from_date`` is omitted, the provider returns all available history
+    through ``to_date``.
     ``symbol`` must be exchange-qualified, e.g. ``AAPL.US``, ``BTC-USD.CC``.
     """
     log.info("backfill.fetch_start", symbol=symbol, from_date=from_date, to_date=to_date)

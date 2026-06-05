@@ -11,7 +11,7 @@ what partitions were attempted, skipped, failed, landed, parsed, rejected, and w
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `pipeline.runs`               | One row per logical pipeline invocation, including the Prefect flow run id when available.                                                                                                                             |
 | `pipeline.run_units`          | One row per domain work unit, such as an exchange/date, ticker backfill range, schedule code, or future fundamental period.                                                                                            |
-| `pipeline.ingestion_coverage` | Cross-domain partition coverage/audit facts for resumable ingestion (`no_data`, `provider_quota_deferred`, etc.). Same unit grain as `run_units` via `domain` + `unit_type` + `unit_key_json`. Not bronze market data. |
+| `pipeline.ingestion_coverage` | Cross-domain partition coverage/audit facts for resumable ingestion (`completed`, `no_data`, `provider_quota_deferred`, etc.). Same unit grain as `run_units` via `domain` + `unit_type` + `unit_key_json`. Not bronze market data. |
 | `pipeline.landing_objects`    | Raw S3 landing objects produced or consumed by a run, linked to the run and optional work unit.                                                                                                                        |
 | `pipeline.rejections`         | Sampled structured parser rejection records. Counts on runs/units are exhaustive; row samples are capped to keep audit volume bounded.                                                                                 |
 | `pipeline.dbt_invocations`    | One row per dbt command run by the dbt Prefect flow.                                                                                                                                                                   |
@@ -33,11 +33,12 @@ Use `pipeline.run_units` for drill-down and replay/debugging. It stores the doma
 reason, source URI, per-unit row counters, and per-unit error details.
 
 Use `pipeline.ingestion_coverage` for partition facts that should survive across runs but are not Bronze market data.
-For example, EOD historical backfill writes a `no_data` coverage row only after a provider fetch and landing write
-succeed but the provider returns no bars for the exact ticker/date-range unit. Later backfill runs use those `no_data`
-rows, together with `bronze.eod_price`, to compute pending symbols. `provider_quota_deferred` rows are different: they
-explain work that was not submitted because a provider quota or credit cap stopped scheduling. They are audit breadcrumbs,
-not completion markers, and those units remain retryable.
+For example, EOD historical backfill writes a `completed` coverage row after valid bars are written to Bronze, and a
+`no_data` coverage row only after a provider fetch and landing write succeed but the provider returns no bars for the
+exact ticker/date-window unit. Later backfill runs use those terminal coverage rows, together with `bronze.eod_price`,
+to compute pending symbols. `provider_quota_deferred` rows are different: they explain work that was not submitted
+because a provider quota or credit cap stopped scheduling. They are audit breadcrumbs, not completion markers, and
+those units remain retryable.
 
 Example for one EOD backfill invocation:
 
@@ -125,7 +126,7 @@ The main audit helpers live under `core.ingestion`:
 | `PipelineRunScope.record_unit(...)`              | Record one unit when there is no landing object to link.             |
 | `PipelineRunScope.record_unit_with_landing(...)` | Record one unit plus its landing object in loop-oriented flows.      |
 | `PipelineRunScope.unit_record(...)`              | Build a unit row for batched inserts, especially backfills.          |
-| `record_ingestion_coverage(...)`                 | Record terminal non-Bronze coverage rows for resume planning.        |
+| `record_ingestion_coverage(...)`                 | Record non-Bronze coverage rows for resume planning.                 |
 | `list_ingestion_coverage_unit_keys(...)`         | Query coverage rows, with JSON unit-key filters pushed into SQL.     |
 | `PipelineRunScope.landing_object_record(...)`    | Build a landing-object row for batched inserts.                      |
 | `PipelineRunScope.rejection_record(...)`         | Build a sampled parser rejection row bound to the active run/domain. |

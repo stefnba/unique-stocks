@@ -115,8 +115,9 @@ class PipelineIngestionCoverageRow(BaseModel):
 
     Aligns with ``pipeline.run_units`` grain via ``domain``, ``unit_type``, and
     ``unit_key_json``. Used when a partition should be skipped on later runs —
-    for example ``no_data`` after a successful provider call with zero valid rows,
-    or ``provider_quota_deferred`` when a flow stops before calling the provider.
+    for example ``completed`` after a successful open-window backfill,
+    ``no_data`` after a successful provider call with zero valid rows, or
+    ``provider_quota_deferred`` when a flow stops before calling the provider.
     """
 
     coverage_id: Annotated[UUID | None, SqlColumn(SQL_UUID, nullable=True, default="GEN_RANDOM_UUID()")] = None

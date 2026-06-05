@@ -23,7 +23,7 @@ sources:
           - name: unit_key_json
             description: JSON object identifying the domain work unit.
           - name: status
-            description: Coverage outcome status, such as no_data or provider_quota_deferred.
+            description: Coverage outcome status, such as completed, no_data, or provider_quota_deferred.
           - name: reason
             description: Optional domain reason for the coverage outcome.
           - name: rows_raw

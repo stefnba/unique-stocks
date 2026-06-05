@@ -40,6 +40,7 @@ models:
           - accepted_values:
               arguments:
                 values:
+                  - completed
                   - no_data
                   - provider_quota_deferred
       - name: reason
