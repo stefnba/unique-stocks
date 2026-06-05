@@ -312,7 +312,12 @@ make dbt-run
 make dbt-test
 make dbt-run-staging
 make dbt-run-marts
+make dbt-docs-generate
+make dbt-docs-serve
+make dbt-docs
 ```
+
+`make dbt-docs` generates and serves the local dbt documentation site, including the model/source lineage graph and live warehouse column types. Close local DuckDB viewers such as TablePlus before running it, because dbt needs to inspect the warehouse catalog. Run `make dbt-build` or `make dbt-seed` first if you need seed column types. Override `DBT_DOCS_PORT` if port `8080` is already in use.
 
 For dbt sources, naming, mart-shape, key, lineage, testing, and materialization conventions, see [`dbt/README.md#conventions`](dbt/README.md#conventions).
 

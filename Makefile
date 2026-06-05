@@ -3,7 +3,8 @@
         pipelines-install pipelines-test pipelines-check pipelines-lint pipelines-typecheck pipelines-dashboard \
         pipelines-worker pipelines-deploy \
         infra-up infra-up-prod infra-down infra-down-volumes infra-logs infra-logs-pipelines infra-logs-dashboard infra-ps \
-        dbt-install dbt-debug dbt-compile dbt-run dbt-test dbt-build dbt-clean dbt-run-staging dbt-run-marts
+        dbt-install dbt-debug dbt-compile dbt-run dbt-test dbt-build dbt-clean dbt-run-staging dbt-run-marts \
+        dbt-docs-generate dbt-docs-serve dbt-docs
 
 # ── Colours ────────────────────────────────────────────────────────────────
 BOLD  := \033[1m
@@ -117,3 +118,12 @@ dbt-run-staging: ## Run staging (Silver) models only
 
 dbt-run-marts: ## Run mart (Gold) models only
 	$(MAKE) -C $(PIPELINES_DIR) dbt-run-marts
+
+dbt-docs-generate: ## Generate dbt docs and lineage artifacts
+	$(MAKE) -C $(PIPELINES_DIR) dbt-docs-generate
+
+dbt-docs-serve: ## Serve generated dbt docs and lineage graph
+	$(MAKE) -C $(PIPELINES_DIR) dbt-docs-serve
+
+dbt-docs: ## Generate and serve dbt docs
+	$(MAKE) -C $(PIPELINES_DIR) dbt-docs

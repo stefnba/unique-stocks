@@ -28,6 +28,23 @@ Intermediate models are optional Silver building blocks used when logic is too r
 
 Gold marts are the final business-ready models. They turn staged and intermediate data into dimensions and facts that downstream analytics, dashboards, and applications can query directly.
 
+### Docs Site
+
+Use the local dbt docs site to inspect models, sources, tests, columns, and the lineage graph in a browser:
+
+```bash
+make dbt-docs-generate
+make dbt-docs-serve
+```
+
+For convenience, `make dbt-docs` runs both steps and serves the generated site at `http://127.0.0.1:8080`. It uses live warehouse catalog metadata, so the docs site can show column types. Close local DuckDB viewers such as TablePlus before running it, because dbt needs to inspect the warehouse catalog. Run `make dbt-build` or `make dbt-seed` first if you need seed column types.
+
+Override `DBT_DOCS_PORT` or `DBT_DOCS_HOST` when needed:
+
+```bash
+make dbt-docs DBT_DOCS_PORT=8081
+```
+
 ### Model Layers
 
 Use layer prefixes consistently:

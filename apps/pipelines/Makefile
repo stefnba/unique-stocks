@@ -7,6 +7,7 @@
         lake-env-guard lake-reset-local lake-migration lake-migration-status lake-ensure-database lake-migrate blocks-save setup s3-landing-zone \
         deploy deploy-dry deploy-upsert \
         dbt-install dbt-debug dbt-compile dbt-seed dbt-run dbt-test dbt-build dbt-clean dbt-run-staging dbt-run-marts \
+        dbt-docs-generate dbt-docs-serve dbt-docs \
         lake-ui
 
 # Load .env if it exists so PREFECT_API_URL etc. are available to Make targets
@@ -21,6 +22,8 @@ LAKE_TABLES_REF := lake.schema:ALL_TABLES
 DBT_DIR := dbt
 DBT_TARGET ?= dev
 DBT_DUCKDB_PATH ?= $(LOCAL_LAKE_PATH)
+DBT_DOCS_HOST ?= 127.0.0.1
+DBT_DOCS_PORT ?= 8080
 UV_CACHE_DIR ?= $(CURDIR)/.uv-cache
 export UV_CACHE_DIR
 UV := UV_CACHE_DIR="$(UV_CACHE_DIR)" uv
@@ -236,3 +239,13 @@ dbt-run-staging: lake-env-guard lake-ensure-database ## Run staging (Silver) mod
 
 dbt-run-marts: lake-env-guard lake-ensure-database ## Run mart (Gold) models only
 	$(DBT) run $(DBT_FLAGS) --select path:models/marts
+
+dbt-docs-generate: lake-env-guard lake-ensure-database ## Generate dbt docs with live warehouse catalog metadata
+	$(DBT) docs generate $(DBT_FLAGS)
+
+dbt-docs-serve: lake-env-guard lake-ensure-database ## Serve generated dbt docs and lineage graph
+	@echo "Serving dbt docs at http://$(DBT_DOCS_HOST):$(DBT_DOCS_PORT)"
+	$(DBT) docs serve $(DBT_FLAGS) --host $(DBT_DOCS_HOST) --port $(DBT_DOCS_PORT) --no-browser
+
+dbt-docs: dbt-docs-generate ## Generate and serve dbt docs
+	$(MAKE) dbt-docs-serve
