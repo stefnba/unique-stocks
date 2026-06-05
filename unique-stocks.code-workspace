@@ -48,6 +48,8 @@
             "editor.defaultFormatter": "sqlfluff.vscode-sqlfluff",
             "editor.formatOnSave": true
         },
+        // --- markdownlint ---
+        "markdownlint.configFile": "${workspaceFolder}/.markdownlint.json",
         // --- DuckDB ---
         "duckdb.databases": [
             {
@@ -60,12 +62,15 @@
         ],
         "duckdb.defaultDatabase": "unique_stocks",
         // --- YAML ---
+        "yaml.format.enable": true,
         "[yaml]": {
-            "editor.defaultFormatter": "esbenp.prettier-vscode"
+            "editor.defaultFormatter": "esbenp.prettier-vscode",
+            "editor.formatOnSave": true
         },
         // --- Markdown ---
         "[markdown]": {
-            "editor.defaultFormatter": "esbenp.prettier-vscode"
+            "editor.defaultFormatter": "esbenp.prettier-vscode",
+            "editor.formatOnSave": true
         },
         // --- JSON ---
         "[json]": {

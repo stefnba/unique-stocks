@@ -17,24 +17,27 @@ repos:
         files: ^apps/pipelines/
         types_or: [python, pyi]
 
-      - id: pipelines-sqlfluff-fix
-        name: pipelines sqlfluff fix
+      - id: pipelines-sqlfluff-lint
+        name: pipelines sqlfluff lint
         entry: apps/pipelines/scripts/run_uv.sh
-        args: [sqlfluff, fix, --disable-progress-bar]
+        args: [sqlfluff, lint, --disable-progress-bar]
         language: script
-        files: ^apps/pipelines/(dbt|lake/migrations)/.*\.sql$
+        files: ^apps/pipelines/(dbt/(macros|models|tests)|lake/migrations)/.*\.sql$
         types: [sql]
 
-      - id: markdown-format
-        name: markdown format
-        entry: apps/pipelines/scripts/run_uv.sh
-        args: [mdformat, --wrap, keep, --extensions, gfm]
-        language: script
-        types_or: [markdown]
+      - id: prettier-format
+        name: prettier format markdown/yaml
+        entry: prettier --write
+        args: [--ignore-unknown]
+        language: node
+        additional_dependencies: [prettier@3.8.3]
+        types_or: [markdown, yaml]
 
-      - id: yaml-lint
-        name: yaml lint
-        entry: apps/pipelines/scripts/run_uv.sh
-        args: [yamllint, -c, .yamllint]
-        language: script
-        types_or: [yaml]
+      - id: prettier-check
+        name: prettier check markdown/yaml
+        entry: prettier --check
+        args: [--ignore-unknown]
+        language: node
+        additional_dependencies: [prettier@3.8.3]
+        types_or: [markdown, yaml]
+        stages: [manual]

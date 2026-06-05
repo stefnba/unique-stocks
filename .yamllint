@@ -1,9 +1,18 @@
 extends: default
 
+ignore: |
+  **/.worktrees/**
+  **/.venv/**
+  **/.uv-cache/**
+  **/.pytest_cache/**
+  **/dbt/target/**
+  **/dbt/dbt_packages/**
+  **/dbt/logs/**
+
 rules:
+  comments:
+    min-spaces-from-content: 1
   document-start: disable
-  line-length:
-    max: 120
-    level: warning
+  line-length: disable
   truthy:
     check-keys: false

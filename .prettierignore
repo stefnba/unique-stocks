@@ -1,0 +1,7 @@
+.worktrees/
+apps/pipelines/.venv/
+apps/pipelines/.uv-cache/
+apps/pipelines/.pytest_cache/
+apps/pipelines/dbt/target/
+apps/pipelines/dbt/dbt_packages/
+apps/pipelines/dbt/logs/

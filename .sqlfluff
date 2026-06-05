@@ -1,14 +1,16 @@
 [sqlfluff]
 dialect = duckdb
 templater = jinja
-ignore = templating
 max_line_length = 120
-fix_even_unparsable = true
+sql_file_exts = .sql
 exclude_rules = AL04, AL09, AM04, AM05, AM06, CP02, ST06, ST11
 large_file_skip_byte_limit = 0
 
 [sqlfluff:templater:jinja]
-# Add dbt or custom jinja variable context here when needed
+apply_dbt_builtins = True
+
+[sqlfluff:templater:jinja:macros]
+surrogate_key = {% macro surrogate_key(fields) -%}md5(concat_ws('||', {%- for field in fields -%}CAST({{ field }} AS VARCHAR){% if not loop.last %}, {% endif %}{%- endfor -%})){%- endmacro %}
 
 [sqlfluff:templater:jinja:context]
 
@@ -45,6 +47,9 @@ subqueries_ignore_external_references = true
 
 [sqlfluff:rules:references.consistent]
 force_enable = true
+
+[sqlfluff:rules:references.keywords]
+ignore_words = comments,domain,shares,year
 
 [sqlfluff:layout:type:comma]
 line_position = trailing
