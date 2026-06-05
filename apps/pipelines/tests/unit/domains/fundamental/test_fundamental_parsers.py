@@ -487,6 +487,18 @@ def test_parse_remaining_stock_sections() -> None:
     assert esg_activities[1].row.rating_date == date(2019, 1, 1)
 
 
+def test_parse_stock_splits_dividends_treats_provider_zero_date_as_missing() -> None:
+    """EODHD uses 0000-00-00 as a missing date sentinel for some split fields."""
+    payload = _stock_remaining_payload()
+    payload["SplitsDividends"]["LastSplitDate"] = "0000-00-00"
+    raw = FundamentalRaw.model_validate(payload)
+
+    splits = parse_stock_splits_dividends_snapshot(raw, ticker="AAPL.US", snapshot_date=SNAPSHOT_DATE)
+
+    assert splits is not None
+    assert splits.row.last_split_date is None
+
+
 def test_aapl_fixture_slice_parses_balance_sheet_and_preserves_earnings_trend() -> None:
     """Real AAPL-shaped fixture covers statement and earnings trend nesting."""
     raw = FundamentalRaw.model_validate(_real_fixture_payload("common_stock_AAPL.json"))

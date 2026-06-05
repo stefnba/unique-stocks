@@ -1192,9 +1192,12 @@ def _optional_str(value: object) -> str | None:
 
 
 def _optional_date(value: object) -> date | None:
-    if value is None or value == "":
+    if value is None:
         return None
-    return parse_date(value)
+    text = str(value).strip()
+    if text in {"", "0000-00-00"}:
+        return None
+    return parse_date(text)
 
 
 def _optional_bool(value: object) -> bool | None:
