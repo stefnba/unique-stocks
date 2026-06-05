@@ -16,3 +16,25 @@ repos:
         language: script
         files: ^apps/pipelines/
         types_or: [python, pyi]
+
+      - id: pipelines-sqlfluff-fix
+        name: pipelines sqlfluff fix
+        entry: apps/pipelines/scripts/run_uv.sh
+        args: [sqlfluff, fix, --disable-progress-bar]
+        language: script
+        files: ^apps/pipelines/(dbt|lake/migrations)/.*\.sql$
+        types: [sql]
+
+      - id: markdown-format
+        name: markdown format
+        entry: apps/pipelines/scripts/run_uv.sh
+        args: [mdformat, --wrap, keep, --extensions, gfm]
+        language: script
+        types_or: [markdown]
+
+      - id: yaml-lint
+        name: yaml lint
+        entry: apps/pipelines/scripts/run_uv.sh
+        args: [yamllint, -c, .yamllint]
+        language: script
+        types_or: [yaml]

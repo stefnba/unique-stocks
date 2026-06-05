@@ -358,7 +358,12 @@ make test-unit
 make test-integration
 make lint
 make lint-fix
+make sql-lint
+make sql-format
 make format-check
+make markdown-format-check
+make markdown-format
+make yaml-lint
 make typecheck
 make dbt-install
 make dbt-build

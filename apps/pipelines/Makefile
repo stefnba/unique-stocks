@@ -1,5 +1,7 @@
 .DEFAULT_GOAL := help
 .PHONY: help install test test-unit test-integration lint lint-fix format format-check typecheck check \
+        python-lint python-lint-fix python-format python-format-check \
+        sql-lint sql-format markdown-format markdown-format-check yaml-lint \
         smoke operational-health dashboard \
         prefect-server prefect-worker \
         docker-up docker-down docker-down-volumes docker-logs docker-logs-worker docker-logs-dashboard docker-ps \
@@ -20,6 +22,7 @@ STREAMLIT_SERVER_PORT ?= 8501
 LAKE_MIGRATIONS_DIR := lake/migrations
 LAKE_TABLES_REF := lake.schema:ALL_TABLES
 DBT_DIR := dbt
+REPO_ROOT := ../..
 DBT_TARGET ?= dev
 DBT_DUCKDB_PATH ?= $(LOCAL_LAKE_PATH)
 DBT_DOCS_HOST ?= 127.0.0.1
@@ -32,6 +35,9 @@ LAKE_UV := UV_CACHE_DIR="$(UV_CACHE_DIR)" uv -q
 LAKE_PY := PIPELINE_LOG_LEVEL="$(LAKE_CLI_LOG_LEVEL)" $(LAKE_UV) run python
 DBT := DBT_DUCKDB_PATH="$(DBT_DUCKDB_PATH)" LAKE_NAME="$(LAKE_NAME)" LOCAL_LAKE_PATH="$(LOCAL_LAKE_PATH)" $(UV) run dbt
 DBT_FLAGS := --project-dir $(DBT_DIR) --profiles-dir $(DBT_DIR) --target $(DBT_TARGET)
+SQLFLUFF_PATHS := $(DBT_DIR) $(LAKE_MIGRATIONS_DIR)
+MARKDOWN_FILES := $(addprefix $(REPO_ROOT)/,$(shell git -C $(REPO_ROOT) ls-files '*.md' ':!:.worktrees/*'))
+YAML_FILES := $(addprefix $(REPO_ROOT)/,$(shell git -C $(REPO_ROOT) ls-files '*.yml' '*.yaml' ':!:.worktrees/*'))
 
 # ── Colours ────────────────────────────────────────────────────────────────
 BOLD  := \033[1m
@@ -81,17 +87,40 @@ test: ## Run all tests
 test-unit: ## Run unit tests only
 	uv run pytest tests/unit/ -v
 
-lint: ## Check code style (ruff)
+lint: python-lint sql-lint yaml-lint ## Check code style (ruff, sqlfluff, yamllint)
+
+python-lint: ## Check Python code style
 	uv run ruff check .
 
-lint-fix: ## Auto-fix lint issues
+lint-fix: python-lint-fix sql-format markdown-format ## Auto-fix lint issues
+
+python-lint-fix: ## Auto-fix Python lint issues
 	uv run ruff check . --fix
 
-format: ## Format code (ruff)
+format: python-format sql-format markdown-format ## Format code and docs
+
+python-format: ## Format Python code
 	uv run ruff format .
 
-format-check: ## Check formatting without modifying files
+format-check: python-format-check markdown-format-check ## Check formatting without modifying files
+
+python-format-check: ## Check Python formatting without modifying files
 	uv run ruff format . --check
+
+sql-lint: ## Lint SQL files
+	$(UV) run sqlfluff lint $(SQLFLUFF_PATHS)
+
+sql-format: ## Format SQL files
+	$(UV) run sqlfluff fix $(SQLFLUFF_PATHS)
+
+markdown-format: ## Format Markdown files
+	$(UV) run mdformat --wrap keep --extensions gfm $(MARKDOWN_FILES)
+
+markdown-format-check: ## Check Markdown formatting without modifying files
+	$(UV) run mdformat --check --wrap keep --extensions gfm $(MARKDOWN_FILES)
+
+yaml-lint: ## Lint YAML files
+	$(UV) run yamllint -c $(REPO_ROOT)/.yamllint $(YAML_FILES)
 
 typecheck: ## Run static type checks (basedpyright)
 	$(UV) run --extra dashboard basedpyright
