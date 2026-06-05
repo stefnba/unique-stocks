@@ -13,6 +13,7 @@ from core.ingestion import BronzeWrite, LandingWrite, RunUnitTally
 from core.ingestion.run_tracking import UnitStatus
 from domains.fundamental import flows, tasks
 from domains.fundamental.parsers import parse_fundamental_document
+from domains.instrument.universe import SilverIngestionContractError
 from providers.eodhd.models import FundamentalRaw
 
 SNAPSHOT_DATE = date(2026, 5, 29)
@@ -98,6 +99,37 @@ class FakeLake:
         self.executed.append((sql, params))
 
 
+class FundamentalSelectionLake:
+    """Minimal fake for fundamentals ticker selection queries."""
+
+    def __init__(
+        self,
+        *,
+        rows: list[dict[str, str]] | None = None,
+        tables: set[tuple[str, str]] | None = None,
+    ) -> None:
+        """Configure query rows and table availability."""
+        self.rows = rows or []
+        self.tables = tables or {
+            ("silver", "int_fundamental_ingestion_universe"),
+            ("silver", "int_fundamental_document_completion"),
+        }
+        self.queries: list[tuple[str, Sequence[object] | None]] = []
+
+    def table_exists(self, schema: str, table: str) -> bool:
+        """Return whether the fake exposes a table."""
+        return (schema, table) in self.tables
+
+    def qualified_name(self, schema: str, table: str) -> str:
+        """Return a stable qualified name for assertions."""
+        return f"{schema}.{table}"
+
+    def query(self, sql: str, params: Sequence[object] | None = None) -> list[dict[str, str]]:
+        """Capture SQL and return configured rows."""
+        self.queries.append((sql, params))
+        return self.rows
+
+
 def _raw_stock_payload() -> FundamentalRaw:
     """Build a compact stock fundamentals document."""
     return FundamentalRaw.model_validate(
@@ -175,21 +207,173 @@ async def test_fundamental_flow_uses_provider_universe_for_default_tickers(monke
     def fetch_codes() -> list[str]:
         return ["US"]
 
-    def load_tickers(provider_exchange_codes: list[str] | None, limit: int | None = None) -> list[str]:
+    def load_tickers(
+        provider_exchange_codes: list[str] | None,
+        limit: int | None = None,
+        *,
+        snapshot_date: date | None = None,
+        skip_completed: bool = False,
+    ) -> tasks.FundamentalTickerSelection:
         loaded_codes.append(list(provider_exchange_codes or []))
         assert limit == 5
-        return []
+        assert snapshot_date == SNAPSHOT_DATE
+        assert skip_completed is True
+        return tasks.FundamentalTickerSelection(
+            tickers=[],
+            completion_filter_applied=True,
+        )
 
     monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
     _stub_snapshot_resolver(monkeypatch)
     monkeypatch.setattr(flows, "fetch_fundamental_provider_exchange_codes", fetch_codes)
-    monkeypatch.setattr(flows, "load_fundamental_stock_tickers", load_tickers)
+    monkeypatch.setattr(flows, "load_fundamental_ticker_selection", load_tickers)
 
     summary = await flows.fundamental_flow.fn(snapshot_date=SNAPSHOT_DATE, limit=5)
 
     assert loaded_codes == [["US"]]
     assert summary["tickers"] == {}
     assert run.completed_summary == summary
+
+
+def test_load_fundamental_tickers_uses_silver_and_qualified_anti_join(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Missing-only fundamentals selection uses Silver provider symbols and document completion rows."""
+    lake = FundamentalSelectionLake(rows=[{"provider_symbol": "MSFT.US"}])
+    import core.clients.lake as lake_module
+
+    monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
+
+    tickers = tasks.load_fundamental_tickers.fn(
+        ["US"],
+        limit=10,
+        snapshot_date=SNAPSHOT_DATE,
+        skip_completed=True,
+    )
+
+    assert tickers == ["MSFT.US"]
+    sql, params = lake.queries[0]
+    assert "silver.int_fundamental_ingestion_universe" in sql
+    assert "silver.int_fundamental_document_completion" in sql
+    assert "completion.provider_symbol = universe.provider_symbol" in sql
+    assert "universe.data_provider = ?" in sql
+    assert "LIMIT ?" in sql
+    assert params == ["eodhd", "US", SNAPSHOT_DATE.isoformat(), 10]
+
+
+def test_load_fundamental_tickers_requires_completion_view_when_skipping_completed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Missing completion view should fail instead of silently skipping the anti-join."""
+    lake = FundamentalSelectionLake(
+        rows=[{"provider_symbol": "AAPL.US"}],
+        tables={("silver", "int_fundamental_ingestion_universe")},
+    )
+    import core.clients.lake as lake_module
+
+    monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
+
+    with pytest.raises(SilverIngestionContractError, match="int_fundamental_document_completion"):
+        tasks.load_fundamental_ticker_selection.fn(
+            ["US"],
+            snapshot_date=SNAPSHOT_DATE,
+            skip_completed=True,
+        )
+
+
+def test_load_fundamental_tickers_requires_ingestion_universe(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Auto-selected fundamentals should fail clearly when the dbt ingestion universe is unavailable."""
+    lake = FundamentalSelectionLake(tables={("silver", "int_fundamental_document_completion")})
+    import core.clients.lake as lake_module
+
+    monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
+
+    with pytest.raises(SilverIngestionContractError, match="int_fundamental_ingestion_universe"):
+        tasks.load_fundamental_tickers.fn(["US"], snapshot_date=SNAPSHOT_DATE, skip_completed=True)
+
+
+@pytest.mark.asyncio
+async def test_auto_selected_anti_join_skips_redundant_existing_guard(monkeypatch: pytest.MonkeyPatch) -> None:
+    """SQL anti-joined auto-selection should not spawn per-ticker existing checks."""
+    run = FakeRun()
+
+    def load_tickers(
+        provider_exchange_codes: list[str] | None,
+        limit: int | None = None,
+        *,
+        snapshot_date: date | None = None,
+        skip_completed: bool = False,
+    ) -> list[str]:
+        assert provider_exchange_codes == ["US"]
+        assert limit is None
+        assert snapshot_date == SNAPSHOT_DATE
+        assert skip_completed is True
+        return ["AAPL.US"]
+
+    def fail_existing_check(*_: object) -> bool:
+        raise AssertionError("anti-joined auto-selection should not call the per-ticker guard")
+
+    monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
+    _stub_snapshot_resolver(monkeypatch)
+    monkeypatch.setattr(
+        flows,
+        "load_fundamental_ticker_selection",
+        lambda *args, **kwargs: tasks.FundamentalTickerSelection(
+            tickers=load_tickers(*args, **kwargs),
+            completion_filter_applied=True,
+        ),
+    )
+    monkeypatch.setattr(flows, "fundamental_document_already_ingested", fail_existing_check)
+    monkeypatch.setattr(flows, "write_fundamental_deferred_coverage", lambda **_: BronzeWrite(rows_written=1))
+
+    summary = await flows.fundamental_flow.fn(
+        provider_exchange_codes=["US"],
+        snapshot_date=SNAPSHOT_DATE,
+        max_provider_credits=0,
+    )
+
+    assert summary["auto_selection_anti_joined"] is True
+    assert summary["skipped"] == ["AAPL.US"]
+    assert run.units[0]["reason"] == "credit_budget_exhausted"
+
+
+@pytest.mark.asyncio
+async def test_refresh_auto_selection_keeps_completed_tickers_in_scope(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Refresh mode should not apply the missing-only completion anti-join."""
+    run = FakeRun()
+    calls: list[bool] = []
+
+    def load_tickers(
+        provider_exchange_codes: list[str] | None,
+        limit: int | None = None,
+        *,
+        snapshot_date: date | None = None,
+        skip_completed: bool = False,
+    ) -> tasks.FundamentalTickerSelection:
+        assert provider_exchange_codes == ["US"]
+        assert limit is None
+        assert snapshot_date == SNAPSHOT_DATE
+        calls.append(skip_completed)
+        return tasks.FundamentalTickerSelection(
+            tickers=["AAPL.US"],
+            completion_filter_applied=False,
+        )
+
+    monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
+    _stub_snapshot_resolver(monkeypatch)
+    monkeypatch.setattr(flows, "load_fundamental_ticker_selection", load_tickers)
+    monkeypatch.setattr(flows, "write_fundamental_deferred_coverage", lambda **_: BronzeWrite(rows_written=1))
+
+    summary = await flows.fundamental_flow.fn(
+        provider_exchange_codes=["US"],
+        snapshot_date=SNAPSHOT_DATE,
+        refresh_existing=True,
+        max_provider_credits=0,
+    )
+
+    assert calls == [False]
+    assert summary["auto_selection_anti_joined"] is False
+    assert summary["skipped"] == ["AAPL.US"]
 
 
 @pytest.mark.asyncio

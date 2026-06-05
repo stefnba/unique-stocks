@@ -1,0 +1,38 @@
+version: 2
+
+sources:
+  - name: pipeline
+    description: Pipeline metadata tables used for orchestration, auditing, and ingestion-control decisions.
+    schema: pipeline
+    tables:
+      - name: ingestion_coverage
+        description: Durable non-Bronze coverage outcomes for resumable ingestion work units.
+        columns:
+          - name: coverage_id
+            description: Unique coverage row identifier.
+          - name: run_id
+            description: Pipeline run that recorded the coverage outcome.
+          - name: domain
+            description: Ingestion domain that owns the unit key convention.
+          - name: provider
+            description: Data provider for the work unit.
+          - name: unit_type
+            description: Domain-specific work unit type.
+          - name: unit_key_hash
+            description: Stable hash of the normalized unit key JSON.
+          - name: unit_key_json
+            description: JSON object identifying the domain work unit.
+          - name: status
+            description: Coverage outcome status, such as no_data or provider_quota_deferred.
+          - name: reason
+            description: Optional domain reason for the coverage outcome.
+          - name: rows_raw
+            description: Raw rows observed for the work unit when applicable.
+          - name: rows_valid
+            description: Valid parsed rows observed for the work unit when applicable.
+          - name: rows_rejected
+            description: Rejected parsed rows observed for the work unit when applicable.
+          - name: source_uri
+            description: Landing object URI associated with the coverage outcome when applicable.
+          - name: recorded_at
+            description: Timestamp when the coverage outcome was recorded.

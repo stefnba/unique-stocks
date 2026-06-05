@@ -1,6 +1,56 @@
 version: 2
 
 models:
+  - name: int_fundamental_ingestion_universe
+    description: Ingestion-control view of EODHD provider symbols eligible for fundamentals auto-selection.
+    config:
+      tags:
+        - ingestion_control
+    columns:
+      - name: data_provider
+        description: Provider for the eligible fundamentals symbol.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: provider_exchange_code
+        description: Provider exchange code used for the fundamentals request namespace.
+        data_tests:
+          - not_null
+      - name: provider_symbol
+        description: Exchange-qualified provider symbol, such as AAPL.US.
+        data_tests:
+          - not_null
+      - name: instrument_family
+        description: Broad dbt instrument classification from the latest instrument universe.
+        data_tests:
+          - not_null
+
+  - name: int_fundamental_document_completion
+    description: Ingestion-control view identifying completed fundamentals document snapshots by provider symbol.
+    config:
+      tags:
+        - ingestion_control
+    columns:
+      - name: data_provider
+        description: Provider that supplied the fundamentals document.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: provider_symbol
+        description: Exchange-qualified provider symbol, such as AAPL.US.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Fundamentals snapshot date that has a completed document row.
+        data_tests:
+          - not_null
+
   - name: int_fundamental_latest_document
     description: Latest fundamentals document metadata per provider instrument.
     columns:

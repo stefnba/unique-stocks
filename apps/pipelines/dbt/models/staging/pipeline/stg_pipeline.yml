@@ -1,0 +1,58 @@
+version: 2
+
+models:
+  - name: stg_pipeline_ingestion_coverage
+    description: Normalized ingestion coverage metadata for orchestration and ingestion-control views.
+    config:
+      tags:
+        - ingestion_control
+    columns:
+      - name: coverage_id
+        description: Unique coverage row identifier.
+      - name: run_id
+        description: Pipeline run that recorded the coverage outcome.
+        data_tests:
+          - not_null
+      - name: domain
+        description: Ingestion domain that owns the unit key convention.
+        data_tests:
+          - not_null
+      - name: data_provider
+        description: Data provider for the work unit.
+        data_tests:
+          - not_null
+      - name: unit_type
+        description: Domain-specific work unit type.
+        data_tests:
+          - not_null
+      - name: unit_key_hash
+        description: Stable hash of the normalized unit key JSON.
+        data_tests:
+          - not_null
+      - name: unit_key_json
+        description: JSON object identifying the domain work unit.
+        data_tests:
+          - not_null
+      - name: status
+        description: Coverage outcome status.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - no_data
+                  - provider_quota_deferred
+      - name: reason
+        description: Optional domain reason for the coverage outcome.
+      - name: rows_raw
+        description: Raw rows observed for the work unit when applicable.
+      - name: rows_valid
+        description: Valid parsed rows observed for the work unit when applicable.
+      - name: rows_rejected
+        description: Rejected parsed rows observed for the work unit when applicable.
+      - name: source_uri
+        description: Landing object URI associated with the coverage outcome when applicable.
+      - name: recorded_at
+        description: Timestamp when the coverage outcome was recorded.
+        data_tests:
+          - not_null

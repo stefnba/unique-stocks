@@ -16,17 +16,17 @@ Deployments are defined in `prefect.yaml` (`eod-price-daily`, `eod-price-backfil
 Backfill pending symbols are computed in `load_backfill_pending_symbols`:
 
 ```text
-pending = latest bronze.instrument tickers for the exchange
-        - tickers whose bronze.eod_price rows span the requested date range
-        - tickers with pipeline.ingestion_coverage (no_data, exact ticker_backfill date range)
+pending = silver.int_eod_price_backfill_symbol_status provider_symbol values for the exchange
+        - tickers whose min/max completed bars span the requested date range
+        - tickers in silver.int_eod_price_backfill_no_data_coverage for the exact date range
 ```
 
 Use `max_provider_calls` on `eod-price-backfill/historical-backfill` to stop
 before the provider's daily call quota. For example, if the provider account has
 100k daily calls and the exchange universe is 150k symbols, run with a cap below
 100k, then re-run the next day with the same `from_date`/`to_date`. The next run
-recomputes pending symbols from Bronze plus exact-range coverage and continues
-with the remaining tickers.
+recomputes pending symbols from the Silver backfill symbol-status view and
+Silver exact-range no-data coverage, then continues with the remaining tickers.
 
 If the provider returns HTTP 429, the flow stops scheduling later batches. The
 429 ticker is recorded as a failed run unit, unscheduled tickers get
@@ -45,7 +45,7 @@ Cross-domain pipeline table; EOD backfill uses:
 | `status`        | `no_data` after fetch+landing returned no rows; `provider_quota_deferred` for unsubmitted quota-deferred work |
 | `reason`        | `no_valid_rows`                                                  |
 
-Helpers: `domains/eod_price/coverage.py` (unit key builder), `core/ingestion/coverage.py` (generic read/write). Coverage lookup pushes `unit_key_json` field matches into SQL, then applies a Python fallback filter after decoding DuckDB JSON strings.
+Helpers: `domains/eod_price/coverage.py` (unit key builder), `core/ingestion/coverage.py` (generic write/idempotency). dbt exposes EOD no-data rows through `silver.int_eod_price_backfill_no_data_coverage`; Python pending selection does not parse coverage JSON directly.
 
 Only `no_data` coverage removes a ticker from pending-symbol planning. `provider_quota_deferred` is an audit row for
 unsubmitted work and deliberately leaves the ticker pending.
@@ -55,17 +55,14 @@ unsubmitted work and deliberately leaves the ticker pending.
 Fundamentals also uses the same table with `domain = 'fundamental'`, `unit_type = 'ticker_snapshot'`, and
 `status = 'provider_quota_deferred'` for ticker snapshots skipped after credit or rate-limit exhaustion.
 
-**Force retry:** delete the matching `ingestion_coverage` row (and any `bronze.eod_price` rows if re-ingesting prices), then re-run backfill.
+**Force retry:** delete the matching `ingestion_coverage` row (and any `bronze.eod_price` rows if re-ingesting prices), rebuild `dbt-build/price-build`, then re-run backfill.
 
 ```sql
-SELECT unit_key_json, run_id, rows_raw, rows_valid, source_uri
-FROM pipeline.ingestion_coverage
-WHERE domain = 'eod_price'
-  AND unit_type = 'ticker_backfill'
-  AND status = 'no_data'
-  AND json_extract_string(unit_key_json, '$."provider_exchange_code"') = 'US'
-  AND json_extract_string(unit_key_json, '$."from_date"') = '2026-05-01'
-  AND json_extract_string(unit_key_json, '$."to_date"') = '2026-05-31';
+SELECT provider_symbol, unit_key_hash, rows_raw, rows_valid, source_uri
+FROM silver.int_eod_price_backfill_no_data_coverage
+WHERE provider_exchange_code = 'US'
+  AND from_date = DATE '2026-05-01'
+  AND to_date = DATE '2026-05-31';
 ```
 
 See [`docs/pipeline_audit.md`](../../docs/pipeline_audit.md) and [`core/ingestion/coverage.py`](../../core/ingestion/coverage.py).
@@ -73,6 +70,11 @@ See [`docs/pipeline_audit.md`](../../docs/pipeline_audit.md) and [`core/ingestio
 ## Daily bulk flow
 
 `eod-price-daily` does not write coverage rows. Idempotency is per `(provider_exchange_code, bar_date)` on `bronze.eod_price`.
+When `trade_date` is explicit and Bronze already has that exchange/date, the flow
+skips the provider call and records the exchange/date run unit as
+`status = 'skipped'`, `reason = 'already_ingested'`. Provider-latest runs with
+no `trade_date` still fetch first because the bar date is unknown before the
+provider response.
 
 ## Local smoke
 

@@ -32,6 +32,7 @@ from core.transforms import run_dbt_build_after_ingestion
 from domains.eod_price.models import EODBar
 from domains.eod_price.parsers import infer_bulk_bar_date, parse_ticker_bars
 from domains.eod_price.tasks import (
+    eod_price_already_ingested,
     fetch_eod_price_bulk,
     fetch_eod_provider_exchange_codes,
     fetch_ticker_eod_history,
@@ -106,6 +107,32 @@ async def eod_price_flow(
 
         try:
             for provider_exchange_code in codes:
+                if trade_date is not None and eod_price_already_ingested(provider_exchange_code, trade_date):
+                    log.info(
+                        "price.exchange_skipped",
+                        provider_exchange_code=provider_exchange_code,
+                        reason="already_ingested",
+                        trade_date=trade_date,
+                    )
+                    summary["exchange"][provider_exchange_code] = {
+                        "bar_date": trade_date.isoformat(),
+                        "rows_written": 0,
+                    }
+                    run.record_unit(
+                        unit_type="exchange_date",
+                        unit_key={
+                            "provider_exchange_code": provider_exchange_code,
+                            "bar_date": trade_date.isoformat(),
+                        },
+                        status="skipped",
+                        reason="already_ingested",
+                        rows_raw=0,
+                        rows_valid=0,
+                        rows_rejected=0,
+                        rows_written=0,
+                    )
+                    continue
+
                 can_mark_failed = True
                 try:
                     raw_rows = await fetch_eod_price_bulk(
@@ -355,19 +382,20 @@ async def eod_price_backfill_flow(
     max_provider_calls: int | None = None,
     run_dbt_build: bool = False,
 ) -> dict[str, object]:
-    """Ingest full OHLCV history for every instrument in bronze.instrument.
+    """Ingest full OHLCV history for every latest EODHD provider instrument.
 
     Processes each exchange sequentially; within an exchange, fetches
     ``batch_size`` symbols concurrently via ``asyncio.gather``. After each
     batch all bars are committed to bronze before the next batch starts,
     giving natural checkpoints for resume on failure.
 
-    A symbol is skipped when it already has rows in ``bronze.eod_price`` or a
-    ``no_data`` row in ``pipeline.ingestion_coverage`` for the exact same backfill
-    unit key: ``provider_exchange_code``, ticker, ``from_date``, and ``to_date``.
-    Re-runs are safe. To retry a symbol, delete its price and/or coverage rows
-    for that exchange partition first. Parser-rejected payloads are not marked
-    ``no_data``; they remain retryable.
+    A symbol is skipped when the dbt-built Silver completion view shows
+    ``bronze.eod_price`` spans the requested range, or when the dbt-built
+    no-data coverage view has the exact same backfill unit key:
+    ``provider_exchange_code``, ticker, ``from_date``, and ``to_date``.
+    Re-runs are safe after rebuilding those Silver views. To retry a symbol,
+    delete its price and/or coverage rows for that exchange partition first.
+    Parser-rejected payloads are not marked ``no_data``; they remain retryable.
 
     Provider-validated backfill payloads are written to S3 landing before
     parsing so historical ingestion follows the same replay contract as daily
@@ -384,8 +412,7 @@ async def eod_price_backfill_flow(
             symbols/hour, well within the daily quota.
         max_provider_calls: Optional cap on per-symbol provider fetches submitted
             during this run. Re-run later with the same date range to resume from
-            ``bronze.eod_price`` plus exact-range ``pipeline.ingestion_coverage``
-            pending-symbol detection.
+            the Silver completion/no-data coverage pending-symbol detection.
         run_dbt_build: When true, launch ``dbt-build/price-build`` after a
             clean ingestion audit status.
     """

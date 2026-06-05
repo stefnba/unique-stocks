@@ -26,7 +26,7 @@ from domains.fundamental.tasks import (
     fundamental_document_already_ingested,
     load_fundamental_document_payload_hash,
     load_fundamental_from_landing,
-    load_fundamental_stock_tickers,
+    load_fundamental_ticker_selection,
     parse_fundamental_stock,
     write_bronze_fundamental_document,
     write_bronze_fundamental_etf_holdings,
@@ -81,11 +81,13 @@ async def fundamental_flow(
     max_provider_credits: int | None = None,
     run_dbt_build: bool = False,
 ) -> dict[str, object]:
-    """Ingest fundamentals for explicit tickers or latest stock instruments.
+    """Ingest fundamentals for explicit tickers or latest provider instruments.
 
-    This first implementation supports stock fundamentals. Non-stock documents
-    still produce a document metadata row, but family-specific ETF/fund/index
-    extraction is intentionally left for separate parser slices with fixtures.
+    Automatic ticker selection reads all latest EODHD provider instruments from
+    ``silver.int_fundamental_ingestion_universe``; run instrument and
+    fundamental dbt builds before auto-selecting tickers. The flow writes every
+    fundamentals document row and then extracts the family-specific slices that
+    the domain currently models.
     ``snapshot_date`` and ``ingestion_batch_date`` are the bronze partition key
     ``(snapshot_date, ticker)``. Use ``ingestion_batch_date`` to pin a multi-day
     backfill campaign. With ``continue_ingestion_batch=True`` and no explicit
@@ -122,12 +124,21 @@ async def fundamental_flow(
             source=snapshot_date_source,
         )
 
+    refresh_changed_existing = refresh_existing or not skip_existing
+    auto_selection_anti_joined = False
     if tickers:
         requested_tickers = tickers
     else:
         selected_provider_exchange_codes = provider_exchange_codes or fetch_fundamental_provider_exchange_codes()
-        requested_tickers = load_fundamental_stock_tickers(selected_provider_exchange_codes, limit)
-    refresh_changed_existing = refresh_existing or not skip_existing
+        skip_completed = skip_existing and not refresh_changed_existing
+        ticker_selection = load_fundamental_ticker_selection(
+            selected_provider_exchange_codes,
+            limit,
+            snapshot_date=snapshot_date,
+            skip_completed=skip_completed,
+        )
+        requested_tickers = ticker_selection.tickers
+        auto_selection_anti_joined = ticker_selection.completion_filter_applied
     fetch_batch_size = max(1, int(batch_size))
     fetch_batch_delay = max(0.0, float(provider_batch_delay_seconds))
     provider_credit_cost = max(1, int(provider_credits_per_call))
@@ -140,6 +151,7 @@ async def fundamental_flow(
         "failed": [],
         "deferred": [],
         "provider_quota_exhausted": False,
+        "auto_selection_anti_joined": auto_selection_anti_joined,
     }
     total_raw = 0
     total_valid = 0
@@ -182,7 +194,8 @@ async def fundamental_flow(
             for ticker in requested_tickers:
                 unit_key: dict[str, object] = {"ticker": ticker, "snapshot_date": snapshot_date.isoformat()}
                 if (
-                    skip_existing
+                    not auto_selection_anti_joined
+                    and skip_existing
                     and not refresh_changed_existing
                     and fundamental_document_already_ingested(ticker, snapshot_date)
                 ):

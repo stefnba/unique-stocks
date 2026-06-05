@@ -1,5 +1,6 @@
 """Prefect tasks for fundamentals ingestion."""
 
+from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from typing import Any, Protocol, cast
 
@@ -82,6 +83,11 @@ from domains.fundamental.parsers import (
     parse_stock_splits_dividends_snapshot,
     parse_stock_statement_facts,
 )
+from domains.instrument.universe import (
+    FUNDAMENTAL_DOCUMENT_COMPLETION_TABLE,
+    FUNDAMENTAL_INGESTION_UNIVERSE_TABLE,
+    require_silver_ingestion_model,
+)
 from providers.eodhd.models import FundamentalRaw
 
 log = structlog.get_logger(__name__)
@@ -89,6 +95,14 @@ log = structlog.get_logger(__name__)
 FUNDAMENTAL_DOMAIN = "fundamental"
 FUNDAMENTAL_PROVIDER = "eodhd"
 FUNDAMENTAL_TICKER_SNAPSHOT_UNIT_TYPE = "ticker_snapshot"
+
+
+@dataclass(frozen=True, slots=True)
+class FundamentalTickerSelection:
+    """Ticker selection result plus completion-filter metadata."""
+
+    tickers: list[str]
+    completion_filter_applied: bool
 
 
 class _LandingStorage(Protocol):
@@ -129,26 +143,49 @@ def fetch_fundamental_provider_exchange_codes() -> list[str]:
     return codes
 
 
-@task(name="load-fundamental-stock-tickers")
-def load_fundamental_stock_tickers(
+def _load_fundamental_ticker_selection(
     provider_exchange_codes: list[str] | None = None,
     limit: int | None = None,
-) -> list[str]:
-    """Load latest stock-like instruments from ``bronze.instrument``."""
+    *,
+    snapshot_date: date | None = None,
+    skip_completed: bool = False,
+) -> FundamentalTickerSelection:
+    """Load provider instruments from Silver and report whether completion filtering ran."""
     from core.clients.lake import get_lake_client
 
     lake = get_lake_client()
-    if not lake.table_exists("bronze", "instrument"):
-        log.warning("fundamental.no_instrument_table")
-        return []
-
-    instrument_q = lake.qualified_name("bronze", "instrument")
-    params: list[object] = []
+    universe_q = require_silver_ingestion_model(
+        lake,
+        FUNDAMENTAL_INGESTION_UNIVERSE_TABLE,
+        build_hint="dbt-build/fundamental-build after successful exchange-build and instrument-build",
+    )
+    completion_q = None
+    params: list[object] = [FUNDAMENTAL_PROVIDER]
     exchange_filter = ""
     if provider_exchange_codes:
         placeholders = ", ".join("?" for _ in provider_exchange_codes)
-        exchange_filter = f"AND provider_exchange_code IN ({placeholders})"
+        exchange_filter = f"AND universe.provider_exchange_code IN ({placeholders})"
         params.extend(provider_exchange_codes)
+
+    completion_filter = ""
+    if skip_completed:
+        if snapshot_date is None:
+            raise ValueError("snapshot_date is required when skip_completed=True")
+        completion_q = require_silver_ingestion_model(
+            lake,
+            FUNDAMENTAL_DOCUMENT_COMPLETION_TABLE,
+            build_hint="dbt-build/fundamental-build",
+        )
+        completion_filter = f"""
+          AND NOT EXISTS (
+              SELECT 1
+              FROM {completion_q} AS completion
+              WHERE completion.data_provider = universe.data_provider
+                AND completion.provider_symbol = universe.provider_symbol
+                AND completion.snapshot_date = ?
+          )
+        """
+        params.append(snapshot_date.isoformat())
 
     limit_clause = ""
     if limit is not None:
@@ -157,19 +194,65 @@ def load_fundamental_stock_tickers(
 
     rows = lake.query(
         f"""
-        SELECT DISTINCT ticker, provider_exchange_code
-        FROM {instrument_q}
-        WHERE snapshot_date = (SELECT MAX(snapshot_date) FROM {instrument_q})
-          AND LOWER(COALESCE(asset_type, '')) LIKE '%stock%'
+        SELECT universe.provider_symbol
+        FROM {universe_q} AS universe
+        WHERE universe.data_provider = ?
           {exchange_filter}
-        ORDER BY provider_exchange_code, ticker
+          {completion_filter}
+        ORDER BY universe.provider_exchange_code, universe.provider_symbol
         {limit_clause}
         """,
         params,
     )
-    tickers = [f"{row['ticker']}.{row['provider_exchange_code']}" for row in rows]
-    log.info("fundamental.stock_tickers_loaded", count=len(tickers))
-    return tickers
+    tickers = [str(row["provider_symbol"]) for row in rows]
+    log.info(
+        "fundamental.tickers_loaded",
+        count=len(tickers),
+        skip_completed_requested=skip_completed,
+        completion_filter_applied=skip_completed,
+    )
+    return FundamentalTickerSelection(
+        tickers=tickers,
+        completion_filter_applied=skip_completed,
+    )
+
+
+@task(name="load-fundamental-ticker-selection")
+def load_fundamental_ticker_selection(
+    provider_exchange_codes: list[str] | None = None,
+    limit: int | None = None,
+    *,
+    snapshot_date: date | None = None,
+    skip_completed: bool = False,
+) -> FundamentalTickerSelection:
+    """Load latest provider instruments plus completion-filter metadata."""
+    return _load_fundamental_ticker_selection(
+        provider_exchange_codes=provider_exchange_codes,
+        limit=limit,
+        snapshot_date=snapshot_date,
+        skip_completed=skip_completed,
+    )
+
+
+@task(name="load-fundamental-tickers")
+def load_fundamental_tickers(
+    provider_exchange_codes: list[str] | None = None,
+    limit: int | None = None,
+    *,
+    snapshot_date: date | None = None,
+    skip_completed: bool = False,
+) -> list[str]:
+    """Load latest provider instruments from the Silver ingestion universe.
+
+    If ``skip_completed=True``, this requires
+    ``silver.int_fundamental_document_completion`` and anti-joins against it.
+    """
+    return _load_fundamental_ticker_selection(
+        provider_exchange_codes=provider_exchange_codes,
+        limit=limit,
+        snapshot_date=snapshot_date,
+        skip_completed=skip_completed,
+    ).tickers
 
 
 @task(name="write-fundamental-deferred-coverage")

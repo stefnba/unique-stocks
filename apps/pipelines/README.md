@@ -327,7 +327,7 @@ Production dbt execution is available as Prefect deployments:
 
 - `dbt-build/exchange-build`: exchange staging/intermediate + exchange marts/provider ingestion universe.
 - `dbt-build/instrument-build`: instrument staging/intermediate + instrument dimension.
-- `dbt-build/price-build`: price staging and mart models.
+- `dbt-build/price-build`: price staging, ingestion-control views, and mart models.
 - `dbt-build/fundamental-build`: fundamental staging/intermediate + fundamental/instrument marts.
 
 Ingestion deployments set `run_dbt_build=true` where Silver/Gold freshness matters. A clean

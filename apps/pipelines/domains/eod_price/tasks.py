@@ -18,9 +18,7 @@ from core.ingestion import BronzeParseResult, BronzeWrite, LandingWrite
 from core.ingestion.coverage import (
     COVERAGE_STATUS_NO_DATA,
     COVERAGE_STATUS_PROVIDER_QUOTA_DEFERRED,
-    INGESTION_COVERAGE_TABLE_NAME,
     ingestion_coverage_recorded,
-    list_ingestion_coverage_unit_keys,
     record_ingestion_coverage,
 )
 from providers.eodhd.client import EODHDClient
@@ -36,7 +34,6 @@ from .coverage import (
 from .datasets import EOD_PRICE_DATASET
 from .models import EODBar
 from .parsers import parse_eod_bars
-from .symbols import qualified_ticker, ticker_without_exchange
 
 log = structlog.get_logger(__name__)
 
@@ -244,6 +241,24 @@ def write_bronze_eod_price(
     return BronzeWrite(rows_written=written)
 
 
+@task(
+    name="eod-price-already-ingested",
+    task_run_name="eod-price-already-ingested-{provider_exchange_code}",
+)
+def eod_price_already_ingested(provider_exchange_code: str, bar_date: date) -> bool:
+    """Return True when daily EOD data already exists for this exchange/date."""
+    from core.clients.lake import get_lake_client
+
+    lake = get_lake_client()
+    if not lake.table_exists("bronze", EOD_PRICE_DATASET.table_name):
+        return False
+    return EOD_PRICE_DATASET.already_ingested(
+        lake,
+        provider_exchange_code=provider_exchange_code,
+        bar_date=bar_date,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Backfill tasks
 # ---------------------------------------------------------------------------
@@ -259,91 +274,86 @@ def load_backfill_pending_symbols(provider_exchange_code: str, from_date: date, 
     Returns fully-qualified symbols (e.g. ``["AAPL.US", "MSFT.US"]``).
     A symbol is excluded from pending when either:
 
-    - Existing ``bronze.eod_price`` rows span the requested date range, or
-    - A ``no_data`` row exists in ``pipeline.ingestion_coverage`` for the same
-      ticker backfill unit key (see ``domains/eod_price/coverage.py``).
+    - ``silver.int_eod_price_backfill_symbol_status`` spans the requested date range, or
+    - ``silver.int_eod_price_backfill_no_data_coverage`` has the exact range.
 
-    Coverage rows are generic pipeline metadata (not bronze market data). They record
-    terminal outcomes so re-runs skip completed partitions. Delete coverage or price
-    rows to force a retry. The ``no_data`` coverage match includes both
+    Coverage rows are generic pipeline metadata (not bronze market data). dbt parses
+    the EOD no-data subset into a Silver ingestion-control view so Python does not
+    read coverage JSON directly. Delete coverage or price rows and rebuild the
+    Silver views to force a retry. The ``no_data`` coverage match includes both
     ``from_date`` and ``to_date`` because a wider later backfill can become valid.
 
-    Source of truth for what *should* be ingested: ``bronze.instrument``
-    (latest snapshot for the exchange).
+    Source of truth for what *should* be ingested:
+    ``silver.int_eod_price_backfill_symbol_status``.
     """
     from core.clients.lake import get_lake_client
+    from domains.instrument.universe import (
+        EOD_PRICE_BACKFILL_NO_DATA_COVERAGE_TABLE,
+        EOD_PRICE_BACKFILL_SYMBOL_STATUS_TABLE,
+        require_silver_ingestion_model,
+    )
 
     lake = get_lake_client()
+    symbol_status_q = require_silver_ingestion_model(
+        lake,
+        EOD_PRICE_BACKFILL_SYMBOL_STATUS_TABLE,
+        build_hint="dbt-build/price-build",
+    )
+    no_data_coverage_q = require_silver_ingestion_model(
+        lake,
+        EOD_PRICE_BACKFILL_NO_DATA_COVERAGE_TABLE,
+        build_hint="dbt-build/price-build",
+    )
 
-    if not lake.table_exists("bronze", "instrument"):
-        log.warning("backfill.no_instrument_table", provider_exchange_code=provider_exchange_code)
-        return []
-
-    instrument_q = lake.qualified_name("bronze", "instrument")
     rows = lake.query(
         f"""
-        SELECT DISTINCT ticker
-        FROM {instrument_q}
-        WHERE provider_exchange_code = ?
-          AND snapshot_date = (
-              SELECT MAX(snapshot_date) FROM {instrument_q} WHERE provider_exchange_code = ?
-          )
+        WITH scoped_symbols AS (
+            SELECT
+                status.provider_symbol,
+                COALESCE(status.min_bar_date <= ? AND status.max_bar_date >= ?, FALSE) AS is_done,
+                coverage.provider_symbol IS NOT NULL AS is_covered
+            FROM {symbol_status_q} AS status
+            LEFT JOIN {no_data_coverage_q} AS coverage
+                ON coverage.data_provider = status.data_provider
+                AND coverage.provider_exchange_code = status.provider_exchange_code
+                AND coverage.provider_symbol = status.provider_symbol
+                AND coverage.from_date = ?
+                AND coverage.to_date = ?
+            WHERE status.data_provider = ?
+              AND status.provider_exchange_code = ?
+        )
+        SELECT
+            provider_symbol,
+            COUNT(*) OVER () AS total_symbols,
+            SUM(CASE WHEN is_done THEN 1 ELSE 0 END) OVER () AS completed_price_symbols,
+            SUM(CASE WHEN is_covered THEN 1 ELSE 0 END) OVER () AS no_data_coverage_symbols
+        FROM scoped_symbols
+        WHERE NOT is_done
+          AND NOT is_covered
+        ORDER BY provider_symbol
         """,
-        [provider_exchange_code, provider_exchange_code],
+        [
+            from_date.isoformat(),
+            to_date.isoformat(),
+            from_date.isoformat(),
+            to_date.isoformat(),
+            str(EOD_PRICE_DATASET.provider),
+            provider_exchange_code,
+        ],
     )
-    all_codes = {r["ticker"] for r in rows}
-
-    if not all_codes:
-        log.info("backfill.no_instrument", provider_exchange_code=provider_exchange_code)
-        return []
-
-    done_codes: set[str] = set()
-    if lake.table_exists("bronze", "eod_price"):
-        price_q = lake.qualified_name("bronze", "eod_price")
-        done_rows = lake.query(
-            f"""
-            SELECT ticker
-            FROM {price_q}
-            WHERE provider_exchange_code = ?
-              AND data_provider = ?
-            GROUP BY ticker
-            HAVING MIN(bar_date) <= ?
-               AND MAX(bar_date) >= ?
-            """,
-            [provider_exchange_code, EOD_PRICE_DATASET.provider, from_date.isoformat(), to_date.isoformat()],
-        )
-        done_codes = {ticker_without_exchange(r["ticker"], provider_exchange_code) for r in done_rows}
-
-    covered_codes: set[str] = set()
-    if lake.table_exists("pipeline", INGESTION_COVERAGE_TABLE_NAME):
-        covered_keys = list_ingestion_coverage_unit_keys(
-            lake,
-            domain=EOD_PRICE_DOMAIN,
-            provider=eod_provider(),
-            unit_type=EOD_TICKER_BACKFILL_UNIT_TYPE,
-            status=COVERAGE_STATUS_NO_DATA,
-            unit_key_matches={
-                "provider_exchange_code": provider_exchange_code,
-                "from_date": from_date.isoformat(),
-                "to_date": to_date.isoformat(),
-            },
-        )
-        covered_codes = {
-            ticker_without_exchange(str(unit_key["ticker"]), provider_exchange_code)
-            for unit_key in covered_keys
-            if unit_key.get("ticker")
-        }
-
-    pending = sorted(all_codes - done_codes - covered_codes)
+    pending = [str(row["provider_symbol"]) for row in rows]
+    stats = rows[0] if rows else {}
     log.info(
         "backfill.pending_loaded",
         provider_exchange_code=provider_exchange_code,
-        total=len(all_codes),
-        done=len(done_codes),
-        covered=len(covered_codes),
+        from_date=from_date.isoformat(),
+        to_date=to_date.isoformat(),
+        total=stats.get("total_symbols"),
+        done=stats.get("completed_price_symbols"),
+        covered=stats.get("no_data_coverage_symbols"),
         pending=len(pending),
     )
-    return [qualified_ticker(code, provider_exchange_code) for code in pending]
+    return pending
 
 
 @task(

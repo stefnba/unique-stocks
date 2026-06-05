@@ -133,6 +133,52 @@ def _rejected_bar() -> EODPriceBarRaw:
 
 
 @pytest.mark.asyncio
+async def test_eod_daily_explicit_trade_date_skips_already_ingested_exchange(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Explicit daily reruns should skip provider fetch when Bronze already has the exchange/date."""
+    run = FakeRun()
+
+    async def fail_fetch(**_: object) -> list[object]:
+        raise AssertionError("already ingested explicit trade_date should not fetch")
+
+    monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
+    monkeypatch.setattr(flows, "eod_price_already_ingested", lambda *_: True)
+    monkeypatch.setattr(flows, "fetch_eod_price_bulk", fail_fetch)
+
+    summary = await flows.eod_price_flow.fn(trade_date=TO_DATE, provider_exchange_codes=["US"])
+
+    assert summary["exchange"] == {"US": {"bar_date": TO_DATE.isoformat(), "rows_written": 0}}
+    assert run.units[0]["status"] == "skipped"
+    assert run.units[0]["reason"] == "already_ingested"
+    assert run.completed_summary == summary
+
+
+@pytest.mark.asyncio
+async def test_eod_daily_provider_latest_still_fetches_without_trade_date(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Provider-latest daily runs cannot pre-skip because the bar date is unknown before fetch."""
+    run = FakeRun()
+    calls: list[str] = []
+
+    def fail_precheck(*_: object) -> bool:
+        raise AssertionError("trade_date=None should not call the explicit-date precheck")
+
+    async def fetch(**kwargs: object) -> list[object]:
+        calls.append(str(kwargs["provider_exchange_code"]))
+        return []
+
+    monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
+    monkeypatch.setattr(flows, "eod_price_already_ingested", fail_precheck)
+    monkeypatch.setattr(flows, "fetch_eod_price_bulk", fetch)
+
+    summary = await flows.eod_price_flow.fn(provider_exchange_codes=["US"])
+
+    assert calls == ["US"]
+    assert summary["exchange"] == {"US": {"bar_date": None, "rows_written": 0}}
+    assert run.units[0]["reason"] == "no_data"
+
+
+@pytest.mark.asyncio
 async def test_eod_backfill_provider_call_budget_limits_submitted_symbols(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

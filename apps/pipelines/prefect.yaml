@@ -311,11 +311,13 @@ deployments:
 
   - name: price-build
     description: >
-      dbt build for price staging and marts. Run after bronze.eod_price ingestion.
+      dbt build for price staging, ingestion-control views, and marts. Run after bronze.eod_price ingestion.
     tags: [dbt, build, price]
     parameters:
       select:
+        - path:models/staging/pipeline
         - path:models/staging/price
+        - +path:models/intermediate/price
         - +path:models/marts/price
     <<: *dbt_build
 

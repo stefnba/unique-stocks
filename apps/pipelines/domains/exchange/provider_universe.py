@@ -53,21 +53,25 @@ def load_provider_exchange_codes(
     - ``"eod_price"`` uses ``is_enabled_for_eod_price`` and is used by the
       bulk EOD price flow.
     - ``"fundamental"`` uses ``is_enabled_for_fundamental`` and is used by the
-      fundamentals flow when it auto-selects tickers from ``bronze.instrument``.
+      fundamentals flow before it auto-selects tickers from the Silver
+      ingestion universe.
     - ``"ingestion"`` uses the aggregate ``is_enabled_for_ingestion`` flag and
       is kept as a backward-compatible default for generic callers.
 
     Fundamental ingestion still works with explicit exchange-qualified tickers
     regardless of this universe. The ``fundamental`` purpose applies only to
-    automatic ticker discovery from the latest ``bronze.instrument`` snapshot.
+    automatic ticker discovery from
+    ``silver.int_fundamental_ingestion_universe``.
     A provider namespace must still be enabled for instrument ingestion first,
-    otherwise its instruments will not exist in Bronze for fundamentals to
-    discover.
+    otherwise its instruments will not exist in the Silver instrument universe
+    for fundamentals to discover.
 
-    The Silver view is a required dbt contract. Run the exchange reference
-    ingestion and exchange dbt build before using flows that depend on this
-    helper. Pass ``provider_exchange_codes`` to the flow itself when you want to
-    restrict a manual run to one or two provider namespaces.
+    The Silver exchange view is a required dbt contract for provider-code
+    discovery. Flows that auto-select instruments also require instrument
+    refresh/build and fundamental-build so the Silver fundamentals ingestion universe
+    is populated.
+    Pass ``provider_exchange_codes`` to the flow itself when you want to restrict
+    a manual run to one or two provider namespaces.
     """
     lake = get_lake_client()
     if not lake.table_exists(INGESTION_UNIVERSE_SCHEMA, INGESTION_UNIVERSE_TABLE):

@@ -167,7 +167,8 @@ not collide in the same run.
 dbt runs are separate transformation flows, not hidden inside ingestion tasks. This keeps ingestion success,
 dbt model failures, and dbt test failures independently visible.
 
-The current deployment is `dbt-build/price-build`. It runs `dbt build` for the price staging and mart paths,
+The current deployment is `dbt-build/price-build`. It runs `dbt build` for the price staging,
+ingestion-control, and mart paths,
 then reads `dbt/target/run_results.json` and writes:
 
 - `pipeline.dbt_invocations`

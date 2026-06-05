@@ -12,6 +12,8 @@ Source definitions live under `models/sources/`. dbt discovers source YAML anywh
 
 The dbt-visible names are the YAML `sources[].name` and `tables[].name` values. Staging models reference Bronze with calls such as `source('bronze', 'eod_price')`. Keep source YAML focused on external/Bronze relations and the Python-to-dbt handoff; downstream dbt models should use `ref()`.
 
+`pipeline` sources are orchestration metadata, not Bronze market data. Use them only for audit and ingestion-control staging/intermediate models, tag those models with `ingestion_control`, and keep them out of consumer-facing marts unless a concrete consumer need appears.
+
 ### Data Flow
 
 The pipeline flow before and inside dbt is:
