@@ -2,7 +2,6 @@
 # Secrets are injected by the deployment platform (Coolify) — never commit real values here.
 
 services:
-
   pipelines-server:
     ports:
       - "${PREFECT_HOST_BIND_IP:-127.0.0.1}:4200:4200"

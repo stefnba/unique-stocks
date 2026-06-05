@@ -3,7 +3,6 @@
 # Copy apps/pipelines/.env.example → apps/pipelines/.env and fill in secrets before starting.
 
 services:
-
   pipelines-server:
     ports:
       - "4200:4200"
@@ -18,7 +17,7 @@ services:
   pipelines-worker:
     env_file:
       - path: ../.env
-        required: false   # cp .env.example .env to start
+        required: false # cp .env.example .env to start
     environment:
       ENVIRONMENT: docker_dev
       LAKE_NAME: unique_stocks

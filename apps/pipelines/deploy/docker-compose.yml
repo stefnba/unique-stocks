@@ -19,7 +19,6 @@ x-pipelines-runtime-environment: &pipelines-runtime-environment
   GIT_SHA: ${GIT_SHA:-}
 
 services:
-
   # ── Prefect server (API + UI) ──────────────────────────────────────────────
   pipelines-server:
     image: prefecthq/prefect:3.7.0-python3.14
@@ -87,16 +86,7 @@ services:
         condition: service_completed_successfully
     command: ["uv", "run", "--no-dev", "--frozen", "prefect", "worker", "start", "--pool", "default-process-pool"]
     healthcheck:
-      test:
-        [
-          "CMD",
-          "uv",
-          "run",
-          "--no-dev",
-          "--frozen",
-          "python",
-          "scripts/check_worker_health.py",
-        ]
+      test: ["CMD", "uv", "run", "--no-dev", "--frozen", "python", "scripts/check_worker_health.py"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -118,16 +108,7 @@ services:
         condition: service_completed_successfully
     command: ["tail", "-f", "/dev/null"]
     healthcheck:
-      test:
-        [
-          "CMD",
-          "uv",
-          "run",
-          "--no-dev",
-          "--frozen",
-          "python",
-          "scripts/check_operational_health.py",
-        ]
+      test: ["CMD", "uv", "run", "--no-dev", "--frozen", "python", "scripts/check_operational_health.py"]
       interval: 300s
       timeout: 30s
       retries: 2
