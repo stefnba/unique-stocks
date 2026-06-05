@@ -20,7 +20,7 @@ This file is for AI and coding agents working in this repository. Human onboardi
 - Keep provider fetches, landing writes, parsing, and Bronze writes in separate tasks.
 - Keep domain flows thin: schedule handling, idempotency, task orchestration, and run-state tracking only.
 - Log with `structlog`, not `print`.
-- Include useful structured fields in logs, especially domain identifiers such as `ticker`, `bar_date`, `exchange`, and `provider`.
+- Include useful structured fields in logs, especially domain identifiers such as `provider_exchange_code`, `provider_instrument_code`, `bar_date`, and `provider`.
 - Use one `@flow` per domain per schedule. Do not create mega-flows.
 
 ## Pipeline structure

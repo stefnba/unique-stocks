@@ -142,7 +142,7 @@ Implementation order:
 
 - Exchanges and instruments flows are implemented.
 - Reference data supports current-instrument lookup.
-- Gold models can support search and symbol discovery.
+- Gold models can support search and provider-instrument discovery.
 
 ### Milestone 5: Studio decision
 
