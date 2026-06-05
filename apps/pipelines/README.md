@@ -267,6 +267,8 @@ make lake-migrate                           # local DuckDB, or MotherDuck when M
 For docker-dev, use `make docker-setup` instead so migrations run in the same container filesystem as the worker.
 
 Schema SQL files live in `lake/migrations/`. Applied versions are tracked in `lake.schema_migration`; changed checksums for already-applied files are refused.
+Lake migration Make targets default to `LAKE_CLI_LOG_LEVEL=WARNING` so status and generation output stays
+focused; use `LAKE_CLI_LOG_LEVEL=INFO` when debugging connection/bootstrap logs.
 
 Generate a reviewed schema diff after editing table specs:
 

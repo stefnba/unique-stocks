@@ -24,6 +24,9 @@ DBT_DUCKDB_PATH ?= $(LOCAL_LAKE_PATH)
 UV_CACHE_DIR ?= $(CURDIR)/.uv-cache
 export UV_CACHE_DIR
 UV := UV_CACHE_DIR="$(UV_CACHE_DIR)" uv
+LAKE_CLI_LOG_LEVEL ?= WARNING
+LAKE_UV := UV_CACHE_DIR="$(UV_CACHE_DIR)" uv -q
+LAKE_PY := PIPELINE_LOG_LEVEL="$(LAKE_CLI_LOG_LEVEL)" $(LAKE_UV) run python
 DBT := DBT_DUCKDB_PATH="$(DBT_DUCKDB_PATH)" LAKE_NAME="$(LAKE_NAME)" LOCAL_LAKE_PATH="$(LOCAL_LAKE_PATH)" $(UV) run dbt
 DBT_FLAGS := --project-dir $(DBT_DIR) --profiles-dir $(DBT_DIR) --target $(DBT_TARGET)
 
@@ -164,20 +167,20 @@ lake-reset-local: lake-env-guard ## Delete and recreate the local DuckDB lake (d
 		exit 1; \
 	fi
 	@echo "Deleting local DuckDB lake ($(LOCAL_LAKE_PATH))..."
-	rm -f "$(LOCAL_LAKE_PATH)" "$(LOCAL_LAKE_PATH).wal"
-	$(MAKE) lake-migrate
+	@rm -f "$(LOCAL_LAKE_PATH)" "$(LOCAL_LAKE_PATH).wal"
+	@$(MAKE) lake-migrate
 
 lake-migration: lake-env-guard lake-ensure-database ## Generate a lake schema migration (NAME="..." optional, EMPTY=1 for manual)
-	$(UV) run python -m core.lake.migration.generate --tables "$(LAKE_TABLES_REF)" --migrations-dir "$(LAKE_MIGRATIONS_DIR)"
+	@$(LAKE_PY) -m core.lake.migration.generate --tables "$(LAKE_TABLES_REF)" --migrations-dir "$(LAKE_MIGRATIONS_DIR)"
 
 lake-ensure-database: lake-env-guard ## Create MotherDuck database or local DuckDB file when missing
-	$(UV) run python -c "from config.settings import get_settings; from core.lake.database import ensure_lake_database; ensure_lake_database(get_settings())"
+	@$(LAKE_PY) -c "from config.settings import get_settings; from core.lake.database import ensure_lake_database; ensure_lake_database(get_settings())"
 
 lake-migrate: lake-env-guard lake-ensure-database ## Apply pending lake schema migrations
-	$(UV) run python -m core.lake.migration.migrate --migrations-dir "$(LAKE_MIGRATIONS_DIR)"
+	@$(LAKE_PY) -m core.lake.migration.migrate --migrations-dir "$(LAKE_MIGRATIONS_DIR)"
 
 lake-migration-status: lake-env-guard lake-ensure-database ## Show pending/applied lake schema migrations without applying
-	$(UV) run python -m core.lake.migration.migrate --migrations-dir "$(LAKE_MIGRATIONS_DIR)" --dry-run
+	@$(LAKE_PY) -m core.lake.migration.migrate --migrations-dir "$(LAKE_MIGRATIONS_DIR)" --dry-run
 
 lake-ui: lake-env-guard lake-ensure-database ## Open DuckDB local UI (MotherDuck if MOTHERDUCK_TOKEN is set, else local lake)
 	@if [ -n "$(MOTHERDUCK_TOKEN)" ]; then \
