@@ -8,8 +8,7 @@ renamed AS (
         CAST(source_data.ingestion_id AS VARCHAR) AS ingestion_id,
         CAST(source_data.snapshot_date AS DATE) AS snapshot_date,
         UPPER(TRIM(CAST(source_data.provider_exchange_code AS VARCHAR))) AS provider_exchange_code,
-        UPPER(TRIM(CAST(source_data.ticker AS VARCHAR))) AS ticker,
-        UPPER(TRIM(CAST(source_data.code AS VARCHAR))) AS code,
+        UPPER(TRIM(CAST(source_data.provider_instrument_code AS VARCHAR))) AS provider_instrument_code,
         NULLIF(TRIM(CAST(source_data.name AS VARCHAR)), '') AS index_name,
         NULLIF(TRIM(CAST(source_data.provider_listing_exchange_code AS VARCHAR)), '') AS provider_listing_exchange_code,
         NULLIF(UPPER(TRIM(CAST(source_data.currency_code AS VARCHAR))), '') AS currency_code,
@@ -29,7 +28,7 @@ deduplicated AS (
     SELECT
         *,
         ROW_NUMBER() OVER (
-            PARTITION BY snapshot_date, ticker, data_provider
+            PARTITION BY snapshot_date, provider_exchange_code, provider_instrument_code, data_provider
             ORDER BY ingested_at DESC, ingestion_id DESC
         ) AS row_number
     FROM renamed

@@ -8,11 +8,12 @@ renamed AS (
         CAST(source_data.ingestion_id AS VARCHAR) AS ingestion_id,
         CAST(source_data.snapshot_date AS DATE) AS snapshot_date,
         UPPER(TRIM(CAST(source_data.provider_exchange_code AS VARCHAR))) AS provider_exchange_code,
-        UPPER(TRIM(CAST(source_data.ticker AS VARCHAR))) AS ticker,
+        UPPER(TRIM(CAST(source_data.provider_instrument_code AS VARCHAR))) AS provider_instrument_code,
         CAST(source_data.provider_position AS BIGINT) AS provider_position,
-        UPPER(TRIM(CAST(source_data.component_code AS VARCHAR))) AS component_code,
-        NULLIF(UPPER(TRIM(CAST(source_data.component_exchange AS VARCHAR))), '') AS component_exchange,
-        NULLIF(UPPER(TRIM(CAST(source_data.component_ticker AS VARCHAR))), '') AS component_ticker,
+        UPPER(TRIM(CAST(source_data.component_provider_instrument_code AS VARCHAR)))
+            AS component_provider_instrument_code,
+        NULLIF(UPPER(TRIM(CAST(source_data.component_provider_exchange_code AS VARCHAR))), '')
+            AS component_provider_exchange_code,
         NULLIF(TRIM(CAST(source_data.component_name AS VARCHAR)), '') AS component_name,
         NULLIF(TRIM(CAST(source_data.sector AS VARCHAR)), '') AS sector,
         NULLIF(TRIM(CAST(source_data.industry AS VARCHAR)), '') AS industry,
@@ -28,7 +29,13 @@ deduplicated AS (
     SELECT
         *,
         ROW_NUMBER() OVER (
-            PARTITION BY snapshot_date, ticker, component_code, component_exchange, data_provider
+            PARTITION BY
+                snapshot_date,
+                provider_exchange_code,
+                provider_instrument_code,
+                component_provider_instrument_code,
+                component_provider_exchange_code,
+                data_provider
             ORDER BY ingested_at DESC, ingestion_id DESC
         ) AS row_number
     FROM renamed

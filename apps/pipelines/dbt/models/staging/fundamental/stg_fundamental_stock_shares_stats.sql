@@ -8,7 +8,7 @@ renamed AS (
         CAST(source_data.ingestion_id AS VARCHAR) AS ingestion_id,
         CAST(source_data.snapshot_date AS DATE) AS snapshot_date,
         UPPER(TRIM(CAST(source_data.provider_exchange_code AS VARCHAR))) AS provider_exchange_code,
-        UPPER(TRIM(CAST(source_data.ticker AS VARCHAR))) AS ticker,
+        UPPER(TRIM(CAST(source_data.provider_instrument_code AS VARCHAR))) AS provider_instrument_code,
         CAST(source_data.shares_outstanding AS DECIMAL(38, 10)) AS shares_outstanding,
         CAST(source_data.shares_float AS DECIMAL(38, 10)) AS shares_float,
         CAST(source_data.percent_insiders AS DECIMAL(38, 10)) AS percent_insiders,
@@ -29,7 +29,7 @@ deduplicated AS (
     SELECT
         *,
         ROW_NUMBER() OVER (
-            PARTITION BY snapshot_date, ticker, data_provider
+            PARTITION BY snapshot_date, provider_exchange_code, provider_instrument_code, data_provider
             ORDER BY ingested_at DESC, ingestion_id DESC
         ) AS row_number
     FROM renamed

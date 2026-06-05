@@ -1,14 +1,14 @@
 version: 2
 
 models:
-  - name: int_eod_price_backfill_symbol_status
-    description: Ingestion-control view of EODHD provider symbols with completed price coverage ranges.
+  - name: int_eod_price_backfill_instrument_status
+    description: Ingestion-control view of EODHD provider instruments with completed price coverage ranges.
     config:
       tags:
         - ingestion_control
     columns:
       - name: data_provider
-        description: Provider for the eligible backfill symbol.
+        description: Provider for the eligible backfill instrument.
         data_tests:
           - not_null
           - accepted_values:
@@ -19,8 +19,8 @@ models:
         description: Provider exchange code used for the price request namespace.
         data_tests:
           - not_null
-      - name: provider_symbol
-        description: Exchange-qualified provider symbol, such as AAPL.US.
+      - name: provider_instrument_code
+        description: Provider instrument code, such as AAPL.
         data_tests:
           - not_null
       - name: instrument_family
@@ -28,14 +28,14 @@ models:
         data_tests:
           - not_null
       - name: min_bar_date
-        description: Earliest completed bar date for the provider symbol, when any price data exists.
+        description: Earliest completed bar date for the provider instrument, when any price data exists.
       - name: max_bar_date
-        description: Latest completed bar date for the provider symbol, when any price data exists.
+        description: Latest completed bar date for the provider instrument, when any price data exists.
       - name: bar_count
         description: Number of staged price bars included in the completion range.
 
   - name: int_eod_price_completion_ranges
-    description: Ingestion-control view summarizing completed Bronze price coverage ranges by provider symbol.
+    description: Ingestion-control view summarizing completed Bronze price coverage ranges by split provider instrument identity.
     config:
       tags:
         - ingestion_control
@@ -52,16 +52,16 @@ models:
         description: Provider exchange code used for the price ingestion request.
         data_tests:
           - not_null
-      - name: provider_symbol
-        description: Exchange-qualified provider symbol, such as AAPL.US.
+      - name: provider_instrument_code
+        description: Provider instrument code, such as AAPL.
         data_tests:
           - not_null
       - name: min_bar_date
-        description: Earliest completed bar date for the provider symbol.
+        description: Earliest completed bar date for the provider instrument.
         data_tests:
           - not_null
       - name: max_bar_date
-        description: Latest completed bar date for the provider symbol.
+        description: Latest completed bar date for the provider instrument.
         data_tests:
           - not_null
       - name: bar_count
@@ -87,8 +87,8 @@ models:
         description: Provider exchange code in the backfill unit key.
         data_tests:
           - not_null
-      - name: provider_symbol
-        description: Exchange-qualified provider symbol in the backfill unit key.
+      - name: provider_instrument_code
+        description: Provider instrument code in the backfill unit key.
         data_tests:
           - not_null
       - name: from_date
@@ -134,8 +134,8 @@ models:
         description: Provider exchange code in the backfill unit key.
         data_tests:
           - not_null
-      - name: provider_symbol
-        description: Exchange-qualified provider symbol in the backfill unit key.
+      - name: provider_instrument_code
+        description: Provider instrument code in the backfill unit key.
         data_tests:
           - not_null
       - name: from_date

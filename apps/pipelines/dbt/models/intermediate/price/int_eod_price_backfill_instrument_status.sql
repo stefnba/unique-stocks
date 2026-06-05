@@ -14,7 +14,7 @@ final AS (
     SELECT
         instrument_universe.data_provider,
         instrument_universe.provider_exchange_code,
-        instrument_universe.provider_symbol,
+        instrument_universe.provider_instrument_code,
         instrument_universe.instrument_family,
         completion_ranges.min_bar_date,
         completion_ranges.max_bar_date,
@@ -23,7 +23,7 @@ final AS (
     LEFT JOIN completion_ranges
         ON instrument_universe.data_provider = completion_ranges.data_provider
         AND instrument_universe.provider_exchange_code = completion_ranges.provider_exchange_code
-        AND instrument_universe.provider_symbol = completion_ranges.provider_symbol
+        AND instrument_universe.provider_instrument_code = completion_ranges.provider_instrument_code
     WHERE instrument_universe.data_provider = 'eodhd'
 )
 

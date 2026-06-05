@@ -9,7 +9,7 @@ seeds:
         data_tests:
           - not_null
       - name: provider_exchange_code
-        description: Provider endpoint path and ticker suffix code, such as INDX in GDAXI.INDX.
+        description: Provider endpoint path and API symbol suffix code, such as INDX in GDAXI.INDX.
         data_tests:
           - not_null
       - name: provider_code_kind
@@ -39,7 +39,7 @@ seeds:
         data_tests:
           - not_null
       - name: verification_symbol
-        description: Representative exchange-qualified symbol used to verify endpoint support.
+        description: Representative exchange-qualified API symbol used to verify endpoint support.
         data_tests:
           - not_null
       - name: last_verified_on

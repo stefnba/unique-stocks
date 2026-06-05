@@ -7,53 +7,56 @@ stock_identity AS (
     SELECT *
     FROM {{ ref('stg_fundamental_stock_identity') }}
     QUALIFY ROW_NUMBER() OVER (
-        PARTITION BY data_provider, ticker
-        ORDER BY snapshot_date DESC, ingested_at DESC, ingestion_id DESC
-    ) = 1
+            PARTITION BY data_provider, provider_exchange_code, provider_instrument_code
+            ORDER BY snapshot_date DESC, ingested_at DESC, ingestion_id DESC
+        ) = 1
 ),
 
 stock_shares_stats AS (
     SELECT *
     FROM {{ ref('stg_fundamental_stock_shares_stats') }}
     QUALIFY ROW_NUMBER() OVER (
-        PARTITION BY data_provider, ticker
-        ORDER BY snapshot_date DESC, ingested_at DESC, ingestion_id DESC
-    ) = 1
+            PARTITION BY data_provider, provider_exchange_code, provider_instrument_code
+            ORDER BY snapshot_date DESC, ingested_at DESC, ingestion_id DESC
+        ) = 1
 ),
 
 etf_identity AS (
     SELECT *
     FROM {{ ref('stg_fundamental_etf_identity') }}
     QUALIFY ROW_NUMBER() OVER (
-        PARTITION BY data_provider, ticker
-        ORDER BY snapshot_date DESC, ingested_at DESC, ingestion_id DESC
-    ) = 1
+            PARTITION BY data_provider, provider_exchange_code, provider_instrument_code
+            ORDER BY snapshot_date DESC, ingested_at DESC, ingestion_id DESC
+        ) = 1
 ),
 
 mutual_fund_identity AS (
     SELECT *
     FROM {{ ref('stg_fundamental_mutual_fund_identity') }}
     QUALIFY ROW_NUMBER() OVER (
-        PARTITION BY data_provider, ticker
-        ORDER BY snapshot_date DESC, ingested_at DESC, ingestion_id DESC
-    ) = 1
+            PARTITION BY data_provider, provider_exchange_code, provider_instrument_code
+            ORDER BY snapshot_date DESC, ingested_at DESC, ingestion_id DESC
+        ) = 1
 ),
 
 index_identity AS (
     SELECT *
     FROM {{ ref('stg_fundamental_index_identity') }}
     QUALIFY ROW_NUMBER() OVER (
-        PARTITION BY data_provider, ticker
-        ORDER BY snapshot_date DESC, ingested_at DESC, ingestion_id DESC
-    ) = 1
+            PARTITION BY data_provider, provider_exchange_code, provider_instrument_code
+            ORDER BY snapshot_date DESC, ingested_at DESC, ingestion_id DESC
+        ) = 1
 )
 
 SELECT
-    document.data_provider || ':' || document.ticker AS fundamental_profile_id,
+    document.data_provider
+    || ':'
+    || document.provider_exchange_code
+    || ':'
+    || document.provider_instrument_code AS fundamental_profile_id,
     document.data_provider,
     document.provider_exchange_code,
-    document.ticker,
-    document.code,
+    document.provider_instrument_code,
     document.instrument_type,
     document.instrument_family,
     COALESCE(
@@ -150,16 +153,21 @@ SELECT
 FROM document
 LEFT JOIN stock_identity
     ON document.data_provider = stock_identity.data_provider
-    AND document.ticker = stock_identity.ticker
+    AND document.provider_exchange_code = stock_identity.provider_exchange_code
+    AND document.provider_instrument_code = stock_identity.provider_instrument_code
 LEFT JOIN stock_shares_stats
     ON document.data_provider = stock_shares_stats.data_provider
-    AND document.ticker = stock_shares_stats.ticker
+    AND document.provider_exchange_code = stock_shares_stats.provider_exchange_code
+    AND document.provider_instrument_code = stock_shares_stats.provider_instrument_code
 LEFT JOIN etf_identity
     ON document.data_provider = etf_identity.data_provider
-    AND document.ticker = etf_identity.ticker
+    AND document.provider_exchange_code = etf_identity.provider_exchange_code
+    AND document.provider_instrument_code = etf_identity.provider_instrument_code
 LEFT JOIN mutual_fund_identity
     ON document.data_provider = mutual_fund_identity.data_provider
-    AND document.ticker = mutual_fund_identity.ticker
+    AND document.provider_exchange_code = mutual_fund_identity.provider_exchange_code
+    AND document.provider_instrument_code = mutual_fund_identity.provider_instrument_code
 LEFT JOIN index_identity
     ON document.data_provider = index_identity.data_provider
-    AND document.ticker = index_identity.ticker
+    AND document.provider_exchange_code = index_identity.provider_exchange_code
+    AND document.provider_instrument_code = index_identity.provider_instrument_code

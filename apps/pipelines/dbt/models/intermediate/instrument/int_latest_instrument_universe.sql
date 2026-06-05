@@ -15,7 +15,6 @@ latest_snapshot AS (
 classified_instrument AS (
     SELECT
         *,
-        ticker || '.' || provider_exchange_code AS provider_symbol,
         CASE
             WHEN normalized_asset_type LIKE '%etf%' THEN 'etf'
             WHEN normalized_asset_type LIKE '%fund%' THEN 'fund'
@@ -46,7 +45,11 @@ provider_universe AS (
 )
 
 SELECT
-    instrument.data_provider || ':' || instrument.provider_exchange_code || ':' || instrument.ticker AS instrument_universe_id,
+    instrument.data_provider
+    || ':'
+    || instrument.provider_exchange_code
+    || ':'
+    || instrument.provider_instrument_code AS instrument_universe_id,
     instrument.snapshot_date,
     instrument.data_provider,
     instrument.provider_exchange_code,
@@ -55,8 +58,7 @@ SELECT
     provider_universe.exchange_catalog_name,
     provider_universe.country_iso2 AS exchange_country_iso2,
     provider_universe.currency AS exchange_currency,
-    instrument.ticker,
-    instrument.provider_symbol,
+    instrument.provider_instrument_code,
     instrument.instrument_name,
     instrument.country,
     instrument.provider_listing_exchange_code,

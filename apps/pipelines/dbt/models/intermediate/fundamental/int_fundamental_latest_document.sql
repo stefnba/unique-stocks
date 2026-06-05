@@ -4,12 +4,11 @@ WITH document AS (
 )
 
 SELECT
-    data_provider || ':' || ticker AS latest_fundamental_document_id,
+    data_provider || ':' || provider_exchange_code || ':' || provider_instrument_code AS latest_fundamental_document_id,
     snapshot_date AS latest_snapshot_date,
     data_provider,
     provider_exchange_code,
-    ticker,
-    code,
+    provider_instrument_code,
     instrument_name,
     instrument_type,
     instrument_family,
@@ -23,6 +22,6 @@ SELECT
     ingested_at
 FROM document
 QUALIFY ROW_NUMBER() OVER (
-        PARTITION BY data_provider, ticker
+        PARTITION BY data_provider, provider_exchange_code, provider_instrument_code
         ORDER BY snapshot_date DESC, provider_updated_at DESC NULLS LAST, ingested_at DESC, ingestion_id DESC
     ) = 1

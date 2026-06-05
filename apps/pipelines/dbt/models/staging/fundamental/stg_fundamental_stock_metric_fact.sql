@@ -8,7 +8,7 @@ renamed AS (
         CAST(source_data.ingestion_id AS VARCHAR) AS ingestion_id,
         CAST(source_data.snapshot_date AS DATE) AS snapshot_date,
         UPPER(TRIM(CAST(source_data.provider_exchange_code AS VARCHAR))) AS provider_exchange_code,
-        UPPER(TRIM(CAST(source_data.ticker AS VARCHAR))) AS ticker,
+        UPPER(TRIM(CAST(source_data.provider_instrument_code AS VARCHAR))) AS provider_instrument_code,
         NULLIF(TRIM(CAST(source_data.metric_group AS VARCHAR)), '') AS metric_group,
         NULLIF(TRIM(CAST(source_data.metric_name AS VARCHAR)), '') AS metric_name,
         CAST(source_data.metric_value AS DECIMAL(38, 10)) AS metric_value,
@@ -24,7 +24,13 @@ deduplicated AS (
     SELECT
         *,
         ROW_NUMBER() OVER (
-            PARTITION BY snapshot_date, ticker, metric_group, metric_name, data_provider
+            PARTITION BY
+                snapshot_date,
+                provider_exchange_code,
+                provider_instrument_code,
+                metric_group,
+                metric_name,
+                data_provider
             ORDER BY ingested_at DESC, ingestion_id DESC
         ) AS row_number
     FROM renamed

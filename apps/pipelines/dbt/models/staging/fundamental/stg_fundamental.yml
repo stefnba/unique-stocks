@@ -13,15 +13,11 @@ models:
         data_tests:
           - not_null
       - name: provider_exchange_code
-        description: Provider exchange code from the exchange-qualified ticker.
+        description: Provider exchange code for the provider instrument namespace.
         data_tests:
           - not_null
-      - name: ticker
-        description: Exchange-qualified ticker requested from the fundamentals endpoint.
-        data_tests:
-          - not_null
-      - name: code
-        description: Provider ticker code without exchange suffix.
+      - name: provider_instrument_code
+        description: Provider instrument code requested from the fundamentals endpoint.
         data_tests:
           - not_null
       - name: instrument_name
@@ -44,7 +40,7 @@ models:
                   - bond
                   - unknown
       - name: primary_ticker
-        description: Provider primary ticker when supplied.
+        description: Provider primary provider_instrument_code when supplied.
       - name: provider_listing_exchange_code
         description: Provider listing exchange value from the fundamentals General section.
       - name: provider_updated_at
@@ -73,7 +69,6 @@ models:
         description: Timestamp when the row was written to Bronze.
         data_tests:
           - not_null
-
   - name: stg_fundamental_stock_identity
     description: Cleaned and deduplicated stock identity snapshots from fundamentals.
     columns:
@@ -86,21 +81,17 @@ models:
         data_tests:
           - not_null
       - name: provider_exchange_code
-        description: Provider exchange code from the exchange-qualified ticker.
+        description: Provider exchange code for the provider instrument namespace.
         data_tests:
           - not_null
-      - name: ticker
-        description: Exchange-qualified stock ticker.
-        data_tests:
-          - not_null
-      - name: code
-        description: Provider ticker code without exchange suffix.
+      - name: provider_instrument_code
+        description: Provider stock instrument code.
         data_tests:
           - not_null
       - name: stock_name
         description: Stock display name.
       - name: primary_ticker
-        description: Provider primary ticker when supplied.
+        description: Provider primary provider_instrument_code when supplied.
       - name: provider_listing_exchange_code
         description: Provider listing exchange value.
       - name: currency_code
@@ -169,7 +160,6 @@ models:
         description: Timestamp when the row was written to Bronze.
         data_tests:
           - not_null
-
   - name: stg_fundamental_statement_fact
     description: Cleaned and deduplicated long-form stock financial statement facts.
     columns:
@@ -182,11 +172,11 @@ models:
         data_tests:
           - not_null
       - name: provider_exchange_code
-        description: Provider exchange code from the exchange-qualified ticker.
+        description: Provider exchange code for the provider instrument namespace.
         data_tests:
           - not_null
-      - name: ticker
-        description: Exchange-qualified stock ticker.
+      - name: provider_instrument_code
+        description: Provider stock instrument code.
         data_tests:
           - not_null
       - name: statement_type
@@ -242,7 +232,6 @@ models:
         description: Timestamp when the row was written to Bronze.
         data_tests:
           - not_null
-
   - name: stg_fundamental_stock_earnings_fact
     description: Cleaned and deduplicated long-form stock earnings facts.
     columns:
@@ -255,11 +244,11 @@ models:
         data_tests:
           - not_null
       - name: provider_exchange_code
-        description: Provider exchange code from the exchange-qualified ticker.
+        description: Provider exchange code for the provider instrument namespace.
         data_tests:
           - not_null
-      - name: ticker
-        description: Exchange-qualified stock ticker.
+      - name: provider_instrument_code
+        description: Provider stock instrument code.
         data_tests:
           - not_null
       - name: earnings_section
@@ -308,7 +297,6 @@ models:
         description: Timestamp when the row was written to Bronze.
         data_tests:
           - not_null
-
   - name: stg_fundamental_stock_shares_stats
     description: Cleaned and deduplicated stock share-statistics snapshots.
     columns:
@@ -321,11 +309,11 @@ models:
         data_tests:
           - not_null
       - name: provider_exchange_code
-        description: Provider exchange code from the exchange-qualified ticker.
+        description: Provider exchange code for the provider instrument namespace.
         data_tests:
           - not_null
-      - name: ticker
-        description: Exchange-qualified stock ticker.
+      - name: provider_instrument_code
+        description: Provider stock instrument code.
         data_tests:
           - not_null
       - name: shares_outstanding
@@ -364,7 +352,6 @@ models:
         description: Timestamp when the row was written to Bronze.
         data_tests:
           - not_null
-
   - name: stg_fundamental_stock_outstanding_shares
     description: Cleaned and deduplicated stock outstanding-share observations.
     columns:
@@ -377,11 +364,11 @@ models:
         data_tests:
           - not_null
       - name: provider_exchange_code
-        description: Provider exchange code from the exchange-qualified ticker.
+        description: Provider exchange code for the provider instrument namespace.
         data_tests:
           - not_null
-      - name: ticker
-        description: Exchange-qualified stock ticker.
+      - name: provider_instrument_code
+        description: Provider stock instrument code.
         data_tests:
           - not_null
       - name: period_type
@@ -423,7 +410,6 @@ models:
         description: Timestamp when the row was written to Bronze.
         data_tests:
           - not_null
-
   - name: stg_fundamental_stock_holder
     description: Cleaned and deduplicated stock holder rows.
     columns:
@@ -436,11 +422,11 @@ models:
         data_tests:
           - not_null
       - name: provider_exchange_code
-        description: Provider exchange code from the exchange-qualified ticker.
+        description: Provider exchange code for the provider instrument namespace.
         data_tests:
           - not_null
-      - name: ticker
-        description: Exchange-qualified stock ticker.
+      - name: provider_instrument_code
+        description: Provider stock instrument code.
         data_tests:
           - not_null
       - name: holder_type
@@ -485,7 +471,6 @@ models:
         description: Timestamp when the row was written to Bronze.
         data_tests:
           - not_null
-
   - name: stg_fundamental_stock_insider_transaction
     description: Cleaned and deduplicated stock insider transaction rows.
     columns:
@@ -498,11 +483,11 @@ models:
         data_tests:
           - not_null
       - name: provider_exchange_code
-        description: Provider exchange code from the exchange-qualified ticker.
+        description: Provider exchange code for the provider instrument namespace.
         data_tests:
           - not_null
-      - name: ticker
-        description: Exchange-qualified stock ticker.
+      - name: provider_instrument_code
+        description: Provider stock instrument code.
         data_tests:
           - not_null
       - name: provider_position
@@ -557,7 +542,6 @@ models:
         description: Timestamp when the row was written to Bronze.
         data_tests:
           - not_null
-
   - name: stg_fundamental_stock_splits_dividends
     description: Cleaned and deduplicated stock splits/dividends snapshots.
     columns:
@@ -570,11 +554,11 @@ models:
         data_tests:
           - not_null
       - name: provider_exchange_code
-        description: Provider exchange code from the exchange-qualified ticker.
+        description: Provider exchange code for the provider instrument namespace.
         data_tests:
           - not_null
-      - name: ticker
-        description: Exchange-qualified stock ticker.
+      - name: provider_instrument_code
+        description: Provider stock instrument code.
         data_tests:
           - not_null
       - name: forward_annual_dividend_rate
@@ -609,7 +593,6 @@ models:
         description: Timestamp when the row was written to Bronze.
         data_tests:
           - not_null
-
   - name: stg_fundamental_stock_dividend_count
     description: Cleaned and deduplicated yearly stock dividend-count rows.
     columns:
@@ -622,11 +605,11 @@ models:
         data_tests:
           - not_null
       - name: provider_exchange_code
-        description: Provider exchange code from the exchange-qualified ticker.
+        description: Provider exchange code for the provider instrument namespace.
         data_tests:
           - not_null
-      - name: ticker
-        description: Exchange-qualified stock ticker.
+      - name: provider_instrument_code
+        description: Provider stock instrument code.
         data_tests:
           - not_null
       - name: year
@@ -655,7 +638,6 @@ models:
         description: Timestamp when the row was written to Bronze.
         data_tests:
           - not_null
-
   - name: stg_fundamental_stock_metric_fact
     description: Cleaned and deduplicated long-form numeric stock metrics.
     columns:
@@ -668,11 +650,11 @@ models:
         data_tests:
           - not_null
       - name: provider_exchange_code
-        description: Provider exchange code from the exchange-qualified ticker.
+        description: Provider exchange code for the provider instrument namespace.
         data_tests:
           - not_null
-      - name: ticker
-        description: Exchange-qualified stock ticker.
+      - name: provider_instrument_code
+        description: Provider stock instrument code.
         data_tests:
           - not_null
       - name: metric_group
@@ -707,7 +689,6 @@ models:
         description: Timestamp when the row was written to Bronze.
         data_tests:
           - not_null
-
   - name: stg_fundamental_stock_esg_activity
     description: Cleaned and deduplicated stock ESG activity involvement rows.
     columns:
@@ -720,11 +701,11 @@ models:
         data_tests:
           - not_null
       - name: provider_exchange_code
-        description: Provider exchange code from the exchange-qualified ticker.
+        description: Provider exchange code for the provider instrument namespace.
         data_tests:
           - not_null
-      - name: ticker
-        description: Exchange-qualified stock ticker.
+      - name: provider_instrument_code
+        description: Provider stock instrument code.
         data_tests:
           - not_null
       - name: rating_date
@@ -753,7 +734,6 @@ models:
         description: Timestamp when the row was written to Bronze.
         data_tests:
           - not_null
-
   - name: stg_fundamental_etf_identity
     description: Cleaned and deduplicated ETF identity snapshots from fundamentals.
     columns:
@@ -766,21 +746,17 @@ models:
         data_tests:
           - not_null
       - name: provider_exchange_code
-        description: Provider exchange code from the exchange-qualified ticker.
+        description: Provider exchange code for the provider instrument namespace.
         data_tests:
           - not_null
-      - name: ticker
-        description: Exchange-qualified ETF ticker.
-        data_tests:
-          - not_null
-      - name: code
-        description: Provider ticker code without exchange suffix.
+      - name: provider_instrument_code
+        description: Provider ETF instrument code.
         data_tests:
           - not_null
       - name: etf_name
         description: ETF display name.
       - name: primary_ticker
-        description: Provider primary ticker when supplied.
+        description: Provider primary provider_instrument_code when supplied.
       - name: provider_listing_exchange_code
         description: Provider listing exchange value.
       - name: currency_code
@@ -829,7 +805,6 @@ models:
         description: Timestamp when the row was written to Bronze.
         data_tests:
           - not_null
-
   - name: stg_fundamental_mutual_fund_identity
     description: Cleaned and deduplicated mutual fund identity snapshots from fundamentals.
     columns:
@@ -842,21 +817,17 @@ models:
         data_tests:
           - not_null
       - name: provider_exchange_code
-        description: Provider exchange code from the exchange-qualified ticker.
+        description: Provider exchange code for the provider instrument namespace.
         data_tests:
           - not_null
-      - name: ticker
-        description: Exchange-qualified mutual fund ticker.
-        data_tests:
-          - not_null
-      - name: code
-        description: Provider ticker code without exchange suffix.
+      - name: provider_instrument_code
+        description: Provider mutual fund instrument code.
         data_tests:
           - not_null
       - name: mutual_fund_name
         description: Mutual fund display name.
       - name: primary_ticker
-        description: Provider primary ticker when supplied.
+        description: Provider primary provider_instrument_code when supplied.
       - name: provider_listing_exchange_code
         description: Provider listing exchange value.
       - name: currency_code
@@ -905,7 +876,6 @@ models:
         description: Timestamp when the row was written to Bronze.
         data_tests:
           - not_null
-
   - name: stg_fundamental_index_identity
     description: Cleaned and deduplicated index identity snapshots from fundamentals.
     columns:
@@ -918,15 +888,11 @@ models:
         data_tests:
           - not_null
       - name: provider_exchange_code
-        description: Provider exchange code from the exchange-qualified ticker.
+        description: Provider exchange code for the provider instrument namespace.
         data_tests:
           - not_null
-      - name: ticker
-        description: Exchange-qualified index ticker.
-        data_tests:
-          - not_null
-      - name: code
-        description: Provider ticker code without exchange suffix.
+      - name: provider_instrument_code
+        description: Provider index instrument code.
         data_tests:
           - not_null
       - name: index_name
@@ -963,7 +929,6 @@ models:
         description: Timestamp when the row was written to Bronze.
         data_tests:
           - not_null
-
   - name: stg_fundamental_etf_holding
     description: Cleaned and deduplicated ETF holding edges.
     columns:
@@ -976,20 +941,20 @@ models:
         data_tests:
           - not_null
       - name: provider_exchange_code
-        description: Provider exchange code from the exchange-qualified ticker.
+        description: Provider exchange code for the provider instrument namespace.
         data_tests:
           - not_null
-      - name: ticker
-        description: Exchange-qualified ETF ticker.
+      - name: provider_instrument_code
+        description: Provider ETF instrument code.
         data_tests:
           - not_null
-      - name: holding_symbol
+      - name: holding_provider_key
         description: Provider holding symbol key.
         data_tests:
           - not_null
-      - name: holding_code
+      - name: holding_provider_instrument_code
         description: Provider holding code without exchange suffix.
-      - name: holding_exchange
+      - name: holding_provider_exchange_code
         description: Provider holding exchange code.
       - name: holding_name
         description: Holding display name.
@@ -1025,7 +990,6 @@ models:
         description: Timestamp when the row was written to Bronze.
         data_tests:
           - not_null
-
   - name: stg_fundamental_mutual_fund_holding
     description: Cleaned and deduplicated mutual fund top-holding rows.
     columns:
@@ -1038,11 +1002,11 @@ models:
         data_tests:
           - not_null
       - name: provider_exchange_code
-        description: Provider exchange code from the exchange-qualified ticker.
+        description: Provider exchange code for the provider instrument namespace.
         data_tests:
           - not_null
-      - name: ticker
-        description: Exchange-qualified mutual fund ticker.
+      - name: provider_instrument_code
+        description: Provider mutual fund instrument code.
         data_tests:
           - not_null
       - name: provider_position
@@ -1071,7 +1035,6 @@ models:
         description: Timestamp when the row was written to Bronze.
         data_tests:
           - not_null
-
   - name: stg_fundamental_fund_metric_fact
     description: Cleaned and deduplicated long-form numeric ETF and mutual fund metrics.
     columns:
@@ -1084,11 +1047,11 @@ models:
         data_tests:
           - not_null
       - name: provider_exchange_code
-        description: Provider exchange code from the exchange-qualified ticker.
+        description: Provider exchange code for the provider instrument namespace.
         data_tests:
           - not_null
-      - name: ticker
-        description: Exchange-qualified ETF or fund ticker.
+      - name: provider_instrument_code
+        description: Provider ETF or fund instrument code.
         data_tests:
           - not_null
       - name: instrument_family
@@ -1134,7 +1097,6 @@ models:
         description: Timestamp when the row was written to Bronze.
         data_tests:
           - not_null
-
   - name: stg_fundamental_index_component
     description: Cleaned and deduplicated current index constituent edges.
     columns:
@@ -1147,23 +1109,21 @@ models:
         data_tests:
           - not_null
       - name: provider_exchange_code
-        description: Provider exchange code from the exchange-qualified ticker.
+        description: Provider exchange code for the provider instrument namespace.
         data_tests:
           - not_null
-      - name: ticker
-        description: Exchange-qualified index ticker.
+      - name: provider_instrument_code
+        description: Provider index instrument code.
         data_tests:
           - not_null
       - name: provider_position
         description: Provider order position within the Components map.
-      - name: component_code
-        description: Provider component ticker code.
+      - name: component_provider_instrument_code
+        description: Provider component provider_instrument_code code.
         data_tests:
           - not_null
-      - name: component_exchange
+      - name: component_provider_exchange_code
         description: Provider component exchange code.
-      - name: component_ticker
-        description: Exchange-qualified component ticker assembled from code and exchange.
       - name: component_name
         description: Component display name.
       - name: sector
@@ -1190,7 +1150,6 @@ models:
         description: Timestamp when the row was written to Bronze.
         data_tests:
           - not_null
-
   - name: stg_fundamental_index_historical_component
     description: Cleaned and deduplicated historical index constituent membership rows.
     columns:
@@ -1203,17 +1162,17 @@ models:
         data_tests:
           - not_null
       - name: provider_exchange_code
-        description: Provider exchange code from the exchange-qualified ticker.
+        description: Provider exchange code for the provider instrument namespace.
         data_tests:
           - not_null
-      - name: ticker
-        description: Exchange-qualified index ticker.
+      - name: provider_instrument_code
+        description: Provider index instrument code.
         data_tests:
           - not_null
       - name: provider_position
         description: Provider order position within the HistoricalTickerComponents map.
-      - name: component_code
-        description: Provider component ticker code.
+      - name: component_provider_instrument_code
+        description: Provider component provider_instrument_code code.
         data_tests:
           - not_null
       - name: component_name

@@ -7,17 +7,24 @@ instrument AS (
     SELECT
         instrument_pk,
         data_provider,
-        provider_symbol
+        provider_exchange_code,
+        provider_instrument_code
     FROM {{ ref('dim_instrument') }}
 ),
 
 final AS (
     SELECT
-        {{ surrogate_key(["price.data_provider", "price.ticker", "price.bar_date"]) }} AS daily_price_pk,
+        {{ surrogate_key([
+            "price.data_provider",
+            "price.provider_exchange_code",
+            "price.provider_instrument_code",
+            "price.bar_date",
+        ]) }}
+            AS daily_price_pk,
         instrument.instrument_pk,
         price.data_provider,
         price.provider_exchange_code,
-        price.ticker,
+        price.provider_instrument_code,
         price.open_price,
         price.high_price,
         price.low_price,
@@ -30,7 +37,8 @@ final AS (
     FROM price
     LEFT JOIN instrument
         ON price.data_provider = instrument.data_provider
-        AND price.ticker = instrument.provider_symbol
+        AND price.provider_exchange_code = instrument.provider_exchange_code
+        AND price.provider_instrument_code = instrument.provider_instrument_code
 )
 
 SELECT * FROM final

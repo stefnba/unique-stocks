@@ -10,7 +10,7 @@ models:
           - not_null
           - unique
       - name: instrument_pk
-        description: Foreign key to dim_instrument when the priced symbol is in the tradable instrument dimension.
+        description: Foreign key to dim_instrument when the priced instrument is in the tradable instrument dimension.
         data_tests:
           - relationships:
               arguments:
@@ -24,12 +24,12 @@ models:
               arguments:
                 values:
                   - eodhd
-      - name: ticker
-        description: Exchange-qualified ticker, such as AAPL.US.
+      - name: provider_instrument_code
+        description: Provider instrument code, such as AAPL.
         data_tests:
           - not_null
       - name: provider_exchange_code
-        description: Provider exchange code for the listed instrument, used in endpoint paths and ticker suffixes.
+        description: Provider exchange code for the listed instrument, used in endpoint paths and provider_instrument_code suffixes.
         data_tests:
           - not_null
       - name: bar_date

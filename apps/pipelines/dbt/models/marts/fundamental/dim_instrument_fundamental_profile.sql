@@ -5,11 +5,11 @@ WITH fundamental_profile AS (
 
 final AS (
     SELECT
-        {{ surrogate_key(["data_provider", "ticker"]) }} AS instrument_fundamental_profile_pk,
+        {{ surrogate_key(["data_provider", "provider_exchange_code", "provider_instrument_code"]) }}
+            AS instrument_fundamental_profile_pk,
         data_provider,
         provider_exchange_code,
-        ticker,
-        code,
+        provider_instrument_code,
         instrument_type,
         instrument_family,
         instrument_name,

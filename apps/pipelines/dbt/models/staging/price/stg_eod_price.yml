@@ -9,11 +9,11 @@ models:
         data_tests:
           - not_null
       - name: provider_exchange_code
-        description: Provider exchange code for the listed instrument, used in endpoint paths and ticker suffixes.
+        description: Provider exchange code for the listed instrument, used in endpoint paths and provider_instrument_code suffixes.
         data_tests:
           - not_null
-      - name: ticker
-        description: Exchange-qualified ticker, such as AAPL.US.
+      - name: provider_instrument_code
+        description: Provider instrument code, such as AAPL.
         data_tests:
           - not_null
       - name: bar_date

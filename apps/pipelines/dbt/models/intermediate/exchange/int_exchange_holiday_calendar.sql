@@ -22,7 +22,11 @@ calendar AS (
 )
 
 SELECT
-    holiday.data_provider || ':' || holiday.provider_schedule_exchange_code || ':' || CAST(holiday.holiday_date AS VARCHAR)
+    holiday.data_provider
+    || ':'
+    || holiday.provider_schedule_exchange_code
+    || ':'
+    || CAST(holiday.holiday_date AS VARCHAR)
         AS exchange_holiday_calendar_id,
     holiday.data_provider,
     holiday.provider_schedule_exchange_code,

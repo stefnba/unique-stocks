@@ -1,7 +1,7 @@
 SELECT
     snapshot_date,
     provider_exchange_code,
-    ticker,
+    provider_instrument_code,
     data_provider,
     COUNT(*) AS record_count
 FROM {{ ref('stg_instrument') }}

@@ -11,7 +11,11 @@ fundamentals AS (
 
 final AS (
     SELECT
-        {{ surrogate_key(["instrument.data_provider", "instrument.provider_exchange_code", "instrument.ticker"]) }}
+        {{ surrogate_key([
+            "instrument.data_provider",
+            "instrument.provider_exchange_code",
+            "instrument.provider_instrument_code",
+            ]) }}
             AS instrument_pk,
         instrument.data_provider,
         instrument.provider_exchange_code,
@@ -20,8 +24,7 @@ final AS (
         instrument.exchange_catalog_name,
         instrument.exchange_country_iso2,
         instrument.exchange_currency,
-        instrument.ticker,
-        instrument.provider_symbol,
+        instrument.provider_instrument_code,
         COALESCE(fundamentals.instrument_name, instrument.instrument_name) AS instrument_name,
         fundamentals.primary_ticker,
         COALESCE(fundamentals.currency_code, instrument.currency) AS currency_code,
@@ -63,7 +66,8 @@ final AS (
     FROM instrument
     LEFT JOIN fundamentals
         ON instrument.data_provider = fundamentals.data_provider
-        AND instrument.provider_symbol = fundamentals.ticker
+        AND instrument.provider_exchange_code = fundamentals.provider_exchange_code
+        AND instrument.provider_instrument_code = fundamentals.provider_instrument_code
 )
 
 SELECT * FROM final

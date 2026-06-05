@@ -30,12 +30,8 @@ models:
         description: Provider exchange country ISO code from the ingestion universe.
       - name: exchange_currency
         description: Provider exchange currency from the ingestion universe.
-      - name: ticker
-        description: Provider ticker code without the provider exchange suffix.
-        data_tests:
-          - not_null
-      - name: provider_symbol
-        description: Exchange-qualified provider symbol assembled from ticker and provider exchange code.
+      - name: provider_instrument_code
+        description: Provider instrument code paired with provider_exchange_code.
         data_tests:
           - not_null
       - name: instrument_name

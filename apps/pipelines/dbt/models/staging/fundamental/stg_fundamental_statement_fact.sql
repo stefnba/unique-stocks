@@ -8,7 +8,7 @@ renamed AS (
         CAST(source_data.ingestion_id AS VARCHAR) AS ingestion_id,
         CAST(source_data.snapshot_date AS DATE) AS snapshot_date,
         UPPER(TRIM(CAST(source_data.provider_exchange_code AS VARCHAR))) AS provider_exchange_code,
-        UPPER(TRIM(CAST(source_data.ticker AS VARCHAR))) AS ticker,
+        UPPER(TRIM(CAST(source_data.provider_instrument_code AS VARCHAR))) AS provider_instrument_code,
         LOWER(TRIM(CAST(source_data.statement_type AS VARCHAR))) AS statement_type,
         LOWER(TRIM(CAST(source_data.period_type AS VARCHAR))) AS period_type,
         CAST(source_data.period_end_date AS DATE) AS period_end_date,
@@ -29,7 +29,7 @@ deduplicated AS (
         ROW_NUMBER() OVER (
             PARTITION BY
                 snapshot_date,
-                ticker,
+                provider_instrument_code,
                 statement_type,
                 period_type,
                 period_end_date,

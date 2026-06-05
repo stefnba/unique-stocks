@@ -31,18 +31,14 @@ models:
         description: Provider exchange country ISO code.
       - name: exchange_currency
         description: Provider exchange currency.
-      - name: ticker
-        description: Provider ticker code without exchange suffix.
-        data_tests:
-          - not_null
-      - name: provider_symbol
-        description: Exchange-qualified provider symbol.
+      - name: provider_instrument_code
+        description: Provider instrument code.
         data_tests:
           - not_null
       - name: instrument_name
         description: Best available provider display name.
       - name: primary_ticker
-        description: Provider primary ticker from fundamentals.
+        description: Provider-supplied primary ticker from fundamentals.
       - name: currency_code
         description: Best available trading or reporting currency code.
       - name: country_name
@@ -120,7 +116,7 @@ models:
       - name: fundamentals_snapshot_date
         description: Fundamentals snapshot used for the enrichment.
       - name: has_fundamentals
-        description: True when a current fundamentals profile matched the provider symbol.
+        description: True when a current fundamentals profile matched the split provider instrument identity.
         data_tests:
           - not_null
       - name: instrument_snapshot_date

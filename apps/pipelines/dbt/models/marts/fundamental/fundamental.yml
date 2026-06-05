@@ -18,15 +18,11 @@ models:
                 values:
                   - eodhd
       - name: provider_exchange_code
-        description: Provider exchange code from the exchange-qualified ticker.
+        description: Provider exchange code for the provider instrument namespace.
         data_tests:
           - not_null
-      - name: ticker
-        description: Exchange-qualified ticker represented by this profile.
-        data_tests:
-          - not_null
-      - name: code
-        description: Provider ticker code without exchange suffix.
+      - name: provider_instrument_code
+        description: Provider instrument code represented by this profile.
         data_tests:
           - not_null
       - name: instrument_type
@@ -40,7 +36,7 @@ models:
       - name: instrument_name
         description: Best available display name across fundamentals identity sources.
       - name: primary_ticker
-        description: Provider primary ticker when supplied.
+        description: Provider primary provider_instrument_code when supplied.
       - name: provider_listing_exchange_code
         description: Provider listing exchange value from the best available identity source.
       - name: currency_code
@@ -147,7 +143,6 @@ models:
         description: Timestamp when the selected document row was written to Bronze.
         data_tests:
           - not_null
-
   - name: fct_fundamental_metric
     description: Gold long-form current fundamentals metric facts for stock and fund-like instruments.
     columns:
@@ -176,11 +171,11 @@ models:
         data_tests:
           - not_null
       - name: provider_exchange_code
-        description: Provider exchange code from the exchange-qualified ticker.
+        description: Provider exchange code for the provider instrument namespace.
         data_tests:
           - not_null
-      - name: ticker
-        description: Exchange-qualified ticker represented by the metric.
+      - name: provider_instrument_code
+        description: Provider instrument code represented by the metric.
         data_tests:
           - not_null
       - name: instrument_family

@@ -11,9 +11,9 @@ sources:
           - name: ingestion_id
             description: Unique ingestion row identifier.
           - name: provider_exchange_code
-            description: Provider exchange code for the listed instrument, used in endpoint paths and ticker suffixes.
-          - name: ticker
-            description: Exchange-qualified ticker, such as AAPL.US.
+            description: Provider exchange code for the listed instrument, used in endpoint paths and provider_instrument_code suffixes.
+          - name: provider_instrument_code
+            description: Provider instrument code, such as AAPL.
           - name: bar_date
             description: Trading date for the OHLCV bar.
           - name: open
@@ -192,8 +192,8 @@ sources:
             description: Date the reference snapshot was ingested.
           - name: provider_exchange_code
             description: Provider exchange code used for the instrument-list request.
-          - name: ticker
-            description: Provider ticker symbol.
+          - name: provider_instrument_code
+            description: Provider provider_instrument_code symbol.
           - name: name
             description: Instrument display name.
           - name: country
@@ -225,11 +225,9 @@ sources:
           - name: snapshot_date
             description: Date the fundamentals document snapshot was ingested.
           - name: provider_exchange_code
-            description: Provider exchange code from the exchange-qualified ticker.
-          - name: ticker
-            description: Exchange-qualified ticker requested from the fundamentals endpoint.
-          - name: code
-            description: Provider ticker code without exchange suffix.
+            description: Provider exchange code for the provider instrument namespace.
+          - name: provider_instrument_code
+            description: Provider instrument code requested from the fundamentals endpoint.
           - name: name
             description: Instrument display name from the fundamentals General section.
           - name: instrument_type
@@ -237,7 +235,7 @@ sources:
           - name: instrument_family
             description: Stable broad instrument family derived from the provider instrument type.
           - name: primary_ticker
-            description: Provider primary ticker when supplied.
+            description: Provider primary provider_instrument_code when supplied.
           - name: provider_listing_exchange_code
             description: Provider listing exchange value from the fundamentals General section.
           - name: provider_updated_at
@@ -265,15 +263,13 @@ sources:
           - name: snapshot_date
             description: Date the stock identity snapshot was ingested.
           - name: provider_exchange_code
-            description: Provider exchange code from the exchange-qualified ticker.
-          - name: ticker
-            description: Exchange-qualified ticker requested from the fundamentals endpoint.
-          - name: code
-            description: Provider ticker code without exchange suffix.
+            description: Provider exchange code for the provider instrument namespace.
+          - name: provider_instrument_code
+            description: Provider instrument code requested from the fundamentals endpoint.
           - name: name
             description: Stock display name.
           - name: primary_ticker
-            description: Provider primary ticker when supplied.
+            description: Provider primary provider_instrument_code when supplied.
           - name: provider_listing_exchange_code
             description: Provider listing exchange value from the fundamentals General section.
           - name: currency_code
@@ -343,9 +339,9 @@ sources:
           - name: snapshot_date
             description: Date the statement fact snapshot was ingested.
           - name: provider_exchange_code
-            description: Provider exchange code from the exchange-qualified ticker.
-          - name: ticker
-            description: Exchange-qualified ticker requested from the fundamentals endpoint.
+            description: Provider exchange code for the provider instrument namespace.
+          - name: provider_instrument_code
+            description: Provider instrument code requested from the fundamentals endpoint.
           - name: statement_type
             description: Statement family such as balance_sheet, cash_flow, or income_statement.
           - name: period_type
@@ -379,9 +375,9 @@ sources:
           - name: snapshot_date
             description: Date the earnings fact snapshot was ingested.
           - name: provider_exchange_code
-            description: Provider exchange code from the exchange-qualified ticker.
-          - name: ticker
-            description: Exchange-qualified ticker requested from the fundamentals endpoint.
+            description: Provider exchange code for the provider instrument namespace.
+          - name: provider_instrument_code
+            description: Provider instrument code requested from the fundamentals endpoint.
           - name: earnings_section
             description: Provider earnings subsection, such as annual, history, or trend.
           - name: period_type
@@ -421,9 +417,9 @@ sources:
           - name: snapshot_date
             description: Date the share-statistics snapshot was ingested.
           - name: provider_exchange_code
-            description: Provider exchange code from the exchange-qualified ticker.
-          - name: ticker
-            description: Exchange-qualified ticker requested from the fundamentals endpoint.
+            description: Provider exchange code for the provider instrument namespace.
+          - name: provider_instrument_code
+            description: Provider instrument code requested from the fundamentals endpoint.
           - name: shares_outstanding
             description: Provider-reported shares outstanding.
           - name: shares_float
@@ -461,9 +457,9 @@ sources:
           - name: snapshot_date
             description: Date the outstanding-shares snapshot was ingested.
           - name: provider_exchange_code
-            description: Provider exchange code from the exchange-qualified ticker.
-          - name: ticker
-            description: Exchange-qualified ticker requested from the fundamentals endpoint.
+            description: Provider exchange code for the provider instrument namespace.
+          - name: provider_instrument_code
+            description: Provider instrument code requested from the fundamentals endpoint.
           - name: period_type
             description: Provider period family, either annual or quarterly.
           - name: provider_period_label
@@ -493,9 +489,9 @@ sources:
           - name: snapshot_date
             description: Date the holder snapshot was ingested.
           - name: provider_exchange_code
-            description: Provider exchange code from the exchange-qualified ticker.
-          - name: ticker
-            description: Exchange-qualified ticker requested from the fundamentals endpoint.
+            description: Provider exchange code for the provider instrument namespace.
+          - name: provider_instrument_code
+            description: Provider instrument code requested from the fundamentals endpoint.
           - name: holder_type
             description: Holder category, such as institution or fund.
           - name: provider_position
@@ -533,9 +529,9 @@ sources:
           - name: snapshot_date
             description: Date the insider transaction snapshot was ingested.
           - name: provider_exchange_code
-            description: Provider exchange code from the exchange-qualified ticker.
-          - name: ticker
-            description: Exchange-qualified ticker requested from the fundamentals endpoint.
+            description: Provider exchange code for the provider instrument namespace.
+          - name: provider_instrument_code
+            description: Provider instrument code requested from the fundamentals endpoint.
           - name: provider_position
             description: Provider order position within the InsiderTransactions map.
           - name: filing_date
@@ -577,9 +573,9 @@ sources:
           - name: snapshot_date
             description: Date the splits/dividends snapshot was ingested.
           - name: provider_exchange_code
-            description: Provider exchange code from the exchange-qualified ticker.
-          - name: ticker
-            description: Exchange-qualified ticker requested from the fundamentals endpoint.
+            description: Provider exchange code for the provider instrument namespace.
+          - name: provider_instrument_code
+            description: Provider instrument code requested from the fundamentals endpoint.
           - name: forward_annual_dividend_rate
             description: Provider forward annual dividend rate.
           - name: forward_annual_dividend_yield
@@ -613,9 +609,9 @@ sources:
           - name: snapshot_date
             description: Date the dividend-count snapshot was ingested.
           - name: provider_exchange_code
-            description: Provider exchange code from the exchange-qualified ticker.
-          - name: ticker
-            description: Exchange-qualified ticker requested from the fundamentals endpoint.
+            description: Provider exchange code for the provider instrument namespace.
+          - name: provider_instrument_code
+            description: Provider instrument code requested from the fundamentals endpoint.
           - name: year
             description: Calendar year supplied by the provider.
           - name: dividend_count
@@ -639,9 +635,9 @@ sources:
           - name: snapshot_date
             description: Date the metric snapshot was ingested.
           - name: provider_exchange_code
-            description: Provider exchange code from the exchange-qualified ticker.
-          - name: ticker
-            description: Exchange-qualified ticker requested from the fundamentals endpoint.
+            description: Provider exchange code for the provider instrument namespace.
+          - name: provider_instrument_code
+            description: Provider instrument code requested from the fundamentals endpoint.
           - name: metric_group
             description: Source section, such as highlights, valuation, technicals, analyst_ratings, or esg_scores.
           - name: metric_name
@@ -669,9 +665,9 @@ sources:
           - name: snapshot_date
             description: Date the ESG activity snapshot was ingested.
           - name: provider_exchange_code
-            description: Provider exchange code from the exchange-qualified ticker.
-          - name: ticker
-            description: Exchange-qualified ticker requested from the fundamentals endpoint.
+            description: Provider exchange code for the provider instrument namespace.
+          - name: provider_instrument_code
+            description: Provider instrument code requested from the fundamentals endpoint.
           - name: rating_date
             description: Provider ESG rating date when supplied.
           - name: activity
@@ -697,15 +693,13 @@ sources:
           - name: snapshot_date
             description: Date the ETF identity snapshot was ingested.
           - name: provider_exchange_code
-            description: Provider exchange code from the exchange-qualified ticker.
-          - name: ticker
-            description: Exchange-qualified ETF ticker requested from the fundamentals endpoint.
-          - name: code
-            description: Provider ticker code without exchange suffix.
+            description: Provider exchange code for the provider instrument namespace.
+          - name: provider_instrument_code
+            description: Provider ETF instrument code.
           - name: name
             description: ETF display name from the provider.
           - name: primary_ticker
-            description: Provider primary ticker when supplied.
+            description: Provider primary provider_instrument_code when supplied.
           - name: provider_listing_exchange_code
             description: Provider listing exchange value from the fundamentals General section.
           - name: currency_code
@@ -755,15 +749,13 @@ sources:
           - name: snapshot_date
             description: Date the mutual fund identity snapshot was ingested.
           - name: provider_exchange_code
-            description: Provider exchange code from the exchange-qualified ticker.
-          - name: ticker
-            description: Exchange-qualified mutual fund ticker requested from the fundamentals endpoint.
-          - name: code
-            description: Provider ticker code without exchange suffix.
+            description: Provider exchange code for the provider instrument namespace.
+          - name: provider_instrument_code
+            description: Provider mutual fund instrument code.
           - name: name
             description: Mutual fund display name from the provider.
           - name: primary_ticker
-            description: Provider primary ticker when supplied.
+            description: Provider primary provider_instrument_code when supplied.
           - name: provider_listing_exchange_code
             description: Provider listing exchange value from the fundamentals General section.
           - name: currency_code
@@ -813,11 +805,9 @@ sources:
           - name: snapshot_date
             description: Date the index identity snapshot was ingested.
           - name: provider_exchange_code
-            description: Provider exchange code from the exchange-qualified ticker.
-          - name: ticker
-            description: Exchange-qualified index ticker requested from the fundamentals endpoint.
-          - name: code
-            description: Provider ticker code without exchange suffix.
+            description: Provider exchange code for the provider instrument namespace.
+          - name: provider_instrument_code
+            description: Provider index instrument code.
           - name: name
             description: Index display name from the provider.
           - name: provider_listing_exchange_code
@@ -853,14 +843,14 @@ sources:
           - name: snapshot_date
             description: Date the ETF holdings snapshot was ingested.
           - name: provider_exchange_code
-            description: Provider exchange code from the exchange-qualified ticker.
-          - name: ticker
-            description: Exchange-qualified ETF ticker requested from the fundamentals endpoint.
-          - name: holding_symbol
+            description: Provider exchange code for the provider instrument namespace.
+          - name: provider_instrument_code
+            description: Provider ETF instrument code.
+          - name: holding_provider_key
             description: Provider holding symbol key.
-          - name: holding_code
+          - name: holding_provider_instrument_code
             description: Provider holding code without exchange suffix.
-          - name: holding_exchange
+          - name: holding_provider_exchange_code
             description: Provider holding exchange code.
           - name: holding_name
             description: Holding display name from the provider.
@@ -895,9 +885,9 @@ sources:
           - name: snapshot_date
             description: Date the mutual fund holdings snapshot was ingested.
           - name: provider_exchange_code
-            description: Provider exchange code from the exchange-qualified ticker.
-          - name: ticker
-            description: Exchange-qualified mutual fund ticker requested from the fundamentals endpoint.
+            description: Provider exchange code for the provider instrument namespace.
+          - name: provider_instrument_code
+            description: Provider mutual fund instrument code.
           - name: provider_position
             description: Provider order position within the top-holdings map.
           - name: holding_name
@@ -923,9 +913,9 @@ sources:
           - name: snapshot_date
             description: Date the fund metric snapshot was ingested.
           - name: provider_exchange_code
-            description: Provider exchange code from the exchange-qualified ticker.
-          - name: ticker
-            description: Exchange-qualified ETF or fund ticker requested from the fundamentals endpoint.
+            description: Provider exchange code for the provider instrument namespace.
+          - name: provider_instrument_code
+            description: Provider ETF or fund instrument code.
           - name: instrument_family
             description: Stable instrument family, either etf or fund.
           - name: metric_group
@@ -957,17 +947,15 @@ sources:
           - name: snapshot_date
             description: Date the index component snapshot was ingested.
           - name: provider_exchange_code
-            description: Provider exchange code from the exchange-qualified ticker.
-          - name: ticker
-            description: Exchange-qualified index ticker requested from the fundamentals endpoint.
+            description: Provider exchange code for the provider instrument namespace.
+          - name: provider_instrument_code
+            description: Provider index instrument code.
           - name: provider_position
             description: Provider order position within the Components map.
-          - name: component_code
-            description: Provider component ticker code.
-          - name: component_exchange
+          - name: component_provider_instrument_code
+            description: Provider component provider_instrument_code code.
+          - name: component_provider_exchange_code
             description: Provider component exchange code.
-          - name: component_ticker
-            description: Exchange-qualified component ticker assembled from code and exchange when available.
           - name: component_name
             description: Component display name from the provider.
           - name: sector
@@ -995,13 +983,13 @@ sources:
           - name: snapshot_date
             description: Date the historical index component snapshot was ingested.
           - name: provider_exchange_code
-            description: Provider exchange code from the exchange-qualified ticker.
-          - name: ticker
-            description: Exchange-qualified index ticker requested from the fundamentals endpoint.
+            description: Provider exchange code for the provider instrument namespace.
+          - name: provider_instrument_code
+            description: Provider index instrument code.
           - name: provider_position
             description: Provider order position within the HistoricalTickerComponents map.
-          - name: component_code
-            description: Provider component ticker code.
+          - name: component_provider_instrument_code
+            description: Provider component provider_instrument_code code.
           - name: component_name
             description: Component display name from the provider.
           - name: start_date

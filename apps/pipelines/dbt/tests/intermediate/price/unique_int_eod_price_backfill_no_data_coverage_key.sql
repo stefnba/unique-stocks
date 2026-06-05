@@ -1,7 +1,7 @@
 SELECT
     data_provider,
     provider_exchange_code,
-    provider_symbol,
+    provider_instrument_code,
     from_date,
     to_date
 FROM {{ ref('int_eod_price_backfill_no_data_coverage') }}

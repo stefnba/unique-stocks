@@ -2,7 +2,7 @@ WITH stock_metric AS (
     SELECT
         snapshot_date,
         provider_exchange_code,
-        ticker,
+        provider_instrument_code,
         'stock' AS instrument_family,
         metric_group,
         CAST(NULL AS VARCHAR) AS metric_category,
@@ -18,7 +18,7 @@ fund_metric AS (
     SELECT
         snapshot_date,
         provider_exchange_code,
-        ticker,
+        provider_instrument_code,
         instrument_family,
         metric_group,
         metric_category,
@@ -40,7 +40,8 @@ instrument AS (
     SELECT
         instrument_pk,
         data_provider,
-        provider_symbol
+        provider_exchange_code,
+        provider_instrument_code
     FROM {{ ref('dim_instrument') }}
 ),
 
@@ -48,7 +49,8 @@ final AS (
     SELECT
         {{ surrogate_key([
             "metric.data_provider",
-            "metric.ticker",
+            "metric.provider_exchange_code",
+            "metric.provider_instrument_code",
             "metric.snapshot_date",
             "metric.instrument_family",
             "metric.metric_group",
@@ -58,7 +60,7 @@ final AS (
         instrument.instrument_pk,
         metric.data_provider,
         metric.provider_exchange_code,
-        metric.ticker,
+        metric.provider_instrument_code,
         metric.instrument_family,
         metric.metric_group,
         metric.metric_category,
@@ -70,7 +72,8 @@ final AS (
     FROM metric
     LEFT JOIN instrument
         ON metric.data_provider = instrument.data_provider
-        AND metric.ticker = instrument.provider_symbol
+        AND metric.provider_exchange_code = instrument.provider_exchange_code
+        AND metric.provider_instrument_code = instrument.provider_instrument_code
 )
 
 SELECT * FROM final

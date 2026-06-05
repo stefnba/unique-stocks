@@ -175,7 +175,7 @@ models:
         data_tests:
           - not_null
       - name: provider_exchange_code
-        description: Provider endpoint path and ticker suffix code approved for downstream ingestion.
+        description: Provider endpoint path and provider_instrument_code suffix code approved for downstream ingestion.
         data_tests:
           - not_null
       - name: provider_code_kind
@@ -236,7 +236,7 @@ models:
         data_tests:
           - not_null
       - name: is_enabled_for_fundamental
-        description: True when fundamentals flows may use this provider code for automatic ticker discovery.
+        description: True when fundamentals flows may use this provider code for automatic provider_instrument_code discovery.
         data_tests:
           - not_null
       - name: is_enabled_for_ingestion
@@ -244,7 +244,7 @@ models:
         data_tests:
           - not_null
       - name: verification_symbol
-        description: Representative exchange-qualified symbol used to verify curated namespace endpoint support.
+        description: Representative exchange-qualified API symbol used to verify curated namespace endpoint support.
       - name: last_verified_on
         description: Date curated namespace endpoint support was last manually verified.
       - name: notes

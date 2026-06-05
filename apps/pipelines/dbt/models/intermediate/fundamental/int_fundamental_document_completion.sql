@@ -8,7 +8,8 @@ WITH document AS (
 final AS (
     SELECT DISTINCT
         data_provider,
-        ticker AS provider_symbol,
+        provider_exchange_code,
+        provider_instrument_code,
         snapshot_date
     FROM document
 )

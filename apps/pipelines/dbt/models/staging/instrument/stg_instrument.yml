@@ -16,8 +16,8 @@ models:
         description: Provider exchange code used for the instrument-list request.
         data_tests:
           - not_null
-      - name: ticker
-        description: Provider ticker code without the provider exchange suffix.
+      - name: provider_instrument_code
+        description: Provider provider_instrument_code code without the provider exchange suffix.
         data_tests:
           - not_null
       - name: instrument_name

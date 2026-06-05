@@ -2,13 +2,13 @@ version: 2
 
 models:
   - name: int_fundamental_ingestion_universe
-    description: Ingestion-control view of EODHD provider symbols eligible for fundamentals auto-selection.
+    description: Ingestion-control view of EODHD provider instruments eligible for fundamentals auto-selection.
     config:
       tags:
         - ingestion_control
     columns:
       - name: data_provider
-        description: Provider for the eligible fundamentals symbol.
+        description: Provider for the eligible fundamentals instrument.
         data_tests:
           - not_null
           - accepted_values:
@@ -19,17 +19,16 @@ models:
         description: Provider exchange code used for the fundamentals request namespace.
         data_tests:
           - not_null
-      - name: provider_symbol
-        description: Exchange-qualified provider symbol, such as AAPL.US.
+      - name: provider_instrument_code
+        description: Provider instrument code, such as AAPL.
         data_tests:
           - not_null
       - name: instrument_family
         description: Broad dbt instrument classification from the latest instrument universe.
         data_tests:
           - not_null
-
   - name: int_fundamental_document_completion
-    description: Ingestion-control view identifying completed fundamentals document snapshots by provider symbol.
+    description: Ingestion-control view identifying completed fundamentals document snapshots by split provider instrument identity.
     config:
       tags:
         - ingestion_control
@@ -42,15 +41,18 @@ models:
               arguments:
                 values:
                   - eodhd
-      - name: provider_symbol
-        description: Exchange-qualified provider symbol, such as AAPL.US.
+      - name: provider_exchange_code
+        description: Provider exchange code for the completed fundamentals document.
+        data_tests:
+          - not_null
+      - name: provider_instrument_code
+        description: Provider instrument code for the completed fundamentals document.
         data_tests:
           - not_null
       - name: snapshot_date
         description: Fundamentals snapshot date that has a completed document row.
         data_tests:
           - not_null
-
   - name: int_fundamental_latest_document
     description: Latest fundamentals document metadata per provider instrument.
     columns:
@@ -71,15 +73,11 @@ models:
                 values:
                   - eodhd
       - name: provider_exchange_code
-        description: Provider exchange code from the exchange-qualified ticker.
+        description: Provider exchange code for the provider instrument namespace.
         data_tests:
           - not_null
-      - name: ticker
-        description: Exchange-qualified ticker requested from the fundamentals endpoint.
-        data_tests:
-          - not_null
-      - name: code
-        description: Provider ticker code without exchange suffix.
+      - name: provider_instrument_code
+        description: Provider instrument code requested from the fundamentals endpoint.
         data_tests:
           - not_null
       - name: instrument_name
@@ -93,7 +91,7 @@ models:
         data_tests:
           - not_null
       - name: primary_ticker
-        description: Provider primary ticker when supplied.
+        description: Provider primary provider_instrument_code when supplied.
       - name: provider_listing_exchange_code
         description: Provider listing exchange value from the fundamentals document.
       - name: provider_updated_at
@@ -114,7 +112,6 @@ models:
         description: Timestamp when the document row was written to Bronze.
         data_tests:
           - not_null
-
   - name: int_fundamental_instrument_profile
     description: Curated current fundamentals profile assembled from document, identity, and share-stat snapshots.
     columns:
@@ -131,15 +128,11 @@ models:
                 values:
                   - eodhd
       - name: provider_exchange_code
-        description: Provider exchange code from the exchange-qualified ticker.
+        description: Provider exchange code for the provider instrument namespace.
         data_tests:
           - not_null
-      - name: ticker
-        description: Exchange-qualified ticker represented by this profile.
-        data_tests:
-          - not_null
-      - name: code
-        description: Provider ticker code without exchange suffix.
+      - name: provider_instrument_code
+        description: Provider instrument code represented by this profile.
         data_tests:
           - not_null
       - name: instrument_type
@@ -153,7 +146,7 @@ models:
       - name: instrument_name
         description: Best available display name across fundamentals identity sources.
       - name: primary_ticker
-        description: Provider primary ticker when supplied.
+        description: Provider primary provider_instrument_code when supplied.
       - name: provider_listing_exchange_code
         description: Provider listing exchange value from the best available identity source.
       - name: currency_code

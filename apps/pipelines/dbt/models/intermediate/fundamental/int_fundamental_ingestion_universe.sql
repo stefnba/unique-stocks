@@ -9,7 +9,7 @@ final AS (
     SELECT
         data_provider,
         provider_exchange_code,
-        provider_symbol,
+        provider_instrument_code,
         instrument_family
     FROM instrument_universe
     WHERE data_provider = 'eodhd'

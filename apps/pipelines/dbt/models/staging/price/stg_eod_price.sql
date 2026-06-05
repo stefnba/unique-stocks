@@ -7,7 +7,7 @@ renamed AS (
     SELECT
         CAST(source_data.ingestion_id AS VARCHAR) AS ingestion_id,
         CAST(source_data.provider_exchange_code AS VARCHAR) AS provider_exchange_code,
-        CAST(source_data.ticker AS VARCHAR) AS ticker,
+        CAST(source_data.provider_instrument_code AS VARCHAR) AS provider_instrument_code,
         CAST(source_data.bar_date AS DATE) AS bar_date,
         CAST(source_data.open AS DECIMAL(18, 6)) AS open_price,
         CAST(source_data.high AS DECIMAL(18, 6)) AS high_price,
@@ -26,7 +26,7 @@ deduplicated AS (
     SELECT
         *,
         ROW_NUMBER() OVER (
-            PARTITION BY ticker, bar_date, data_provider
+            PARTITION BY provider_exchange_code, provider_instrument_code, bar_date, data_provider
             ORDER BY ingested_at DESC, ingestion_id DESC
         ) AS row_number
     FROM renamed

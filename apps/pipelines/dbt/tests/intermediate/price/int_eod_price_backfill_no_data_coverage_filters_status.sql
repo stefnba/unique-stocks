@@ -5,4 +5,4 @@ INNER JOIN {{ ref('stg_pipeline_ingestion_coverage') }} AS coverage
     AND no_data_coverage.unit_key_hash = coverage.unit_key_hash
     AND coverage.status = 'no_data'
 WHERE coverage.domain != 'eod_price'
-   OR coverage.unit_type != 'ticker_backfill'
+    OR coverage.unit_type != 'instrument_backfill'

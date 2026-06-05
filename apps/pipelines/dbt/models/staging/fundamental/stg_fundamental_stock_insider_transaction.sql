@@ -8,7 +8,7 @@ renamed AS (
         CAST(source_data.ingestion_id AS VARCHAR) AS ingestion_id,
         CAST(source_data.snapshot_date AS DATE) AS snapshot_date,
         UPPER(TRIM(CAST(source_data.provider_exchange_code AS VARCHAR))) AS provider_exchange_code,
-        UPPER(TRIM(CAST(source_data.ticker AS VARCHAR))) AS ticker,
+        UPPER(TRIM(CAST(source_data.provider_instrument_code AS VARCHAR))) AS provider_instrument_code,
         CAST(source_data.provider_position AS BIGINT) AS provider_position,
         CAST(source_data.filing_date AS DATE) AS filing_date,
         NULLIF(TRIM(CAST(source_data.owner_cik AS VARCHAR)), '') AS owner_cik,
@@ -33,7 +33,7 @@ deduplicated AS (
         ROW_NUMBER() OVER (
             PARTITION BY
                 snapshot_date,
-                ticker,
+                provider_instrument_code,
                 provider_position,
                 owner_name,
                 transaction_date,
