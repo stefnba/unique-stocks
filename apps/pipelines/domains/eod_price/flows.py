@@ -17,6 +17,7 @@ from prefect import flow
 from pydantic import ValidationError
 
 from core.clients.http.base import ProviderRateLimitError
+from core.clients.lake import reset_lake_client
 from core.ingestion import (
     BronzeParseResult,
     LandingObjectRecord,
@@ -370,7 +371,7 @@ def _iso_date(value: date | None) -> str | None:
     return value.isoformat() if value else None
 
 
-async def _build_price_selection_views_if_missing(*, parent_run_id: str) -> dict[str, object]:
+async def _build_price_selection_views_if_missing() -> dict[str, object]:
     """Build price Silver selector views when historical backfill needs them."""
     missing_before = load_missing_eod_backfill_selection_views()
     if not missing_before:
@@ -382,13 +383,14 @@ async def _build_price_selection_views_if_missing(*, parent_run_id: str) -> dict
             "missing": [],
         }
 
-    log.info("backfill.selection_views_missing", missing=missing_before, parent_run_id=parent_run_id)
+    log.info("backfill.selection_views_missing", missing=missing_before)
+    reset_lake_client()
     result = await run_dbt_build_deployment(
         build="price-build",
-        parent_run_id=parent_run_id,
-        idempotency_key=f"{parent_run_id}:price-build:preflight",
+        parent_run_id=None,
         tags=["preflight-dbt", "price-build"],
     )
+    reset_lake_client()
     missing_after = load_missing_eod_backfill_selection_views()
     if missing_after:
         missing = ", ".join(f"silver.{table}" for table in missing_after)
@@ -484,6 +486,8 @@ async def eod_price_backfill_flow(
             "deferred": 0,
         },
     }
+    if build_selection_views_if_missing:
+        summary["preflight_dbt_build"] = await _build_price_selection_views_if_missing()
 
     tracker = PipelineRunTracker()
     run_id: str | None = None
@@ -516,11 +520,6 @@ async def eod_price_backfill_flow(
         )
 
         try:
-            if build_selection_views_if_missing:
-                summary["preflight_dbt_build"] = await _build_price_selection_views_if_missing(
-                    parent_run_id=str(run.run_id),
-                )
-
             stop_after_exchange = False
             for provider_exchange_code in codes:
                 pending_all = load_backfill_pending_symbols(provider_exchange_code, from_date, to_date)

@@ -348,8 +348,7 @@ async def test_eod_backfill_builds_missing_selection_views_before_pending_select
     assert build_calls == [
         {
             "build": "price-build",
-            "parent_run_id": "run-1",
-            "idempotency_key": "run-1:price-build:preflight",
+            "parent_run_id": None,
             "tags": ["preflight-dbt", "price-build"],
         }
     ]

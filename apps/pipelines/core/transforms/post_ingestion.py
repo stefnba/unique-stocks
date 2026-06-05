@@ -56,19 +56,29 @@ async def run_dbt_build_after_ingestion(
 async def run_dbt_build_deployment(
     *,
     build: DbtBuildDeployment,
-    parent_run_id: str,
-    idempotency_key: str,
-    tags: list[str],
+    parent_run_id: str | None,
+    idempotency_key: str | None = None,
+    tags: list[str] | None = None,
 ) -> dict[str, object]:
     """Launch a dbt build deployment and require a completed Prefect state."""
     deployment_name = f"dbt-build/{build}"
-    flow_run = await arun_deployment(
-        deployment_name,
-        parameters={"parent_run_id": parent_run_id},
-        idempotency_key=idempotency_key,
-        tags=tags,
-        as_subflow=True,
-    )
+    parameters: dict[str, Any] = {"parent_run_id": parent_run_id}
+    run_tags = tags or ["dbt", build]
+    if idempotency_key is None:
+        flow_run = await arun_deployment(
+            deployment_name,
+            parameters=parameters,
+            tags=run_tags,
+            as_subflow=True,
+        )
+    else:
+        flow_run = await arun_deployment(
+            deployment_name,
+            parameters=parameters,
+            idempotency_key=idempotency_key,
+            tags=run_tags,
+            as_subflow=True,
+        )
     state = flow_run.state
     state_name = _state_name(state)
     state_type = _state_type(state)
