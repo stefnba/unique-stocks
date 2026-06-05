@@ -1,10 +1,10 @@
 """Tests for Prefect deployment sync helpers."""
 
-from pathlib import Path
 from uuid import UUID
 
 import pytest
 
+from config.settings import APP_ROOT
 from scripts.sync_prefect_deployments import (
     DEFAULT_PREFECT_YAML,
     DeploymentKey,
@@ -15,7 +15,7 @@ from scripts.sync_prefect_deployments import (
     resolve_flow_name,
 )
 
-APPS_PIPELINES = Path(__file__).resolve().parents[2]
+APPS_PIPELINES = APP_ROOT
 
 
 def test_load_prefect_yaml_deployments() -> None:

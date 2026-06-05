@@ -36,7 +36,8 @@ from providers.eodhd.client import EODHDClient
 from providers.eodhd.models import FundamentalRaw
 
 SNAPSHOT_DATE = date(2026, 5, 29)
-REAL_FIXTURE_ROOT = Path(__file__).parents[1] / "fixtures" / "eodhd" / "fundamental"
+TESTS_ROOT = Path(__file__).resolve().parents[3]
+REAL_FIXTURE_ROOT = TESTS_ROOT / "fixtures" / "eodhd" / "fundamental"
 
 
 def _real_fixture_payload(name: str) -> dict[str, Any]:

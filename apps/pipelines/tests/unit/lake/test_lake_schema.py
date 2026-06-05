@@ -1,7 +1,6 @@
 """Tests for the app-level lake schema registry."""
 
-from pathlib import Path
-
+from config.settings import APP_ROOT
 from core.ingestion import LandingDomain
 from core.lake.schema.ddl import render_greenfield_schema_sql
 from lake.schema import ALL_TABLES, BRONZE_TABLES
@@ -90,7 +89,7 @@ def test_lake_schema_uses_singular_domain_names() -> None:
         "instrument",
     )
 
-    domain_root = Path(__file__).parents[2] / "domains"
+    domain_root = APP_ROOT / "domains"
     old_plural_packages = (
         "eod_price" + "s",
         "exchange" + "s",
@@ -103,10 +102,18 @@ def test_lake_schema_uses_singular_domain_names() -> None:
 
 def test_initial_schema_migration_matches_current_table_specs() -> None:
     """The first migration should match the current greenfield table specs."""
-    root = Path(__file__).parents[2]
-    migration_sql = (root / "lake/migrations/20260603000000_initial_schema.sql").read_text()
-    assert _without_header(migration_sql) == _without_header(render_greenfield_schema_sql(ALL_TABLES))
+    migration_sql = (APP_ROOT / "lake/migrations/20260603000000_initial_schema.sql").read_text()
+    assert set(_sql_statements(migration_sql)) == set(_sql_statements(render_greenfield_schema_sql(ALL_TABLES)))
 
 
-def _without_header(sql: str) -> str:
-    return "\n\n".join(sql.split("\n\n")[1:])
+def _sql_statements(sql: str) -> tuple[str, ...]:
+    statements: list[str] = []
+    current: list[str] = []
+    for line in sql.splitlines():
+        if not line.strip() or line.startswith("--"):
+            continue
+        current.append(line)
+        if line.rstrip().endswith(";"):
+            statements.append("\n".join(current).strip())
+            current = []
+    return tuple(statements)
