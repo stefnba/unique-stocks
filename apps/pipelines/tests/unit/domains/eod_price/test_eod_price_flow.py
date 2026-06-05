@@ -230,6 +230,68 @@ async def test_eod_backfill_provider_call_budget_limits_submitted_symbols(
 
 
 @pytest.mark.asyncio
+async def test_eod_backfill_builds_missing_selection_views_before_pending_selection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Historical backfill can bootstrap missing Silver selector views before selection."""
+    run = FakeRun()
+    missing_responses = [
+        ["int_eod_price_backfill_symbol_status", "int_eod_price_backfill_no_data_coverage"],
+        [],
+    ]
+    pending_calls: list[str] = []
+    build_calls: list[dict[str, object]] = []
+
+    def load_missing_views() -> list[str]:
+        return missing_responses.pop(0)
+
+    async def build_price(**kwargs: object) -> dict[str, object]:
+        build_calls.append(kwargs)
+        return {
+            "enabled": True,
+            "triggered": True,
+            "build": kwargs["build"],
+            "deployment": "dbt-build/price-build",
+        }
+
+    def load_pending(provider_exchange_code: str, _: date, __: date) -> list[str]:
+        pending_calls.append(provider_exchange_code)
+        return []
+
+    monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
+    monkeypatch.setattr(flows, "load_missing_eod_backfill_selection_views", load_missing_views)
+    monkeypatch.setattr(flows, "run_dbt_build_deployment", build_price)
+    monkeypatch.setattr(flows, "load_backfill_pending_symbols", load_pending)
+
+    summary = await flows.eod_price_backfill_flow.fn(
+        from_date=FROM_DATE,
+        to_date=TO_DATE,
+        provider_exchange_codes=["US"],
+        build_selection_views_if_missing=True,
+    )
+
+    assert build_calls == [
+        {
+            "build": "price-build",
+            "parent_run_id": "run-1",
+            "idempotency_key": "run-1:price-build:preflight",
+            "tags": ["preflight-dbt", "price-build"],
+        }
+    ]
+    assert pending_calls == ["US"]
+    assert summary["preflight_dbt_build"] == {
+        "enabled": True,
+        "triggered": True,
+        "build": "price-build",
+        "deployment": "dbt-build/price-build",
+        "reason": "missing_selection_views",
+        "missing_before": ["int_eod_price_backfill_symbol_status", "int_eod_price_backfill_no_data_coverage"],
+        "missing_after": [],
+    }
+    assert summary["exchange"] == {"US": {"symbols": 0, "rows": 0}}
+
+
+@pytest.mark.asyncio
 async def test_eod_backfill_stops_after_provider_rate_limit(monkeypatch: pytest.MonkeyPatch) -> None:
     """A 429 stops later backfill batches instead of failing every remaining symbol."""
     run = FakeRun()

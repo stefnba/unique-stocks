@@ -379,7 +379,7 @@ Each mode maps to the same domain flow with different default parameters.
 | Fundamental            | `fundamental-quarterly/manual`, `/backfill`, `/replay`                                | manual, backfill, replay |
 | dbt                    | `dbt-build/exchange-build`, `/instrument-build`, `/price-build`, `/fundamental-build` | build                    |
 
-Bootstrap order for a new environment: exchange catalog manual → exchange MIC manual → exchange schedule manual → exchange-build → instrument → ingest. In normal operation, ingestion deployments trigger their matching dbt build after a clean audit status; pass `run_dbt_build=false` for Bronze-only runs.
+Bootstrap order for a new environment: exchange catalog manual → exchange MIC manual → exchange schedule manual → exchange-build → instrument → ingest. In normal operation, ingestion deployments trigger their matching dbt build after a clean audit status; pass `run_dbt_build=false` for Bronze-only runs. Historical EOD backfill also has a preflight guard: the deployment sets `build_selection_views_if_missing=true`, so it runs `dbt-build/price-build` before symbol selection when the required Silver selector views do not exist yet.
 
 `make deploy` is the source-of-truth sync: it removes orphaned deployments owned by this app
 (entrypoints under `domains.*` or `core.transforms.*`), then applies `prefect.yaml`.

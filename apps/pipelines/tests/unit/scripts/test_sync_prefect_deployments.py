@@ -58,6 +58,12 @@ def test_ingestion_deployments_enable_clean_post_ingestion_builds() -> None:
         assert isinstance(parameters, dict)
         assert parameters["run_dbt_build"] is True
 
+    historical_backfill_parameters = by_key[DeploymentKey("eod-price-backfill", "historical-backfill")].get(
+        "parameters"
+    )
+    assert isinstance(historical_backfill_parameters, dict)
+    assert historical_backfill_parameters["build_selection_views_if_missing"] is True
+
 
 @pytest.mark.parametrize(
     ("entrypoint", "expected"),

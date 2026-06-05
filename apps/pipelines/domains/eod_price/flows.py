@@ -28,7 +28,7 @@ from core.ingestion import (
     terminal_status,
 )
 from core.ingestion.parser import attach_source_uri
-from core.transforms import run_dbt_build_after_ingestion
+from core.transforms import run_dbt_build_after_ingestion, run_dbt_build_deployment
 from domains.eod_price.models import EODBar
 from domains.eod_price.parsers import infer_bulk_bar_date, parse_ticker_bars
 from domains.eod_price.tasks import (
@@ -37,6 +37,7 @@ from domains.eod_price.tasks import (
     fetch_eod_provider_exchange_codes,
     fetch_ticker_eod_history,
     load_backfill_pending_symbols,
+    load_missing_eod_backfill_selection_views,
     parse_eod_price,
     write_backfill_eod_batch,
     write_bronze_eod_price,
@@ -362,6 +363,37 @@ def _all_units_skipped(*, total: int, skipped: int) -> bool:
     return total == 0 or skipped == total
 
 
+async def _build_price_selection_views_if_missing(*, parent_run_id: str) -> dict[str, object]:
+    """Build price Silver selector views when historical backfill needs them."""
+    missing_before = load_missing_eod_backfill_selection_views()
+    if not missing_before:
+        return {
+            "enabled": True,
+            "triggered": False,
+            "build": "price-build",
+            "reason": "selection_views_present",
+            "missing": [],
+        }
+
+    log.info("backfill.selection_views_missing", missing=missing_before, parent_run_id=parent_run_id)
+    result = await run_dbt_build_deployment(
+        build="price-build",
+        parent_run_id=parent_run_id,
+        idempotency_key=f"{parent_run_id}:price-build:preflight",
+        tags=["preflight-dbt", "price-build"],
+    )
+    missing_after = load_missing_eod_backfill_selection_views()
+    if missing_after:
+        missing = ", ".join(f"silver.{table}" for table in missing_after)
+        raise RuntimeError(
+            f"dbt-build/price-build completed but required backfill selector views are missing: {missing}"
+        )
+    result["reason"] = "missing_selection_views"
+    result["missing_before"] = missing_before
+    result["missing_after"] = []
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Entry point for manual runs / local testing
 # ---------------------------------------------------------------------------
@@ -380,6 +412,7 @@ async def eod_price_backfill_flow(
     provider_exchange_codes: list[str] | None = None,
     batch_size: int = 50,
     max_provider_calls: int | None = None,
+    build_selection_views_if_missing: bool = False,
     run_dbt_build: bool = False,
 ) -> dict[str, object]:
     """Ingest full OHLCV history for every latest EODHD provider instrument.
@@ -413,6 +446,9 @@ async def eod_price_backfill_flow(
         max_provider_calls: Optional cap on per-symbol provider fetches submitted
             during this run. Re-run later with the same date range to resume from
             the Silver completion/no-data coverage pending-symbol detection.
+        build_selection_views_if_missing: When true, launch
+            ``dbt-build/price-build`` before pending-symbol selection if the
+            required Silver selector views are absent.
         run_dbt_build: When true, launch ``dbt-build/price-build`` after a
             clean ingestion audit status.
     """
@@ -453,6 +489,7 @@ async def eod_price_backfill_flow(
             "provider_exchange_codes": provider_exchange_codes,
             "batch_size": batch_size,
             "max_provider_calls": max_provider_calls,
+            "build_selection_views_if_missing": build_selection_views_if_missing,
             "run_dbt_build": run_dbt_build,
         },
         target_window_start=from_date,
@@ -469,6 +506,11 @@ async def eod_price_backfill_flow(
         )
 
         try:
+            if build_selection_views_if_missing:
+                summary["preflight_dbt_build"] = await _build_price_selection_views_if_missing(
+                    parent_run_id=str(run.run_id),
+                )
+
             stop_after_exchange = False
             for provider_exchange_code in codes:
                 pending_all = load_backfill_pending_symbols(provider_exchange_code, from_date, to_date)

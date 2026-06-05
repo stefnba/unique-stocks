@@ -356,6 +356,26 @@ def load_backfill_pending_symbols(provider_exchange_code: str, from_date: date, 
     return pending
 
 
+@task(name="load-missing-eod-backfill-selection-views")
+def load_missing_eod_backfill_selection_views() -> list[str]:
+    """Return required Silver backfill selector views that are missing."""
+    from core.clients.lake import get_lake_client
+    from domains.instrument.universe import (
+        EOD_PRICE_BACKFILL_NO_DATA_COVERAGE_TABLE,
+        EOD_PRICE_BACKFILL_SYMBOL_STATUS_TABLE,
+        SILVER_SCHEMA,
+    )
+
+    lake = get_lake_client()
+    required = (
+        EOD_PRICE_BACKFILL_SYMBOL_STATUS_TABLE,
+        EOD_PRICE_BACKFILL_NO_DATA_COVERAGE_TABLE,
+    )
+    missing = [table for table in required if not lake.table_exists(SILVER_SCHEMA, table)]
+    log.info("backfill.selection_views_checked", missing=missing, ready=not missing)
+    return missing
+
+
 @task(
     name="write-eod-backfill-deferred-coverage",
     task_run_name="write-eod-backfill-deferred-coverage-{provider_exchange_code}",

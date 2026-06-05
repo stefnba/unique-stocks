@@ -110,15 +110,17 @@ deployments:
     description: >
       Historical EOD backfill via the per-ticker endpoint. Requires from_date at run time.
 
-      For each instrument in bronze.instrument: OHLCV from from_date→to_date
+      For each latest EODHD provider instrument: OHLCV from from_date→to_date
       → S3 landing → bronze.eod_price. Skips symbols already in bronze or marked
       no_data in pipeline.ingestion_coverage for the same backfill unit (resume-safe).
+      If the required Silver selector views are missing, runs dbt-build/price-build first.
       On clean ingestion completion, triggers dbt-build/price-build.
       Optional: to_date, provider_exchange_codes, batch_size (default 50), max_provider_calls.
     entrypoint: domains.eod_price.flows:eod_price_backfill_flow
     tags: [eod-price, backfill]
     parameters:
       batch_size: 50
+      build_selection_views_if_missing: true
       run_dbt_build: true
     concurrency_limit:
       limit: 1

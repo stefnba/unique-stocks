@@ -228,6 +228,20 @@ def test_load_backfill_pending_requires_no_data_coverage_view(monkeypatch: pytes
         tasks.load_backfill_pending_symbols.fn("US", FROM_DATE, TO_DATE)
 
 
+def test_load_missing_eod_backfill_selection_views_reports_absent_contracts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Backfill preflight should identify which Silver selector views need a build."""
+    lake = FakeLake(tables={("silver", "int_eod_price_backfill_symbol_status")})
+    import core.clients.lake as lake_module
+
+    monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
+
+    missing = tasks.load_missing_eod_backfill_selection_views.fn()
+
+    assert missing == ["int_eod_price_backfill_no_data_coverage"]
+
+
 def test_write_eod_backfill_coverage_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
     """Coverage writes insert once per backfill partition."""
     lake = FakeLake(tables={("pipeline", "ingestion_coverage")})

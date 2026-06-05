@@ -32,7 +32,6 @@ async def run_dbt_build_after_ingestion(
     Bronze changes to Silver/Gold automatically. If dbt fails after a completed
     ingestion audit, this helper raises so the parent Prefect flow also alerts.
     """
-    deployment_name = f"dbt-build/{build}"
     if not enabled:
         return _skip_result(build=build, reason="disabled", upstream_status=upstream_status)
     if upstream_status != "completed":
@@ -46,11 +45,28 @@ async def run_dbt_build_after_ingestion(
         return _skip_result(build=build, reason="upstream_not_completed", upstream_status=upstream_status)
 
     log.info("dbt.post_ingestion_build_start", build=build, parent_run_id=parent_run_id)
+    return await run_dbt_build_deployment(
+        build=build,
+        parent_run_id=parent_run_id,
+        idempotency_key=f"{parent_run_id}:{build}",
+        tags=["post-ingestion-dbt", build],
+    )
+
+
+async def run_dbt_build_deployment(
+    *,
+    build: DbtBuildDeployment,
+    parent_run_id: str,
+    idempotency_key: str,
+    tags: list[str],
+) -> dict[str, object]:
+    """Launch a dbt build deployment and require a completed Prefect state."""
+    deployment_name = f"dbt-build/{build}"
     flow_run = await arun_deployment(
         deployment_name,
         parameters={"parent_run_id": parent_run_id},
-        idempotency_key=f"{parent_run_id}:{build}",
-        tags=["post-ingestion-dbt", build],
+        idempotency_key=idempotency_key,
+        tags=tags,
         as_subflow=True,
     )
     state = flow_run.state
@@ -67,7 +83,7 @@ async def run_dbt_build_after_ingestion(
     }
     if state is None or not state.is_completed():
         log.error(
-            "dbt.post_ingestion_build_failed",
+            "dbt.build_deployment_failed",
             build=build,
             parent_run_id=parent_run_id,
             flow_run_id=str(flow_run.id),
@@ -80,7 +96,7 @@ async def run_dbt_build_after_ingestion(
         )
 
     log.info(
-        "dbt.post_ingestion_build_done",
+        "dbt.build_deployment_done",
         build=build,
         parent_run_id=parent_run_id,
         flow_run_id=str(flow_run.id),
@@ -114,4 +130,4 @@ def _state_type(state: Any | None) -> str | None:
     return enum_value if isinstance(enum_value, str) else None
 
 
-__all__ = ["DbtBuildDeployment", "run_dbt_build_after_ingestion"]
+__all__ = ["DbtBuildDeployment", "run_dbt_build_after_ingestion", "run_dbt_build_deployment"]
