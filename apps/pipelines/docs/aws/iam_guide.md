@@ -158,7 +158,7 @@ aws sso login --profile provisioner
 
 ### Setup Steps
 
-**1. Enable IAM Identity Center (console, as root — one last time)**
+#### 1. Enable IAM Identity Center (console, as root — one last time)
 
 Go to **AWS Console → IAM Identity Center**.
 
@@ -173,14 +173,14 @@ Go to **AWS Console → IAM Identity Center**.
   # Returns an empty list if not enabled
   ```
 
-**2. Create your provisioner user (console)**
+#### 2. Create your provisioner user (console)
 
 - Users → Add user (name + email)
 - Permission sets → Create → choose `AdministratorAccess`
 - AWS Accounts → Assign user → pick account + permission set
 - Activate the user via the email invite
 
-**3. Configure local CLI**
+#### 3. Configure local CLI
 
 ```bash
 aws configure sso --profile provisioner
@@ -199,7 +199,7 @@ sso_role_name = AdministratorAccess
 region = eu-central-1
 ```
 
-**4. Daily usage**
+#### 4. Daily usage
 
 ```bash
 aws sso login --profile provisioner     # opens browser, ~1 min
@@ -232,7 +232,7 @@ The traditional approach: create a regular IAM user, generate static access keys
 
 ### Setup Steps
 
-**1. Create the user (as root, one-time)**
+#### 1. Create the user (as root, one-time)
 
 ```bash
 aws iam create-user --user-name provisioner
@@ -245,7 +245,7 @@ aws iam create-access-key --user-name provisioner
 # Save AccessKeyId and SecretAccessKey — shown only once
 ```
 
-**2. Enable console login for the provisioner user**
+#### 2. Enable console login for the provisioner user
 
 IAM users do not get console access by default — you must explicitly create a password for them:
 
@@ -262,7 +262,7 @@ Then log into the console at (not the root login page):
 https://<your-account-id>.signin.aws.amazon.com/console
 ```
 
-**3. Enforce MFA for the provisioner user (console)**
+#### 3. Enforce MFA for the provisioner user (console)
 
 After logging in as provisioner:
 
@@ -295,7 +295,7 @@ To enforce MFA via policy (prevents any action if MFA not used), attach this inl
 
 Important: this MFA-deny policy also affects CLI/API calls made with the user's long-lived access key, because those requests do not carry MFA context. Use it for a human provisioner only if you are prepared to obtain MFA-backed session credentials with `aws sts get-session-token`, or prefer IAM Identity Center for the provisioner path. Do not attach this kind of MFA enforcement policy to non-human app users such as `unique-stocks-pipelines`.
 
-**4. Store credentials locally**
+#### 4. Store credentials locally
 
 ```bash
 aws configure --profile provisioner
@@ -311,7 +311,7 @@ aws_secret_access_key = ...
 region = eu-central-1
 ```
 
-**5. Usage**
+#### 5. Usage
 
 ```bash
 aws s3 ls --profile provisioner
@@ -446,13 +446,13 @@ aws iam list-policies --scope Local
 
 ### Setting Up a Project User — S3 Example
 
-**1. Create the user (run as provisioner)**
+#### 1. Create the user (run as provisioner)
 
 ```bash
 aws iam create-user --user-name my-app-s3-user
 ```
 
-**2. Create an inline policy (save as `my-app-s3-policy.json`)**
+#### 2. Create an inline policy (save as `my-app-s3-policy.json`)
 
 This example allows the app to list, read, write, and delete objects in `my-app-bucket` only — nothing else. Omit `s3:DeleteObject` unless the app has a real cleanup or overwrite workflow that needs it.
 
@@ -481,7 +481,7 @@ Note the two separate resource ARNs:
 - `arn:aws:s3:::my-app-bucket` — the bucket itself (needed for `ListBucket`)
 - `arn:aws:s3:::my-app-bucket/*` — the objects inside it (needed for get/put/delete)
 
-**3. Attach the inline policy to the user**
+#### 3. Attach the inline policy to the user
 
 ```bash
 aws iam put-user-policy \
@@ -492,7 +492,7 @@ aws iam put-user-policy \
 
 Note: inline policies use `put-user-policy`, not `attach-user-policy` (which is for managed policies).
 
-**4. Create access keys for the app**
+#### 4. Create access keys for the app
 
 ```bash
 aws iam create-access-key --user-name my-app-s3-user
@@ -506,7 +506,7 @@ AWS_SECRET_ACCESS_KEY=...
 AWS_DEFAULT_REGION=eu-central-1
 ```
 
-**5. Verify the policy is correct**
+#### 5. Verify the policy is correct
 
 ```bash
 aws iam list-user-policies --user-name my-app-s3-user

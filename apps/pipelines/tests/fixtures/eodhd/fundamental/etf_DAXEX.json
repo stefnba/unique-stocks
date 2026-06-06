@@ -1,450 +1,450 @@
 {
-    "General": {
-        "Code": "DAXEX",
-        "Type": "ETF",
-        "Name": "iShares Core DAX\u00ae UCITS ETF (DE) EUR (Acc) CHF",
-        "Exchange": "SW",
-        "CurrencyCode": "CHF",
-        "CurrencyName": "Swiss Franc",
-        "CurrencySymbol": "CHF",
-        "CountryName": "Switzerland",
-        "CountryISO": "CH",
-        "OpenFigi": "BBG0035689Z8",
-        "Description": "NA",
-        "Category": "Germany Equity",
-        "UpdatedAt": "2026-05-29"
+  "General": {
+    "Code": "DAXEX",
+    "Type": "ETF",
+    "Name": "iShares Core DAX\u00ae UCITS ETF (DE) EUR (Acc) CHF",
+    "Exchange": "SW",
+    "CurrencyCode": "CHF",
+    "CurrencyName": "Swiss Franc",
+    "CurrencySymbol": "CHF",
+    "CountryName": "Switzerland",
+    "CountryISO": "CH",
+    "OpenFigi": "BBG0035689Z8",
+    "Description": "NA",
+    "Category": "Germany Equity",
+    "UpdatedAt": "2026-05-29"
+  },
+  "Technicals": {
+    "Beta": 0,
+    "52WeekHigh": 196.56,
+    "52WeekLow": 165.24,
+    "50DayMA": 181.12,
+    "200DayMA": 184.7562
+  },
+  "ETF_Data": {
+    "ISIN": "DE0005933931",
+    "Company_Name": "BlackRock Asset Management Deutschland AG - ETF",
+    "Company_URL": "http:\/\/www.iShares.de",
+    "ETF_URL": null,
+    "Domicile": "Germany",
+    "Index_Name": "Morningstar Germany TME NR EUR",
+    "Yield": null,
+    "Dividend_Paying_Frequency": "NA",
+    "Inception_Date": "2000-12-27",
+    "Max_Annual_Mgmt_Charge": "0.00",
+    "Ongoing_Charge": "0.0000",
+    "Date_Ongoing_Charge": "2025-03-27",
+    "NetExpenseRatio": "0.00000",
+    "AnnualHoldingsTurnover": "0.09630",
+    "TotalAssets": "8628268016.00",
+    "Average_Mkt_Cap_Mil": "79472.72328",
+    "Market_Capitalisation": {
+      "Mega": "54.72522",
+      "Big": "39.9756",
+      "Medium": "4.51035",
+      "Small": "0.36289",
+      "Micro": "0"
     },
-    "Technicals": {
-        "Beta": 0,
-        "52WeekHigh": 196.56,
-        "52WeekLow": 165.24,
-        "50DayMA": 181.12,
-        "200DayMA": 184.7562
+    "Asset_Allocation": {
+      "Cash": {
+        "Long_%": "0.42594",
+        "Short_%": "0",
+        "Net_Assets_%": "0.42594"
+      },
+      "NotClassified": {
+        "Long_%": "0",
+        "Short_%": "0",
+        "Net_Assets_%": "0"
+      },
+      "Stock non-US": {
+        "Long_%": "99.21117",
+        "Short_%": "0",
+        "Net_Assets_%": "99.21117"
+      },
+      "Other": {
+        "Long_%": "0",
+        "Short_%": "0",
+        "Net_Assets_%": "0"
+      },
+      "Stock US": {
+        "Long_%": "0.36289",
+        "Short_%": "0",
+        "Net_Assets_%": "0.36289"
+      },
+      "Bond": {
+        "Long_%": "0",
+        "Short_%": "0",
+        "Net_Assets_%": "0"
+      }
     },
-    "ETF_Data": {
-        "ISIN": "DE0005933931",
-        "Company_Name": "BlackRock Asset Management Deutschland AG - ETF",
-        "Company_URL": "http:\/\/www.iShares.de",
-        "ETF_URL": null,
-        "Domicile": "Germany",
-        "Index_Name": "Morningstar Germany TME NR EUR",
-        "Yield": null,
-        "Dividend_Paying_Frequency": "NA",
-        "Inception_Date": "2000-12-27",
-        "Max_Annual_Mgmt_Charge": "0.00",
-        "Ongoing_Charge": "0.0000",
-        "Date_Ongoing_Charge": "2025-03-27",
-        "NetExpenseRatio": "0.00000",
-        "AnnualHoldingsTurnover": "0.09630",
-        "TotalAssets": "8628268016.00",
-        "Average_Mkt_Cap_Mil": "79472.72328",
-        "Market_Capitalisation": {
-            "Mega": "54.72522",
-            "Big": "39.9756",
-            "Medium": "4.51035",
-            "Small": "0.36289",
-            "Micro": "0"
-        },
-        "Asset_Allocation": {
-            "Cash": {
-                "Long_%": "0.42594",
-                "Short_%": "0",
-                "Net_Assets_%": "0.42594"
-            },
-            "NotClassified": {
-                "Long_%": "0",
-                "Short_%": "0",
-                "Net_Assets_%": "0"
-            },
-            "Stock non-US": {
-                "Long_%": "99.21117",
-                "Short_%": "0",
-                "Net_Assets_%": "99.21117"
-            },
-            "Other": {
-                "Long_%": "0",
-                "Short_%": "0",
-                "Net_Assets_%": "0"
-            },
-            "Stock US": {
-                "Long_%": "0.36289",
-                "Short_%": "0",
-                "Net_Assets_%": "0.36289"
-            },
-            "Bond": {
-                "Long_%": "0",
-                "Short_%": "0",
-                "Net_Assets_%": "0"
-            }
-        },
-        "World_Regions": {
-            "North America": {
-                "Equity_%": "0.364",
-                "Relative_to_Category": "0.65"
-            },
-            "United Kingdom": {
-                "Equity_%": "0",
-                "Relative_to_Category": "0.15601"
-            },
-            "Europe Developed": {
-                "Equity_%": "99.636",
-                "Relative_to_Category": "99.149"
-            },
-            "Europe Emerging": {
-                "Equity_%": "0",
-                "Relative_to_Category": "0"
-            },
-            "Africa\/Middle East": {
-                "Equity_%": "0",
-                "Relative_to_Category": "0"
-            },
-            "Japan": {
-                "Equity_%": "0",
-                "Relative_to_Category": "0"
-            },
-            "Australasia": {
-                "Equity_%": "0",
-                "Relative_to_Category": "0"
-            },
-            "Asia Developed": {
-                "Equity_%": "0",
-                "Relative_to_Category": "0.045"
-            },
-            "Asia Emerging": {
-                "Equity_%": "0",
-                "Relative_to_Category": "0"
-            },
-            "Latin America": {
-                "Equity_%": "0",
-                "Relative_to_Category": "0"
-            }
-        },
-        "Sector_Weights": {
-            "Basic Materials": {
-                "Equity_%": "4.97267",
-                "Relative_to_Category": "5.65886"
-            },
-            "Consumer Cyclicals": {
-                "Equity_%": "7.09864",
-                "Relative_to_Category": "7.7754"
-            },
-            "Financial Services": {
-                "Equity_%": "20.39542",
-                "Relative_to_Category": "21.91214"
-            },
-            "Real Estate": {
-                "Equity_%": "0.91097",
-                "Relative_to_Category": "1.18957"
-            },
-            "Communication Services": {
-                "Equity_%": "6.23259",
-                "Relative_to_Category": "5.70011"
-            },
-            "Energy": {
-                "Equity_%": "0",
-                "Relative_to_Category": "0.02661"
-            },
-            "Industrials": {
-                "Equity_%": "34.39422",
-                "Relative_to_Category": "32.38263"
-            },
-            "Technology": {
-                "Equity_%": "14.83071",
-                "Relative_to_Category": "13.12027"
-            },
-            "Consumer Defensive": {
-                "Equity_%": "0.95394",
-                "Relative_to_Category": "0.78591"
-            },
-            "Healthcare": {
-                "Equity_%": "5.55532",
-                "Relative_to_Category": "7.51329"
-            },
-            "Utilities": {
-                "Equity_%": "4.65553",
-                "Relative_to_Category": "3.93521"
-            }
-        },
-        "Fixed_Income": {
-            "EffectiveDuration": {
-                "Fund_%": "0",
-                "Relative_to_Category": "-0.00725"
-            },
-            "ModifiedDuration": {
-                "Fund_%": "0",
-                "Relative_to_Category": "0"
-            },
-            "EffectiveMaturity": {
-                "Fund_%": "0",
-                "Relative_to_Category": "0"
-            },
-            "CreditQuality": {
-                "Fund_%": "0",
-                "Relative_to_Category": "0"
-            },
-            "Coupon": {
-                "Fund_%": "0",
-                "Relative_to_Category": "2.41101"
-            },
-            "Price": {
-                "Fund_%": "0",
-                "Relative_to_Category": "0"
-            },
-            "YieldToMaturity": {
-                "Fund_%": "0",
-                "Relative_to_Category": "0"
-            }
-        },
-        "Holdings_Count": 10,
-        "Top_10_Holdings": {
-            "SIE.XETRA": {
-                "Code": "SIE",
-                "Exchange": "XETRA",
-                "Name": "Siemens Aktiengesellschaft",
-                "Sector": "Industrials",
-                "Industry": "Specialty Industrial Machinery",
-                "Country": "Germany",
-                "Region": "Europe",
-                "Assets_%": 10.94759
-            },
-            "SAP.XETRA": {
-                "Code": "SAP",
-                "Exchange": "XETRA",
-                "Name": "SAP SE",
-                "Sector": "Technology",
-                "Industry": "Software - Application",
-                "Country": "Germany",
-                "Region": "Europe",
-                "Assets_%": 8.75984
-            },
-            "ALV.XETRA": {
-                "Code": "ALV",
-                "Exchange": "XETRA",
-                "Name": "Allianz SE VNA O.N.",
-                "Sector": "Financial Services",
-                "Industry": "Insurance - Diversified",
-                "Country": "Germany",
-                "Region": "Europe",
-                "Assets_%": 8.73969
-            },
-            "ENR.XETRA": {
-                "Code": "ENR",
-                "Exchange": "XETRA",
-                "Name": "Siemens Energy AG",
-                "Sector": "Industrials",
-                "Industry": "Specialty Industrial Machinery",
-                "Country": "Germany",
-                "Region": "Europe",
-                "Assets_%": 8.24587
-            },
-            "AIR.PA": {
-                "Code": "AIR",
-                "Exchange": "PA",
-                "Name": "Airbus Group SE",
-                "Sector": "Industrials",
-                "Industry": "Aerospace & Defense",
-                "Country": "France",
-                "Region": "Europe",
-                "Assets_%": 6.07599
-            },
-            "DTE.XETRA": {
-                "Code": "DTE",
-                "Exchange": "XETRA",
-                "Name": "Deutsche Telekom AG",
-                "Sector": "Communication Services",
-                "Industry": "Telecom Services",
-                "Country": "Germany",
-                "Region": "Europe",
-                "Assets_%": 5.72974
-            },
-            "IFX.XETRA": {
-                "Code": "IFX",
-                "Exchange": "XETRA",
-                "Name": "Infineon Technologies AG",
-                "Sector": "Technology",
-                "Industry": "Semiconductors",
-                "Country": "Germany",
-                "Region": "Europe",
-                "Assets_%": 4.40616
-            },
-            "MUV2.XETRA": {
-                "Code": "MUV2",
-                "Exchange": "XETRA",
-                "Name": "M\u00fcnchener R\u00fcck AG",
-                "Sector": "Financial Services",
-                "Industry": "Insurance - Reinsurance",
-                "Country": "Germany",
-                "Region": "Europe",
-                "Assets_%": 3.94117
-            },
-            "RHM.XETRA": {
-                "Code": "RHM",
-                "Exchange": "XETRA",
-                "Name": "Rheinmetall AG",
-                "Sector": "Industrials",
-                "Industry": "Aerospace & Defense",
-                "Country": "Germany",
-                "Region": "Europe",
-                "Assets_%": 3.72469
-            },
-            "DBK.XETRA": {
-                "Code": "DBK",
-                "Exchange": "XETRA",
-                "Name": "Deutsche Bank Aktiengesellschaft",
-                "Sector": "Financial Services",
-                "Industry": "Banks - Regional",
-                "Country": "Germany",
-                "Region": "Europe",
-                "Assets_%": 2.99011
-            }
-        },
-        "Holdings": {
-            "SIE.XETRA": {
-                "Code": "SIE",
-                "Exchange": "XETRA",
-                "Name": "Siemens Aktiengesellschaft",
-                "Sector": "Industrials",
-                "Industry": "Specialty Industrial Machinery",
-                "Country": "Germany",
-                "Region": "Europe",
-                "Assets_%": 10.94759
-            },
-            "SAP.XETRA": {
-                "Code": "SAP",
-                "Exchange": "XETRA",
-                "Name": "SAP SE",
-                "Sector": "Technology",
-                "Industry": "Software - Application",
-                "Country": "Germany",
-                "Region": "Europe",
-                "Assets_%": 8.75984
-            },
-            "ALV.XETRA": {
-                "Code": "ALV",
-                "Exchange": "XETRA",
-                "Name": "Allianz SE VNA O.N.",
-                "Sector": "Financial Services",
-                "Industry": "Insurance - Diversified",
-                "Country": "Germany",
-                "Region": "Europe",
-                "Assets_%": 8.73969
-            },
-            "ENR.XETRA": {
-                "Code": "ENR",
-                "Exchange": "XETRA",
-                "Name": "Siemens Energy AG",
-                "Sector": "Industrials",
-                "Industry": "Specialty Industrial Machinery",
-                "Country": "Germany",
-                "Region": "Europe",
-                "Assets_%": 8.24587
-            },
-            "AIR.PA": {
-                "Code": "AIR",
-                "Exchange": "PA",
-                "Name": "Airbus Group SE",
-                "Sector": "Industrials",
-                "Industry": "Aerospace & Defense",
-                "Country": "France",
-                "Region": "Europe",
-                "Assets_%": 6.07599
-            },
-            "DTE.XETRA": {
-                "Code": "DTE",
-                "Exchange": "XETRA",
-                "Name": "Deutsche Telekom AG",
-                "Sector": "Communication Services",
-                "Industry": "Telecom Services",
-                "Country": "Germany",
-                "Region": "Europe",
-                "Assets_%": 5.72974
-            },
-            "IFX.XETRA": {
-                "Code": "IFX",
-                "Exchange": "XETRA",
-                "Name": "Infineon Technologies AG",
-                "Sector": "Technology",
-                "Industry": "Semiconductors",
-                "Country": "Germany",
-                "Region": "Europe",
-                "Assets_%": 4.40616
-            },
-            "MUV2.XETRA": {
-                "Code": "MUV2",
-                "Exchange": "XETRA",
-                "Name": "M\u00fcnchener R\u00fcck AG",
-                "Sector": "Financial Services",
-                "Industry": "Insurance - Reinsurance",
-                "Country": "Germany",
-                "Region": "Europe",
-                "Assets_%": 3.94117
-            },
-            "RHM.XETRA": {
-                "Code": "RHM",
-                "Exchange": "XETRA",
-                "Name": "Rheinmetall AG",
-                "Sector": "Industrials",
-                "Industry": "Aerospace & Defense",
-                "Country": "Germany",
-                "Region": "Europe",
-                "Assets_%": 3.72469
-            },
-            "DBK.XETRA": {
-                "Code": "DBK",
-                "Exchange": "XETRA",
-                "Name": "Deutsche Bank Aktiengesellschaft",
-                "Sector": "Financial Services",
-                "Industry": "Banks - Regional",
-                "Country": "Germany",
-                "Region": "Europe",
-                "Assets_%": 2.99011
-            }
-        },
-        "Valuations_Growth": {
-            "Valuations_Rates_Portfolio": {
-                "Price\/Prospective Earnings": "15.79391",
-                "Price\/Book": "1.88501",
-                "Price\/Sales": "1.27042",
-                "Price\/Cash Flow": "8.59703",
-                "Dividend-Yield Factor": "2.58597"
-            },
-            "Valuations_Rates_To_Category": {
-                "Price\/Prospective Earnings": "15.52128",
-                "Price\/Book": "1.85872",
-                "Price\/Sales": "1.15539",
-                "Price\/Cash Flow": "8.6409",
-                "Dividend-Yield Factor": "2.56828"
-            },
-            "Growth_Rates_Portfolio": {
-                "Long-Term Projected Earnings Growth": "10.72119",
-                "Historical Earnings Growth": "2.92209",
-                "Sales Growth": "1.0472",
-                "Cash-Flow Growth": "7.62643",
-                "Book-Value Growth": "3.16923"
-            },
-            "Growth_Rates_To_Category": {
-                "Long-Term Projected Earnings Growth": "10.51896",
-                "Historical Earnings Growth": "2.80745",
-                "Sales Growth": "0.72455",
-                "Cash-Flow Growth": "5.92737",
-                "Book-Value Growth": "2.65896"
-            }
-        },
-        "MorningStar": {
-            "Ratio": "4",
-            "Category_Benchmark": "Morningstar Germany TME NR EUR",
-            "Sustainability_Ratio": "3"
-        },
-        "Performance": {
-            "1y_Volatility": "15.06",
-            "3y_Volatility": "13.13",
-            "3y_ExpReturn": "0.00",
-            "3y_SharpRatio": "0.88",
-            "Returns_YTD": "1.92",
-            "Returns_1Y": "3.87",
-            "Returns_3Y": "15.60",
-            "Returns_5Y": "9.46",
-            "Returns_10Y": "8.68"
-        }
+    "World_Regions": {
+      "North America": {
+        "Equity_%": "0.364",
+        "Relative_to_Category": "0.65"
+      },
+      "United Kingdom": {
+        "Equity_%": "0",
+        "Relative_to_Category": "0.15601"
+      },
+      "Europe Developed": {
+        "Equity_%": "99.636",
+        "Relative_to_Category": "99.149"
+      },
+      "Europe Emerging": {
+        "Equity_%": "0",
+        "Relative_to_Category": "0"
+      },
+      "Africa\/Middle East": {
+        "Equity_%": "0",
+        "Relative_to_Category": "0"
+      },
+      "Japan": {
+        "Equity_%": "0",
+        "Relative_to_Category": "0"
+      },
+      "Australasia": {
+        "Equity_%": "0",
+        "Relative_to_Category": "0"
+      },
+      "Asia Developed": {
+        "Equity_%": "0",
+        "Relative_to_Category": "0.045"
+      },
+      "Asia Emerging": {
+        "Equity_%": "0",
+        "Relative_to_Category": "0"
+      },
+      "Latin America": {
+        "Equity_%": "0",
+        "Relative_to_Category": "0"
+      }
+    },
+    "Sector_Weights": {
+      "Basic Materials": {
+        "Equity_%": "4.97267",
+        "Relative_to_Category": "5.65886"
+      },
+      "Consumer Cyclicals": {
+        "Equity_%": "7.09864",
+        "Relative_to_Category": "7.7754"
+      },
+      "Financial Services": {
+        "Equity_%": "20.39542",
+        "Relative_to_Category": "21.91214"
+      },
+      "Real Estate": {
+        "Equity_%": "0.91097",
+        "Relative_to_Category": "1.18957"
+      },
+      "Communication Services": {
+        "Equity_%": "6.23259",
+        "Relative_to_Category": "5.70011"
+      },
+      "Energy": {
+        "Equity_%": "0",
+        "Relative_to_Category": "0.02661"
+      },
+      "Industrials": {
+        "Equity_%": "34.39422",
+        "Relative_to_Category": "32.38263"
+      },
+      "Technology": {
+        "Equity_%": "14.83071",
+        "Relative_to_Category": "13.12027"
+      },
+      "Consumer Defensive": {
+        "Equity_%": "0.95394",
+        "Relative_to_Category": "0.78591"
+      },
+      "Healthcare": {
+        "Equity_%": "5.55532",
+        "Relative_to_Category": "7.51329"
+      },
+      "Utilities": {
+        "Equity_%": "4.65553",
+        "Relative_to_Category": "3.93521"
+      }
+    },
+    "Fixed_Income": {
+      "EffectiveDuration": {
+        "Fund_%": "0",
+        "Relative_to_Category": "-0.00725"
+      },
+      "ModifiedDuration": {
+        "Fund_%": "0",
+        "Relative_to_Category": "0"
+      },
+      "EffectiveMaturity": {
+        "Fund_%": "0",
+        "Relative_to_Category": "0"
+      },
+      "CreditQuality": {
+        "Fund_%": "0",
+        "Relative_to_Category": "0"
+      },
+      "Coupon": {
+        "Fund_%": "0",
+        "Relative_to_Category": "2.41101"
+      },
+      "Price": {
+        "Fund_%": "0",
+        "Relative_to_Category": "0"
+      },
+      "YieldToMaturity": {
+        "Fund_%": "0",
+        "Relative_to_Category": "0"
+      }
+    },
+    "Holdings_Count": 10,
+    "Top_10_Holdings": {
+      "SIE.XETRA": {
+        "Code": "SIE",
+        "Exchange": "XETRA",
+        "Name": "Siemens Aktiengesellschaft",
+        "Sector": "Industrials",
+        "Industry": "Specialty Industrial Machinery",
+        "Country": "Germany",
+        "Region": "Europe",
+        "Assets_%": 10.94759
+      },
+      "SAP.XETRA": {
+        "Code": "SAP",
+        "Exchange": "XETRA",
+        "Name": "SAP SE",
+        "Sector": "Technology",
+        "Industry": "Software - Application",
+        "Country": "Germany",
+        "Region": "Europe",
+        "Assets_%": 8.75984
+      },
+      "ALV.XETRA": {
+        "Code": "ALV",
+        "Exchange": "XETRA",
+        "Name": "Allianz SE VNA O.N.",
+        "Sector": "Financial Services",
+        "Industry": "Insurance - Diversified",
+        "Country": "Germany",
+        "Region": "Europe",
+        "Assets_%": 8.73969
+      },
+      "ENR.XETRA": {
+        "Code": "ENR",
+        "Exchange": "XETRA",
+        "Name": "Siemens Energy AG",
+        "Sector": "Industrials",
+        "Industry": "Specialty Industrial Machinery",
+        "Country": "Germany",
+        "Region": "Europe",
+        "Assets_%": 8.24587
+      },
+      "AIR.PA": {
+        "Code": "AIR",
+        "Exchange": "PA",
+        "Name": "Airbus Group SE",
+        "Sector": "Industrials",
+        "Industry": "Aerospace & Defense",
+        "Country": "France",
+        "Region": "Europe",
+        "Assets_%": 6.07599
+      },
+      "DTE.XETRA": {
+        "Code": "DTE",
+        "Exchange": "XETRA",
+        "Name": "Deutsche Telekom AG",
+        "Sector": "Communication Services",
+        "Industry": "Telecom Services",
+        "Country": "Germany",
+        "Region": "Europe",
+        "Assets_%": 5.72974
+      },
+      "IFX.XETRA": {
+        "Code": "IFX",
+        "Exchange": "XETRA",
+        "Name": "Infineon Technologies AG",
+        "Sector": "Technology",
+        "Industry": "Semiconductors",
+        "Country": "Germany",
+        "Region": "Europe",
+        "Assets_%": 4.40616
+      },
+      "MUV2.XETRA": {
+        "Code": "MUV2",
+        "Exchange": "XETRA",
+        "Name": "M\u00fcnchener R\u00fcck AG",
+        "Sector": "Financial Services",
+        "Industry": "Insurance - Reinsurance",
+        "Country": "Germany",
+        "Region": "Europe",
+        "Assets_%": 3.94117
+      },
+      "RHM.XETRA": {
+        "Code": "RHM",
+        "Exchange": "XETRA",
+        "Name": "Rheinmetall AG",
+        "Sector": "Industrials",
+        "Industry": "Aerospace & Defense",
+        "Country": "Germany",
+        "Region": "Europe",
+        "Assets_%": 3.72469
+      },
+      "DBK.XETRA": {
+        "Code": "DBK",
+        "Exchange": "XETRA",
+        "Name": "Deutsche Bank Aktiengesellschaft",
+        "Sector": "Financial Services",
+        "Industry": "Banks - Regional",
+        "Country": "Germany",
+        "Region": "Europe",
+        "Assets_%": 2.99011
+      }
+    },
+    "Holdings": {
+      "SIE.XETRA": {
+        "Code": "SIE",
+        "Exchange": "XETRA",
+        "Name": "Siemens Aktiengesellschaft",
+        "Sector": "Industrials",
+        "Industry": "Specialty Industrial Machinery",
+        "Country": "Germany",
+        "Region": "Europe",
+        "Assets_%": 10.94759
+      },
+      "SAP.XETRA": {
+        "Code": "SAP",
+        "Exchange": "XETRA",
+        "Name": "SAP SE",
+        "Sector": "Technology",
+        "Industry": "Software - Application",
+        "Country": "Germany",
+        "Region": "Europe",
+        "Assets_%": 8.75984
+      },
+      "ALV.XETRA": {
+        "Code": "ALV",
+        "Exchange": "XETRA",
+        "Name": "Allianz SE VNA O.N.",
+        "Sector": "Financial Services",
+        "Industry": "Insurance - Diversified",
+        "Country": "Germany",
+        "Region": "Europe",
+        "Assets_%": 8.73969
+      },
+      "ENR.XETRA": {
+        "Code": "ENR",
+        "Exchange": "XETRA",
+        "Name": "Siemens Energy AG",
+        "Sector": "Industrials",
+        "Industry": "Specialty Industrial Machinery",
+        "Country": "Germany",
+        "Region": "Europe",
+        "Assets_%": 8.24587
+      },
+      "AIR.PA": {
+        "Code": "AIR",
+        "Exchange": "PA",
+        "Name": "Airbus Group SE",
+        "Sector": "Industrials",
+        "Industry": "Aerospace & Defense",
+        "Country": "France",
+        "Region": "Europe",
+        "Assets_%": 6.07599
+      },
+      "DTE.XETRA": {
+        "Code": "DTE",
+        "Exchange": "XETRA",
+        "Name": "Deutsche Telekom AG",
+        "Sector": "Communication Services",
+        "Industry": "Telecom Services",
+        "Country": "Germany",
+        "Region": "Europe",
+        "Assets_%": 5.72974
+      },
+      "IFX.XETRA": {
+        "Code": "IFX",
+        "Exchange": "XETRA",
+        "Name": "Infineon Technologies AG",
+        "Sector": "Technology",
+        "Industry": "Semiconductors",
+        "Country": "Germany",
+        "Region": "Europe",
+        "Assets_%": 4.40616
+      },
+      "MUV2.XETRA": {
+        "Code": "MUV2",
+        "Exchange": "XETRA",
+        "Name": "M\u00fcnchener R\u00fcck AG",
+        "Sector": "Financial Services",
+        "Industry": "Insurance - Reinsurance",
+        "Country": "Germany",
+        "Region": "Europe",
+        "Assets_%": 3.94117
+      },
+      "RHM.XETRA": {
+        "Code": "RHM",
+        "Exchange": "XETRA",
+        "Name": "Rheinmetall AG",
+        "Sector": "Industrials",
+        "Industry": "Aerospace & Defense",
+        "Country": "Germany",
+        "Region": "Europe",
+        "Assets_%": 3.72469
+      },
+      "DBK.XETRA": {
+        "Code": "DBK",
+        "Exchange": "XETRA",
+        "Name": "Deutsche Bank Aktiengesellschaft",
+        "Sector": "Financial Services",
+        "Industry": "Banks - Regional",
+        "Country": "Germany",
+        "Region": "Europe",
+        "Assets_%": 2.99011
+      }
+    },
+    "Valuations_Growth": {
+      "Valuations_Rates_Portfolio": {
+        "Price\/Prospective Earnings": "15.79391",
+        "Price\/Book": "1.88501",
+        "Price\/Sales": "1.27042",
+        "Price\/Cash Flow": "8.59703",
+        "Dividend-Yield Factor": "2.58597"
+      },
+      "Valuations_Rates_To_Category": {
+        "Price\/Prospective Earnings": "15.52128",
+        "Price\/Book": "1.85872",
+        "Price\/Sales": "1.15539",
+        "Price\/Cash Flow": "8.6409",
+        "Dividend-Yield Factor": "2.56828"
+      },
+      "Growth_Rates_Portfolio": {
+        "Long-Term Projected Earnings Growth": "10.72119",
+        "Historical Earnings Growth": "2.92209",
+        "Sales Growth": "1.0472",
+        "Cash-Flow Growth": "7.62643",
+        "Book-Value Growth": "3.16923"
+      },
+      "Growth_Rates_To_Category": {
+        "Long-Term Projected Earnings Growth": "10.51896",
+        "Historical Earnings Growth": "2.80745",
+        "Sales Growth": "0.72455",
+        "Cash-Flow Growth": "5.92737",
+        "Book-Value Growth": "2.65896"
+      }
+    },
+    "MorningStar": {
+      "Ratio": "4",
+      "Category_Benchmark": "Morningstar Germany TME NR EUR",
+      "Sustainability_Ratio": "3"
+    },
+    "Performance": {
+      "1y_Volatility": "15.06",
+      "3y_Volatility": "13.13",
+      "3y_ExpReturn": "0.00",
+      "3y_SharpRatio": "0.88",
+      "Returns_YTD": "1.92",
+      "Returns_1Y": "3.87",
+      "Returns_3Y": "15.60",
+      "Returns_5Y": "9.46",
+      "Returns_10Y": "8.68"
     }
+  }
 }

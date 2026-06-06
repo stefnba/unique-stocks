@@ -26,18 +26,34 @@ repos:
         types: [sql]
 
       - id: prettier-format
-        name: prettier format markdown/yaml
+        name: prettier format markdown/yaml/json
         entry: prettier --write
         args: [--ignore-unknown]
         language: node
         additional_dependencies: [prettier@3.8.3]
-        types_or: [markdown, yaml]
+        files: \.(md|markdown|ya?ml|json|jsonc|code-workspace)$
+
+      - id: markdownlint-format
+        name: markdownlint format
+        entry: markdownlint-cli2
+        args: [--fix]
+        language: node
+        additional_dependencies: [markdownlint-cli2@0.22.1]
+        files: \.(md|markdown)$
 
       - id: prettier-check
-        name: prettier check markdown/yaml
+        name: prettier check markdown/yaml/json
         entry: prettier --check
         args: [--ignore-unknown]
         language: node
         additional_dependencies: [prettier@3.8.3]
-        types_or: [markdown, yaml]
+        files: \.(md|markdown|ya?ml|json|jsonc|code-workspace)$
+        stages: [manual]
+
+      - id: markdownlint-check
+        name: markdownlint check
+        entry: markdownlint-cli2
+        language: node
+        additional_dependencies: [markdownlint-cli2@0.22.1]
+        files: \.(md|markdown)$
         stages: [manual]

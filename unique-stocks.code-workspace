@@ -1,99 +1,104 @@
 {
-    "folders": [
-        {
-            "path": ".",
-            "name": "unique-stocks (root)"
-        },
-        {
-            "path": "apps/pipelines",
-            "name": "pipelines"
-        },
-        {
-            "path": "apps/pipelines/dbt",
-            "name": "dbt"
-        }
+  "folders": [
+    {
+      "path": ".",
+      "name": "unique-stocks (root)",
+    },
+    {
+      "path": "apps/pipelines",
+      "name": "pipelines",
+    },
+    {
+      "path": "apps/pipelines/dbt",
+      "name": "dbt",
+    },
+  ],
+  "settings": {
+    // --- Core Editor ---
+    "editor.tabSize": 4,
+    "editor.indentSize": 4,
+    "editor.insertSpaces": true,
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit",
+    },
+    // --- Ruff ---
+    "ruff.enable": true,
+    "ruff.lint.enable": true,
+    "ruff.organizeImports": true,
+    // --- Python ---
+    // Resolved relative to the "pipelines" workspace folder (apps/pipelines/)
+    // where the .venv and .env live.
+    "python.languageServer": "None",
+    "cursorpyright.analysis.diagnosticMode": "workspace",
+    "editor.inlayHints.enabled": "off",
+    "python.defaultInterpreterPath": "${workspaceFolder:pipelines}/.venv/bin/python",
+    "[python]": {
+      "editor.defaultFormatter": "charliermarsh.ruff",
+    },
+    "python.envFile": "${workspaceFolder:pipelines}/.env",
+    // --- SQLFluff ---
+    // Use ${workspaceFolder} (first folder = repo root): the extension often does not
+    // resolve ${workspaceFolder:pipelines} / named multi-root variables.
+    "sqlfluff.executablePath": "${workspaceFolder}/apps/pipelines/.venv/bin/sqlfluff",
+    // .sqlfluff lives at repo root so sqlfluff picks it up when linting infra/scripts/
+    "sqlfluff.config": "${workspaceFolder}/.sqlfluff",
+    "[sql]": {
+      "editor.defaultFormatter": "sqlfluff.vscode-sqlfluff",
+      "editor.formatOnSave": true,
+    },
+    // --- markdownlint ---
+    "markdownlint.configFile": "${workspaceFolder}/.markdownlint.json",
+    // --- DuckDB ---
+    "duckdb.databases": [
+      {
+        "alias": "unique_stocks",
+        "type": "file",
+        "path": "./apps/pipelines/unique_stocks.duckdb",
+        "readOnly": true,
+        "attached": false,
+      },
     ],
-    "settings": {
-        // --- Core Editor ---
-        "editor.tabSize": 4,
-        "editor.indentSize": 4,
-        "editor.insertSpaces": true,
-        "editor.formatOnSave": true,
-        "editor.codeActionsOnSave": {
-            "source.fixAll.ruff": "explicit",
-            "source.organizeImports.ruff": "explicit"
-        },
-        // --- Ruff ---
-        "ruff.enable": true,
-        "ruff.lint.enable": true,
-        "ruff.organizeImports": true,
-        // --- Python ---
-        // Resolved relative to the "pipelines" workspace folder (apps/pipelines/)
-        // where the .venv and .env live.
-        "python.languageServer": "None",
-        "cursorpyright.analysis.diagnosticMode": "workspace",
-        "editor.inlayHints.enabled": "off",
-        "python.defaultInterpreterPath": "${workspaceFolder:pipelines}/.venv/bin/python",
-        "[python]": {
-            "editor.defaultFormatter": "charliermarsh.ruff"
-        },
-        "python.envFile": "${workspaceFolder:pipelines}/.env",
-        // --- SQLFluff ---
-        // Use ${workspaceFolder} (first folder = repo root): the extension often does not
-        // resolve ${workspaceFolder:pipelines} / named multi-root variables.
-        "sqlfluff.executablePath": "${workspaceFolder}/apps/pipelines/.venv/bin/sqlfluff",
-        // .sqlfluff lives at repo root so sqlfluff picks it up when linting infra/scripts/
-        "sqlfluff.config": "${workspaceFolder}/.sqlfluff",
-        "[sql]": {
-            "editor.defaultFormatter": "sqlfluff.vscode-sqlfluff",
-            "editor.formatOnSave": true
-        },
-        // --- markdownlint ---
-        "markdownlint.configFile": "${workspaceFolder}/.markdownlint.json",
-        // --- DuckDB ---
-        "duckdb.databases": [
-            {
-                "alias": "unique_stocks",
-                "type": "file",
-                "path": "./apps/pipelines/unique_stocks.duckdb",
-                "readOnly": true,
-                "attached": false
-            }
-        ],
-        "duckdb.defaultDatabase": "unique_stocks",
-        // --- YAML ---
-        "yaml.format.enable": true,
-        "[yaml]": {
-            "editor.defaultFormatter": "esbenp.prettier-vscode",
-            "editor.formatOnSave": true
-        },
-        // --- Markdown ---
-        "[markdown]": {
-            "editor.defaultFormatter": "esbenp.prettier-vscode",
-            "editor.formatOnSave": true
-        },
-        // --- JSON ---
-        "[json]": {
-            "editor.defaultFormatter": "vscode.json-language-features",
-            "editor.tabSize": 2
-        },
-        "[jsonc]": {
-            "editor.defaultFormatter": "vscode.json-language-features",
-            "editor.tabSize": 2
-        },
-        // --- Cleanup ---
-        "files.exclude": {
-            "**/__pycache__": true,
-            "**/.venv": true,
-            "**/.ruff_cache": true,
-            "**/.pytest_cache": true,
-            "**/.uv-cache": true
-        },
-        "workbench.editorAssociations": {
-            "*.parquet": "duckdb.dataFileViewer",
-            "*.csv": "duckdb.dataFileViewer",
-            "*.tsv": "duckdb.dataFileViewer",
-            "*.xlsx": "duckdb.dataFileViewer"
-        }
-    }
+    "duckdb.defaultDatabase": "unique_stocks",
+    // --- YAML ---
+    "yaml.format.enable": false,
+    "[yaml]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode",
+      "editor.formatOnSave": true,
+    },
+    // --- Markdown ---
+    "[markdown]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode",
+      "editor.formatOnSave": true,
+      "editor.codeActionsOnSave": {
+        "source.fixAll.markdownlint": "always",
+      },
+    },
+    // --- JSON ---
+    "[json]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode",
+      "editor.formatOnSave": true,
+      "editor.tabSize": 2,
+    },
+    "[jsonc]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode",
+      "editor.formatOnSave": true,
+      "editor.tabSize": 2,
+    },
+    // --- Cleanup ---
+    "files.exclude": {
+      "**/__pycache__": true,
+      "**/.venv": true,
+      "**/.ruff_cache": true,
+      "**/.pytest_cache": true,
+      "**/.uv-cache": true,
+    },
+    "workbench.editorAssociations": {
+      "*.parquet": "duckdb.dataFileViewer",
+      "*.csv": "duckdb.dataFileViewer",
+      "*.tsv": "duckdb.dataFileViewer",
+      "*.xlsx": "duckdb.dataFileViewer",
+    },
+  },
 }
