@@ -30,6 +30,8 @@ env/
 
 # uv
 .uv/
+.uv-cache/
+.pre-commit-cache/
 
 # local git worktrees / scratch branches
 .worktrees/
