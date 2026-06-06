@@ -1,17 +1,13 @@
 .DEFAULT_GOAL := help
-.PHONY: help install test test-unit test-integration lint lint-fix format format-check typecheck check \
-        python-lint python-lint-fix python-format python-format-check \
-        sql-lint sql-format prettier-format prettier-format-check \
-        markdown-format markdown-format-check yaml-format yaml-format-check \
-        smoke operational-health dashboard \
-        prefect-server prefect-worker \
-        docker-up docker-down docker-down-volumes docker-logs docker-logs-worker docker-logs-dashboard docker-ps \
-        docker-setup \
-        lake-env-guard lake-reset-local lake-migration lake-migration-status lake-ensure-database lake-migrate blocks-save setup s3-landing-zone \
-        deploy deploy-dry deploy-upsert \
-        dbt-install dbt-debug dbt-compile dbt-seed dbt-run dbt-test dbt-build dbt-clean dbt-run-staging dbt-run-marts \
-        dbt-docs-generate dbt-docs-serve dbt-docs \
-        lake-ui
+.PHONY: help install setup blocks-save s3-landing-zone lake-env-guard
+.PHONY: check test test-unit test-integration lint lint-fix format format-check typecheck
+.PHONY: python-lint python-lint-fix python-format python-format-check sql-lint sql-format text-format text-format-check
+.PHONY: smoke operational-health dashboard prefect-server prefect-worker
+.PHONY: docker-up docker-down docker-down-volumes docker-logs docker-logs-worker docker-logs-dashboard docker-ps docker-setup
+.PHONY: lake-reset-local lake-migration lake-migration-status lake-ensure-database lake-migrate lake-ui
+.PHONY: deploy deploy-dry deploy-upsert deploy-dry-manifest
+.PHONY: dbt-install dbt-debug dbt-compile dbt-seed dbt-run dbt-test dbt-build dbt-clean dbt-run-staging dbt-run-marts
+.PHONY: dbt-docs-generate dbt-docs-serve dbt-docs
 
 # Load .env if it exists so PREFECT_API_URL etc. are available to Make targets
 -include .env
@@ -32,11 +28,10 @@ UV_CACHE_DIR ?= $(CURDIR)/.uv-cache
 export UV_CACHE_DIR
 UV := UV_CACHE_DIR="$(UV_CACHE_DIR)" uv
 LAKE_CLI_LOG_LEVEL ?= WARNING
-LAKE_UV := UV_CACHE_DIR="$(UV_CACHE_DIR)" uv -q
-LAKE_PY := PIPELINE_LOG_LEVEL="$(LAKE_CLI_LOG_LEVEL)" $(LAKE_UV) run python
+LAKE_PY := PIPELINE_LOG_LEVEL="$(LAKE_CLI_LOG_LEVEL)" $(UV) -q run python
 DBT := DBT_DUCKDB_PATH="$(DBT_DUCKDB_PATH)" LAKE_NAME="$(LAKE_NAME)" LOCAL_LAKE_PATH="$(LOCAL_LAKE_PATH)" $(UV) run dbt
 DBT_FLAGS := --project-dir $(DBT_DIR) --profiles-dir $(DBT_DIR) --target $(DBT_TARGET)
-PRE_COMMIT := cd $(REPO_ROOT) && UV_CACHE_DIR="$(UV_CACHE_DIR)" uv run --project apps/pipelines pre-commit
+PRE_COMMIT := cd $(REPO_ROOT) && $(UV) run --project apps/pipelines pre-commit
 
 # ── Colours ────────────────────────────────────────────────────────────────
 BOLD  := \033[1m
@@ -78,7 +73,7 @@ s3-landing-zone: ## Create/update AWS S3 landing-zone resources (pass ARGS="--dr
 	uv run python scripts/setup_s3_landing_zone.py $(ARGS)
 
 ##@ Quality
-check: format-check lint typecheck test ## Run full quality gate (CI equivalent)
+check: format-check python-lint typecheck test ## Run full quality gate (CI equivalent)
 
 test: ## Run all tests
 	uv run pytest tests/ -v
@@ -86,22 +81,22 @@ test: ## Run all tests
 test-unit: ## Run unit tests only
 	uv run pytest tests/unit/ -v
 
-lint: python-lint sql-lint ## Check code style (ruff, sqlfluff)
+lint: python-lint sql-lint text-format-check ## Check style and linting
 
 python-lint: ## Check Python code style
 	uv run ruff check .
 
-lint-fix: python-lint-fix sql-format prettier-format ## Auto-fix lint issues
+lint-fix: python-lint-fix sql-format text-format ## Auto-fix lint issues
 
 python-lint-fix: ## Auto-fix Python lint issues
 	uv run ruff check . --fix
 
-format: python-format sql-format prettier-format ## Format code and docs
+format: python-format sql-format text-format ## Format code and docs
 
 python-format: ## Format Python code
 	uv run ruff format .
 
-format-check: python-format-check prettier-format-check ## Check formatting without modifying files
+format-check: python-format-check sql-lint text-format-check ## Check formatting without modifying files
 
 python-format-check: ## Check Python formatting without modifying files
 	uv run ruff format . --check
@@ -112,19 +107,13 @@ sql-lint: ## Lint SQL files
 sql-format: ## Format SQL files
 	$(UV) run sqlfluff fix $(DBT_DIR)/macros $(DBT_DIR)/models $(DBT_DIR)/tests $(LAKE_MIGRATIONS_DIR)
 
-prettier-format: ## Format Markdown and YAML files
+text-format: ## Format Markdown, YAML, and JSON files
 	$(PRE_COMMIT) run prettier-format --all-files
+	$(PRE_COMMIT) run markdownlint-format --all-files
 
-prettier-format-check: ## Check Markdown and YAML formatting without modifying files
+text-format-check: ## Check Markdown, YAML, and JSON formatting/linting
 	$(PRE_COMMIT) run prettier-check --hook-stage manual --all-files
-
-markdown-format: prettier-format ## Format Markdown files
-
-markdown-format-check: prettier-format-check ## Check Markdown formatting without modifying files
-
-yaml-format: prettier-format ## Format YAML files
-
-yaml-format-check: prettier-format-check ## Check YAML formatting without modifying files
+	$(PRE_COMMIT) run markdownlint-check --hook-stage manual --all-files
 
 typecheck: ## Run static type checks (basedpyright)
 	$(UV) run --extra dashboard basedpyright

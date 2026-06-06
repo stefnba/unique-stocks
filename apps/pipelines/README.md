@@ -358,13 +358,12 @@ make test-unit
 make test-integration
 make lint
 make lint-fix
+make format
+make format-check
+make text-format
+make text-format-check
 make sql-lint
 make sql-format
-make format-check
-make markdown-format-check
-make markdown-format
-make yaml-format-check
-make yaml-format
 make typecheck
 make dbt-install
 make dbt-build
