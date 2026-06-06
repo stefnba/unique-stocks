@@ -171,3 +171,183 @@ models:
         description: Timestamp when the terminal coverage was recorded.
         data_tests:
           - not_null
+
+  - name: int_eod_price_expected_instrument_day
+    description: Expected EOD price instrument-days for active tradable instruments on open or unknown-calendar exchange dates.
+    config:
+      tags:
+        - ingestion_control
+    columns:
+      - name: expected_instrument_day_id
+        description: Stable key for one expected provider instrument/date.
+        data_tests:
+          - not_null
+      - name: data_provider
+        description: Provider for the expected price row.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: provider_exchange_code
+        description: Provider exchange code used for the price request namespace.
+        data_tests:
+          - not_null
+      - name: provider_instrument_code
+        description: Provider instrument code expected to have an EOD price.
+        data_tests:
+          - not_null
+      - name: instrument_family
+        description: Broad dbt instrument classification from the latest instrument universe.
+        data_tests:
+          - not_null
+      - name: bar_date
+        description: Local exchange date expected to have a price when the exchange calendar is open.
+        data_tests:
+          - not_null
+      - name: is_calendar_known
+        description: True when the provider exchange can be mapped to schedule metadata.
+        data_tests:
+          - not_null
+      - name: is_trading_day
+        description: True when the mapped exchange calendar says this date is an open trading day.
+        data_tests:
+          - not_null
+
+  - name: int_eod_price_instrument_day_coverage
+    description: Per-instrument EOD price coverage status for expected instrument-days.
+    config:
+      tags:
+        - ingestion_control
+    columns:
+      - name: instrument_day_coverage_id
+        description: Stable key for one expected provider instrument/date coverage row.
+        data_tests:
+          - not_null
+      - name: data_provider
+        description: Provider for the expected price row.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: provider_exchange_code
+        description: Provider exchange code used for the price request namespace.
+        data_tests:
+          - not_null
+      - name: provider_instrument_code
+        description: Provider instrument code evaluated for EOD price coverage.
+        data_tests:
+          - not_null
+      - name: bar_date
+        description: Local exchange date evaluated for EOD price coverage.
+        data_tests:
+          - not_null
+      - name: coverage_status
+        description: Coverage classification for the expected instrument-day.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - priced
+                  - missing_price
+                  - known_no_data
+                  - unknown_calendar
+      - name: has_price
+        description: True when a staged EOD price row exists for the expected instrument-day.
+        data_tests:
+          - not_null
+      - name: has_no_data_coverage
+        description: True when terminal no-data coverage covers this expected instrument-day.
+        data_tests:
+          - not_null
+
+  - name: int_eod_price_exchange_day_status
+    description: Provider exchange/date rollup of expected EOD price coverage.
+    config:
+      tags:
+        - ingestion_control
+    columns:
+      - name: exchange_day_status_id
+        description: Stable key for one provider exchange/date coverage rollup.
+        data_tests:
+          - not_null
+      - name: data_provider
+        description: Provider for the exchange-day coverage rollup.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: provider_exchange_code
+        description: Provider exchange code evaluated for EOD price coverage.
+        data_tests:
+          - not_null
+      - name: provider_schedule_exchange_code
+        description: Provider schedule endpoint code mapped to the EOD price request code, when known.
+      - name: exchange_schedule_name
+        description: Provider display name for the mapped exchange schedule.
+      - name: timezone
+        description: IANA timezone for the mapped exchange schedule.
+      - name: bar_date
+        description: Local exchange date evaluated for EOD price coverage.
+        data_tests:
+          - not_null
+      - name: is_calendar_known
+        description: True when the provider exchange has a mapped schedule row.
+        data_tests:
+          - not_null
+      - name: is_working_day
+        description: True when the date's day name is in the mapped provider working-day expression.
+        data_tests:
+          - not_null
+      - name: is_full_holiday
+        description: True when the mapped provider holiday calendar marks the date as a full closure.
+        data_tests:
+          - not_null
+      - name: is_early_close
+        description: True when the mapped provider holiday calendar marks the date as an early close.
+        data_tests:
+          - not_null
+      - name: is_trading_day
+        description: True when the calendar is known, the date is a working day, and it is not a full holiday.
+        data_tests:
+          - not_null
+      - name: expected_instruments
+        description: Active tradable instruments expected to have coverage for this exchange/date.
+        data_tests:
+          - not_null
+      - name: priced_instruments
+        description: Expected instruments with a staged EOD price row.
+        data_tests:
+          - not_null
+      - name: missing_price_instruments
+        description: Expected instruments with no staged price and no terminal no-data coverage.
+        data_tests:
+          - not_null
+      - name: known_no_data_instruments
+        description: Expected instruments covered by terminal no-data ingestion coverage.
+        data_tests:
+          - not_null
+      - name: unknown_calendar_instruments
+        description: Expected instruments whose provider exchange has no known trading calendar mapping.
+        data_tests:
+          - not_null
+      - name: priced_instrument_ratio
+        description: Share of expected instruments with staged EOD price rows; null when no instruments are expected.
+      - name: exchange_day_status
+        description: Rollup status for the exchange/date.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - complete
+                  - missing_price
+                  - unknown_calendar
+                  - closed_exchange
+                  - no_expected_instruments
