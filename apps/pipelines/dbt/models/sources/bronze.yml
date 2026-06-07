@@ -16,8 +16,8 @@ sources:
             description: Provider instrument code, such as AAPL.
           - name: bar_date
             description: Trading date for the OHLCV bar.
-          - name: ingestion_path
-            description: Pipeline path that produced the Bronze bar, such as daily bulk ingestion or historical per-instrument backfill.
+          - name: ingestion_mode
+            description: Pipeline mode that produced the Bronze bar, such as daily bulk ingestion or historical per-instrument backfill.
           - name: open
             description: Opening price for the trading date.
           - name: high

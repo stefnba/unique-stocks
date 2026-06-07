@@ -20,8 +20,8 @@ models:
         description: Trading date for the OHLCV bar.
         data_tests:
           - not_null
-      - name: ingestion_path
-        description: Pipeline path that produced the Bronze bar.
+      - name: ingestion_mode
+        description: Pipeline mode that produced the Bronze bar.
         data_tests:
           - not_null
           - accepted_values:

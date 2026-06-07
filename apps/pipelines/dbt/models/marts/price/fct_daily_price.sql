@@ -25,7 +25,7 @@ final AS (
         price.data_provider,
         price.provider_exchange_code,
         price.provider_instrument_code,
-        price.ingestion_path,
+        price.ingestion_mode,
         price.open_price,
         price.high_price,
         price.low_price,

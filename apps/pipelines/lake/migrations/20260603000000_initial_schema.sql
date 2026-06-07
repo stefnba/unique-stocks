@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS bronze.eod_price (
     provider_exchange_code VARCHAR NOT NULL,
     provider_instrument_code VARCHAR NOT NULL,
     bar_date DATE NOT NULL,
-    ingestion_path VARCHAR NOT NULL,
+    ingestion_mode VARCHAR NOT NULL,
     open DECIMAL NOT NULL,
     high DECIMAL NOT NULL,
     low DECIMAL NOT NULL,

@@ -6,7 +6,7 @@ from pydantic import ConfigDict, field_validator, model_validator
 
 from core.models import BronzeModel
 
-EOD_PRICE_INGESTION_PATHS = {"daily_bulk", "historical_backfill"}
+EOD_PRICE_INGESTION_MODES = {"daily_bulk", "historical_backfill"}
 
 
 class EODBar(BronzeModel):
@@ -22,7 +22,7 @@ class EODBar(BronzeModel):
         provider_instrument_code: Provider instrument code without exchange suffix,
             e.g. ``AAPL``.
         bar_date: The trading date this bar covers (NYSE session date).
-        ingestion_path: Pipeline path that produced the bar. This is lineage
+        ingestion_mode: Pipeline mode that produced the bar. This is lineage
             only and is not part of price identity or idempotency.
         open: First traded price of the session.
         high: Highest traded price of the session.
@@ -43,7 +43,7 @@ class EODBar(BronzeModel):
     provider_exchange_code: str
     provider_instrument_code: str
     bar_date: date
-    ingestion_path: str
+    ingestion_mode: str
     open: Decimal
     high: Decimal
     low: Decimal
@@ -51,13 +51,13 @@ class EODBar(BronzeModel):
     volume: int
     adjusted_close: Decimal | None = None
 
-    @field_validator("ingestion_path")
+    @field_validator("ingestion_mode")
     @classmethod
-    def validate_ingestion_path(cls, value: str) -> str:
-        """Validate the supported EOD price ingestion path values."""
-        if value not in EOD_PRICE_INGESTION_PATHS:
-            allowed = ", ".join(sorted(EOD_PRICE_INGESTION_PATHS))
-            raise ValueError(f"Unsupported EOD price ingestion_path {value!r}; expected one of: {allowed}")
+    def validate_ingestion_mode(cls, value: str) -> str:
+        """Validate the supported EOD price ingestion mode values."""
+        if value not in EOD_PRICE_INGESTION_MODES:
+            allowed = ", ".join(sorted(EOD_PRICE_INGESTION_MODES))
+            raise ValueError(f"Unsupported EOD price ingestion_mode {value!r}; expected one of: {allowed}")
         return value
 
     @model_validator(mode="after")

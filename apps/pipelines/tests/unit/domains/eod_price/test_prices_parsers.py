@@ -55,7 +55,7 @@ class TestParseEodBars:
         bar = valid[0].row
         assert bar.provider_exchange_code == "US"
         assert bar.provider_instrument_code == "AAPL"
-        assert bar.ingestion_path == "daily_bulk"
+        assert bar.ingestion_mode == "daily_bulk"
         assert bar.close == Decimal("190.75")
         assert valid[0].raw_fragment.code == "AAPL"
 
@@ -133,7 +133,7 @@ class TestParseInstrumentBars:
         assert len(valid) == 1
         assert valid[0].row.provider_exchange_code == "US"
         assert valid[0].row.provider_instrument_code == "AAPL"
-        assert valid[0].row.ingestion_path == "historical_backfill"
+        assert valid[0].row.ingestion_mode == "historical_backfill"
         assert valid[0].row.close == Decimal("190.75")
         assert valid[0].raw_fragment is raw
 
@@ -163,7 +163,7 @@ class TestEodBarBronzeRecord:
             provider_exchange_code="US",
             provider_instrument_code="AAPL",
             bar_date=date(2026, 5, 9),
-            ingestion_path="daily_bulk",
+            ingestion_mode="daily_bulk",
             open=Decimal("189.50"),
             high=Decimal("191.20"),
             low=Decimal("188.00"),
@@ -184,7 +184,7 @@ class TestEodBarBronzeRecord:
             provider_exchange_code="US",
             provider_instrument_code="AAPL",
             bar_date=date(2026, 5, 9),
-            ingestion_path="daily_bulk",
+            ingestion_mode="daily_bulk",
             open=Decimal("189.50"),
             high=Decimal("191.20"),
             low=Decimal("188.00"),

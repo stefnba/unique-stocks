@@ -578,8 +578,8 @@ def test_daily_bulk_write_ignores_historical_overlap_without_skipping(
     already_after_backfill = tasks.eod_price_already_ingested.fn("AS", date(2022, 2, 8))
 
     daily_sources = [
-        _eod_source("AS", "0P0001OMXU", date(2022, 2, 8), ingestion_path="daily_bulk"),
-        _eod_source("AS", "DAILYONLY", date(2022, 2, 8), ingestion_path="daily_bulk"),
+        _eod_source("AS", "0P0001OMXU", date(2022, 2, 8), ingestion_mode="daily_bulk"),
+        _eod_source("AS", "DAILYONLY", date(2022, 2, 8), ingestion_mode="daily_bulk"),
     ]
     daily = tasks.write_bronze_eod_price.fn(
         daily_sources,
@@ -592,7 +592,7 @@ def test_daily_bulk_write_ignores_historical_overlap_without_skipping(
     rows = lake.load(
         "eod_price",
         schema="bronze",
-        columns=["provider_instrument_code", "ingestion_path", "source_uri"],
+        columns=["provider_instrument_code", "ingestion_mode", "source_uri"],
         order_by="provider_instrument_code",
     )
     assert backfill.rows_written == 1
@@ -603,12 +603,12 @@ def test_daily_bulk_write_ignores_historical_overlap_without_skipping(
     assert rows == [
         {
             "provider_instrument_code": "0P0001OMXU",
-            "ingestion_path": "historical_backfill",
+            "ingestion_mode": "historical_backfill",
             "source_uri": None,
         },
         {
             "provider_instrument_code": "DAILYONLY",
-            "ingestion_path": "daily_bulk",
+            "ingestion_mode": "daily_bulk",
             "source_uri": "s3://bucket/daily.jsonl",
         },
     ]
@@ -623,7 +623,7 @@ def test_daily_already_ingested_allows_retry_when_coverage_has_gap(
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
-    daily = _eod_source("US", "AAPL", TO_DATE, ingestion_path="daily_bulk")
+    daily = _eod_source("US", "AAPL", TO_DATE, ingestion_mode="daily_bulk")
     write = tasks.write_bronze_eod_price.fn([daily], provider_exchange_code="US", bar_date=TO_DATE)
     before_gate = tasks.eod_price_already_ingested.fn("US", TO_DATE)
 
@@ -654,7 +654,7 @@ def _eod_source(
     provider_exchange_code: str,
     provider_instrument_code: str,
     bar_date: date,
-    ingestion_path: str = "historical_backfill",
+    ingestion_mode: str = "historical_backfill",
 ) -> BronzeParseResult[EODBar]:
     """Build a valid parsed EOD bar source."""
     return BronzeParseResult(
@@ -662,7 +662,7 @@ def _eod_source(
             provider_exchange_code=provider_exchange_code,
             provider_instrument_code=provider_instrument_code,
             bar_date=bar_date,
-            ingestion_path=ingestion_path,
+            ingestion_mode=ingestion_mode,
             open=Decimal("10"),
             high=Decimal("12"),
             low=Decimal("9"),

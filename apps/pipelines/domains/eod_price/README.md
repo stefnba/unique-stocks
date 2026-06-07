@@ -28,7 +28,7 @@ The current flow mechanics cover pieces of that goal:
 | Daily upsert/idempotency    | Daily bulk skips explicit `(provider_exchange_code, bar_date)` partitions only when a `daily_bulk` Bronze row already exists and rebuilt exchange/day coverage has no blocking gap. Bronze uniqueness is per provider exchange, provider instrument, date, and provider. |
 | Historical resume           | Backfill recomputes pending instruments from Silver instrument-day coverage plus exact-window terminal coverage rows. A canceled run resumes at the next not-covered instrument after dbt rebuilds the selector views.                                                   |
 | Partial historical coverage | Explicit `from_date` backfills keep an instrument pending when any requested trading day is still `missing_price`. Open-start backfills require exact-window completed/no-data coverage because a single daily bar does not prove full history.                          |
-| Row lineage                 | `bronze.eod_price.ingestion_path` records whether the current stored bar came from `daily_bulk` or `historical_backfill`; this is not part of the Bronze unique key.                                                                                                     |
+| Row lineage                 | `bronze.eod_price.ingestion_mode` records whether the current stored bar came from `daily_bulk` or `historical_backfill`; this is not part of the Bronze unique key.                                                                                                     |
 | Provider no-data            | A successful provider fetch plus landing write with zero rows records terminal `no_data` coverage for the exact instrument/window.                                                                                                                                       |
 | Provider quota stop         | Submitted 429 failures and unsubmitted quota-deferred work are not marked no-data, so they remain retryable. Deferred coverage is audit metadata only.                                                                                                                   |
 | Parser rejects              | Bad rows are recorded as rejections. All-rows-rejected payloads stay retryable rather than becoming terminal no-data coverage.                                                                                                                                           |
@@ -112,7 +112,7 @@ See [`docs/pipeline_audit.md`](../../docs/pipeline_audit.md) and [`core/ingestio
 ## Daily bulk flow
 
 `eod-price-daily` does not write terminal coverage rows. Idempotency is per
-`(provider_exchange_code, bar_date, ingestion_path = 'daily_bulk')`, and an
+`(provider_exchange_code, bar_date, ingestion_mode = 'daily_bulk')`, and an
 explicit `trade_date` skips only when the rebuilt exchange/day coverage view has
 no blocking `missing_price` or `unknown_calendar` gap. If the previous daily run
 was partial, rerunning the same explicit exchange/date fetches again and inserts

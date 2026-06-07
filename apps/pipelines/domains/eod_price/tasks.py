@@ -844,7 +844,7 @@ def _eod_daily_bulk_already_ingested(lake: Any, *, provider_exchange_code: str, 
         WHERE provider_exchange_code = ?
           AND bar_date = ?
           AND data_provider = ?
-          AND ingestion_path = ?
+          AND ingestion_mode = ?
         """,
         [provider_exchange_code, bar_date.isoformat(), str(EOD_PRICE_DATASET.provider), "daily_bulk"],
     )
