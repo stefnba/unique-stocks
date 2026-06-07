@@ -34,6 +34,7 @@ from domains.eod_price.models import EODBar
 from domains.eod_price.parsers import infer_bulk_bar_date, parse_instrument_bars
 from domains.eod_price.tasks import (
     EODBackfillCoverageOutcome,
+    EODPriceCoverageGap,
     eod_price_already_ingested,
     fetch_eod_price_bulk,
     fetch_eod_provider_exchange_codes,
@@ -428,7 +429,7 @@ async def _run_price_post_ingestion_checks(
     return upstream_status
 
 
-def _coverage_gate_summary(gaps: list[dict[str, object]]) -> dict[str, object]:
+def _coverage_gate_summary(gaps: list[EODPriceCoverageGap]) -> dict[str, object]:
     """Return compact run-summary metadata for exchange/day coverage gaps."""
     by_status: dict[str, int] = {}
     for gap in gaps:
@@ -443,7 +444,7 @@ def _coverage_gate_summary(gaps: list[dict[str, object]]) -> dict[str, object]:
     }
 
 
-def _coverage_gap_summary_row(gap: dict[str, object]) -> dict[str, object]:
+def _coverage_gap_summary_row(gap: EODPriceCoverageGap) -> dict[str, object]:
     """Return a JSON-safe compact representation of one coverage gap."""
     bar_date = gap["bar_date"]
     return {

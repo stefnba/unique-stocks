@@ -244,10 +244,11 @@ async def test_eod_daily_coverage_gate_marks_run_partial(monkeypatch: pytest.Mon
     monkeypatch.setattr(flows, "load_eod_price_coverage_gaps", load_gaps)
 
     summary = await flows.eod_price_flow.fn(trade_date=TO_DATE, provider_exchange_codes=["US"], run_dbt_build=True)
+    coverage_gate = cast(dict[str, object], summary["coverage_gate"])
 
     assert run.completed_status == "partial"
-    assert summary["coverage_gate"]["status"] == "failed"
-    assert summary["coverage_gate"]["by_status"] == {"missing_price": 1}
+    assert coverage_gate["status"] == "failed"
+    assert coverage_gate["by_status"] == {"missing_price": 1}
 
 
 @pytest.mark.asyncio
