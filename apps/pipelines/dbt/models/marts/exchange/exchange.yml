@@ -213,6 +213,170 @@ models:
         data_tests:
           - not_null
 
+  - name: dim_exchange_trading_day
+    description: Gold provider exchange trading-day calendar by provider request code and local exchange date.
+    columns:
+      - name: exchange_trading_day_pk
+        description: Deterministic hashed primary key for one provider exchange/date.
+        data_tests:
+          - not_null
+          - unique
+      - name: exchange_calendar_pk
+        description: Foreign key to the mapped provider schedule calendar row, when known.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_exchange_calendar')
+                field: exchange_calendar_pk
+      - name: exchange_pk
+        description: Foreign key to the canonical MIC exchange dimension, when a MIC mapping is known.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_exchange')
+                field: exchange_pk
+      - name: data_provider
+        description: Provider that owns the exchange and schedule codes.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: provider_exchange_code
+        description: Provider request code used by instrument and EOD price endpoints.
+        data_tests:
+          - not_null
+      - name: mic
+        description: Best mapped Market Identifier Code for the provider request code, when known.
+      - name: provider_code_kind
+        description: Classification of the provider request code when known.
+      - name: source_kind
+        description: Source of the provider request code, such as provider catalog or curated seed.
+      - name: exchange_catalog_name
+        description: Provider display name for the provider request code.
+      - name: provider_schedule_exchange_code
+        description: Provider schedule endpoint code mapped to the provider request code.
+      - name: schedule_mapping_method
+        description: Method used to map the provider request code to a schedule endpoint code.
+      - name: schedule_mapping_confidence
+        description: Confidence of the schedule-code mapping.
+      - name: mic_mapping_method
+        description: Method used to map the provider request code to a MIC.
+      - name: mic_mapping_confidence
+        description: Confidence of the MIC mapping.
+      - name: exchange_schedule_name
+        description: Provider display name for the mapped exchange schedule.
+      - name: timezone
+        description: IANA timezone for the mapped exchange schedule.
+      - name: working_days
+        description: Provider working-day expression for regular sessions.
+      - name: day_name
+        description: Three-letter day name for the local exchange date.
+        data_tests:
+          - not_null
+      - name: trading_day_status
+        description: Business status for the provider exchange/date.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - open
+                  - early_close
+                  - closed_holiday
+                  - closed_non_working_day
+                  - unknown_calendar
+      - name: closure_reason
+        description: Closure reason for non-trading dates when known.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - full_holiday
+                  - non_working_day
+                  - unknown_calendar
+      - name: is_calendar_known
+        description: True when a schedule-code mapping and latest schedule row are available.
+        data_tests:
+          - not_null
+      - name: is_working_day
+        description: True when the date's day name is present in the provider working-days expression.
+        data_tests:
+          - not_null
+      - name: is_full_holiday
+        description: True when the holiday calendar has a non-early-close holiday for this date.
+        data_tests:
+          - not_null
+      - name: is_early_close
+        description: True when the holiday calendar marks this date as an early close.
+        data_tests:
+          - not_null
+      - name: is_trading_day
+        description: True when the calendar is known, the date is a working day, and it is not a full holiday.
+        data_tests:
+          - not_null
+      - name: is_closed
+        description: True when the calendar is known and the date is not a trading day.
+        data_tests:
+          - not_null
+      - name: has_pre_market
+        description: True when the mapped schedule has pre-market boundaries.
+      - name: has_after_hours
+        description: True when the mapped schedule has after-hours boundaries.
+      - name: has_lunch_break
+        description: True when the mapped schedule has lunch-break boundaries.
+      - name: full_holiday_name
+        description: Holiday name for full exchange closures.
+      - name: early_close_name
+        description: Holiday name for early-close dates.
+      - name: session_open
+        description: Regular session open time in local exchange time.
+      - name: session_close
+        description: Regular session close time in local exchange time.
+      - name: effective_session_open
+        description: Session open time for trading dates; null on closed or unknown-calendar dates.
+      - name: effective_session_close
+        description: Session close time for trading dates, using early close time when present.
+      - name: pre_market_open
+        description: Pre-market session open time when supplied.
+      - name: pre_market_close
+        description: Pre-market session close time when supplied.
+      - name: after_hours_open
+        description: After-hours session open time when supplied.
+      - name: after_hours_close
+        description: After-hours session close time when supplied.
+      - name: lunch_break_start
+        description: Lunch break start time when supplied.
+      - name: lunch_break_end
+        description: Lunch break end time when supplied.
+      - name: early_close_time
+        description: Early close time when supplied by the holiday calendar.
+      - name: trading_date
+        description: Local exchange calendar date in the generated provider calendar horizon; the earliest date in this table is not an authoritative exchange inception date.
+        data_tests:
+          - not_null
+      - name: exchange_creation_date
+        description: MIC registry creation date for the mapped exchange, when known; not necessarily the exchange's first trading date.
+      - name: calendar_start_date
+        description: First local date generated for this provider exchange calendar.
+        data_tests:
+          - not_null
+      - name: calendar_start_date_source
+        description: Source used to choose the generated calendar start date.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - mic_creation_date
+                  - provider_holiday_calendar
+                  - current_date_default
+      - name: schedule_snapshot_date
+        description: Latest schedule snapshot date used for this row.
+      - name: schedule_ingested_at
+        description: Timestamp when the schedule row was written to Bronze.
+
   - name: dim_provider_code_mapping
     description: Gold provider request-code mappings to self codes, MICs, and schedule endpoint codes.
     columns:

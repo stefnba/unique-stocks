@@ -97,6 +97,7 @@ def _build_eod_bar(
             "provider_instrument_code": row.code,
             # EODBar is strict=True — must pass a date object, not a string
             "bar_date": parse_date(row.date),
+            "ingestion_path": "daily_bulk",
             "open": parse_decimal(row.open),
             "high": parse_decimal(row.high),
             "low": parse_decimal(row.low),
@@ -130,6 +131,7 @@ def _build_instrument_bar(
             "provider_exchange_code": provider_exchange_code,
             "provider_instrument_code": provider_instrument_code,
             "bar_date": parse_date(row.date),
+            "ingestion_path": "historical_backfill",
             "open": parse_decimal(row.open),
             "high": parse_decimal(row.high),
             "low": parse_decimal(row.low),

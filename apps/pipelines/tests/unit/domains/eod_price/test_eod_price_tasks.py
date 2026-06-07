@@ -34,19 +34,22 @@ class FakeLake:
         self,
         *,
         instrument_rows: list[dict[str, str]] | None = None,
-        price_instruments: list[str] | None = None,
-        price_ranges: dict[str, tuple[date, date]] | None = None,
+        day_coverage_rows: list[dict[str, object]] | None = None,
         selection_coverage_rows: list[dict[str, object]] | None = None,
+        expected_exchange_days: int = 1,
         tables: set[tuple[str, str]] | None = None,
     ) -> None:
         """Configure query results and table existence."""
         self.instrument_rows = instrument_rows or []
-        self.price_instruments = price_instruments or []
-        self.price_ranges = price_ranges or {instrument: (FROM_DATE, TO_DATE) for instrument in self.price_instruments}
+        self.day_coverage_rows = day_coverage_rows or []
         self.selection_coverage_rows = selection_coverage_rows or []
+        self.expected_exchange_days = expected_exchange_days
         self.coverage_rows: list[dict[str, object]] = []
         self.tables = tables or {
-            ("silver", "int_eod_price_backfill_instrument_status"),
+            ("silver", "int_latest_instrument_universe"),
+            ("silver", "int_exchange_trading_day"),
+            ("silver", "int_eod_price_instrument_day_coverage"),
+            ("silver", "int_eod_price_exchange_day_status"),
             ("silver", "int_eod_price_backfill_no_data_coverage"),
             ("silver", "int_eod_price_backfill_terminal_coverage"),
             ("pipeline", "ingestion_coverage"),
@@ -65,26 +68,31 @@ class FakeLake:
     def query(self, sql: str, params: Sequence[Any] | None = None) -> list[dict[str, Any]]:
         """Return rows based on which table the SQL targets."""
         self.queries.append((sql, params))
-        if "silver.int_eod_price_backfill_instrument_status" in sql:
-            pending, done, covered = self._pending_provider_instruments(params or [])
+        if "silver.int_eod_price_instrument_day_coverage" in sql:
+            pending, completed, covered = self._pending_provider_instruments(params or [])
             return [
                 {
                     "provider_instrument_code": instrument,
+                    "expected_instrument_days": details["expected_days"],
+                    "missing_price_days": details["missing_days"],
+                    "unknown_calendar_days": details["unknown_days"],
                     "total_instruments": len(self.instrument_rows),
-                    "completed_price_instruments": len(done),
+                    "completed_coverage_instruments": len(completed),
                     "terminal_no_data_instruments": len(covered),
                 }
-                for instrument in pending
+                for instrument, details in pending
             ]
         return []
 
-    def _pending_provider_instruments(self, params: Sequence[Any]) -> tuple[list[str], set[str], set[str]]:
+    def _pending_provider_instruments(
+        self, params: Sequence[Any]
+    ) -> tuple[list[tuple[str, dict[str, int]]], set[str], set[str]]:
         """Evaluate the combined pending-instrument query for the fake lake."""
         requested_from: date | None = FROM_DATE
         requested_to = TO_DATE
-        if len(params) >= 5:
-            requested_from = date.fromisoformat(str(params[2])) if params[2] is not None else None
-            requested_to = date.fromisoformat(str(params[4]))
+        if len(params) >= 18:
+            requested_from = date.fromisoformat(str(params[14])) if params[14] is not None else None
+            requested_to = date.fromisoformat(str(params[16]))
         all_instruments = sorted(str(row["provider_instrument_code"]) for row in self.instrument_rows)
         completed_coverage = {
             str(row["provider_instrument_code"])
@@ -95,12 +103,6 @@ class FakeLake:
             and row.get("status") == COVERAGE_STATUS_COMPLETED
             and row.get("provider_instrument_code")
         }
-        done = {
-            instrument
-            for instrument, (min_date, max_date) in self.price_ranges.items()
-            if requested_from is not None and min_date <= requested_from and max_date >= requested_to
-        }
-        done.update(completed_coverage)
         covered = {
             str(row["provider_instrument_code"])
             for row in self.selection_coverage_rows
@@ -110,8 +112,43 @@ class FakeLake:
             and row.get("status", COVERAGE_STATUS_NO_DATA) == COVERAGE_STATUS_NO_DATA
             and row.get("provider_instrument_code")
         }
-        pending = [instrument for instrument in all_instruments if instrument not in done and instrument not in covered]
-        return pending, done, covered
+        coverage_by_instrument: dict[str, dict[str, int]] = {}
+        for row in self.day_coverage_rows:
+            if row.get("provider_exchange_code", "US") != "US":
+                continue
+            bar_date = row.get("bar_date", FROM_DATE)
+            if not isinstance(bar_date, date):
+                continue
+            if bar_date > requested_to or (requested_from is not None and bar_date < requested_from):
+                continue
+            instrument = str(row["provider_instrument_code"])
+            details = coverage_by_instrument.setdefault(
+                instrument, {"expected_days": 0, "missing_days": 0, "unknown_days": 0, "has_observed": 0}
+            )
+            details["expected_days"] += 1
+            if row.get("coverage_status") == "missing_price":
+                details["missing_days"] += 1
+            if row.get("coverage_status") == "unknown_calendar":
+                details["unknown_days"] += 1
+            if row.get("coverage_status") == "priced" or row.get("min_bar_date") is not None:
+                details["has_observed"] = 1
+        pending: list[tuple[str, dict[str, int]]] = []
+        for instrument in all_instruments:
+            details = coverage_by_instrument.get(
+                instrument, {"expected_days": 0, "missing_days": 0, "unknown_days": 0, "has_observed": 0}
+            )
+            if self.expected_exchange_days <= 0:
+                continue
+            if instrument in completed_coverage or instrument in covered:
+                continue
+            if (
+                requested_from is None
+                or details["missing_days"] > 0
+                or details["expected_days"] == 0
+                or not details["has_observed"]
+            ):
+                pending.append((instrument, details))
+        return pending, completed_coverage, covered
 
     def query_one(self, sql: str, params: Sequence[Any] | None = None) -> dict[str, Any] | None:
         """Return a single-row query result."""
@@ -133,7 +170,7 @@ class FakeLake:
 def test_load_backfill_pending_excludes_price_and_no_data_coverage(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Pending instruments omit price rows and exact-range terminal no_data coverage."""
+    """Pending instruments omit complete coverage rows and exact-range terminal no_data coverage."""
     lake = FakeLake(
         instrument_rows=[
             {"provider_instrument_code": "AAPL"},
@@ -141,7 +178,10 @@ def test_load_backfill_pending_excludes_price_and_no_data_coverage(
             {"provider_instrument_code": "DELIST"},
             {"provider_instrument_code": "WIDER"},
         ],
-        price_instruments=["AAPL"],
+        day_coverage_rows=[
+            {"provider_instrument_code": "AAPL", "bar_date": FROM_DATE, "coverage_status": "priced"},
+            {"provider_instrument_code": "MSFT", "bar_date": FROM_DATE, "coverage_status": "missing_price"},
+        ],
         selection_coverage_rows=[
             {
                 "provider_exchange_code": "US",
@@ -165,24 +205,35 @@ def test_load_backfill_pending_excludes_price_and_no_data_coverage(
 
     assert pending == ["MSFT", "WIDER"]
     sql, params = lake.queries[0]
-    assert "silver.int_eod_price_backfill_instrument_status" in sql
+    assert "silver.int_latest_instrument_universe" in sql
+    assert "silver.int_eod_price_instrument_day_coverage" in sql
+    assert "silver.int_exchange_trading_day" in sql
     assert "silver.int_eod_price_backfill_terminal_coverage" in sql
-    assert "status.data_provider = ?" in sql
+    assert "coverage.status = 'completed'" in sql
+    assert "coverage_status = 'missing_price'" in sql
     assert "coverage.status = 'completed'" in sql
     assert "COUNT(*) OVER () AS total_instruments" in sql
-    assert params and params[8] == "eodhd"
+    assert params and params[12] == "eodhd"
     assert "unit_key_json" not in sql
     assert params == [
         "eodhd",
         "US",
-        FROM_DATE.isoformat(),
-        FROM_DATE.isoformat(),
-        TO_DATE.isoformat(),
-        FROM_DATE.isoformat(),
-        FROM_DATE.isoformat(),
-        TO_DATE.isoformat(),
         "eodhd",
         "US",
+        TO_DATE.isoformat(),
+        FROM_DATE.isoformat(),
+        FROM_DATE.isoformat(),
+        "eodhd",
+        "US",
+        TO_DATE.isoformat(),
+        FROM_DATE.isoformat(),
+        FROM_DATE.isoformat(),
+        "eodhd",
+        "US",
+        FROM_DATE.isoformat(),
+        FROM_DATE.isoformat(),
+        TO_DATE.isoformat(),
+        FROM_DATE.isoformat(),
     ]
 
 
@@ -195,10 +246,35 @@ def test_load_backfill_pending_keeps_partial_price_history_pending(
             {"provider_instrument_code": "AAPL"},
             {"provider_instrument_code": "MSFT"},
         ],
-        price_ranges={
-            "AAPL": (date(2026, 5, 31), date(2026, 5, 31)),
-            "MSFT": (FROM_DATE, TO_DATE),
-        },
+        day_coverage_rows=[
+            {"provider_instrument_code": "AAPL", "bar_date": date(2026, 5, 15), "coverage_status": "missing_price"},
+            {"provider_instrument_code": "MSFT", "bar_date": date(2026, 5, 15), "coverage_status": "priced"},
+        ],
+    )
+    import core.clients.lake as lake_module
+
+    monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
+
+    pending = tasks.load_backfill_pending_instruments.fn("US", FROM_DATE, TO_DATE)
+
+    assert pending == ["AAPL"]
+
+
+def test_load_backfill_pending_keeps_partial_no_data_without_observed_history_pending(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Partial no-data coverage should not satisfy an explicit no-price instrument window."""
+    lake = FakeLake(
+        instrument_rows=[
+            {"provider_instrument_code": "AAPL"},
+        ],
+        day_coverage_rows=[
+            {
+                "provider_instrument_code": "AAPL",
+                "bar_date": date(2026, 5, 15),
+                "coverage_status": "known_no_data",
+            },
+        ],
     )
     import core.clients.lake as lake_module
 
@@ -218,10 +294,10 @@ def test_load_backfill_pending_full_history_requires_completed_coverage(
             {"provider_instrument_code": "AAPL"},
             {"provider_instrument_code": "MSFT"},
         ],
-        price_ranges={
-            "AAPL": (date(2026, 5, 31), date(2026, 5, 31)),
-            "MSFT": (FROM_DATE, TO_DATE),
-        },
+        day_coverage_rows=[
+            {"provider_instrument_code": "AAPL", "bar_date": TO_DATE, "coverage_status": "priced"},
+            {"provider_instrument_code": "MSFT", "bar_date": TO_DATE, "coverage_status": "priced"},
+        ],
         selection_coverage_rows=[
             {
                 "provider_exchange_code": "US",
@@ -243,14 +319,22 @@ def test_load_backfill_pending_full_history_requires_completed_coverage(
     assert params == [
         "eodhd",
         "US",
-        None,
-        None,
-        TO_DATE.isoformat(),
-        None,
-        None,
-        TO_DATE.isoformat(),
         "eodhd",
         "US",
+        TO_DATE.isoformat(),
+        None,
+        None,
+        "eodhd",
+        "US",
+        TO_DATE.isoformat(),
+        None,
+        None,
+        "eodhd",
+        "US",
+        None,
+        None,
+        TO_DATE.isoformat(),
+        None,
     ]
 
 
@@ -272,9 +356,11 @@ def test_load_backfill_pending_ignores_provider_quota_deferred_coverage(
 
 
 def test_load_backfill_pending_requires_instrument_status_view(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Backfill auto-selection should fail clearly when the dbt status contract is unavailable."""
+    """Backfill auto-selection should fail clearly when the dbt coverage contract is unavailable."""
     lake = FakeLake(
         tables={
+            ("silver", "int_latest_instrument_universe"),
+            ("silver", "int_exchange_trading_day"),
             ("silver", "int_eod_price_backfill_terminal_coverage"),
             ("pipeline", "ingestion_coverage"),
         }
@@ -283,13 +369,20 @@ def test_load_backfill_pending_requires_instrument_status_view(monkeypatch: pyte
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
-    with pytest.raises(SilverIngestionContractError, match="int_eod_price_backfill_instrument_status"):
+    with pytest.raises(SilverIngestionContractError, match="int_eod_price_instrument_day_coverage"):
         tasks.load_backfill_pending_instruments.fn("US", FROM_DATE, TO_DATE)
 
 
 def test_load_backfill_pending_requires_terminal_coverage_view(monkeypatch: pytest.MonkeyPatch) -> None:
     """Backfill auto-selection should fail clearly when the dbt coverage contract is unavailable."""
-    lake = FakeLake(tables={("silver", "int_eod_price_backfill_instrument_status"), ("pipeline", "ingestion_coverage")})
+    lake = FakeLake(
+        tables={
+            ("silver", "int_latest_instrument_universe"),
+            ("silver", "int_exchange_trading_day"),
+            ("silver", "int_eod_price_instrument_day_coverage"),
+            ("pipeline", "ingestion_coverage"),
+        }
+    )
     import core.clients.lake as lake_module
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
@@ -302,14 +395,18 @@ def test_load_missing_eod_backfill_selection_views_reports_absent_contracts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Backfill preflight should identify which Silver selector views need a build."""
-    lake = FakeLake(tables={("silver", "int_eod_price_backfill_instrument_status")})
+    lake = FakeLake(tables={("silver", "int_latest_instrument_universe")})
     import core.clients.lake as lake_module
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
     missing = tasks.load_missing_eod_backfill_selection_views.fn()
 
-    assert missing == ["int_eod_price_backfill_terminal_coverage"]
+    assert missing == [
+        "int_exchange_trading_day",
+        "int_eod_price_instrument_day_coverage",
+        "int_eod_price_backfill_terminal_coverage",
+    ]
 
 
 def test_write_eod_backfill_coverage_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -467,8 +564,97 @@ def test_write_backfill_eod_batch_ignores_existing_and_duplicate_bars(
     ]
 
 
+def test_daily_bulk_write_ignores_historical_overlap_without_skipping(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Historical rows for one date should not make the daily bulk partition look complete."""
+    lake = DataLakeClient(connection_string=":memory:")
+    import core.clients.lake as lake_module
+
+    monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
+
+    historical = _eod_source("AS", "0P0001OMXU", date(2022, 2, 8))
+    backfill = tasks.write_backfill_eod_batch.fn([historical], provider_exchange_code="AS")
+    already_after_backfill = tasks.eod_price_already_ingested.fn("AS", date(2022, 2, 8))
+
+    daily_sources = [
+        _eod_source("AS", "0P0001OMXU", date(2022, 2, 8), ingestion_path="daily_bulk"),
+        _eod_source("AS", "DAILYONLY", date(2022, 2, 8), ingestion_path="daily_bulk"),
+    ]
+    daily = tasks.write_bronze_eod_price.fn(
+        daily_sources,
+        provider_exchange_code="AS",
+        bar_date=date(2022, 2, 8),
+        source_uri="s3://bucket/daily.jsonl",
+    )
+    already_after_daily = tasks.eod_price_already_ingested.fn("AS", date(2022, 2, 8))
+
+    rows = lake.load(
+        "eod_price",
+        schema="bronze",
+        columns=["provider_instrument_code", "ingestion_path", "source_uri"],
+        order_by="provider_instrument_code",
+    )
+    assert backfill.rows_written == 1
+    assert already_after_backfill is False
+    assert daily.rows_written == 1
+    assert daily.reason is None
+    assert already_after_daily is True
+    assert rows == [
+        {
+            "provider_instrument_code": "0P0001OMXU",
+            "ingestion_path": "historical_backfill",
+            "source_uri": None,
+        },
+        {
+            "provider_instrument_code": "DAILYONLY",
+            "ingestion_path": "daily_bulk",
+            "source_uri": "s3://bucket/daily.jsonl",
+        },
+    ]
+
+
+def test_daily_already_ingested_allows_retry_when_coverage_has_gap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A partial exchange/date should be retryable after dbt coverage marks it missing."""
+    lake = DataLakeClient(connection_string=":memory:")
+    import core.clients.lake as lake_module
+
+    monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
+
+    daily = _eod_source("US", "AAPL", TO_DATE, ingestion_path="daily_bulk")
+    write = tasks.write_bronze_eod_price.fn([daily], provider_exchange_code="US", bar_date=TO_DATE)
+    before_gate = tasks.eod_price_already_ingested.fn("US", TO_DATE)
+
+    lake.execute(
+        """
+        CREATE TABLE silver.int_eod_price_exchange_day_status (
+            data_provider VARCHAR,
+            provider_exchange_code VARCHAR,
+            bar_date DATE,
+            exchange_day_status VARCHAR
+        )
+        """
+    )
+    lake.execute(
+        """
+        INSERT INTO silver.int_eod_price_exchange_day_status VALUES (?, ?, ?, ?)
+        """,
+        ["eodhd", "US", TO_DATE.isoformat(), "missing_price"],
+    )
+    after_gate = tasks.eod_price_already_ingested.fn("US", TO_DATE)
+
+    assert write.rows_written == 1
+    assert before_gate is True
+    assert after_gate is False
+
+
 def _eod_source(
-    provider_exchange_code: str, provider_instrument_code: str, bar_date: date
+    provider_exchange_code: str,
+    provider_instrument_code: str,
+    bar_date: date,
+    ingestion_path: str = "historical_backfill",
 ) -> BronzeParseResult[EODBar]:
     """Build a valid parsed EOD bar source."""
     return BronzeParseResult(
@@ -476,6 +662,7 @@ def _eod_source(
             provider_exchange_code=provider_exchange_code,
             provider_instrument_code=provider_instrument_code,
             bar_date=bar_date,
+            ingestion_path=ingestion_path,
             open=Decimal("10"),
             high=Decimal("12"),
             low=Decimal("9"),

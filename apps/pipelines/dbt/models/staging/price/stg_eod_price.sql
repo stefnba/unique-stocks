@@ -9,6 +9,7 @@ renamed AS (
         CAST(source_data.provider_exchange_code AS VARCHAR) AS provider_exchange_code,
         CAST(source_data.provider_instrument_code AS VARCHAR) AS provider_instrument_code,
         CAST(source_data.bar_date AS DATE) AS bar_date,
+        CAST(source_data.ingestion_path AS VARCHAR) AS ingestion_path,
         CAST(source_data.open AS DECIMAL(18, 6)) AS open_price,
         CAST(source_data.high AS DECIMAL(18, 6)) AS high_price,
         CAST(source_data.low AS DECIMAL(18, 6)) AS low_price,

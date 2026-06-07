@@ -23,34 +23,39 @@ or flagged as an actionable gap.
 
 The current flow mechanics cover pieces of that goal:
 
-| Mechanism                   | Current behavior                                                                                                                                                                                                                          |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Daily upsert/idempotency    | Daily bulk skips explicit `(provider_exchange_code, bar_date)` partitions already present in Bronze. Bronze uniqueness is per provider exchange, provider instrument, date, and provider.                                                 |
-| Historical resume           | Backfill recomputes pending instruments from Silver price completion ranges plus exact-window terminal coverage rows. A canceled run resumes at the next not-covered instrument after dbt rebuilds the selector views.                    |
-| Partial historical coverage | Explicit `from_date` backfills skip an instrument when staged prices already span the requested date window. Open-start backfills require exact-window completed/no-data coverage because a single daily bar does not prove full history. |
-| Provider no-data            | A successful provider fetch plus landing write with zero rows records terminal `no_data` coverage for the exact instrument/window.                                                                                                        |
-| Provider quota stop         | Submitted 429 failures and unsubmitted quota-deferred work are not marked no-data, so they remain retryable. Deferred coverage is audit metadata only.                                                                                    |
-| Parser rejects              | Bad rows are recorded as rejections. All-rows-rejected payloads stay retryable rather than becoming terminal no-data coverage.                                                                                                            |
-| Exchange calendars          | dbt maps EODHD provider exchange codes to schedule endpoint codes, then applies working days, holidays, and early closes to decide expected trading days. Unknown mappings are surfaced instead of silently treated as closed.            |
+| Mechanism                   | Current behavior                                                                                                                                                                                                                                                         |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Daily upsert/idempotency    | Daily bulk skips explicit `(provider_exchange_code, bar_date)` partitions only when a `daily_bulk` Bronze row already exists and rebuilt exchange/day coverage has no blocking gap. Bronze uniqueness is per provider exchange, provider instrument, date, and provider. |
+| Historical resume           | Backfill recomputes pending instruments from Silver instrument-day coverage plus exact-window terminal coverage rows. A canceled run resumes at the next not-covered instrument after dbt rebuilds the selector views.                                                   |
+| Partial historical coverage | Explicit `from_date` backfills keep an instrument pending when any requested trading day is still `missing_price`. Open-start backfills require exact-window completed/no-data coverage because a single daily bar does not prove full history.                          |
+| Row lineage                 | `bronze.eod_price.ingestion_path` records whether the current stored bar came from `daily_bulk` or `historical_backfill`; this is not part of the Bronze unique key.                                                                                                     |
+| Provider no-data            | A successful provider fetch plus landing write with zero rows records terminal `no_data` coverage for the exact instrument/window.                                                                                                                                       |
+| Provider quota stop         | Submitted 429 failures and unsubmitted quota-deferred work are not marked no-data, so they remain retryable. Deferred coverage is audit metadata only.                                                                                                                   |
+| Parser rejects              | Bad rows are recorded as rejections. All-rows-rejected payloads stay retryable rather than becoming terminal no-data coverage.                                                                                                                                           |
+| Exchange calendars          | dbt maps EODHD provider exchange codes to schedule endpoint codes, then applies working days, holidays, and early closes to decide expected trading days. Unknown mappings are surfaced instead of silently treated as closed.                                           |
 
 The new dbt control views make the invariant observable:
 
-| Model                                          | Purpose                                                                                                                                                |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `silver.int_exchange_trading_day`              | One row per enabled EOD provider exchange and calendar date, with known/unknown calendar, working-day, holiday, early-close, and trading-day flags.    |
-| `silver.int_eod_price_expected_instrument_day` | Expected instrument/date rows for active tradable instruments on trading days, plus unknown-calendar dates.                                            |
-| `silver.int_eod_price_instrument_day_coverage` | Classifies each expected instrument/date as `priced`, `known_no_data`, `missing_price`, or `unknown_calendar`.                                         |
-| `silver.int_eod_price_exchange_day_status`     | Exchange/date rollup for daily gates and monitoring: `complete`, `missing_price`, `unknown_calendar`, `closed_exchange`, or `no_expected_instruments`. |
+| Model                                          | Purpose                                                                                                                                                                                                                    |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `silver.int_exchange_trading_day`              | One row per enabled EOD provider exchange and calendar date, with known/unknown calendar, working-day, holiday, early-close, and trading-day flags.                                                                        |
+| `silver.int_eod_price_expected_instrument_day` | Expected instrument/date rows for active tradable instruments on trading days, plus unknown-calendar dates. Observed price history, today's no-price instruments, and terminal no-data windows define the expected ranges. |
+| `silver.int_eod_price_instrument_day_coverage` | Classifies each expected instrument/date as `priced`, `known_no_data`, `missing_price`, or `unknown_calendar`.                                                                                                             |
+| `silver.int_eod_price_exchange_day_status`     | Exchange/date rollup for daily gates and monitoring: `complete`, `missing_price`, `unknown_calendar`, `closed_exchange`, or `no_expected_instruments`.                                                                     |
 
-This first slice is intentionally observational. It catches missing daily prices and post-first-price holes using the latest instrument universe and provider calendars. Full historical assurance before an instrument's first observed price still needs a listing/delisting effective-date source, or a provider-backed terminal no-data window, before it can be enforced without false positives.
+The dbt control views are also used operationally: post-ingestion price builds query `silver.int_eod_price_exchange_day_status`, and the EOD run is audited as `partial` when rebuilt coverage still contains `missing_price` or `unknown_calendar`.
+
+Full historical assurance before an instrument's first observed price still needs a listing/delisting effective-date source, or a provider-backed terminal no-data window, before it can be enforced without false positives.
+
+`silver.int_eod_price_instrument_history_bounds` exposes each provider exchange/instrument pair's first and latest observed EOD price dates. For open-start historical backfills, the provider determines the first available bar date; this is a provider-observed first price date for that exchange/instrument pair, not necessarily the official listing date. Exchange-level first trading dates should be treated the same way unless an authoritative exchange inception source is added.
 
 ## Historical backfill resume
 
 Backfill pending instruments are computed in `load_backfill_pending_instruments`:
 
 ```text
-pending = silver.int_eod_price_backfill_instrument_status instrument values for the exchange
-        - instruments whose min/max completed bars span an explicit requested date range
+pending = latest tradable provider instruments for the exchange
+        - instruments whose requested instrument-days are fully priced
         - instruments in silver.int_eod_price_backfill_terminal_coverage for the exact requested window
 ```
 
@@ -106,12 +111,13 @@ See [`docs/pipeline_audit.md`](../../docs/pipeline_audit.md) and [`core/ingestio
 
 ## Daily bulk flow
 
-`eod-price-daily` does not write coverage rows. Idempotency is per `(provider_exchange_code, bar_date)` on `bronze.eod_price`.
-When `trade_date` is explicit and Bronze already has that exchange/date, the flow
-skips the provider call and records the exchange/date run unit as
-`status = 'skipped'`, `reason = 'already_ingested'`. Provider-latest runs with
-no `trade_date` still fetch first because the bar date is unknown before the
-provider response.
+`eod-price-daily` does not write terminal coverage rows. Idempotency is per
+`(provider_exchange_code, bar_date, ingestion_path = 'daily_bulk')`, and an
+explicit `trade_date` skips only when the rebuilt exchange/day coverage view has
+no blocking `missing_price` or `unknown_calendar` gap. If the previous daily run
+was partial, rerunning the same explicit exchange/date fetches again and inserts
+only still-missing Bronze keys. Provider-latest runs with no `trade_date` still
+fetch first because the bar date is unknown before the provider response.
 
 ## Local smoke
 

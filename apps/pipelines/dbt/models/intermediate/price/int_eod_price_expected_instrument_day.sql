@@ -12,13 +12,19 @@ price_ranges AS (
     FROM {{ ref('int_eod_price_completion_ranges') }}
 ),
 
+no_data_coverage AS (
+    SELECT *
+    FROM {{ ref('int_eod_price_backfill_terminal_coverage') }}
+    WHERE status = 'no_data'
+),
+
 trading_day AS (
     SELECT *
     FROM {{ ref('int_exchange_trading_day') }}
 ),
 
 expected AS (
-    SELECT
+    SELECT DISTINCT
         instrument.data_provider,
         instrument.provider_exchange_code,
         instrument.provider_instrument_code,
@@ -52,8 +58,23 @@ expected AS (
         ON instrument.data_provider = price_ranges.data_provider
         AND instrument.provider_exchange_code = price_ranges.provider_exchange_code
         AND instrument.provider_instrument_code = price_ranges.provider_instrument_code
+    LEFT JOIN no_data_coverage
+        ON instrument.data_provider = no_data_coverage.data_provider
+        AND instrument.provider_exchange_code = no_data_coverage.provider_exchange_code
+        AND instrument.provider_instrument_code = no_data_coverage.provider_instrument_code
     WHERE (trading_day.is_trading_day OR NOT trading_day.is_calendar_known)
-        AND trading_day.bar_date >= COALESCE(price_ranges.min_bar_date, CURRENT_DATE)
+        AND trading_day.bar_date <= CURRENT_DATE
+        AND (
+            trading_day.bar_date >= COALESCE(price_ranges.min_bar_date, CURRENT_DATE)
+            OR (
+                no_data_coverage.unit_key_hash IS NOT NULL
+                AND (
+                    no_data_coverage.from_date IS NULL
+                    OR trading_day.bar_date >= no_data_coverage.from_date
+                )
+                AND trading_day.bar_date <= no_data_coverage.to_date
+            )
+        )
 )
 
 SELECT

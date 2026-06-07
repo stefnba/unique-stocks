@@ -32,6 +32,15 @@ models:
         description: Provider exchange code for the listed instrument, used in endpoint paths and provider_instrument_code suffixes.
         data_tests:
           - not_null
+      - name: ingestion_path
+        description: Pipeline path that produced the current Gold price row.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - daily_bulk
+                  - historical_backfill
       - name: bar_date
         description: Trading date for the OHLCV bar.
         data_tests:

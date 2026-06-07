@@ -53,6 +53,20 @@ class EODBackfillCoverageOutcome(TypedDict):
     source_uri: str
 
 
+class EODPriceCoverageGap(TypedDict):
+    """Exchange/day price coverage gap returned by the dbt control surface."""
+
+    data_provider: str
+    provider_exchange_code: str
+    bar_date: date
+    exchange_day_status: str
+    expected_instruments: int
+    priced_instruments: int
+    missing_price_instruments: int
+    known_no_data_instruments: int
+    unknown_calendar_instruments: int
+
+
 @task(name="fetch-eod-provider-exchange-codes")
 async def fetch_eod_provider_exchange_codes() -> list[str]:
     """Provider request codes eligible for bulk EOD ingestion.
@@ -230,9 +244,8 @@ def write_bronze_eod_price(
 ) -> BronzeWrite:
     """Write validated bars to bronze.eod_price.
 
-    Idempotency is checked at the (provider_exchange_code, bar_date) level; the
-    ``data_provider`` column is enforced in ``already_ingested``. Re-running the
-    flow for the same exchange + date is safe.
+    Daily idempotency is checked at the provider exchange/date/path level. Historical
+    backfill rows for the same exchange/date do not suppress a later bulk daily run.
     """
     from core.clients.lake import get_lake_client
 
@@ -243,11 +256,7 @@ def write_bronze_eod_price(
         return BronzeWrite(rows_written=0, reason="no_bars")
 
     lake = get_lake_client()
-    if EOD_PRICE_DATASET.already_ingested(
-        lake,
-        provider_exchange_code=provider_exchange_code,
-        bar_date=bar_date,
-    ):
+    if _eod_daily_bulk_already_ingested(lake, provider_exchange_code=provider_exchange_code, bar_date=bar_date):
         log.info(
             "price.write_skipped",
             reason="already_ingested",
@@ -256,9 +265,17 @@ def write_bronze_eod_price(
         )
         return BronzeWrite(rows_written=0, reason="already_ingested")
 
-    written = EOD_PRICE_DATASET.write_bronze(lake, sources, source_uri=source_uri)
-    log.info("price.write_done", provider_exchange_code=provider_exchange_code, bar_date=bar_date, rows=written)
-    return BronzeWrite(rows_written=written)
+    records, duplicates = _deduplicate_eod_price_records(sources, source_uri=source_uri)
+    written = _insert_eod_price_records_ignore_existing(lake, records)
+    log.info(
+        "price.write_done",
+        provider_exchange_code=provider_exchange_code,
+        bar_date=bar_date,
+        rows=written,
+        duplicates_dropped=duplicates,
+    )
+    reason = "already_ingested" if written == 0 and records else None
+    return BronzeWrite(rows_written=written, reason=reason)
 
 
 @task(
@@ -266,13 +283,13 @@ def write_bronze_eod_price(
     task_run_name="eod-price-already-ingested-{provider_exchange_code}",
 )
 def eod_price_already_ingested(provider_exchange_code: str, bar_date: date) -> bool:
-    """Return True when daily EOD data already exists for this exchange/date."""
+    """Return True when daily bulk EOD data already exists for this exchange/date."""
     from core.clients.lake import get_lake_client
 
     lake = get_lake_client()
-    if not lake.table_exists("bronze", EOD_PRICE_DATASET.table_name):
+    if not _eod_daily_bulk_already_ingested(lake, provider_exchange_code=provider_exchange_code, bar_date=bar_date):
         return False
-    return EOD_PRICE_DATASET.already_ingested(
+    return not _eod_exchange_day_has_blocking_gap(
         lake,
         provider_exchange_code=provider_exchange_code,
         bar_date=bar_date,
@@ -291,14 +308,15 @@ def eod_price_already_ingested(provider_exchange_code: str, bar_date: date) -> b
 def load_backfill_pending_instruments(provider_exchange_code: str, from_date: date | None, to_date: date) -> list[str]:
     """Provider instrument codes that still need historical EOD data for the exchange/window.
 
-    A provider instrument is excluded from pending when either:
+    Exact terminal coverage still wins: completed/no-data coverage for the exact
+    requested window removes an instrument from pending.
 
-    - ``silver.int_eod_price_backfill_instrument_status`` spans an explicit requested
-      date range,
-    - ``silver.int_eod_price_backfill_terminal_coverage`` has a completed row for
-      the exact requested window, or
-    - ``silver.int_eod_price_backfill_terminal_coverage`` has a no-data row for
-      the exact requested window.
+    Explicit windows use ``silver.int_eod_price_instrument_day_coverage`` so a
+    first/last price span with holes in the middle remains pending. Open-start
+    full-history windows still require terminal completed/no-data coverage because
+    staged prices alone cannot prove provider-earliest history was requested. Instruments
+    with no observed price range also require exact terminal coverage; partial no-data
+    windows do not satisfy a wider explicit request.
 
     Coverage rows are generic pipeline metadata (not bronze market data). dbt parses
     the EOD terminal subset into a Silver ingestion-control view so Python does not
@@ -306,21 +324,27 @@ def load_backfill_pending_instruments(provider_exchange_code: str, from_date: da
     Silver views to force a retry. Coverage matches include both ``from_date``
     and ``to_date`` because a wider later backfill can become valid.
 
-    Source of truth for what *should* be ingested:
-    ``silver.int_eod_price_backfill_instrument_status``.
+    Source of truth for price holes:
+    ``silver.int_eod_price_instrument_day_coverage``.
     """
     from core.clients.lake import get_lake_client
     from domains.instrument.universe import (
-        EOD_PRICE_BACKFILL_INSTRUMENT_STATUS_TABLE,
         EOD_PRICE_BACKFILL_TERMINAL_COVERAGE_TABLE,
+        EOD_PRICE_EXCHANGE_TRADING_DAY_TABLE,
+        EOD_PRICE_INSTRUMENT_DAY_COVERAGE_TABLE,
+        INSTRUMENT_UNIVERSE_TABLE,
         require_silver_ingestion_model,
     )
 
     lake = get_lake_client()
-    instrument_status_q = require_silver_ingestion_model(
-        lake,
-        EOD_PRICE_BACKFILL_INSTRUMENT_STATUS_TABLE,
-        build_hint="dbt-build/price-build",
+    instrument_universe_q = require_silver_ingestion_model(
+        lake, INSTRUMENT_UNIVERSE_TABLE, build_hint="instrument-build"
+    )
+    coverage_q = require_silver_ingestion_model(
+        lake, EOD_PRICE_INSTRUMENT_DAY_COVERAGE_TABLE, build_hint="dbt-build/price-build"
+    )
+    trading_day_q = require_silver_ingestion_model(
+        lake, EOD_PRICE_EXCHANGE_TRADING_DAY_TABLE, build_hint="dbt-build/exchange-build"
     )
     terminal_coverage_q = require_silver_ingestion_model(
         lake,
@@ -332,7 +356,37 @@ def load_backfill_pending_instruments(provider_exchange_code: str, from_date: da
 
     rows = lake.query(
         f"""
-        WITH terminal_coverage AS (
+        WITH instrument_universe AS (
+            SELECT provider_instrument_code
+            FROM {instrument_universe_q}
+            WHERE data_provider = ?
+              AND provider_exchange_code = ?
+              AND is_tradable
+        ),
+        exchange_scope AS (
+            SELECT COUNT(*) AS expected_exchange_days
+            FROM {trading_day_q}
+            WHERE data_provider = ?
+              AND provider_exchange_code = ?
+              AND (is_trading_day OR NOT is_calendar_known)
+              AND bar_date <= ?
+              AND (? IS NULL OR bar_date >= ?)
+        ),
+        instrument_day_coverage AS (
+            SELECT
+                provider_instrument_code,
+                COUNT(*) AS expected_instrument_days,
+                SUM(CASE WHEN coverage_status = 'missing_price' THEN 1 ELSE 0 END) AS missing_price_days,
+                SUM(CASE WHEN coverage_status = 'unknown_calendar' THEN 1 ELSE 0 END) AS unknown_calendar_days,
+                MAX(CASE WHEN min_bar_date IS NOT NULL THEN 1 ELSE 0 END) AS has_observed_price_range
+            FROM {coverage_q}
+            WHERE data_provider = ?
+              AND provider_exchange_code = ?
+              AND bar_date <= ?
+              AND (? IS NULL OR bar_date >= ?)
+            GROUP BY 1
+        ),
+        terminal_coverage AS (
             SELECT
                 coverage.data_provider,
                 coverage.provider_exchange_code,
@@ -348,42 +402,60 @@ def load_backfill_pending_instruments(provider_exchange_code: str, from_date: da
         ),
         scoped_symbols AS (
             SELECT
-                status.provider_instrument_code,
-                COALESCE(coverage.has_completed_coverage, FALSE)
-                    OR (
-                        ? IS NOT NULL
-                        AND COALESCE(status.min_bar_date <= ? AND status.max_bar_date >= ?, FALSE)
-                    ) AS is_done,
-                COALESCE(coverage.has_no_data_coverage, FALSE) AS is_covered
-            FROM {instrument_status_q} AS status
-            LEFT JOIN terminal_coverage AS coverage
-                ON coverage.data_provider = status.data_provider
-                AND coverage.provider_exchange_code = status.provider_exchange_code
-                AND coverage.provider_instrument_code = status.provider_instrument_code
-            WHERE status.data_provider = ?
-              AND status.provider_exchange_code = ?
+                instrument_universe.provider_instrument_code,
+                COALESCE(terminal_coverage.has_completed_coverage, FALSE) AS has_completed_coverage,
+                COALESCE(terminal_coverage.has_no_data_coverage, FALSE) AS has_no_data_coverage,
+                COALESCE(instrument_day_coverage.expected_instrument_days, 0) AS expected_instrument_days,
+                COALESCE(instrument_day_coverage.missing_price_days, 0) AS missing_price_days,
+                COALESCE(instrument_day_coverage.unknown_calendar_days, 0) AS unknown_calendar_days,
+                COALESCE(instrument_day_coverage.has_observed_price_range, 0) > 0 AS has_observed_price_range,
+                exchange_scope.expected_exchange_days
+            FROM instrument_universe
+            CROSS JOIN exchange_scope
+            LEFT JOIN instrument_day_coverage
+                ON instrument_universe.provider_instrument_code = instrument_day_coverage.provider_instrument_code
+            LEFT JOIN terminal_coverage
+                ON terminal_coverage.provider_instrument_code = instrument_universe.provider_instrument_code
         )
         SELECT
             provider_instrument_code,
+            expected_instrument_days,
+            missing_price_days,
+            unknown_calendar_days,
             COUNT(*) OVER () AS total_instruments,
-            SUM(CASE WHEN is_done THEN 1 ELSE 0 END) OVER () AS completed_price_instruments,
-            SUM(CASE WHEN is_covered THEN 1 ELSE 0 END) OVER () AS terminal_no_data_instruments
+            SUM(CASE WHEN has_completed_coverage THEN 1 ELSE 0 END) OVER () AS completed_coverage_instruments,
+            SUM(CASE WHEN has_no_data_coverage THEN 1 ELSE 0 END) OVER () AS terminal_no_data_instruments
         FROM scoped_symbols
-        WHERE NOT is_done
-          AND NOT is_covered
+        WHERE expected_exchange_days > 0
+          AND NOT has_completed_coverage
+          AND NOT has_no_data_coverage
+          AND (
+            ? IS NULL
+            OR missing_price_days > 0
+            OR expected_instrument_days = 0
+            OR NOT has_observed_price_range
+          )
         ORDER BY provider_instrument_code
         """,
         [
             str(EOD_PRICE_DATASET.provider),
             provider_exchange_code,
-            from_date_param,
-            from_date_param,
-            to_date_param,
-            from_date_param,
-            from_date_param,
-            to_date_param,
             str(EOD_PRICE_DATASET.provider),
             provider_exchange_code,
+            to_date_param,
+            from_date_param,
+            from_date_param,
+            str(EOD_PRICE_DATASET.provider),
+            provider_exchange_code,
+            to_date_param,
+            from_date_param,
+            from_date_param,
+            str(EOD_PRICE_DATASET.provider),
+            provider_exchange_code,
+            from_date_param,
+            from_date_param,
+            to_date_param,
+            from_date_param,
         ],
     )
     pending = [str(row["provider_instrument_code"]) for row in rows]
@@ -394,7 +466,7 @@ def load_backfill_pending_instruments(provider_exchange_code: str, from_date: da
         from_date=from_date_param,
         to_date=to_date_param,
         total=stats.get("total_instruments"),
-        done=stats.get("completed_price_instruments"),
+        done=stats.get("completed_coverage_instruments"),
         covered=stats.get("terminal_no_data_instruments"),
         pending=len(pending),
     )
@@ -406,19 +478,67 @@ def load_missing_eod_backfill_selection_views() -> list[str]:
     """Return required Silver backfill selector views that are missing."""
     from core.clients.lake import get_lake_client
     from domains.instrument.universe import (
-        EOD_PRICE_BACKFILL_INSTRUMENT_STATUS_TABLE,
         EOD_PRICE_BACKFILL_TERMINAL_COVERAGE_TABLE,
+        EOD_PRICE_EXCHANGE_TRADING_DAY_TABLE,
+        EOD_PRICE_INSTRUMENT_DAY_COVERAGE_TABLE,
+        INSTRUMENT_UNIVERSE_TABLE,
         SILVER_SCHEMA,
     )
 
     lake = get_lake_client()
     required = (
-        EOD_PRICE_BACKFILL_INSTRUMENT_STATUS_TABLE,
+        INSTRUMENT_UNIVERSE_TABLE,
+        EOD_PRICE_EXCHANGE_TRADING_DAY_TABLE,
+        EOD_PRICE_INSTRUMENT_DAY_COVERAGE_TABLE,
         EOD_PRICE_BACKFILL_TERMINAL_COVERAGE_TABLE,
     )
     missing = [table for table in required if not lake.table_exists(SILVER_SCHEMA, table)]
     log.info("backfill.selection_views_checked", missing=missing, ready=not missing)
     return missing
+
+
+@task(name="load-eod-price-coverage-gaps")
+def load_eod_price_coverage_gaps(
+    provider_exchange_codes: list[str],
+    from_date: date | None,
+    to_date: date | None,
+    exchange_dates: dict[str, date] | None = None,
+) -> list[EODPriceCoverageGap]:
+    """Return exchange/day gaps from the dbt price coverage control surface."""
+    from core.clients.lake import get_lake_client
+    from domains.instrument.universe import (
+        EOD_PRICE_EXCHANGE_DAY_STATUS_TABLE,
+        require_silver_ingestion_model,
+    )
+
+    lake = get_lake_client()
+    status_q = require_silver_ingestion_model(
+        lake, EOD_PRICE_EXCHANGE_DAY_STATUS_TABLE, build_hint="dbt-build/price-build"
+    )
+    rows = _query_exchange_day_coverage_gaps(
+        lake,
+        status_q=status_q,
+        provider_exchange_codes=provider_exchange_codes,
+        from_date=from_date,
+        to_date=to_date,
+        exchange_dates=exchange_dates,
+    )
+    gaps: list[EODPriceCoverageGap] = [
+        {
+            "data_provider": str(row["data_provider"]),
+            "provider_exchange_code": str(row["provider_exchange_code"]),
+            "bar_date": row["bar_date"],
+            "exchange_day_status": str(row["exchange_day_status"]),
+            "expected_instruments": int(row["expected_instruments"]),
+            "priced_instruments": int(row["priced_instruments"]),
+            "missing_price_instruments": int(row["missing_price_instruments"]),
+            "known_no_data_instruments": int(row["known_no_data_instruments"]),
+            "unknown_calendar_instruments": int(row["unknown_calendar_instruments"]),
+        }
+        for row in rows
+    ]
+    log.info("price.coverage_gaps_loaded", gaps=len(gaps), exchange=len(provider_exchange_codes))
+    return gaps
 
 
 @task(
@@ -690,12 +810,14 @@ def write_backfill_eod_batch(
 
 def _deduplicate_eod_price_records(
     sources: list[BronzeParseResult[EODBar]],
+    *,
+    source_uri: str | None = None,
 ) -> tuple[list[dict[str, Any]], int]:
     """Serialize and de-duplicate EOD price records by Bronze unique key."""
     records_by_key: dict[tuple[str, str, date, str], dict[str, Any]] = {}
     duplicates = 0
     for source in sources:
-        record = EOD_PRICE_DATASET.bronze_record(source)
+        record = EOD_PRICE_DATASET.bronze_record(source, source_uri=source_uri)
         key = (
             str(record["provider_exchange_code"]),
             str(record["provider_instrument_code"]),
@@ -707,6 +829,123 @@ def _deduplicate_eod_price_records(
             continue
         records_by_key[key] = record
     return list(records_by_key.values()), duplicates
+
+
+def _eod_daily_bulk_already_ingested(lake: Any, *, provider_exchange_code: str, bar_date: date) -> bool:
+    """Return whether the daily bulk path already wrote any row for an exchange/date."""
+    if not lake.table_exists(EOD_PRICE_DATASET.schema, EOD_PRICE_DATASET.table_name):
+        return False
+
+    qualified = lake.qualified_name(EOD_PRICE_DATASET.schema, EOD_PRICE_DATASET.table_name)
+    row = lake.query_one(
+        f"""
+        SELECT COUNT(*) AS cnt
+        FROM {qualified}
+        WHERE provider_exchange_code = ?
+          AND bar_date = ?
+          AND data_provider = ?
+          AND ingestion_path = ?
+        """,
+        [provider_exchange_code, bar_date.isoformat(), str(EOD_PRICE_DATASET.provider), "daily_bulk"],
+    )
+    return bool(row and row["cnt"] > 0)
+
+
+def _eod_exchange_day_has_blocking_gap(lake: Any, *, provider_exchange_code: str, bar_date: date) -> bool:
+    """Return whether rebuilt coverage says a daily rerun may still repair gaps."""
+    status_table = "int_eod_price_exchange_day_status"
+    if not lake.table_exists("silver", status_table):
+        return False
+
+    qualified = lake.qualified_name("silver", status_table)
+    row = lake.query_one(
+        f"""
+        SELECT exchange_day_status
+        FROM {qualified}
+        WHERE data_provider = ?
+          AND provider_exchange_code = ?
+          AND bar_date = ?
+        """,
+        [str(EOD_PRICE_DATASET.provider), provider_exchange_code, bar_date.isoformat()],
+    )
+    if not row:
+        return False
+    return row["exchange_day_status"] in {"missing_price", "unknown_calendar"}
+
+
+def _query_exchange_day_coverage_gaps(
+    lake: Any,
+    *,
+    status_q: str,
+    provider_exchange_codes: list[str],
+    from_date: date | None,
+    to_date: date | None,
+    exchange_dates: dict[str, date] | None,
+) -> list[dict[str, Any]]:
+    """Query exchange/day coverage rows that require investigation or repair."""
+    if exchange_dates is not None:
+        pairs = sorted((code, bar_date) for code, bar_date in exchange_dates.items() if bar_date is not None)
+        if not pairs:
+            return []
+        pair_clauses = " OR ".join("(provider_exchange_code = ? AND bar_date = ?)" for _ in pairs)
+        params: list[Any] = [str(EOD_PRICE_DATASET.provider)]
+        for code, bar_date in pairs:
+            params.extend([code, bar_date.isoformat()])
+        return lake.query(
+            f"""
+            SELECT
+                data_provider,
+                provider_exchange_code,
+                bar_date,
+                exchange_day_status,
+                expected_instruments,
+                priced_instruments,
+                missing_price_instruments,
+                known_no_data_instruments,
+                unknown_calendar_instruments
+            FROM {status_q}
+            WHERE data_provider = ?
+              AND ({pair_clauses})
+              AND exchange_day_status IN ('missing_price', 'unknown_calendar')
+            ORDER BY provider_exchange_code, bar_date
+            """,
+            params,
+        )
+
+    codes = sorted(set(provider_exchange_codes))
+    if not codes:
+        return []
+    code_placeholders = ", ".join("?" for _ in codes)
+    params = [str(EOD_PRICE_DATASET.provider), *codes]
+    date_filters = []
+    if from_date is not None:
+        date_filters.append("bar_date >= ?")
+        params.append(from_date.isoformat())
+    if to_date is not None:
+        date_filters.append("bar_date <= ?")
+        params.append(to_date.isoformat())
+    date_sql = "".join(f"\n              AND {date_filter}" for date_filter in date_filters)
+    return lake.query(
+        f"""
+        SELECT
+            data_provider,
+            provider_exchange_code,
+            bar_date,
+            exchange_day_status,
+            expected_instruments,
+            priced_instruments,
+            missing_price_instruments,
+            known_no_data_instruments,
+            unknown_calendar_instruments
+        FROM {status_q}
+        WHERE data_provider = ?
+          AND provider_exchange_code IN ({code_placeholders})
+          {date_sql}
+          AND exchange_day_status IN ('missing_price', 'unknown_calendar')
+        ORDER BY provider_exchange_code, bar_date
+        """,
+        params,
+    )
 
 
 def _insert_eod_price_records_ignore_existing(lake: Any, records: list[dict[str, Any]]) -> int:

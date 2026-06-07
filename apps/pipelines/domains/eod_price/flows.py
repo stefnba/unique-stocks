@@ -39,6 +39,7 @@ from domains.eod_price.tasks import (
     fetch_eod_provider_exchange_codes,
     fetch_instrument_eod_history,
     load_backfill_pending_instruments,
+    load_eod_price_coverage_gaps,
     load_missing_eod_backfill_selection_views,
     parse_eod_price,
     write_backfill_eod_batch,
@@ -84,6 +85,7 @@ async def eod_price_flow(
     total_raw = 0
     total_valid = 0
     total_rejected = 0
+    coverage_exchange_dates: dict[str, date] = {}
     summary: dict = {
         "trade_date": trade_date.isoformat() if trade_date else None,
         "exchange": {},
@@ -122,6 +124,7 @@ async def eod_price_flow(
                         "bar_date": trade_date.isoformat(),
                         "rows_written": 0,
                     }
+                    coverage_exchange_dates[provider_exchange_code] = trade_date
                     run.record_unit(
                         unit_type="exchange_date",
                         unit_key={
@@ -153,6 +156,8 @@ async def eod_price_flow(
                             trade_date=trade_date,
                         )
                         summary["exchange"][provider_exchange_code] = {"bar_date": None, "rows_written": 0}
+                        if trade_date is not None:
+                            coverage_exchange_dates[provider_exchange_code] = trade_date
                         can_mark_failed = False
                         run.record_unit(
                             unit_type="exchange_date",
@@ -194,6 +199,7 @@ async def eod_price_flow(
                         "bar_date": bar_date.isoformat(),
                         "rows_written": bronze.rows_written,
                     }
+                    coverage_exchange_dates[provider_exchange_code] = bar_date
                     total_written += bronze.rows_written
                     can_mark_failed = False
                     unit_id = run.record_unit_with_landing(
@@ -267,6 +273,16 @@ async def eod_price_flow(
                 rejected=total_rejected,
                 skipped_all=_all_units_skipped(total=run.tally.total, skipped=run.tally.skipped),
             )
+            if run_dbt_build and run_id is not None:
+                run_status = await _run_price_post_ingestion_checks(
+                    summary=summary,
+                    upstream_status=run_status,
+                    parent_run_id=run_id,
+                    provider_exchange_codes=codes,
+                    from_date=trade_date,
+                    to_date=trade_date,
+                    exchange_dates=coverage_exchange_dates,
+                )
             run.complete(
                 status=run_status,
                 counters=run.tally.counters(
@@ -298,13 +314,6 @@ async def eod_price_flow(
                 )
             raise
 
-    if run_dbt_build and run_id is not None and run_status is not None:
-        summary["dbt_build"] = await run_dbt_build_after_ingestion(
-            enabled=run_dbt_build,
-            build="price-build",
-            upstream_status=run_status,
-            parent_run_id=run_id,
-        )
     return summary
 
 
@@ -371,6 +380,83 @@ def _iso_date(value: date | None) -> str | None:
     return value.isoformat() if value else None
 
 
+async def _run_price_post_ingestion_checks(
+    *,
+    summary: dict[str, object],
+    upstream_status: RunStatus,
+    parent_run_id: str,
+    provider_exchange_codes: list[str],
+    from_date: date | None,
+    to_date: date | None,
+    exchange_dates: dict[str, date] | None,
+) -> RunStatus:
+    """Run dbt and downgrade the audit status when the coverage gate finds gaps."""
+    reset_lake_client()
+    summary["dbt_build"] = await run_dbt_build_after_ingestion(
+        enabled=True,
+        build="price-build",
+        upstream_status=upstream_status,
+        parent_run_id=parent_run_id,
+    )
+    reset_lake_client()
+    dbt_build = summary["dbt_build"]
+    if not isinstance(dbt_build, dict) or not dbt_build.get("triggered"):
+        summary["coverage_gate"] = {
+            "status": "skipped",
+            "reason": "dbt_build_not_triggered",
+            "upstream_status": upstream_status,
+        }
+        return upstream_status
+
+    gaps = load_eod_price_coverage_gaps(
+        provider_exchange_codes=provider_exchange_codes,
+        from_date=from_date,
+        to_date=to_date,
+        exchange_dates=exchange_dates,
+    )
+    summary["coverage_gate"] = _coverage_gate_summary(gaps)
+    if gaps:
+        log.warning(
+            "price.coverage_gate_failed",
+            gaps=len(gaps),
+            provider_exchange_codes=provider_exchange_codes,
+            from_date=from_date,
+            to_date=to_date,
+        )
+        return "partial"
+    log.info("price.coverage_gate_passed", provider_exchange_codes=provider_exchange_codes)
+    return upstream_status
+
+
+def _coverage_gate_summary(gaps: list[dict[str, object]]) -> dict[str, object]:
+    """Return compact run-summary metadata for exchange/day coverage gaps."""
+    by_status: dict[str, int] = {}
+    for gap in gaps:
+        status = str(gap["exchange_day_status"])
+        by_status[status] = by_status.get(status, 0) + 1
+    return {
+        "status": "failed" if gaps else "passed",
+        "blocking_statuses": ["missing_price", "unknown_calendar"],
+        "gaps": len(gaps),
+        "by_status": by_status,
+        "sample": [_coverage_gap_summary_row(gap) for gap in gaps[:20]],
+    }
+
+
+def _coverage_gap_summary_row(gap: dict[str, object]) -> dict[str, object]:
+    """Return a JSON-safe compact representation of one coverage gap."""
+    bar_date = gap["bar_date"]
+    return {
+        "provider_exchange_code": gap["provider_exchange_code"],
+        "bar_date": bar_date.isoformat() if isinstance(bar_date, date) else str(bar_date),
+        "exchange_day_status": gap["exchange_day_status"],
+        "expected_instruments": gap["expected_instruments"],
+        "priced_instruments": gap["priced_instruments"],
+        "missing_price_instruments": gap["missing_price_instruments"],
+        "unknown_calendar_instruments": gap["unknown_calendar_instruments"],
+    }
+
+
 async def _build_price_selection_views_if_missing() -> dict[str, object]:
     """Build price Silver selector views when historical backfill needs them."""
     missing_before = load_missing_eod_backfill_selection_views()
@@ -432,10 +518,10 @@ async def eod_price_backfill_flow(
     giving natural checkpoints for resume on failure.
 
     ``from_date = None`` omits the provider ``from`` parameter and requests all
-    available EODHD history through ``to_date``. An instrument is skipped when the
-    dbt-built Silver completion view shows ``bronze.eod_price`` spans an
-    explicit requested range, or when the dbt-built terminal coverage view has
-    the exact same backfill unit key:
+    available EODHD history through ``to_date``. Explicit windows use the
+    dbt-built instrument-day coverage view, so first/last price spans with
+    middle gaps stay pending. An instrument is skipped when terminal coverage
+    has the exact same backfill unit key:
     ``provider_exchange_code``, ``provider_instrument_code``, ``from_date``, and ``to_date``.
     Re-runs are safe after rebuilding those Silver views. To retry an instrument,
     delete its price and/or coverage rows for that exchange partition first.
@@ -834,6 +920,16 @@ async def eod_price_backfill_flow(
                 rejected=total_rejected,
                 skipped_all=_all_units_skipped(total=run.tally.total, skipped=run.tally.skipped),
             )
+            if run_dbt_build and run_id is not None:
+                run_status = await _run_price_post_ingestion_checks(
+                    summary=summary,
+                    upstream_status=run_status,
+                    parent_run_id=run_id,
+                    provider_exchange_codes=codes,
+                    from_date=from_date,
+                    to_date=to_date,
+                    exchange_dates=None,
+                )
             run.complete(
                 status=run_status,
                 counters=run.tally.counters(
@@ -864,11 +960,4 @@ async def eod_price_backfill_flow(
                 )
             raise
 
-    if run_dbt_build and run_id is not None and run_status is not None:
-        summary["dbt_build"] = await run_dbt_build_after_ingestion(
-            enabled=run_dbt_build,
-            build="price-build",
-            upstream_status=run_status,
-            parent_run_id=run_id,
-        )
     return summary

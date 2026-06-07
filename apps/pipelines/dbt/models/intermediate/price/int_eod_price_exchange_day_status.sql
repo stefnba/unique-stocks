@@ -63,6 +63,7 @@ final AS (
         ON trading_day.data_provider = aggregated.data_provider
         AND trading_day.provider_exchange_code = aggregated.provider_exchange_code
         AND trading_day.bar_date = aggregated.bar_date
+    WHERE trading_day.bar_date <= CURRENT_DATE
 )
 
 SELECT * FROM final

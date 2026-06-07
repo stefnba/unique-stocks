@@ -27,6 +27,7 @@ class FakeRun:
         self.tally = RunUnitTally()
         self.is_terminal = False
         self.units: list[dict[str, object]] = []
+        self.completed_status: object | None = None
         self.completed_summary: dict[str, object] | None = None
 
     def record_unit(self, **kwargs: object) -> str:
@@ -36,6 +37,10 @@ class FakeRun:
         if isinstance(status, str):
             self.tally.record(cast(UnitStatus, status))
         return str(kwargs.get("unit_id") or "unit-1")
+
+    def record_unit_with_landing(self, _: LandingWrite, **kwargs: object) -> str:
+        """Capture one unit row with an attached landing object."""
+        return self.record_unit(**kwargs)
 
     def unit_record(self, **kwargs: object) -> dict[str, object]:
         """Build a unit row for later batched recording."""
@@ -66,8 +71,9 @@ class FakeRun:
         """Build a rejection row for later batched recording."""
         return kwargs
 
-    def complete(self, *, summary: dict[str, object], **_: object) -> None:
+    def complete(self, *, summary: dict[str, object], **kwargs: object) -> None:
         """Capture run completion."""
+        self.completed_status = kwargs.get("status")
         self.completed_summary = summary
         self.is_terminal = True
 
@@ -191,6 +197,57 @@ async def test_eod_daily_provider_latest_still_fetches_without_trade_date(monkey
     assert calls == ["US"]
     assert summary["exchange"] == {"US": {"bar_date": None, "rows_written": 0}}
     assert run.units[0]["reason"] == "no_data"
+
+
+@pytest.mark.asyncio
+async def test_eod_daily_coverage_gate_marks_run_partial(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A clean daily ingest should be audited partial when rebuilt coverage still has gaps."""
+    run = FakeRun()
+
+    async def fetch(**_: object) -> list[object]:
+        return [object()]
+
+    async def write_landing(*_: object, **__: object) -> LandingWrite:
+        return LandingWrite(
+            dataset="eod_price.daily",
+            source_uri="s3://bucket/daily.jsonl",
+            partition={"provider_exchange_code": "US", "bar_date": TO_DATE},
+            rows_raw=1,
+        )
+
+    async def dbt_build(**_: object) -> dict[str, object]:
+        return {"enabled": True, "triggered": True, "build": "price-build"}
+
+    def load_gaps(**kwargs: object) -> list[dict[str, object]]:
+        assert kwargs["exchange_dates"] == {"US": TO_DATE}
+        return [
+            {
+                "data_provider": "eodhd",
+                "provider_exchange_code": "US",
+                "bar_date": TO_DATE,
+                "exchange_day_status": "missing_price",
+                "expected_instruments": 2,
+                "priced_instruments": 1,
+                "missing_price_instruments": 1,
+                "known_no_data_instruments": 0,
+                "unknown_calendar_instruments": 0,
+            }
+        ]
+
+    monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
+    monkeypatch.setattr(flows, "eod_price_already_ingested", lambda *_: False)
+    monkeypatch.setattr(flows, "fetch_eod_price_bulk", fetch)
+    monkeypatch.setattr(flows, "write_eod_price_to_landing", write_landing)
+    monkeypatch.setattr(flows, "parse_eod_price", lambda *_args, **_kwargs: ([object()], []))
+    monkeypatch.setattr(flows, "write_bronze_eod_price", lambda *_args, **_kwargs: BronzeWrite(rows_written=1))
+    monkeypatch.setattr(flows, "run_dbt_build_after_ingestion", dbt_build)
+    monkeypatch.setattr(flows, "load_eod_price_coverage_gaps", load_gaps)
+
+    summary = await flows.eod_price_flow.fn(trade_date=TO_DATE, provider_exchange_codes=["US"], run_dbt_build=True)
+
+    assert run.completed_status == "partial"
+    assert summary["coverage_gate"]["status"] == "failed"
+    assert summary["coverage_gate"]["by_status"] == {"missing_price": 1}
 
 
 @pytest.mark.asyncio
@@ -321,7 +378,11 @@ async def test_eod_backfill_builds_missing_selection_views_before_pending_select
     """Historical backfill can bootstrap missing Silver selector views before selection."""
     run = FakeRun()
     missing_responses = [
-        ["int_eod_price_backfill_instrument_status", "int_eod_price_backfill_terminal_coverage"],
+        [
+            "int_exchange_trading_day",
+            "int_eod_price_instrument_day_coverage",
+            "int_eod_price_backfill_terminal_coverage",
+        ],
         [],
     ]
     pending_calls: list[str] = []
@@ -369,7 +430,11 @@ async def test_eod_backfill_builds_missing_selection_views_before_pending_select
         "build": "price-build",
         "deployment": "dbt-build/price-build",
         "reason": "missing_selection_views",
-        "missing_before": ["int_eod_price_backfill_instrument_status", "int_eod_price_backfill_terminal_coverage"],
+        "missing_before": [
+            "int_exchange_trading_day",
+            "int_eod_price_instrument_day_coverage",
+            "int_eod_price_backfill_terminal_coverage",
+        ],
         "missing_after": [],
     }
     assert summary["exchange"] == {"US": {"instruments": 0, "rows": 0}}

@@ -1,14 +1,14 @@
 version: 2
 
 models:
-  - name: int_eod_price_backfill_instrument_status
-    description: Ingestion-control view of EODHD provider instruments with completed price coverage ranges.
+  - name: int_eod_price_instrument_history_bounds
+    description: Ingestion-control view of first and latest observed EOD price dates by provider exchange/instrument pair.
     config:
       tags:
         - ingestion_control
     columns:
       - name: data_provider
-        description: Provider for the eligible backfill instrument.
+        description: Provider that supplied the price bars.
         data_tests:
           - not_null
           - accepted_values:
@@ -23,19 +23,21 @@ models:
         description: Provider instrument code, such as AAPL.
         data_tests:
           - not_null
-      - name: instrument_family
-        description: Broad dbt instrument classification from the latest instrument universe.
+      - name: first_observed_price_date
+        description: Earliest staged EOD price date observed for the provider exchange/instrument pair.
         data_tests:
           - not_null
-      - name: min_bar_date
-        description: Earliest completed bar date for the provider instrument, when any price data exists.
-      - name: max_bar_date
-        description: Latest completed bar date for the provider instrument, when any price data exists.
-      - name: bar_count
-        description: Number of staged price bars included in the completion range.
+      - name: last_observed_price_date
+        description: Latest staged EOD price date observed for the provider exchange/instrument pair.
+        data_tests:
+          - not_null
+      - name: observed_price_days
+        description: Number of staged EOD price days observed for the provider exchange/instrument pair.
+        data_tests:
+          - not_null
 
   - name: int_eod_price_completion_ranges
-    description: Ingestion-control view summarizing completed Bronze price coverage ranges by split provider instrument identity.
+    description: Ingestion-control view summarizing completed Bronze price coverage ranges by split provider exchange/instrument identity.
     config:
       tags:
         - ingestion_control
@@ -57,11 +59,11 @@ models:
         data_tests:
           - not_null
       - name: min_bar_date
-        description: Earliest completed bar date for the provider instrument.
+        description: Earliest completed bar date for the provider exchange/instrument pair.
         data_tests:
           - not_null
       - name: max_bar_date
-        description: Latest completed bar date for the provider instrument.
+        description: Latest completed bar date for the provider exchange/instrument pair.
         data_tests:
           - not_null
       - name: bar_count
@@ -173,7 +175,7 @@ models:
           - not_null
 
   - name: int_eod_price_expected_instrument_day
-    description: Expected EOD price instrument-days for active tradable instruments on open or unknown-calendar exchange dates.
+    description: Expected EOD price instrument-days for active tradable instruments on open or unknown-calendar exchange dates. Observed prices define the normal history range, current no-price instruments are expected today, and terminal no-data backfill windows add only their covered date ranges.
     config:
       tags:
         - ingestion_control

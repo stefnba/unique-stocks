@@ -34,6 +34,33 @@ schedule_mapping AS (
         ) = 1
 ),
 
+mic_mapping AS (
+    SELECT
+        data_provider,
+        provider_exchange_code,
+        mapping_code AS mic,
+        mapping_method AS mic_mapping_method,
+        mapping_confidence AS mic_mapping_confidence
+    FROM {{ ref('int_provider_code_mapping') }}
+    WHERE mapping_type = 'mic'
+    QUALIFY ROW_NUMBER() OVER (
+            PARTITION BY data_provider, provider_exchange_code
+            ORDER BY
+                CASE mapping_confidence
+                    WHEN 'high' THEN 1
+                    WHEN 'medium' THEN 2
+                    ELSE 3
+                END,
+                mapping_method ASC,
+                mapping_code ASC
+        ) = 1
+),
+
+exchange_universe AS (
+    SELECT *
+    FROM {{ ref('int_exchange_universe') }}
+),
+
 calendar AS (
     SELECT *
     FROM {{ ref('int_exchange_calendar') }}
@@ -44,16 +71,64 @@ holiday AS (
     FROM {{ ref('int_exchange_holiday_calendar') }}
 ),
 
-price_bounds AS (
-    SELECT MIN(bar_date) AS min_bar_date
-    FROM {{ ref('stg_eod_price') }}
+schedule_holiday_bounds AS (
+    SELECT
+        data_provider,
+        provider_schedule_exchange_code,
+        MIN(holiday_date) AS min_holiday_date
+    FROM holiday
+    GROUP BY 1, 2
+),
+
+holiday_bounds AS (
+    SELECT MAX(holiday_date) AS max_holiday_date
+    FROM holiday
+),
+
+provider_exchange_bounds AS (
+    SELECT
+        provider_exchange.data_provider,
+        provider_exchange.provider_exchange_code,
+        provider_exchange.provider_code_kind,
+        provider_exchange.source_kind,
+        provider_exchange.exchange_catalog_name,
+        mic_mapping.mic,
+        mic_mapping.mic_mapping_method,
+        mic_mapping.mic_mapping_confidence,
+        exchange_universe.creation_date AS exchange_creation_date,
+        CASE
+            WHEN exchange_universe.creation_date IS NOT NULL THEN exchange_universe.creation_date
+            WHEN schedule_holiday_bounds.min_holiday_date <= CURRENT_DATE THEN schedule_holiday_bounds.min_holiday_date
+            ELSE CURRENT_DATE
+        END AS calendar_start_date,
+        CASE
+            WHEN exchange_universe.creation_date IS NOT NULL THEN 'mic_creation_date'
+            WHEN schedule_holiday_bounds.min_holiday_date <= CURRENT_DATE THEN 'provider_holiday_calendar'
+            ELSE 'current_date_default'
+        END AS calendar_start_date_source
+    FROM provider_exchange
+    LEFT JOIN schedule_mapping
+        ON provider_exchange.data_provider = schedule_mapping.data_provider
+        AND provider_exchange.provider_exchange_code = schedule_mapping.provider_exchange_code
+    LEFT JOIN mic_mapping
+        ON provider_exchange.data_provider = mic_mapping.data_provider
+        AND provider_exchange.provider_exchange_code = mic_mapping.provider_exchange_code
+    LEFT JOIN exchange_universe
+        ON mic_mapping.mic = exchange_universe.mic
+    LEFT JOIN schedule_holiday_bounds
+        ON schedule_mapping.data_provider = schedule_holiday_bounds.data_provider
+        AND schedule_mapping.provider_schedule_exchange_code = schedule_holiday_bounds.provider_schedule_exchange_code
 ),
 
 date_bounds AS (
     SELECT
-        COALESCE(min_bar_date, CURRENT_DATE) AS min_bar_date,
-        CURRENT_DATE AS max_bar_date
-    FROM price_bounds
+        COALESCE(MIN(provider_exchange_bounds.calendar_start_date), CURRENT_DATE) AS min_bar_date,
+        GREATEST(
+            CAST(DATE_TRUNC('year', CURRENT_DATE) + INTERVAL 2 YEAR - INTERVAL 1 DAY AS DATE),
+            COALESCE(MAX(holiday_bounds.max_holiday_date), CURRENT_DATE)
+        ) AS max_bar_date
+    FROM provider_exchange_bounds
+    CROSS JOIN holiday_bounds
 ),
 
 date_spine AS (
@@ -75,6 +150,12 @@ joined AS (
         provider_exchange.provider_code_kind,
         provider_exchange.source_kind,
         provider_exchange.exchange_catalog_name,
+        provider_exchange.mic,
+        provider_exchange.mic_mapping_method,
+        provider_exchange.mic_mapping_confidence,
+        provider_exchange.exchange_creation_date,
+        provider_exchange.calendar_start_date,
+        provider_exchange.calendar_start_date_source,
         schedule_mapping.provider_schedule_exchange_code,
         schedule_mapping.mapping_method AS schedule_mapping_method,
         schedule_mapping.mapping_confidence AS schedule_mapping_confidence,
@@ -92,7 +173,7 @@ joined AS (
         full_holiday.holiday_name AS full_holiday_name,
         early_close.holiday_name AS early_close_name,
         early_close.early_close_time
-    FROM provider_exchange
+    FROM provider_exchange_bounds AS provider_exchange
     CROSS JOIN date_spine
     LEFT JOIN schedule_mapping
         ON provider_exchange.data_provider = schedule_mapping.data_provider
@@ -110,6 +191,7 @@ joined AS (
         AND calendar.provider_schedule_exchange_code = early_close.provider_schedule_exchange_code
         AND date_spine.bar_date = early_close.holiday_date
         AND early_close.is_early_close
+    WHERE date_spine.bar_date >= provider_exchange.calendar_start_date
 )
 
 SELECT
@@ -119,6 +201,12 @@ SELECT
     provider_code_kind,
     source_kind,
     exchange_catalog_name,
+    mic,
+    mic_mapping_method,
+    mic_mapping_confidence,
+    exchange_creation_date,
+    calendar_start_date,
+    calendar_start_date_source,
     provider_schedule_exchange_code,
     schedule_mapping_method,
     schedule_mapping_confidence,

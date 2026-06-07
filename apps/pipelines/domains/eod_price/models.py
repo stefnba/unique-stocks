@@ -2,9 +2,11 @@ from datetime import date
 from decimal import Decimal
 from typing import Self
 
-from pydantic import ConfigDict, model_validator
+from pydantic import ConfigDict, field_validator, model_validator
 
 from core.models import BronzeModel
+
+EOD_PRICE_INGESTION_PATHS = {"daily_bulk", "historical_backfill"}
 
 
 class EODBar(BronzeModel):
@@ -20,6 +22,8 @@ class EODBar(BronzeModel):
         provider_instrument_code: Provider instrument code without exchange suffix,
             e.g. ``AAPL``.
         bar_date: The trading date this bar covers (NYSE session date).
+        ingestion_path: Pipeline path that produced the bar. This is lineage
+            only and is not part of price identity or idempotency.
         open: First traded price of the session.
         high: Highest traded price of the session.
         low: Lowest traded price of the session.
@@ -39,12 +43,22 @@ class EODBar(BronzeModel):
     provider_exchange_code: str
     provider_instrument_code: str
     bar_date: date
+    ingestion_path: str
     open: Decimal
     high: Decimal
     low: Decimal
     close: Decimal
     volume: int
     adjusted_close: Decimal | None = None
+
+    @field_validator("ingestion_path")
+    @classmethod
+    def validate_ingestion_path(cls, value: str) -> str:
+        """Validate the supported EOD price ingestion path values."""
+        if value not in EOD_PRICE_INGESTION_PATHS:
+            allowed = ", ".join(sorted(EOD_PRICE_INGESTION_PATHS))
+            raise ValueError(f"Unsupported EOD price ingestion_path {value!r}; expected one of: {allowed}")
+        return value
 
     @model_validator(mode="after")
     def validate_ohlc(self) -> Self:
