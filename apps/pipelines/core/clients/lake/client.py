@@ -13,6 +13,8 @@ from typing import Any, Literal, cast
 import duckdb
 import structlog
 
+from core.clients.lake.sql import SqlTemplateContext
+from core.clients.lake.sql import render_sql_file as render_lake_sql_file
 from core.lake.database import ensure_lake_database, motherduck_connection_string
 
 log = structlog.get_logger(__name__)
@@ -107,6 +109,45 @@ class DataLakeClient:
         """Run a SELECT and return the first row as a dictionary."""
         rows = self.query(sql, params)
         return rows[0] if rows else None
+
+    def render_sql_file(
+        self,
+        sql_path: str | Path,
+        *,
+        template_context: SqlTemplateContext | None = None,
+    ) -> str:
+        """Render a SQL file before executing it against the lake."""
+        return render_lake_sql_file(sql_path, template_context=template_context)
+
+    def query_file(
+        self,
+        sql_path: str | Path,
+        params: Sequence[Any] | None = None,
+        *,
+        template_context: SqlTemplateContext | None = None,
+    ) -> list[dict[str, Any]]:
+        """Run a SELECT from a SQL file and return rows as dictionaries."""
+        return self.query(self.render_sql_file(sql_path, template_context=template_context), params)
+
+    def query_one_file(
+        self,
+        sql_path: str | Path,
+        params: Sequence[Any] | None = None,
+        *,
+        template_context: SqlTemplateContext | None = None,
+    ) -> dict[str, Any] | None:
+        """Run a SELECT from a SQL file and return the first row."""
+        return self.query_one(self.render_sql_file(sql_path, template_context=template_context), params)
+
+    def execute_file(
+        self,
+        sql_path: str | Path,
+        params: Sequence[Any] | None = None,
+        *,
+        template_context: SqlTemplateContext | None = None,
+    ) -> None:
+        """Run a write statement from a SQL file with no return value."""
+        self.execute(self.render_sql_file(sql_path, template_context=template_context), params)
 
     def table_exists(self, schema: str, table: str) -> bool:
         """Return True when a table exists."""

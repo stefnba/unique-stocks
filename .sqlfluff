@@ -11,8 +11,24 @@ apply_dbt_builtins = True
 
 [sqlfluff:templater:jinja:macros]
 surrogate_key = {% macro surrogate_key(fields) -%}md5(concat_ws('||', {%- for field in fields -%}CAST({{ field }} AS VARCHAR){% if not loop.last %}, {% endif %}{%- endfor -%})){%- endmacro %}
+param = {% macro param() -%}1{%- endmacro %}
 
 [sqlfluff:templater:jinja:context]
+instrument_universe_relation = silver.int_latest_instrument_universe
+trading_day_relation = silver.int_exchange_trading_day
+instrument_day_coverage_relation = silver.int_eod_price_instrument_day_coverage
+terminal_coverage_relation = silver.int_eod_price_backfill_terminal_coverage
+status_relation = silver.int_eod_price_exchange_day_status
+pair_predicates = provider_exchange_code = 'US' AND bar_date = DATE '2026-05-01'
+code_placeholders = 'US'
+from_date_filter = True
+to_date_filter = True
+universe_relation = silver.int_fundamental_ingestion_universe
+exchange_filter = True
+exchange_placeholders = 'US'
+skip_completed = True
+completion_relation = silver.int_fundamental_document_completion
+limit_filter = True
 
 [sqlfluff:indentation]
 indent_unit = space

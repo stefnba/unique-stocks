@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from pathlib import Path
 from typing import Any, Protocol, cast
 
 import structlog
@@ -91,6 +92,7 @@ from providers.eodhd.identifiers import EODHDInstrumentRef, eodhd_api_symbol
 from providers.eodhd.models import FundamentalRaw
 
 log = structlog.get_logger(__name__)
+_SQL_DIR = Path(__file__).with_name("sql")
 
 FUNDAMENTAL_DOMAIN = "fundamental"
 FUNDAMENTAL_PROVIDER = "eodhd"
@@ -163,13 +165,12 @@ def _load_fundamental_instrument_selection(
     )
     completion_q = None
     params: list[object] = [FUNDAMENTAL_PROVIDER]
-    exchange_filter = ""
+    has_exchange_filter = bool(provider_exchange_codes)
+    exchange_placeholders = ""
     if provider_exchange_codes:
-        placeholders = ", ".join("?" for _ in provider_exchange_codes)
-        exchange_filter = f"AND universe.provider_exchange_code IN ({placeholders})"
+        exchange_placeholders = ", ".join("?" for _ in provider_exchange_codes)
         params.extend(provider_exchange_codes)
 
-    completion_filter = ""
     if skip_completed:
         if snapshot_date is None:
             raise ValueError("snapshot_date is required when skip_completed=True")
@@ -178,36 +179,23 @@ def _load_fundamental_instrument_selection(
             FUNDAMENTAL_DOCUMENT_COMPLETION_TABLE,
             build_hint="dbt-build/fundamental-build",
         )
-        completion_filter = f"""
-          AND NOT EXISTS (
-              SELECT 1
-              FROM {completion_q} AS completion
-              WHERE completion.data_provider = universe.data_provider
-                AND completion.provider_exchange_code = universe.provider_exchange_code
-                AND completion.provider_instrument_code = universe.provider_instrument_code
-                AND completion.snapshot_date = ?
-          )
-        """
         params.append(snapshot_date.isoformat())
 
-    limit_clause = ""
+    has_limit_filter = limit is not None
     if limit is not None:
-        limit_clause = "LIMIT ?"
         params.append(max(0, int(limit)))
 
-    rows = lake.query(
-        f"""
-        SELECT
-            universe.provider_exchange_code,
-            universe.provider_instrument_code
-        FROM {universe_q} AS universe
-        WHERE universe.data_provider = ?
-          {exchange_filter}
-          {completion_filter}
-        ORDER BY universe.provider_exchange_code, universe.provider_instrument_code
-        {limit_clause}
-        """,
+    rows = lake.query_file(
+        _SQL_DIR / "load_instrument_selection.sql",
         params,
+        template_context={
+            "universe_relation": universe_q,
+            "exchange_filter": has_exchange_filter,
+            "exchange_placeholders": exchange_placeholders,
+            "skip_completed": skip_completed,
+            "completion_relation": completion_q or "",
+            "limit_filter": has_limit_filter,
+        },
     )
     instruments = [
         EODHDInstrumentRef(

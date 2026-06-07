@@ -3,11 +3,13 @@
 from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 import pytest
 
 from core.clients.lake import DataLakeClient
+from core.clients.lake.sql import SqlTemplateContext, render_sql_file
 from core.ingestion import BronzeParseResult
 from core.ingestion.coverage import (
     COVERAGE_STATUS_COMPLETED,
@@ -83,6 +85,16 @@ class FakeLake:
                 for instrument, details in pending
             ]
         return []
+
+    def query_file(
+        self,
+        sql_path: str | Path,
+        params: Sequence[Any] | None = None,
+        *,
+        template_context: SqlTemplateContext | None = None,
+    ) -> list[dict[str, Any]]:
+        """Render a SQL file before dispatching to the fake query evaluator."""
+        return self.query(render_sql_file(sql_path, template_context=template_context), params)
 
     def _pending_provider_instruments(
         self, params: Sequence[Any]
@@ -407,6 +419,45 @@ def test_load_missing_eod_backfill_selection_views_reports_absent_contracts(
         "int_eod_price_instrument_day_coverage",
         "int_eod_price_backfill_terminal_coverage",
     ]
+
+
+def test_query_exchange_day_coverage_gaps_by_explicit_pairs_renders_sql_file() -> None:
+    """Explicit exchange/date repairs should render pair predicates and preserve param order."""
+    lake = FakeLake()
+
+    tasks._query_exchange_day_coverage_gaps(
+        lake,
+        status_q="silver.int_eod_price_exchange_day_status",
+        provider_exchange_codes=[],
+        from_date=None,
+        to_date=None,
+        exchange_dates={"US": FROM_DATE, "LSE": TO_DATE},
+    )
+
+    sql, params = lake.queries[0]
+    assert "FROM silver.int_eod_price_exchange_day_status" in sql
+    assert "(provider_exchange_code = ? AND bar_date = ?) OR (provider_exchange_code = ? AND bar_date = ?)" in sql
+    assert params == ["eodhd", "LSE", TO_DATE.isoformat(), "US", FROM_DATE.isoformat()]
+
+
+def test_query_exchange_day_coverage_gaps_by_codes_renders_optional_dates() -> None:
+    """Exchange-code repairs should render IN placeholders and optional date filters."""
+    lake = FakeLake()
+
+    tasks._query_exchange_day_coverage_gaps(
+        lake,
+        status_q="silver.int_eod_price_exchange_day_status",
+        provider_exchange_codes=["US", "LSE", "US"],
+        from_date=FROM_DATE,
+        to_date=TO_DATE,
+        exchange_dates=None,
+    )
+
+    sql, params = lake.queries[0]
+    assert "provider_exchange_code IN (?, ?)" in sql
+    assert "AND bar_date >= ?" in sql
+    assert "AND bar_date <= ?" in sql
+    assert params == ["eodhd", "LSE", "US", FROM_DATE.isoformat(), TO_DATE.isoformat()]
 
 
 def test_write_eod_backfill_coverage_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:

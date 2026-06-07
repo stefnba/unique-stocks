@@ -5,6 +5,7 @@ fetch, validate, or write. No business logic.
 """
 
 from datetime import UTC, date, datetime
+from pathlib import Path
 from typing import Any, TypedDict
 
 import structlog
@@ -40,6 +41,7 @@ from .models import EODBar
 from .parsers import parse_eod_bars
 
 log = structlog.get_logger(__name__)
+_SQL_DIR = Path(__file__).with_name("sql")
 _FULL_HISTORY_LANDING_FROM_DATE = "all"
 
 
@@ -354,89 +356,8 @@ def load_backfill_pending_instruments(provider_exchange_code: str, from_date: da
     from_date_param = from_date.isoformat() if from_date else None
     to_date_param = to_date.isoformat()
 
-    rows = lake.query(
-        f"""
-        WITH instrument_universe AS (
-            SELECT provider_instrument_code
-            FROM {instrument_universe_q}
-            WHERE data_provider = ?
-              AND provider_exchange_code = ?
-              AND is_tradable
-        ),
-        exchange_scope AS (
-            SELECT COUNT(*) AS expected_exchange_days
-            FROM {trading_day_q}
-            WHERE data_provider = ?
-              AND provider_exchange_code = ?
-              AND (is_trading_day OR NOT is_calendar_known)
-              AND bar_date <= ?
-              AND (? IS NULL OR bar_date >= ?)
-        ),
-        instrument_day_coverage AS (
-            SELECT
-                provider_instrument_code,
-                COUNT(*) AS expected_instrument_days,
-                SUM(CASE WHEN coverage_status = 'missing_price' THEN 1 ELSE 0 END) AS missing_price_days,
-                SUM(CASE WHEN coverage_status = 'unknown_calendar' THEN 1 ELSE 0 END) AS unknown_calendar_days,
-                MAX(CASE WHEN min_bar_date IS NOT NULL THEN 1 ELSE 0 END) AS has_observed_price_range
-            FROM {coverage_q}
-            WHERE data_provider = ?
-              AND provider_exchange_code = ?
-              AND bar_date <= ?
-              AND (? IS NULL OR bar_date >= ?)
-            GROUP BY 1
-        ),
-        terminal_coverage AS (
-            SELECT
-                coverage.data_provider,
-                coverage.provider_exchange_code,
-                coverage.provider_instrument_code,
-                BOOL_OR(coverage.status = 'completed') AS has_completed_coverage,
-                BOOL_OR(coverage.status = 'no_data') AS has_no_data_coverage
-            FROM {terminal_coverage_q} AS coverage
-            WHERE coverage.data_provider = ?
-              AND coverage.provider_exchange_code = ?
-              AND ((? IS NULL AND coverage.from_date IS NULL) OR coverage.from_date = ?)
-              AND coverage.to_date = ?
-            GROUP BY 1, 2, 3
-        ),
-        scoped_symbols AS (
-            SELECT
-                instrument_universe.provider_instrument_code,
-                COALESCE(terminal_coverage.has_completed_coverage, FALSE) AS has_completed_coverage,
-                COALESCE(terminal_coverage.has_no_data_coverage, FALSE) AS has_no_data_coverage,
-                COALESCE(instrument_day_coverage.expected_instrument_days, 0) AS expected_instrument_days,
-                COALESCE(instrument_day_coverage.missing_price_days, 0) AS missing_price_days,
-                COALESCE(instrument_day_coverage.unknown_calendar_days, 0) AS unknown_calendar_days,
-                COALESCE(instrument_day_coverage.has_observed_price_range, 0) > 0 AS has_observed_price_range,
-                exchange_scope.expected_exchange_days
-            FROM instrument_universe
-            CROSS JOIN exchange_scope
-            LEFT JOIN instrument_day_coverage
-                ON instrument_universe.provider_instrument_code = instrument_day_coverage.provider_instrument_code
-            LEFT JOIN terminal_coverage
-                ON terminal_coverage.provider_instrument_code = instrument_universe.provider_instrument_code
-        )
-        SELECT
-            provider_instrument_code,
-            expected_instrument_days,
-            missing_price_days,
-            unknown_calendar_days,
-            COUNT(*) OVER () AS total_instruments,
-            SUM(CASE WHEN has_completed_coverage THEN 1 ELSE 0 END) OVER () AS completed_coverage_instruments,
-            SUM(CASE WHEN has_no_data_coverage THEN 1 ELSE 0 END) OVER () AS terminal_no_data_instruments
-        FROM scoped_symbols
-        WHERE expected_exchange_days > 0
-          AND NOT has_completed_coverage
-          AND NOT has_no_data_coverage
-          AND (
-            ? IS NULL
-            OR missing_price_days > 0
-            OR expected_instrument_days = 0
-            OR NOT has_observed_price_range
-          )
-        ORDER BY provider_instrument_code
-        """,
+    rows = lake.query_file(
+        _SQL_DIR / "load_backfill_pending_instruments.sql",
         [
             str(EOD_PRICE_DATASET.provider),
             provider_exchange_code,
@@ -457,6 +378,12 @@ def load_backfill_pending_instruments(provider_exchange_code: str, from_date: da
             to_date_param,
             from_date_param,
         ],
+        template_context={
+            "instrument_universe_relation": instrument_universe_q,
+            "trading_day_relation": trading_day_q,
+            "instrument_day_coverage_relation": coverage_q,
+            "terminal_coverage_relation": terminal_coverage_q,
+        },
     )
     pending = [str(row["provider_instrument_code"]) for row in rows]
     stats = rows[0] if rows else {}
@@ -891,25 +818,13 @@ def _query_exchange_day_coverage_gaps(
         params: list[Any] = [str(EOD_PRICE_DATASET.provider)]
         for code, bar_date in pairs:
             params.extend([code, bar_date.isoformat()])
-        return lake.query(
-            f"""
-            SELECT
-                data_provider,
-                provider_exchange_code,
-                bar_date,
-                exchange_day_status,
-                expected_instruments,
-                priced_instruments,
-                missing_price_instruments,
-                known_no_data_instruments,
-                unknown_calendar_instruments
-            FROM {status_q}
-            WHERE data_provider = ?
-              AND ({pair_clauses})
-              AND exchange_day_status IN ('missing_price', 'unknown_calendar')
-            ORDER BY provider_exchange_code, bar_date
-            """,
+        return lake.query_file(
+            _SQL_DIR / "load_exchange_day_coverage_gaps_by_pairs.sql",
             params,
+            template_context={
+                "status_relation": status_q,
+                "pair_predicates": pair_clauses,
+            },
         )
 
     codes = sorted(set(provider_exchange_codes))
@@ -917,34 +832,21 @@ def _query_exchange_day_coverage_gaps(
         return []
     code_placeholders = ", ".join("?" for _ in codes)
     params = [str(EOD_PRICE_DATASET.provider), *codes]
-    date_filters = []
+    has_from_date_filter = from_date is not None
+    has_to_date_filter = to_date is not None
     if from_date is not None:
-        date_filters.append("bar_date >= ?")
         params.append(from_date.isoformat())
     if to_date is not None:
-        date_filters.append("bar_date <= ?")
         params.append(to_date.isoformat())
-    date_sql = "".join(f"\n              AND {date_filter}" for date_filter in date_filters)
-    return lake.query(
-        f"""
-        SELECT
-            data_provider,
-            provider_exchange_code,
-            bar_date,
-            exchange_day_status,
-            expected_instruments,
-            priced_instruments,
-            missing_price_instruments,
-            known_no_data_instruments,
-            unknown_calendar_instruments
-        FROM {status_q}
-        WHERE data_provider = ?
-          AND provider_exchange_code IN ({code_placeholders})
-          {date_sql}
-          AND exchange_day_status IN ('missing_price', 'unknown_calendar')
-        ORDER BY provider_exchange_code, bar_date
-        """,
+    return lake.query_file(
+        _SQL_DIR / "load_exchange_day_coverage_gaps_by_codes.sql",
         params,
+        template_context={
+            "status_relation": status_q,
+            "code_placeholders": code_placeholders,
+            "from_date_filter": has_from_date_filter,
+            "to_date_filter": has_to_date_filter,
+        },
     )
 
 

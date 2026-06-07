@@ -3,12 +3,14 @@
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from datetime import date
+from pathlib import Path
 from typing import cast
 
 import httpx
 import pytest
 
 from core.clients.http.base import ProviderRateLimitError
+from core.clients.lake.sql import SqlTemplateContext, render_sql_file
 from core.ingestion import BronzeWrite, LandingWrite, RunUnitTally
 from core.ingestion.run_tracking import UnitStatus
 from domains.fundamental import flows, tasks
@@ -154,6 +156,16 @@ class FundamentalSelectionLake:
         self.queries.append((sql, params))
         return self.rows
 
+    def query_file(
+        self,
+        sql_path: str | Path,
+        params: Sequence[object] | None = None,
+        *,
+        template_context: SqlTemplateContext | None = None,
+    ) -> list[dict[str, str]]:
+        """Render a SQL file and delegate to the fake query capture."""
+        return self.query(render_sql_file(sql_path, template_context=template_context), params)
+
 
 def _raw_stock_payload() -> FundamentalRaw:
     """Build a compact stock fundamentals document."""
@@ -280,8 +292,8 @@ def test_load_fundamental_instruments_uses_silver_and_qualified_anti_join(
     sql, params = lake.queries[0]
     assert "silver.int_fundamental_ingestion_universe" in sql
     assert "silver.int_fundamental_document_completion" in sql
-    assert "completion.provider_exchange_code = universe.provider_exchange_code" in sql
-    assert "completion.provider_instrument_code = universe.provider_instrument_code" in sql
+    assert "completed_document.provider_exchange_code = universe.provider_exchange_code" in sql
+    assert "completed_document.provider_instrument_code = universe.provider_instrument_code" in sql
     assert "universe.data_provider = ?" in sql
     assert "LIMIT ?" in sql
     assert params == ["eodhd", "US", SNAPSHOT_DATE.isoformat(), 10]

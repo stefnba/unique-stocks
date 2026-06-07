@@ -19,6 +19,8 @@ STREAMLIT_SERVER_PORT ?= 8501
 LAKE_MIGRATIONS_DIR := lake/migrations
 LAKE_TABLES_REF := lake.schema:ALL_TABLES
 DBT_DIR := dbt
+DOMAIN_SQL_DIRS := $(sort $(dir $(wildcard domains/*/sql/*.sql)))
+SQL_LINT_DIRS := $(DBT_DIR)/macros $(DBT_DIR)/models $(DBT_DIR)/tests $(LAKE_MIGRATIONS_DIR) $(DOMAIN_SQL_DIRS)
 REPO_ROOT := ../..
 DBT_TARGET ?= dev
 DBT_DUCKDB_PATH ?= $(LOCAL_LAKE_PATH)
@@ -102,10 +104,10 @@ python-format-check: ## Check Python formatting without modifying files
 	uv run ruff format . --check
 
 sql-lint: ## Lint SQL files
-	$(UV) run sqlfluff lint $(DBT_DIR)/macros $(DBT_DIR)/models $(DBT_DIR)/tests $(LAKE_MIGRATIONS_DIR)
+	$(UV) run sqlfluff lint $(SQL_LINT_DIRS)
 
 sql-format: ## Format SQL files
-	$(UV) run sqlfluff fix $(DBT_DIR)/macros $(DBT_DIR)/models $(DBT_DIR)/tests $(LAKE_MIGRATIONS_DIR)
+	$(UV) run sqlfluff fix $(SQL_LINT_DIRS)
 
 text-format: ## Format Markdown, YAML, and JSON files
 	$(PRE_COMMIT) run prettier-format --all-files
