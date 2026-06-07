@@ -19,6 +19,7 @@ from core.lake.schema.columns import (
 )
 
 type SchemaName = Literal["bronze", "silver", "gold", "pipeline", "lake"]
+_MAX_DDL_LINE_LENGTH = 120
 
 
 class TableModel:
@@ -114,7 +115,7 @@ class TableModel:
         definitions = [f"    {column.to_ddl()}" for column in columns]
         unique_columns = cls.unique_column_names()
         if unique_columns:
-            definitions.append(f"    UNIQUE ({', '.join(unique_columns)})")
+            definitions.append(_unique_constraint_ddl(unique_columns))
         lines.append(",\n".join(definitions))
         lines.append(");")
         return "\n".join(lines)
@@ -161,6 +162,15 @@ class TableModel:
             missing = tuple(ref for ref in refs if ref not in known)
             if missing:
                 raise ValueError(f"{cls.__name__}.{label} references unknown columns: {missing}")
+
+
+def _unique_constraint_ddl(unique_columns: tuple[str, ...]) -> str:
+    """Render a UNIQUE constraint, wrapping long column lists."""
+    inline = f"    UNIQUE ({', '.join(unique_columns)})"
+    if len(inline) <= _MAX_DDL_LINE_LENGTH:
+        return inline
+    columns = ",\n".join(f"        {column}" for column in unique_columns)
+    return f"    UNIQUE (\n{columns}\n    )"
 
 
 class BronzeTableModel(TableModel):

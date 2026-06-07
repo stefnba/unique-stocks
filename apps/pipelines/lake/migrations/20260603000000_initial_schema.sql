@@ -220,7 +220,6 @@ CREATE TABLE IF NOT EXISTS bronze.fundamental_statement_fact (
     ingested_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (
         snapshot_date,
-        provider_exchange_code,
         provider_instrument_code,
         statement_type,
         period_type,
@@ -541,7 +540,12 @@ CREATE TABLE IF NOT EXISTS bronze.fundamental_mutual_fund_holding (
     source_uri VARCHAR,
     ingested_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (
-        snapshot_date, provider_exchange_code, provider_instrument_code, provider_position, holding_name, data_provider
+        snapshot_date,
+        provider_exchange_code,
+        provider_instrument_code,
+        provider_position,
+        holding_name,
+        data_provider
     )
 );
 
