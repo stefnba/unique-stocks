@@ -13,7 +13,7 @@ from dashboard.constants import (
     REJECTIONS_LIMIT,
     RUN_UNITS_LIMIT,
 )
-from dashboard.queries import (
+from dashboard.read_models.queries import (
     landing_objects_available,
     load_attention_runs,
     load_audit_evidence_summary,

@@ -42,11 +42,12 @@ shared chrome, and runs the selected page.
 - `filters.py` — shared Streamlit controls and normalized filter payloads
 - `domain_health.py`, `charts.py`, and `tables.py` — reusable presentation helpers
 - `loaders.py` — cached lake loaders used by views
-- `queries.py` — read-only SQL against the lake
+- `read_models/queries.py` — read-only lake query functions
+- `read_models/sql/` — file-backed SQL templates used by the dashboard query functions
 
 Keep new pages thin: add page rendering under `views/`, cached data assembly in
-`loaders.py`, and SQL in `queries.py`. Keep direct `duckdb` and settings access out of
-views.
+`loaders.py`, and lake reads under `read_models/`. Keep direct `duckdb` and settings
+access out of views.
 
 ## Setup
 

@@ -10,7 +10,7 @@ from streamlit.delta_generator import DeltaGenerator
 
 from dashboard.constants import LANDING_OBJECT_BROWSER_LIMIT, RUN_BROWSER_LIMIT, RUN_UNIT_BROWSER_LIMIT
 from dashboard.formatting import format_window
-from dashboard.queries import DEFAULT_DASHBOARD_DOMAINS
+from dashboard.read_models.queries import DEFAULT_DASHBOARD_DOMAINS
 from dashboard.routing import query_param
 
 WINDOW_HOUR_OPTIONS = (24, 72, 168, 336, 720)

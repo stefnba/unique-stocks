@@ -4,12 +4,16 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Protocol, cast
+
+from core.clients.lake.sql import SqlTemplateContext
 
 DEFAULT_DASHBOARD_DOMAINS = ("eod_price", "exchange", "exchange_schedule", "instrument", "fundamental", "dbt")
 RUN_STATUSES = ("running", "completed", "partial", "failed", "skipped", "cancelled")
 ATTENTION_STATUSES = ("failed", "partial")
 HEALTHY_TERMINAL_STATUSES = ("completed", "partial", "skipped")
+_SQL_DIR = Path(__file__).with_name("sql")
 
 
 class LakeReader(Protocol):
@@ -25,6 +29,26 @@ class LakeReader(Protocol):
 
     def query_one(self, sql: str, params: Sequence[Any] | None = None) -> dict[str, Any] | None:
         """Run a SELECT statement and return one row."""
+        ...
+
+    def query_file(
+        self,
+        sql_path: str | Path,
+        params: Sequence[Any] | None = None,
+        *,
+        template_context: SqlTemplateContext | None = None,
+    ) -> list[dict[str, Any]]:
+        """Run a SELECT statement from a SQL file and return rows."""
+        ...
+
+    def query_one_file(
+        self,
+        sql_path: str | Path,
+        params: Sequence[Any] | None = None,
+        *,
+        template_context: SqlTemplateContext | None = None,
+    ) -> dict[str, Any] | None:
+        """Run a SELECT statement from a SQL file and return one row."""
         ...
 
 
@@ -54,22 +78,10 @@ def load_status_summary(
         return _empty_summary()
 
     clauses, params = _run_filters(since=since, domains=domains, statuses=())
-    row = lake.query_one(
-        f"""
-        SELECT
-            COUNT(*) AS total_runs,
-            COUNT(*) FILTER (WHERE status = 'running') AS running_runs,
-            COUNT(*) FILTER (WHERE status = 'completed') AS completed_runs,
-            COUNT(*) FILTER (WHERE status = 'partial') AS partial_runs,
-            COUNT(*) FILTER (WHERE status = 'failed') AS failed_runs,
-            COUNT(*) FILTER (WHERE status IN ('failed', 'partial')) AS attention_runs,
-            COALESCE(SUM(units_failed), 0) AS units_failed,
-            COALESCE(SUM(rows_written), 0) AS rows_written,
-            COALESCE(SUM(rows_rejected), 0) AS rows_rejected
-        FROM pipeline.runs
-        WHERE {" AND ".join(clauses)}
-        """,
+    row = lake.query_one_file(
+        _SQL_DIR / "load_status_summary.sql",
         params,
+        template_context={"where_clauses": " AND ".join(clauses)},
     )
     if row is None:
         return _empty_summary()
@@ -95,32 +107,10 @@ def load_stale_running_runs(
         params.extend(domain_values)
 
     params.append(_bounded_limit(limit, default=100, maximum=500))
-    return lake.query(
-        f"""
-        SELECT
-            run_id,
-            prefect_flow_run_id,
-            flow_name,
-            domain,
-            run_kind,
-            provider,
-            status,
-            started_at,
-            completed_at,
-            date_diff('second', started_at, CURRENT_TIMESTAMP) AS running_seconds,
-            date_diff('second', started_at, COALESCE(completed_at, CURRENT_TIMESTAMP)) AS duration_seconds,
-            units_total,
-            units_failed,
-            rows_written,
-            rows_rejected,
-            error_class,
-            error_message
-        FROM pipeline.runs
-        WHERE {" AND ".join(clauses)}
-        ORDER BY started_at
-        LIMIT ?
-        """,
+    return lake.query_file(
+        _SQL_DIR / "load_stale_running_runs.sql",
         params,
+        template_context={"where_clauses": " AND ".join(clauses)},
     )
 
 
@@ -137,36 +127,10 @@ def load_latest_runs_by_domain(lake: LakeReader, *, domains: Sequence[str]) -> l
         params.extend(domain_values)
     where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ""
 
-    return lake.query(
-        f"""
-        WITH ranked AS (
-            SELECT
-                run_id,
-                prefect_flow_run_id,
-                flow_name,
-                domain,
-                run_kind,
-                provider,
-                status,
-                started_at,
-                completed_at,
-                date_diff('second', started_at, COALESCE(completed_at, CURRENT_TIMESTAMP)) AS duration_seconds,
-                units_total,
-                units_failed,
-                rows_written,
-                rows_rejected,
-                error_class,
-                error_message,
-                ROW_NUMBER() OVER (PARTITION BY domain ORDER BY started_at DESC) AS row_number
-            FROM pipeline.runs
-            {where_sql}
-        )
-        SELECT * EXCLUDE (row_number)
-        FROM ranked
-        WHERE row_number = 1
-        ORDER BY domain
-        """,
+    return lake.query_file(
+        _SQL_DIR / "load_latest_runs_by_domain.sql",
         params,
+        template_context={"where_sql": where_sql},
     )
 
 
@@ -187,28 +151,10 @@ def load_latest_terminal_runs_by_domain(
         clauses.append(f"domain IN ({_placeholders(len(domain_values))})")
         params.extend(domain_values)
 
-    return lake.query(
-        f"""
-        WITH ranked AS (
-            SELECT
-                run_id,
-                flow_name,
-                domain,
-                run_kind,
-                status,
-                completed_at,
-                rows_written,
-                rows_rejected,
-                ROW_NUMBER() OVER (PARTITION BY domain ORDER BY completed_at DESC) AS row_number
-            FROM pipeline.runs
-            WHERE {" AND ".join(clauses)}
-        )
-        SELECT * EXCLUDE (row_number)
-        FROM ranked
-        WHERE row_number = 1
-        ORDER BY domain
-        """,
+    return lake.query_file(
+        _SQL_DIR / "load_latest_terminal_runs_by_domain.sql",
         params,
+        template_context={"where_clauses": " AND ".join(clauses)},
     )
 
 
@@ -223,15 +169,10 @@ def load_status_breakdown(
         return []
 
     clauses, params = _run_filters(since=since, domains=domains, statuses=())
-    return lake.query(
-        f"""
-        SELECT status, COUNT(*) AS runs
-        FROM pipeline.runs
-        WHERE {" AND ".join(clauses)}
-        GROUP BY status
-        ORDER BY runs DESC, status
-        """,
+    return lake.query_file(
+        _SQL_DIR / "load_status_breakdown.sql",
         params,
+        template_context={"where_clauses": " AND ".join(clauses)},
     )
 
 
@@ -246,24 +187,10 @@ def load_domain_run_summary(
         return []
 
     clauses, params = _run_filters(since=since, domains=domains, statuses=())
-    return lake.query(
-        f"""
-        SELECT
-            domain,
-            COUNT(*) AS runs,
-            COUNT(*) FILTER (WHERE status = 'running') AS running_runs,
-            COUNT(*) FILTER (WHERE status = 'completed') AS completed_runs,
-            COUNT(*) FILTER (WHERE status IN ('failed', 'partial')) AS attention_runs,
-            COALESCE(SUM(units_failed), 0) AS units_failed,
-            COALESCE(SUM(rows_written), 0) AS rows_written,
-            COALESCE(SUM(rows_rejected), 0) AS rows_rejected,
-            MAX(started_at) AS latest_started_at
-        FROM pipeline.runs
-        WHERE {" AND ".join(clauses)}
-        GROUP BY domain
-        ORDER BY attention_runs DESC, running_runs DESC, rows_rejected DESC, domain
-        """,
+    return lake.query_file(
+        _SQL_DIR / "load_domain_run_summary.sql",
         params,
+        template_context={"where_clauses": " AND ".join(clauses)},
     )
 
 
@@ -278,21 +205,10 @@ def load_daily_run_trend(
         return []
 
     clauses, params = _run_filters(since=since, domains=domains, statuses=())
-    return lake.query(
-        f"""
-        SELECT
-            CAST(started_at AS DATE) AS run_date,
-            domain,
-            COUNT(*) AS runs,
-            COUNT(*) FILTER (WHERE status IN ('failed', 'partial')) AS attention_runs,
-            COALESCE(SUM(rows_written), 0) AS rows_written,
-            COALESCE(SUM(rows_rejected), 0) AS rows_rejected
-        FROM pipeline.runs
-        WHERE {" AND ".join(clauses)}
-        GROUP BY run_date, domain
-        ORDER BY run_date, domain
-        """,
+    return lake.query_file(
+        _SQL_DIR / "load_daily_run_trend.sql",
         params,
+        template_context={"where_clauses": " AND ".join(clauses)},
     )
 
 
@@ -312,15 +228,10 @@ def load_audit_evidence_summary(
         if domain_values:
             clauses.append(f"domain IN ({_placeholders(len(domain_values))})")
             params.extend(domain_values)
-        row = lake.query_one(
-            f"""
-            SELECT
-                COUNT(*) AS landing_objects,
-                COALESCE(SUM(byte_count), 0) AS landing_bytes
-            FROM pipeline.landing_objects
-            WHERE {" AND ".join(clauses)}
-            """,
+        row = lake.query_one_file(
+            _SQL_DIR / "load_landing_evidence_summary.sql",
             params,
+            template_context={"where_clauses": " AND ".join(clauses)},
         )
         if row:
             summary["landing_objects"] = _int_value(row.get("landing_objects"))
@@ -332,13 +243,10 @@ def load_audit_evidence_summary(
         if domain_values:
             clauses.append(f"domain IN ({_placeholders(len(domain_values))})")
             params.extend(domain_values)
-        row = lake.query_one(
-            f"""
-            SELECT COUNT(*) AS rejection_samples
-            FROM pipeline.rejections
-            WHERE {" AND ".join(clauses)}
-            """,
+        row = lake.query_one_file(
+            _SQL_DIR / "load_rejection_evidence_summary.sql",
             params,
+            template_context={"where_clauses": " AND ".join(clauses)},
         )
         if row:
             summary["rejection_samples"] = _int_value(row.get("rejection_samples"))
@@ -349,13 +257,10 @@ def load_audit_evidence_summary(
         if domain_values:
             clauses.append(f"domain IN ({_placeholders(len(domain_values))})")
             params.extend(domain_values)
-        row = lake.query_one(
-            f"""
-            SELECT COUNT(*) AS coverage_records
-            FROM pipeline.ingestion_coverage
-            WHERE {" AND ".join(clauses)}
-            """,
+        row = lake.query_one_file(
+            _SQL_DIR / "load_coverage_evidence_summary.sql",
             params,
+            template_context={"where_clauses": " AND ".join(clauses)},
         )
         if row:
             summary["coverage_records"] = _int_value(row.get("coverage_records"))
@@ -366,19 +271,10 @@ def load_audit_evidence_summary(
         if domain_values:
             clauses.append(f"run.domain IN ({_placeholders(len(domain_values))})")
             params.extend(domain_values)
-        row = lake.query_one(
-            f"""
-            SELECT
-                COUNT(*) AS dbt_invocations,
-                COUNT(*) FILTER (
-                    WHERE invocation.status NOT IN ('completed', 'success', 'pass')
-                ) AS dbt_attention_invocations
-            FROM pipeline.dbt_invocations AS invocation
-            INNER JOIN pipeline.runs AS run
-                ON invocation.run_id = run.run_id
-            WHERE {" AND ".join(clauses)}
-            """,
+        row = lake.query_one_file(
+            _SQL_DIR / "load_dbt_invocation_evidence_summary.sql",
             params,
+            template_context={"where_clauses": " AND ".join(clauses)},
         )
         if row:
             summary["dbt_invocations"] = _int_value(row.get("dbt_invocations"))
@@ -394,18 +290,10 @@ def load_audit_evidence_summary(
         if domain_values:
             clauses.append(f"run.domain IN ({_placeholders(len(domain_values))})")
             params.extend(domain_values)
-        row = lake.query_one(
-            f"""
-            SELECT COUNT(*) AS dbt_attention_nodes
-            FROM pipeline.dbt_invocations AS invocation
-            INNER JOIN pipeline.dbt_node_results AS node
-                ON invocation.dbt_run_id = node.dbt_run_id
-            INNER JOIN pipeline.runs AS run
-                ON invocation.run_id = run.run_id
-            WHERE {" AND ".join(clauses)}
-              AND node.status IN ('error', 'fail', 'warn')
-            """,
+        row = lake.query_one_file(
+            _SQL_DIR / "load_dbt_attention_node_evidence_summary.sql",
             params,
+            template_context={"where_clauses": " AND ".join(clauses)},
         )
         if row:
             summary["dbt_attention_nodes"] = _int_value(row.get("dbt_attention_nodes"))
@@ -442,32 +330,10 @@ def load_attention_runs(
         params.extend(domain_values)
 
     params.append(_bounded_limit(limit, default=200, maximum=500))
-    return lake.query(
-        f"""
-        SELECT
-            run_id,
-            parent_run_id,
-            prefect_flow_run_id,
-            flow_name,
-            domain,
-            run_kind,
-            provider,
-            status,
-            started_at,
-            completed_at,
-            date_diff('second', started_at, COALESCE(completed_at, CURRENT_TIMESTAMP)) AS duration_seconds,
-            units_total,
-            units_failed,
-            rows_written,
-            rows_rejected,
-            error_class,
-            error_message
-        FROM pipeline.runs
-        WHERE {" AND ".join(clauses)}
-        ORDER BY started_at DESC
-        LIMIT ?
-        """,
+    return lake.query_file(
+        _SQL_DIR / "load_attention_runs.sql",
         params,
+        template_context={"where_clauses": " AND ".join(clauses)},
     )
 
 
@@ -497,29 +363,10 @@ def load_latest_attention_runs_by_domain(
         clauses.append(f"domain IN ({_placeholders(len(domain_values))})")
         params.extend(domain_values)
 
-    return lake.query(
-        f"""
-        WITH ranked AS (
-            SELECT
-                run_id,
-                flow_name,
-                domain,
-                status,
-                started_at,
-                completed_at,
-                units_failed,
-                error_class,
-                error_message,
-                ROW_NUMBER() OVER (PARTITION BY domain ORDER BY started_at DESC) AS row_number
-            FROM pipeline.runs
-            WHERE {" AND ".join(clauses)}
-        )
-        SELECT * EXCLUDE (row_number)
-        FROM ranked
-        WHERE row_number = 1
-        ORDER BY domain
-        """,
+    return lake.query_file(
+        _SQL_DIR / "load_latest_attention_runs_by_domain.sql",
         params,
+        template_context={"where_clauses": " AND ".join(clauses)},
     )
 
 
@@ -537,42 +384,10 @@ def load_recent_runs(
 
     clauses, params = _run_filters(since=since, domains=domains, statuses=statuses)
     params.append(_bounded_limit(limit, default=200, maximum=1000))
-    return lake.query(
-        f"""
-        SELECT
-            run_id,
-            parent_run_id,
-            prefect_flow_run_id,
-            flow_name,
-            domain,
-            run_kind,
-            provider,
-            environment,
-            code_version,
-            parameters_json,
-            target_window_start,
-            target_window_end,
-            status,
-            started_at,
-            completed_at,
-            date_diff('second', started_at, COALESCE(completed_at, CURRENT_TIMESTAMP)) AS duration_seconds,
-            units_total,
-            units_succeeded,
-            units_failed,
-            units_skipped,
-            rows_raw,
-            rows_valid,
-            rows_rejected,
-            rows_written,
-            summary_json,
-            error_class,
-            error_message
-        FROM pipeline.runs
-        WHERE {" AND ".join(clauses)}
-        ORDER BY started_at DESC
-        LIMIT ?
-        """,
+    return lake.query_file(
+        _SQL_DIR / "load_recent_runs.sql",
         params,
+        template_context={"where_clauses": " AND ".join(clauses)},
     )
 
 
@@ -580,40 +395,8 @@ def load_run_by_id(lake: LakeReader, *, run_id: str) -> dict[str, Any] | None:
     """Load one run by durable run id."""
     if not pipeline_runs_available(lake):
         return None
-    return lake.query_one(
-        """
-        SELECT
-            run_id,
-            parent_run_id,
-            prefect_flow_run_id,
-            flow_name,
-            domain,
-            run_kind,
-            provider,
-            environment,
-            code_version,
-            parameters_json,
-            target_window_start,
-            target_window_end,
-            status,
-            started_at,
-            completed_at,
-            date_diff('second', started_at, COALESCE(completed_at, CURRENT_TIMESTAMP)) AS duration_seconds,
-            units_total,
-            units_succeeded,
-            units_failed,
-            units_skipped,
-            rows_raw,
-            rows_valid,
-            rows_rejected,
-            rows_written,
-            summary_json,
-            error_class,
-            error_message
-        FROM pipeline.runs
-        WHERE run_id = ?
-        LIMIT 1
-        """,
+    return lake.query_one_file(
+        _SQL_DIR / "load_run_by_id.sql",
         [run_id],
     )
 
@@ -622,14 +405,8 @@ def load_unit_status_breakdown(lake: LakeReader, *, run_id: str) -> list[dict[st
     """Load work-unit counts by status for a run."""
     if not lake.table_exists("pipeline", "run_units"):
         return []
-    return lake.query(
-        """
-        SELECT status, COUNT(*) AS units
-        FROM pipeline.run_units
-        WHERE run_id = ?
-        GROUP BY status
-        ORDER BY units DESC, status
-        """,
+    return lake.query_file(
+        _SQL_DIR / "load_unit_status_breakdown.sql",
         [run_id],
     )
 
@@ -638,32 +415,8 @@ def load_run_unit_by_id(lake: LakeReader, *, run_id: str, unit_id: str) -> dict[
     """Load one work unit by durable unit id."""
     if not lake.table_exists("pipeline", "run_units"):
         return None
-    return lake.query_one(
-        """
-        SELECT
-            unit_id,
-            run_id,
-            domain,
-            provider,
-            unit_type,
-            unit_key_hash,
-            unit_key_json,
-            status,
-            reason,
-            source_uri,
-            rows_raw,
-            rows_valid,
-            rows_rejected,
-            rows_written,
-            started_at,
-            completed_at,
-            date_diff('second', started_at, COALESCE(completed_at, CURRENT_TIMESTAMP)) AS duration_seconds,
-            error_class,
-            error_message
-        FROM pipeline.run_units
-        WHERE run_id = ? AND unit_id = ?
-        LIMIT 1
-        """,
+    return lake.query_one_file(
+        _SQL_DIR / "load_run_unit_by_id.sql",
         [run_id, unit_id],
     )
 
@@ -672,39 +425,8 @@ def load_run_units(lake: LakeReader, *, run_id: str, limit: int = 500) -> list[d
     """Load work-unit rows for a selected run."""
     if not lake.table_exists("pipeline", "run_units"):
         return []
-    return lake.query(
-        """
-        SELECT
-            unit_id,
-            unit_type,
-            unit_key_hash,
-            unit_key_json,
-            status,
-            reason,
-            provider,
-            source_uri,
-            rows_raw,
-            rows_valid,
-            rows_rejected,
-            rows_written,
-            started_at,
-            completed_at,
-            date_diff('second', started_at, COALESCE(completed_at, CURRENT_TIMESTAMP)) AS duration_seconds,
-            error_class,
-            error_message
-        FROM pipeline.run_units
-        WHERE run_id = ?
-        ORDER BY
-            CASE status
-                WHEN 'failed' THEN 1
-                WHEN 'unsupported' THEN 2
-                WHEN 'skipped' THEN 3
-                ELSE 4
-            END,
-            completed_at DESC NULLS LAST,
-            started_at DESC NULLS LAST
-        LIMIT ?
-        """,
+    return lake.query_file(
+        _SQL_DIR / "load_run_units.sql",
         [run_id, _bounded_limit(limit, default=500, maximum=2000)],
     )
 
@@ -749,46 +471,17 @@ def load_recent_run_units(
         params.append(run_id)
 
     params.append(_bounded_limit(limit, default=200, maximum=1000))
-    return lake.query(
-        f"""
-        SELECT
-            unit.unit_id,
-            unit.run_id,
-            {flow_sql} AS flow_name,
-            {run_kind_sql} AS run_kind,
-            {domain_sql} AS domain,
-            {provider_sql} AS provider,
-            unit.unit_type,
-            unit.unit_key_hash,
-            unit.unit_key_json,
-            unit.status,
-            unit.reason,
-            unit.source_uri,
-            unit.rows_raw,
-            unit.rows_valid,
-            unit.rows_rejected,
-            unit.rows_written,
-            unit.started_at,
-            unit.completed_at,
-            date_diff('second', unit.started_at, COALESCE(unit.completed_at, CURRENT_TIMESTAMP)) AS duration_seconds,
-            unit.error_class,
-            unit.error_message
-        FROM pipeline.run_units AS unit
-        {join_sql}
-        WHERE {" AND ".join(clauses)}
-        ORDER BY
-            CASE unit.status
-                WHEN 'failed' THEN 1
-                WHEN 'unsupported' THEN 2
-                WHEN 'skipped' THEN 3
-                WHEN 'running' THEN 4
-                ELSE 5
-            END,
-            unit.completed_at DESC NULLS LAST,
-            unit.started_at DESC NULLS LAST
-        LIMIT ?
-        """,
+    return lake.query_file(
+        _SQL_DIR / "load_recent_run_units.sql",
         params,
+        template_context={
+            "flow_sql": flow_sql,
+            "run_kind_sql": run_kind_sql,
+            "domain_sql": domain_sql,
+            "provider_sql": provider_sql,
+            "join_sql": join_sql,
+            "where_clauses": " AND ".join(clauses),
+        },
     )
 
 
@@ -808,27 +501,10 @@ def load_landing_objects(
         clauses.append("unit_id = ?")
         params.append(unit_id)
     params.append(_bounded_limit(limit, default=200, maximum=1000))
-    return lake.query(
-        f"""
-        SELECT
-            landing_id,
-            run_id,
-            unit_id,
-            domain,
-            dataset,
-            provider,
-            source_uri,
-            partition_json,
-            rows_raw,
-            byte_count,
-            content_hash,
-            recorded_at
-        FROM pipeline.landing_objects
-        WHERE {" AND ".join(clauses)}
-        ORDER BY recorded_at DESC
-        LIMIT ?
-        """,
+    return lake.query_file(
+        _SQL_DIR / "load_landing_objects.sql",
         params,
+        template_context={"where_clauses": " AND ".join(clauses)},
     )
 
 
@@ -875,30 +551,17 @@ def load_recent_landing_objects(
         params.append(unit_id)
 
     params.append(_bounded_limit(limit, default=200, maximum=1000))
-    return lake.query(
-        f"""
-        SELECT
-            landing.landing_id,
-            landing.run_id,
-            landing.unit_id,
-            {run_flow_sql} AS flow_name,
-            {domain_sql} AS domain,
-            {provider_sql} AS provider,
-            landing.dataset,
-            landing.source_uri,
-            landing.partition_json,
-            landing.rows_raw,
-            landing.byte_count,
-            landing.content_hash,
-            landing.recorded_at
-        FROM pipeline.landing_objects AS landing
-        {run_join_sql}
-        {unit_join_sql}
-        WHERE {" AND ".join(clauses)}
-        ORDER BY landing.recorded_at DESC
-        LIMIT ?
-        """,
+    return lake.query_file(
+        _SQL_DIR / "load_recent_landing_objects.sql",
         params,
+        template_context={
+            "run_flow_sql": run_flow_sql,
+            "domain_sql": domain_sql,
+            "provider_sql": provider_sql,
+            "run_join_sql": run_join_sql,
+            "unit_join_sql": unit_join_sql,
+            "where_clauses": " AND ".join(clauses),
+        },
     )
 
 
@@ -925,31 +588,18 @@ def load_landing_object_by_id(lake: LakeReader, *, landing_id: str) -> dict[str,
     domain_sql = f"COALESCE({', '.join(domain_inputs)})"
     provider_sql = f"COALESCE({', '.join(provider_inputs)})"
 
-    return lake.query_one(
-        f"""
-        SELECT
-            landing.landing_id,
-            landing.run_id,
-            landing.unit_id,
-            {run_flow_sql} AS flow_name,
-            {run_status_sql} AS run_status,
-            {unit_status_sql} AS unit_status,
-            {domain_sql} AS domain,
-            {provider_sql} AS provider,
-            landing.dataset,
-            landing.source_uri,
-            landing.partition_json,
-            landing.rows_raw,
-            landing.byte_count,
-            landing.content_hash,
-            landing.recorded_at
-        FROM pipeline.landing_objects AS landing
-        {run_join_sql}
-        {unit_join_sql}
-        WHERE landing.landing_id = ?
-        LIMIT 1
-        """,
+    return lake.query_one_file(
+        _SQL_DIR / "load_landing_object_by_id.sql",
         [landing_id],
+        template_context={
+            "run_flow_sql": run_flow_sql,
+            "run_status_sql": run_status_sql,
+            "unit_status_sql": unit_status_sql,
+            "domain_sql": domain_sql,
+            "provider_sql": provider_sql,
+            "run_join_sql": run_join_sql,
+            "unit_join_sql": unit_join_sql,
+        },
     )
 
 
@@ -969,25 +619,10 @@ def load_rejections(
         clauses.append("unit_id = ?")
         params.append(unit_id)
     params.append(_bounded_limit(limit, default=100, maximum=1000))
-    return lake.query(
-        f"""
-        SELECT
-            rejection_id,
-            unit_id,
-            domain,
-            entity_key_json,
-            source_uri,
-            reason,
-            error_class,
-            error_message,
-            raw_sample_json,
-            recorded_at
-        FROM pipeline.rejections
-        WHERE {" AND ".join(clauses)}
-        ORDER BY recorded_at DESC
-        LIMIT ?
-        """,
+    return lake.query_file(
+        _SQL_DIR / "load_rejections.sql",
         params,
+        template_context={"where_clauses": " AND ".join(clauses)},
     )
 
 
@@ -995,37 +630,8 @@ def load_dbt_node_results(lake: LakeReader, *, run_id: str, limit: int = 300) ->
     """Load dbt model/test node results linked to a selected pipeline run."""
     if not lake.table_exists("pipeline", "dbt_invocations") or not lake.table_exists("pipeline", "dbt_node_results"):
         return []
-    return lake.query(
-        """
-        SELECT
-            invocation.dbt_run_id,
-            invocation.command,
-            invocation.target,
-            invocation.return_code,
-            invocation.elapsed_seconds AS invocation_elapsed_seconds,
-            node.unique_id,
-            node.resource_type,
-            node.status,
-            node.execution_time,
-            node.failures,
-            node.rows_affected,
-            node.relation_name,
-            node.message
-        FROM pipeline.dbt_invocations AS invocation
-        INNER JOIN pipeline.dbt_node_results AS node
-            ON invocation.dbt_run_id = node.dbt_run_id
-        WHERE invocation.run_id = ?
-        ORDER BY
-            CASE node.status
-                WHEN 'error' THEN 1
-                WHEN 'fail' THEN 2
-                WHEN 'warn' THEN 3
-                ELSE 4
-            END,
-            node.execution_time DESC NULLS LAST,
-            node.unique_id
-        LIMIT ?
-        """,
+    return lake.query_file(
+        _SQL_DIR / "load_dbt_node_results.sql",
         [run_id, _bounded_limit(limit, default=300, maximum=2000)],
     )
 
