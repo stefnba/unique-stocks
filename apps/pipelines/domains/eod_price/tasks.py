@@ -246,8 +246,9 @@ def write_bronze_eod_price(
 ) -> BronzeWrite:
     """Write validated bars to bronze.eod_price.
 
-    Daily idempotency is checked at the provider exchange/date/path level. Historical
-    backfill rows for the same exchange/date do not suppress a later bulk daily run.
+    Daily pre-fetch idempotency is checked before this task. The writer always
+    attempts inserts and relies on the Bronze unique key so partial exchange/date
+    repair reruns can add missing provider instruments.
     """
     from core.clients.lake import get_lake_client
 
@@ -258,15 +259,6 @@ def write_bronze_eod_price(
         return BronzeWrite(rows_written=0, reason="no_bars")
 
     lake = get_lake_client()
-    if _eod_daily_bulk_already_ingested(lake, provider_exchange_code=provider_exchange_code, bar_date=bar_date):
-        log.info(
-            "price.write_skipped",
-            reason="already_ingested",
-            provider_exchange_code=provider_exchange_code,
-            bar_date=bar_date,
-        )
-        return BronzeWrite(rows_written=0, reason="already_ingested")
-
     records, duplicates = _deduplicate_eod_price_records(sources, source_uri=source_uri)
     written = _insert_eod_price_records_ignore_existing(lake, records)
     log.info(
@@ -466,6 +458,46 @@ def load_eod_price_coverage_gaps(
     ]
     log.info("price.coverage_gaps_loaded", gaps=len(gaps), exchange=len(provider_exchange_codes))
     return gaps
+
+
+@task(name="load-eod-latest-expected-exchange-dates")
+def load_eod_latest_expected_exchange_dates(
+    provider_exchange_codes: list[str],
+    as_of_date: date,
+) -> dict[str, date]:
+    """Return the expected latest EOD date per exchange from the trading-day control surface."""
+    from core.clients.lake import get_lake_client
+    from domains.instrument.universe import (
+        EOD_PRICE_EXCHANGE_TRADING_DAY_TABLE,
+        require_silver_ingestion_model,
+    )
+
+    codes = sorted(set(provider_exchange_codes))
+    if not codes:
+        return {}
+
+    lake = get_lake_client()
+    trading_day_q = require_silver_ingestion_model(
+        lake,
+        EOD_PRICE_EXCHANGE_TRADING_DAY_TABLE,
+        build_hint="dbt-build/exchange-build",
+    )
+    code_placeholders = ", ".join("?" for _ in codes)
+    rows = lake.query_file(
+        _SQL_DIR / "load_latest_expected_exchange_dates.sql",
+        [str(EOD_PRICE_DATASET.provider), *codes, as_of_date.isoformat()],
+        template_context={
+            "trading_day_relation": trading_day_q,
+            "code_placeholders": code_placeholders,
+        },
+    )
+    expected_dates = {
+        str(row["provider_exchange_code"]): _coerce_date(row["latest_expected_bar_date"])
+        for row in rows
+        if row["latest_expected_bar_date"] is not None
+    }
+    log.info("price.latest_expected_dates_loaded", exchanges=len(expected_dates), as_of_date=as_of_date)
+    return expected_dates
 
 
 @task(
@@ -756,6 +788,15 @@ def _deduplicate_eod_price_records(
             continue
         records_by_key[key] = record
     return list(records_by_key.values()), duplicates
+
+
+def _coerce_date(value: object) -> date:
+    """Return a date from lake query output."""
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    return date.fromisoformat(str(value))
 
 
 def _eod_daily_bulk_already_ingested(lake: Any, *, provider_exchange_code: str, bar_date: date) -> bool:

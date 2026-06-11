@@ -31,7 +31,7 @@ The current flow mechanics cover pieces of that goal:
 | Row lineage                 | `bronze.eod_price.ingestion_mode` records whether the current stored bar came from `daily_bulk` or `historical_backfill`; this is not part of the Bronze unique key.                                                                                                     |
 | Provider no-data            | A successful provider fetch plus landing write with zero rows records terminal `no_data` coverage for the exact instrument/window.                                                                                                                                       |
 | Provider quota stop         | Submitted 429 failures and unsubmitted quota-deferred work are not marked no-data, so they remain retryable. Deferred coverage is audit metadata only.                                                                                                                   |
-| Parser rejects              | Bad rows are recorded as rejections. All-rows-rejected payloads stay retryable rather than becoming terminal no-data coverage.                                                                                                                                           |
+| Parser rejects              | Bad rows are recorded as rejections. Payloads with any rejected rows stay retryable for terminal coverage purposes rather than being marked exact-window completed/no-data.                                                                                              |
 | Exchange calendars          | dbt maps EODHD provider exchange codes to schedule endpoint codes, then applies working days, holidays, and early closes to decide expected trading days. Unknown mappings are surfaced instead of silently treated as closed.                                           |
 
 The new dbt control views make the invariant observable:
@@ -68,7 +68,7 @@ Use `max_provider_calls` on `eod-price-backfill/historical-backfill` to stop
 before the provider's daily call quota. For example, if the provider account has
 100k daily calls and the exchange universe is 150k instruments, run with a cap below
 100k, then re-run the next day with the same `from_date`/`to_date` window. The next run
-recomputes pending instruments from the Silver backfill status view and
+recomputes pending instruments from the Silver instrument-day coverage view and
 Silver exact-window terminal coverage, then continues with the remaining instruments.
 
 If the provider returns HTTP 429, the flow stops scheduling later batches. The
@@ -80,19 +80,19 @@ written for quota failures. Deferred instruments stay pending for the next run.
 
 Cross-domain pipeline table; EOD backfill uses:
 
-| Field           | EOD value                                                                                                                                                      |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `domain`        | `eod_price`                                                                                                                                                    |
-| `unit_type`     | `instrument_backfill`                                                                                                                                          |
-| `unit_key_json` | `{provider_exchange_code, provider_instrument_code, from_date, to_date}`                                                                                       |
-| `status`        | `completed` after valid Bronze rows are written; `no_data` after fetch+landing returned no rows; `provider_quota_deferred` for unsubmitted quota-deferred work |
-| `reason`        | `price_rows_completed`, `no_valid_rows`, or the quota deferral reason                                                                                          |
+| Field           | EOD value                                                                                                                                                                            |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `domain`        | `eod_price`                                                                                                                                                                          |
+| `unit_type`     | `instrument_backfill`                                                                                                                                                                |
+| `unit_key_json` | `{provider_exchange_code, provider_instrument_code, from_date, to_date}`                                                                                                             |
+| `status`        | `completed` after valid Bronze rows are written with no rejected rows; `no_data` after fetch+landing returned no rows; `provider_quota_deferred` for unsubmitted quota-deferred work |
+| `reason`        | `price_rows_completed`, `no_valid_rows`, or the quota deferral reason                                                                                                                |
 
 Helpers: `domains/eod_price/coverage.py` (unit key builder), `core/ingestion/coverage.py` (generic write/idempotency). dbt exposes EOD terminal rows through `silver.int_eod_price_backfill_terminal_coverage`; Python pending selection does not parse coverage JSON directly.
 
 `completed` and `no_data` coverage remove an instrument from pending planning for the exact requested window. `provider_quota_deferred` is an audit row for unsubmitted work and deliberately leaves the instrument pending.
 
-**Not written** as `no_data` for fetch failures, HTTP 429, or all-rows-rejected parser outcomes - those instruments stay pending (Bronze idempotency handles completed instruments).
+**Not written** as terminal coverage for fetch failures, HTTP 429, all-rows-rejected parser outcomes, or mixed valid/rejected parser outcomes - those instruments stay pending (Bronze idempotency handles valid inserted rows).
 
 Fundamentals also uses the same table with `domain = 'fundamental'`, `unit_type = 'instrument_snapshot'`, and
 `status = 'provider_quota_deferred'` for instrument snapshots skipped after credit or rate-limit exhaustion.
@@ -118,6 +118,9 @@ no blocking `missing_price` or `unknown_calendar` gap. If the previous daily run
 was partial, rerunning the same explicit exchange/date fetches again and inserts
 only still-missing Bronze keys. Provider-latest runs with no `trade_date` still
 fetch first because the bar date is unknown before the provider response.
+When `run_dbt_build=true`, provider-latest runs compare the returned provider
+date with the latest expected exchange trading date from `silver.int_exchange_trading_day`;
+a mismatch is audited as `partial`, and the coverage gate checks the expected date.
 
 ## Local smoke
 

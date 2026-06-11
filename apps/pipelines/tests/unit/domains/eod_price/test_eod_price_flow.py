@@ -12,7 +12,7 @@ from core.clients.http.base import ProviderRateLimitError
 from core.ingestion import BronzeWrite, LandingWrite, RunUnitTally
 from core.ingestion.run_tracking import UnitStatus
 from domains.eod_price import flows
-from providers.eodhd.models import EODPriceBarRaw
+from providers.eodhd.models import EODBulkPriceRaw, EODPriceBarRaw
 
 FROM_DATE = date(2026, 5, 1)
 TO_DATE = date(2026, 5, 31)
@@ -153,6 +153,22 @@ def _valid_bar() -> EODPriceBarRaw:
     )
 
 
+def _bulk_row(*, code: str = "AAPL", row_date: date = TO_DATE) -> EODBulkPriceRaw:
+    """Build a provider bulk row for daily flow tests."""
+    return EODBulkPriceRaw.model_validate(
+        {
+            "code": code,
+            "date": row_date.isoformat(),
+            "open": 100.0,
+            "high": 110.0,
+            "low": 90.0,
+            "close": 105.0,
+            "volume": 100,
+            "adjusted_close": 105.0,
+        }
+    )
+
+
 @pytest.mark.asyncio
 async def test_eod_daily_explicit_trade_date_skips_already_ingested_exchange(
     monkeypatch: pytest.MonkeyPatch,
@@ -249,6 +265,104 @@ async def test_eod_daily_coverage_gate_marks_run_partial(monkeypatch: pytest.Mon
     assert run.completed_status == "partial"
     assert coverage_gate["status"] == "failed"
     assert coverage_gate["by_status"] == {"missing_price": 1}
+
+
+@pytest.mark.asyncio
+async def test_eod_daily_no_data_still_runs_coverage_gate(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Explicit daily no-data skips should still be audited partial when coverage has gaps."""
+    run = FakeRun()
+    build_calls: list[dict[str, object]] = []
+
+    async def fetch(**_: object) -> list[object]:
+        return []
+
+    async def dbt_build(**kwargs: object) -> dict[str, object]:
+        build_calls.append(kwargs)
+        return {"enabled": True, "triggered": True, "build": "price-build"}
+
+    def load_gaps(**kwargs: object) -> list[dict[str, object]]:
+        assert kwargs["exchange_dates"] == {"US": TO_DATE}
+        return [
+            {
+                "data_provider": "eodhd",
+                "provider_exchange_code": "US",
+                "bar_date": TO_DATE,
+                "exchange_day_status": "missing_price",
+                "expected_instruments": 2,
+                "priced_instruments": 0,
+                "missing_price_instruments": 2,
+                "known_no_data_instruments": 0,
+                "unknown_calendar_instruments": 0,
+            }
+        ]
+
+    monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
+    monkeypatch.setattr(flows, "eod_price_already_ingested", lambda *_: False)
+    monkeypatch.setattr(flows, "fetch_eod_price_bulk", fetch)
+    monkeypatch.setattr(flows, "run_dbt_build_deployment", dbt_build)
+    monkeypatch.setattr(flows, "load_eod_price_coverage_gaps", load_gaps)
+
+    summary = await flows.eod_price_flow.fn(trade_date=TO_DATE, provider_exchange_codes=["US"], run_dbt_build=True)
+    coverage_gate = cast(dict[str, object], summary["coverage_gate"])
+
+    assert build_calls == [
+        {
+            "build": "price-build",
+            "parent_run_id": "run-1",
+            "idempotency_key": "run-1:price-build",
+            "tags": ["post-ingestion-dbt", "price-build"],
+        }
+    ]
+    assert run.completed_status == "partial"
+    assert coverage_gate["status"] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_eod_daily_provider_latest_date_mismatch_is_partial(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Provider-latest daily runs should not silently accept stale provider dates."""
+    run = FakeRun()
+    returned_date = date(2026, 5, 30)
+
+    async def fetch(**_: object) -> list[EODBulkPriceRaw]:
+        return [_bulk_row(row_date=returned_date)]
+
+    async def write_landing(*_: object, **__: object) -> LandingWrite:
+        return LandingWrite(
+            dataset="eod_price.daily",
+            source_uri="s3://bucket/daily.jsonl",
+            partition={"provider_exchange_code": "US", "bar_date": returned_date},
+            rows_raw=1,
+        )
+
+    async def dbt_build(**_: object) -> dict[str, object]:
+        return {"enabled": True, "triggered": True, "build": "price-build"}
+
+    gap_calls: list[dict[str, object]] = []
+
+    def load_gaps(**kwargs: object) -> list[dict[str, object]]:
+        gap_calls.append(kwargs)
+        return []
+
+    monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
+    monkeypatch.setattr(flows, "load_eod_latest_expected_exchange_dates", lambda *_: {"US": TO_DATE})
+    monkeypatch.setattr(flows, "fetch_eod_price_bulk", fetch)
+    monkeypatch.setattr(flows, "write_eod_price_to_landing", write_landing)
+    monkeypatch.setattr(flows, "parse_eod_price", lambda *_args, **_kwargs: ([object()], []))
+    monkeypatch.setattr(flows, "write_bronze_eod_price", lambda *_args, **_kwargs: BronzeWrite(rows_written=1))
+    monkeypatch.setattr(flows, "run_dbt_build_after_ingestion", dbt_build)
+    monkeypatch.setattr(flows, "load_eod_price_coverage_gaps", load_gaps)
+
+    summary = await flows.eod_price_flow.fn(provider_exchange_codes=["US"], run_dbt_build=True)
+
+    assert run.completed_status == "partial"
+    assert summary["latest_date_mismatches"] == [
+        {
+            "provider_exchange_code": "US",
+            "provider_bar_date": returned_date.isoformat(),
+            "expected_bar_date": TO_DATE.isoformat(),
+        }
+    ]
+    assert gap_calls[0]["exchange_dates"] == {"US": TO_DATE}
 
 
 @pytest.mark.asyncio
@@ -529,3 +643,42 @@ async def test_eod_backfill_all_rejected_rows_do_not_write_no_data_coverage(
 
     assert summary["provider_quota_exhausted"] is False
     assert [unit.get("reason") for unit in run.units] == ["all_rows_rejected", None]
+
+
+@pytest.mark.asyncio
+async def test_eod_backfill_mixed_valid_and_rejected_rows_do_not_write_completed_coverage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Mixed parser outcomes should write valid bars but keep the exact window retryable."""
+    run = FakeRun()
+    completed_calls: list[dict[str, object]] = []
+
+    async def fetch(_: str, __: str, ___: date, ____: date) -> list[EODPriceBarRaw]:
+        return [_valid_bar(), _rejected_bar()]
+
+    def fail_no_data_coverage(**_: object) -> BronzeWrite:
+        raise AssertionError("mixed valid/rejected rows should not be marked no_data")
+
+    def record_completed(**kwargs: object) -> BronzeWrite:
+        completed_calls.append(kwargs)
+        return BronzeWrite(rows_written=1)
+
+    monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
+    monkeypatch.setattr(flows, "load_backfill_pending_instruments", lambda *_: ["AAPL"])
+    monkeypatch.setattr(flows, "fetch_instrument_eod_history", fetch)
+    monkeypatch.setattr(flows, "write_instrument_eod_history_to_landing", _write_empty_landing)
+    monkeypatch.setattr(flows, "write_backfill_eod_batch", lambda sources, **_: BronzeWrite(rows_written=len(sources)))
+    monkeypatch.setattr(flows, "write_eod_backfill_coverage", fail_no_data_coverage)
+    monkeypatch.setattr(flows, "write_eod_backfill_completed_coverage", record_completed)
+
+    summary = await flows.eod_price_backfill_flow.fn(
+        from_date=FROM_DATE,
+        to_date=TO_DATE,
+        provider_exchange_codes=["US"],
+        batch_size=1,
+    )
+
+    assert completed_calls == []
+    assert summary["failed_instruments"] == []
+    assert run.completed_status == "partial"
+    assert [unit.get("reason") for unit in run.units] == [None, None]

@@ -40,6 +40,7 @@ from domains.eod_price.tasks import (
     fetch_eod_provider_exchange_codes,
     fetch_instrument_eod_history,
     load_backfill_pending_instruments,
+    load_eod_latest_expected_exchange_dates,
     load_eod_price_coverage_gaps,
     load_missing_eod_backfill_selection_views,
     parse_eod_price,
@@ -87,10 +88,15 @@ async def eod_price_flow(
     total_valid = 0
     total_rejected = 0
     coverage_exchange_dates: dict[str, date] = {}
+    latest_expected_dates = (
+        load_eod_latest_expected_exchange_dates(codes, date.today()) if trade_date is None and run_dbt_build else {}
+    )
+    latest_date_mismatches: list[dict[str, str]] = []
     summary: dict = {
         "trade_date": trade_date.isoformat() if trade_date else None,
         "exchange": {},
         "failed": [],
+        "latest_date_mismatches": latest_date_mismatches,
     }
 
     tracker = PipelineRunTracker()
@@ -157,8 +163,9 @@ async def eod_price_flow(
                             trade_date=trade_date,
                         )
                         summary["exchange"][provider_exchange_code] = {"bar_date": None, "rows_written": 0}
-                        if trade_date is not None:
-                            coverage_exchange_dates[provider_exchange_code] = trade_date
+                        coverage_date = trade_date or latest_expected_dates.get(provider_exchange_code)
+                        if coverage_date is not None:
+                            coverage_exchange_dates[provider_exchange_code] = coverage_date
                         can_mark_failed = False
                         run.record_unit(
                             unit_type="exchange_date",
@@ -176,6 +183,15 @@ async def eod_price_flow(
                         continue
 
                     bar_date = trade_date or infer_bulk_bar_date(raw_rows)
+                    expected_bar_date = latest_expected_dates.get(provider_exchange_code)
+                    if trade_date is None and expected_bar_date is not None and bar_date != expected_bar_date:
+                        mismatch = {
+                            "provider_exchange_code": provider_exchange_code,
+                            "provider_bar_date": bar_date.isoformat(),
+                            "expected_bar_date": expected_bar_date.isoformat(),
+                        }
+                        latest_date_mismatches.append(mismatch)
+                        log.warning("price.latest_date_mismatch", **mismatch)
                     landing = await write_eod_price_to_landing(
                         raw_rows,
                         provider_exchange_code=provider_exchange_code,
@@ -198,9 +214,10 @@ async def eod_price_flow(
 
                     summary["exchange"][provider_exchange_code] = {
                         "bar_date": bar_date.isoformat(),
+                        "expected_bar_date": expected_bar_date.isoformat() if expected_bar_date else None,
                         "rows_written": bronze.rows_written,
                     }
-                    coverage_exchange_dates[provider_exchange_code] = bar_date
+                    coverage_exchange_dates[provider_exchange_code] = expected_bar_date or bar_date
                     total_written += bronze.rows_written
                     can_mark_failed = False
                     unit_id = run.record_unit_with_landing(
@@ -284,6 +301,8 @@ async def eod_price_flow(
                     to_date=trade_date,
                     exchange_dates=coverage_exchange_dates,
                 )
+            if latest_date_mismatches and run_status == "completed":
+                run_status = "partial"
             run.complete(
                 status=run_status,
                 counters=run.tally.counters(
@@ -393,12 +412,21 @@ async def _run_price_post_ingestion_checks(
 ) -> RunStatus:
     """Run dbt and downgrade the audit status when the coverage gate finds gaps."""
     reset_lake_client()
-    summary["dbt_build"] = await run_dbt_build_after_ingestion(
-        enabled=True,
-        build="price-build",
-        upstream_status=upstream_status,
-        parent_run_id=parent_run_id,
-    )
+    force_skipped_gate = upstream_status == "skipped" and bool(exchange_dates)
+    if force_skipped_gate:
+        summary["dbt_build"] = await run_dbt_build_deployment(
+            build="price-build",
+            parent_run_id=parent_run_id,
+            idempotency_key=f"{parent_run_id}:price-build",
+            tags=["post-ingestion-dbt", "price-build"],
+        )
+    else:
+        summary["dbt_build"] = await run_dbt_build_after_ingestion(
+            enabled=True,
+            build="price-build",
+            upstream_status=upstream_status,
+            parent_run_id=parent_run_id,
+        )
     reset_lake_client()
     dbt_build = summary["dbt_build"]
     if not isinstance(dbt_build, dict) or not dbt_build.get("triggered"):
@@ -790,15 +818,16 @@ async def eod_price_backfill_flow(
                             )
                         if valid:
                             batch_sources.extend(attach_source_uri(valid, landing.source_uri))
-                            completed_coverage_outcomes.append(
-                                {
-                                    "provider_instrument_code": provider_instrument_code,
-                                    "rows_raw": len(result),
-                                    "rows_valid": len(valid),
-                                    "rows_rejected": rejected,
-                                    "source_uri": landing.source_uri,
-                                }
-                            )
+                            if not rejected_rows:
+                                completed_coverage_outcomes.append(
+                                    {
+                                        "provider_instrument_code": provider_instrument_code,
+                                        "rows_raw": len(result),
+                                        "rows_valid": len(valid),
+                                        "rows_rejected": rejected,
+                                        "source_uri": landing.source_uri,
+                                    }
+                                )
                         elif not result:
                             write_eod_backfill_coverage(
                                 run_id=str(run.run_id),
@@ -852,6 +881,7 @@ async def eod_price_backfill_flow(
                         )
                         batch_written = bronze_batch.rows_written
                         exchange_written += batch_written
+                    if completed_coverage_outcomes:
                         write_eod_backfill_completed_coverage(
                             run_id=str(run.run_id),
                             provider_exchange_code=provider_exchange_code,

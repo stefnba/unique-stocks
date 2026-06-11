@@ -701,6 +701,39 @@ def test_daily_already_ingested_allows_retry_when_coverage_has_gap(
     assert after_gate is False
 
 
+def test_daily_bulk_write_repairs_missing_symbols_when_partition_exists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A partial daily partition should still insert missing provider instruments."""
+    lake = DataLakeClient(connection_string=":memory:")
+    import core.clients.lake as lake_module
+
+    monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
+
+    first = _eod_source("US", "AAPL", TO_DATE, ingestion_mode="daily_bulk")
+    repair = [
+        _eod_source("US", "AAPL", TO_DATE, ingestion_mode="daily_bulk"),
+        _eod_source("US", "MSFT", TO_DATE, ingestion_mode="daily_bulk"),
+    ]
+
+    first_write = tasks.write_bronze_eod_price.fn([first], provider_exchange_code="US", bar_date=TO_DATE)
+    repair_write = tasks.write_bronze_eod_price.fn(repair, provider_exchange_code="US", bar_date=TO_DATE)
+
+    rows = lake.load(
+        "eod_price",
+        schema="bronze",
+        columns=["provider_instrument_code", "ingestion_mode"],
+        order_by="provider_instrument_code",
+    )
+    assert first_write.rows_written == 1
+    assert repair_write.rows_written == 1
+    assert repair_write.reason is None
+    assert rows == [
+        {"provider_instrument_code": "AAPL", "ingestion_mode": "daily_bulk"},
+        {"provider_instrument_code": "MSFT", "ingestion_mode": "daily_bulk"},
+    ]
+
+
 def _eod_source(
     provider_exchange_code: str,
     provider_instrument_code: str,
