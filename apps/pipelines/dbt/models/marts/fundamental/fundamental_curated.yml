@@ -1,0 +1,372 @@
+version: 2
+
+models:
+  - name: fct_fundamental_statement
+    description: Gold long-form financial statement facts for stock fundamentals.
+    columns:
+      - name: fundamental_statement_pk
+        description: Deterministic hashed primary key for one statement metric observation.
+        data_tests:
+          - not_null
+          - unique
+      - name: instrument_pk
+        description: Foreign key to dim_instrument_core when the statement belongs to an active tradable instrument.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_instrument_core')
+                field: instrument_pk
+      - name: data_provider
+        description: Provider that supplied the statement metric.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [eodhd]
+      - name: provider_exchange_code
+        description: Provider exchange code for the provider instrument namespace.
+        data_tests:
+          - not_null
+      - name: provider_instrument_code
+        description: Provider stock instrument code.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Snapshot date for the fundamentals document.
+        data_tests:
+          - not_null
+      - name: statement_type
+        description: Statement family.
+        data_tests:
+          - not_null
+      - name: period_type
+        description: Reporting cadence.
+        data_tests:
+          - not_null
+      - name: period_end_date
+        description: Financial reporting period end date.
+        data_tests:
+          - not_null
+      - name: metric_name
+        description: Provider metric name.
+        data_tests:
+          - not_null
+      - name: metric_value
+        description: Numeric statement metric value.
+        data_tests:
+          - not_null
+      - name: ingested_at
+        description: Timestamp when the metric row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: fct_fundamental_earnings
+    description: Gold long-form stock earnings facts.
+    columns:
+      - name: fundamental_earnings_pk
+        description: Deterministic hashed primary key for one earnings metric observation.
+        data_tests:
+          - not_null
+          - unique
+      - name: instrument_pk
+        description: Foreign key to dim_instrument_core when the earnings row belongs to an active tradable instrument.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_instrument_core')
+                field: instrument_pk
+      - name: data_provider
+        description: Provider that supplied the earnings metric.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [eodhd]
+      - name: provider_exchange_code
+        description: Provider exchange code for the provider instrument namespace.
+        data_tests:
+          - not_null
+      - name: provider_instrument_code
+        description: Provider stock instrument code.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Snapshot date for the fundamentals document.
+        data_tests:
+          - not_null
+      - name: earnings_section
+        description: Provider earnings subsection.
+        data_tests:
+          - not_null
+      - name: fiscal_period_end
+        description: Fiscal period end date associated with the earnings metric.
+        data_tests:
+          - not_null
+      - name: metric_name
+        description: Provider metric name.
+        data_tests:
+          - not_null
+      - name: metric_value
+        description: Numeric earnings metric value.
+        data_tests:
+          - not_null
+      - name: ingested_at
+        description: Timestamp when the metric row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: fct_fundamental_outstanding_share
+    description: Gold outstanding-share observations for stock fundamentals.
+    columns:
+      - name: fundamental_outstanding_share_pk
+        description: Deterministic hashed primary key for one outstanding-share observation.
+        data_tests:
+          - not_null
+          - unique
+      - name: instrument_pk
+        description: Foreign key to dim_instrument_core when the observation belongs to an active tradable instrument.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_instrument_core')
+                field: instrument_pk
+      - name: data_provider
+        description: Provider that supplied the outstanding-share row.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [eodhd]
+      - name: provider_exchange_code
+        description: Provider exchange code for the provider instrument namespace.
+        data_tests:
+          - not_null
+      - name: provider_instrument_code
+        description: Provider stock instrument code.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Snapshot date for the fundamentals document.
+        data_tests:
+          - not_null
+      - name: period_type
+        description: Provider period family.
+        data_tests:
+          - not_null
+      - name: provider_period_label
+        description: Provider period label.
+        data_tests:
+          - not_null
+      - name: period_end_date
+        description: Period end date supplied or inferred from the provider period label.
+        data_tests:
+          - not_null
+      - name: ingested_at
+        description: Timestamp when the observation was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: fct_fundamental_holder
+    description: Gold holder rows for stock fundamentals.
+    columns:
+      - name: fundamental_holder_pk
+        description: Deterministic hashed primary key for one holder row.
+        data_tests:
+          - not_null
+          - unique
+      - name: instrument_pk
+        description: Foreign key to dim_instrument_core when the holder row belongs to an active tradable instrument.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_instrument_core')
+                field: instrument_pk
+      - name: data_provider
+        description: Provider that supplied the holder row.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [eodhd]
+      - name: provider_exchange_code
+        description: Provider exchange code for the provider instrument namespace.
+        data_tests:
+          - not_null
+      - name: provider_instrument_code
+        description: Provider stock instrument code.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Snapshot date for the fundamentals document.
+        data_tests:
+          - not_null
+      - name: holder_type
+        description: Provider holder category.
+        data_tests:
+          - not_null
+      - name: holder_name
+        description: Holder display name.
+        data_tests:
+          - not_null
+      - name: ingested_at
+        description: Timestamp when the holder row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: fct_fundamental_insider_transaction
+    description: Gold insider transaction rows for stock fundamentals.
+    columns:
+      - name: fundamental_insider_transaction_pk
+        description: Deterministic hashed primary key for one insider transaction row.
+        data_tests:
+          - not_null
+          - unique
+      - name: instrument_pk
+        description: Foreign key to dim_instrument_core when the transaction belongs to an active tradable instrument.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_instrument_core')
+                field: instrument_pk
+      - name: data_provider
+        description: Provider that supplied the transaction.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [eodhd]
+      - name: provider_exchange_code
+        description: Provider exchange code for the provider instrument namespace.
+        data_tests:
+          - not_null
+      - name: provider_instrument_code
+        description: Provider stock instrument code.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Snapshot date for the fundamentals document.
+        data_tests:
+          - not_null
+      - name: transaction_date
+        description: Insider transaction date.
+        data_tests:
+          - not_null
+      - name: transaction_code
+        description: Provider transaction code.
+        data_tests:
+          - not_null
+      - name: ingested_at
+        description: Timestamp when the transaction row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: fct_fundamental_fund_holding
+    description: Gold holdings for ETF and mutual-fund fundamentals in one normalized shape.
+    columns:
+      - name: fundamental_fund_holding_pk
+        description: Deterministic hashed primary key for one fund holding row.
+        data_tests:
+          - not_null
+          - unique
+      - name: instrument_pk
+        description: Foreign key to dim_instrument_core when the holding belongs to an active tradable fund instrument.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_instrument_core')
+                field: instrument_pk
+      - name: data_provider
+        description: Provider that supplied the holding.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [eodhd]
+      - name: provider_exchange_code
+        description: Provider exchange code for the parent fund instrument namespace.
+        data_tests:
+          - not_null
+      - name: provider_instrument_code
+        description: Provider parent fund instrument code.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Snapshot date for the fundamentals document.
+        data_tests:
+          - not_null
+      - name: instrument_family
+        description: Parent instrument family.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [etf, fund]
+      - name: holding_source
+        description: Staging source used for the holding row.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [etf_holding, mutual_fund_holding]
+      - name: holding_name
+        description: Holding display name.
+        data_tests:
+          - not_null
+      - name: weight_percent
+        description: Provider-reported portfolio weight percentage.
+      - name: ingested_at
+        description: Timestamp when the holding row was written to Bronze.
+        data_tests:
+          - not_null
+
+  - name: fct_fundamental_index_component
+    description: Gold current and historical index component rows.
+    columns:
+      - name: fundamental_index_component_pk
+        description: Deterministic hashed primary key for one index component row.
+        data_tests:
+          - not_null
+          - unique
+      - name: instrument_pk
+        description: Foreign key to dim_instrument_core when the component belongs to an active tradable index instrument.
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_instrument_core')
+                field: instrument_pk
+      - name: data_provider
+        description: Provider that supplied the component.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [eodhd]
+      - name: provider_exchange_code
+        description: Provider exchange code for the parent index instrument namespace.
+        data_tests:
+          - not_null
+      - name: provider_instrument_code
+        description: Provider parent index instrument code.
+        data_tests:
+          - not_null
+      - name: snapshot_date
+        description: Snapshot date for the fundamentals document.
+        data_tests:
+          - not_null
+      - name: component_source
+        description: Whether the row came from the current or historical index component payload.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [current_component, historical_component]
+      - name: component_provider_instrument_code
+        description: Provider instrument code for the component security.
+        data_tests:
+          - not_null
+      - name: component_name
+        description: Component display name.
+      - name: ingested_at
+        description: Timestamp when the component row was written to Bronze.
+        data_tests:
+          - not_null

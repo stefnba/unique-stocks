@@ -1,6 +1,81 @@
 version: 2
 
 models:
+  - name: dim_instrument_core
+    description: Gold active tradable instrument dimension built only from the latest provider instrument universe.
+    columns:
+      - name: instrument_pk
+        description: Deterministic hashed primary key for one active tradable provider instrument.
+        data_tests:
+          - not_null
+          - unique
+      - name: data_provider
+        description: Provider that supplies the instrument.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: provider_exchange_code
+        description: Provider exchange code used for instrument and market-data requests.
+        data_tests:
+          - not_null
+      - name: provider_code_kind
+        description: Provider-code classification from the exchange ingestion universe.
+      - name: provider_code_source_kind
+        description: Source of the provider code in the operational universe.
+      - name: exchange_catalog_name
+        description: Provider exchange display name from the ingestion universe.
+      - name: exchange_country_iso2
+        description: Provider exchange country ISO code.
+      - name: exchange_currency
+        description: Provider exchange currency.
+      - name: provider_instrument_code
+        description: Provider instrument code.
+        data_tests:
+          - not_null
+      - name: instrument_name
+        description: Provider display name from the latest instrument list.
+        data_tests:
+          - not_null
+      - name: provider_listing_exchange_code
+        description: Exchange-like code supplied on the individual instrument row.
+      - name: currency_code
+        description: Trading or quote currency when supplied by the instrument list.
+      - name: country_name
+        description: Provider instrument country label when supplied by the instrument list.
+      - name: asset_type
+        description: Provider asset type label.
+      - name: normalized_asset_type
+        description: Lowercase provider asset type used for classification.
+      - name: instrument_family
+        description: Broad instrument family from the latest instrument universe.
+        data_tests:
+          - not_null
+      - name: isin
+        description: International Securities Identification Number.
+      - name: is_stock
+        description: True when the instrument is stock-like.
+        data_tests:
+          - not_null
+      - name: is_fund_like
+        description: True when the instrument is ETF or fund-like.
+        data_tests:
+          - not_null
+      - name: has_isin
+        description: True when the instrument list supplied an ISIN.
+        data_tests:
+          - not_null
+      - name: instrument_snapshot_date
+        description: Instrument snapshot date used for this active instrument.
+        data_tests:
+          - not_null
+      - name: instrument_ingested_at
+        description: Timestamp when the selected instrument row was written to Bronze.
+        data_tests:
+          - not_null
+
   - name: dim_instrument
     description: Gold current tradable instrument dimension enriched with latest fundamentals where available.
     columns:

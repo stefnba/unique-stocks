@@ -4,8 +4,23 @@ sources:
   - name: bronze
     description: Typed Bronze tables written by the Python ingestion app.
     schema: bronze
+    loaded_at_field: ingested_at
+    freshness:
+      warn_after:
+        count: 100
+        period: day
+      error_after:
+        count: 130
+        period: day
     tables:
       - name: eod_price
+        freshness:
+          warn_after:
+            count: 36
+            period: hour
+          error_after:
+            count: 72
+            period: hour
         description: End-of-day OHLCV bars from market data providers.
         columns:
           - name: ingestion_id
@@ -42,6 +57,13 @@ sources:
             description: Timestamp when the row was written to Bronze.
 
       - name: exchange_catalog
+        freshness:
+          warn_after:
+            count: 30
+            period: day
+          error_after:
+            count: 60
+            period: day
         description: Provider-supported exchange/API catalog snapshots.
         columns:
           - name: snapshot_date
@@ -72,6 +94,13 @@ sources:
             description: Timestamp when the row was written to Bronze.
 
       - name: exchange_mic_registry
+        freshness:
+          warn_after:
+            count: 30
+            period: day
+          error_after:
+            count: 60
+            period: day
         description: ISO 10383 MIC registry snapshots.
         columns:
           - name: snapshot_date
@@ -122,6 +151,13 @@ sources:
             description: Timestamp when the row was written to Bronze.
 
       - name: exchange_schedule
+        freshness:
+          warn_after:
+            count: 10
+            period: day
+          error_after:
+            count: 21
+            period: day
         description: Trading-hours snapshots from provider schedule endpoints.
         columns:
           - name: snapshot_date
@@ -162,6 +198,13 @@ sources:
             description: Timestamp when the row was written to Bronze.
 
       - name: exchange_holiday
+        freshness:
+          warn_after:
+            count: 10
+            period: day
+          error_after:
+            count: 21
+            period: day
         description: Exchange holiday snapshots from provider schedule endpoints.
         columns:
           - name: snapshot_date
@@ -188,6 +231,13 @@ sources:
             description: Timestamp when the row was written to Bronze.
 
       - name: instrument
+        freshness:
+          warn_after:
+            count: 10
+            period: day
+          error_after:
+            count: 14
+            period: day
         description: Tradable instrument reference snapshots from market data providers.
         columns:
           - name: snapshot_date

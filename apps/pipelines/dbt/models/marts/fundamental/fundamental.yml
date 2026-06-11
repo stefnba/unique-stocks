@@ -152,11 +152,11 @@ models:
           - not_null
           - unique
       - name: instrument_pk
-        description: Foreign key to dim_instrument when the metric belongs to a tradable instrument.
+        description: Foreign key to dim_instrument_core when the metric belongs to an active tradable instrument.
         data_tests:
           - relationships:
               arguments:
-                to: ref('dim_instrument')
+                to: ref('dim_instrument_core')
                 field: instrument_pk
       - name: data_provider
         description: Provider that supplied the metric.

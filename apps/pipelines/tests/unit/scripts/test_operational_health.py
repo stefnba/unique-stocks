@@ -22,6 +22,7 @@ class FakeOperationalLake:
         self.stale_rows = stale_rows or []
         self.recent_rows = recent_rows or {}
         self.closed = False
+        self.last_query = ""
 
     def table_exists(self, schema: str, table: str) -> bool:
         """Return whether the fake exposes pipeline.runs."""
@@ -34,7 +35,7 @@ class FakeOperationalLake:
 
     def query_one(self, sql: str, params: Sequence[Any] | None = None) -> dict[str, Any] | None:
         """Return the configured latest row for a requested domain."""
-        _ = sql
+        self.last_query = sql
         domain = str((params or [""])[0])
         return self.recent_rows.get(domain)
 
@@ -53,7 +54,7 @@ def test_stale_running_runs_reports_missing_audit_table() -> None:
 
 
 def test_recent_domain_runs_requires_each_configured_domain() -> None:
-    """Each requested domain should have a recent terminal run."""
+    """Each requested domain should have a recent completed run."""
     recent: dict[str, dict[str, Any] | None] = {
         "eod_price": {
             "run_id": "018f0000-0000-7000-8000-000000000001",
@@ -73,6 +74,21 @@ def test_recent_domain_runs_requires_each_configured_domain() -> None:
 
     assert rows["eod_price"] is recent["eod_price"]
     assert rows["fundamental"] is None
+
+
+def test_recent_domain_runs_requires_completed_status() -> None:
+    """Partial and skipped runs should not satisfy production freshness."""
+    lake = FakeOperationalLake(recent_rows={"eod_price": None})
+
+    check_operational_health.recent_domain_runs(
+        lake,
+        domains=["eod_price"],
+        since=datetime.now(UTC) - timedelta(hours=36),
+    )
+
+    assert "status = 'completed'" in lake.last_query
+    assert "partial" not in lake.last_query
+    assert "skipped" not in lake.last_query
 
 
 def test_configured_recent_domains_uses_cli_values(monkeypatch: Any) -> None:

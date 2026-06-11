@@ -10,11 +10,11 @@ models:
           - not_null
           - unique
       - name: instrument_pk
-        description: Foreign key to dim_instrument when the priced instrument is in the tradable instrument dimension.
+        description: Foreign key to dim_instrument_core when the priced instrument is in the active tradable instrument universe.
         data_tests:
           - relationships:
               arguments:
-                to: ref('dim_instrument')
+                to: ref('dim_instrument_core')
                 field: instrument_pk
       - name: data_provider
         description: Provider that supplied the record.

@@ -42,7 +42,7 @@ instrument AS (
         data_provider,
         provider_exchange_code,
         provider_instrument_code
-    FROM {{ ref('dim_instrument') }}
+    FROM {{ ref('dim_instrument_core') }}
 ),
 
 final AS (

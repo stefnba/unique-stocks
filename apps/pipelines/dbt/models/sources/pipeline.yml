@@ -4,6 +4,14 @@ sources:
   - name: pipeline
     description: Pipeline metadata tables used for orchestration, auditing, and ingestion-control decisions.
     schema: pipeline
+    loaded_at_field: recorded_at
+    freshness:
+      warn_after:
+        count: 30
+        period: day
+      error_after:
+        count: 60
+        period: day
     tables:
       - name: ingestion_coverage
         description: Durable non-Bronze coverage outcomes for resumable ingestion work units.

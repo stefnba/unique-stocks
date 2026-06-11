@@ -175,7 +175,7 @@ models:
           - not_null
 
   - name: int_eod_price_provider_instrument_lifecycle
-    description: Ingestion-control view describing provider instrument price lifecycle evidence from the latest tradable universe, observed EOD price bounds, and terminal backfill coverage.
+    description: Ingestion-control view describing provider instrument price lifecycle evidence from the latest tradable universe, observed EOD price bounds, and terminal backfill coverage. This model intentionally avoids fundamentals dependencies so daily price promotion can run independently.
     config:
       tags:
         - ingestion_control

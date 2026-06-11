@@ -17,11 +17,6 @@ terminal_coverage AS (
     FROM {{ ref('int_eod_price_backfill_terminal_coverage') }}
 ),
 
-fundamental_profile AS (
-    SELECT *
-    FROM {{ ref('int_fundamental_instrument_profile') }}
-),
-
 no_data_coverage AS (
     SELECT
         data_provider,
@@ -59,20 +54,14 @@ joined AS (
         instrument.provider_instrument_code,
         instrument.instrument_family,
         instrument.is_tradable,
-        fundamental_profile.fundamental_profile_id,
-        fundamental_profile.ipo_date,
-        fundamental_profile.fund_inception_date,
-        COALESCE(fundamental_profile.ipo_date, fundamental_profile.fund_inception_date)
-            AS provider_lifecycle_start_date,
-        CASE
-            WHEN fundamental_profile.ipo_date IS NOT NULL THEN 'stock_ipo_date'
-            WHEN fundamental_profile.fund_inception_date IS NOT NULL THEN 'fund_inception_date'
-        END AS provider_lifecycle_start_date_source,
-        COALESCE(fundamental_profile.is_delisted, FALSE) AS is_delisted,
-        fundamental_profile.delisted_date AS provider_lifecycle_end_date,
-        CASE
-            WHEN fundamental_profile.delisted_date IS NOT NULL THEN 'stock_delisted_date'
-        END AS provider_lifecycle_end_date_source,
+        CAST(NULL AS VARCHAR) AS fundamental_profile_id,
+        CAST(NULL AS DATE) AS ipo_date,
+        CAST(NULL AS DATE) AS fund_inception_date,
+        CAST(NULL AS DATE) AS provider_lifecycle_start_date,
+        CAST(NULL AS VARCHAR) AS provider_lifecycle_start_date_source,
+        FALSE AS is_delisted,
+        CAST(NULL AS DATE) AS provider_lifecycle_end_date,
+        CAST(NULL AS VARCHAR) AS provider_lifecycle_end_date_source,
         price_ranges.min_bar_date AS first_observed_price_date,
         price_ranges.max_bar_date AS last_observed_price_date,
         price_ranges.bar_count AS observed_price_days,
@@ -87,10 +76,6 @@ joined AS (
             AS has_open_start_completed_coverage,
         COALESCE(completed_coverage.completed_coverage_windows, 0) AS completed_coverage_windows
     FROM instrument
-    LEFT JOIN fundamental_profile
-        ON instrument.data_provider = fundamental_profile.data_provider
-        AND instrument.provider_exchange_code = fundamental_profile.provider_exchange_code
-        AND instrument.provider_instrument_code = fundamental_profile.provider_instrument_code
     LEFT JOIN price_ranges
         ON instrument.data_provider = price_ranges.data_provider
         AND instrument.provider_exchange_code = price_ranges.provider_exchange_code

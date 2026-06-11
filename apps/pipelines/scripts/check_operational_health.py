@@ -56,7 +56,7 @@ def recent_domain_runs(
     domains: Sequence[str],
     since: datetime,
 ) -> dict[str, dict[str, object] | None]:
-    """Return the latest terminal run for each required domain since the threshold."""
+    """Return the latest completed run for each required domain since the threshold."""
     latest: dict[str, dict[str, object] | None] = {}
     if not domains:
         return latest
@@ -69,7 +69,7 @@ def recent_domain_runs(
             SELECT run_id, flow_name, domain, status, completed_at
             FROM pipeline.runs
             WHERE domain = ?
-              AND status IN ('completed', 'partial', 'skipped')
+              AND status = 'completed'
               AND completed_at >= ?
             ORDER BY completed_at DESC
             LIMIT 1
@@ -117,7 +117,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         default=None,
         help=(
-            "Require at least one recent terminal run for this domain. May be passed more than once. "
+            "Require at least one recent completed run for this domain. May be passed more than once. "
             "Defaults to OPERATIONAL_HEALTH_RECENT_DOMAINS when omitted."
         ),
     )
@@ -178,7 +178,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         missing_domains = [domain for domain, row in latest_by_domain.items() if row is None]
         if missing_domains:
-            failures.append(f"missing recent terminal run for domain(s): {', '.join(missing_domains)}")
+            failures.append(f"missing recent completed run for domain(s): {', '.join(missing_domains)}")
     except Exception as exc:
         safe_error = redact_sensitive_query_params(str(exc))
         failures.append(f"lake audit health check failed ({type(exc).__name__}: {safe_error})")

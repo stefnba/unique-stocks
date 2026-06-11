@@ -54,7 +54,7 @@ definitions:
     enforce_parameter_schema: true
     concurrency_limit:
       limit: 1
-      collision_strategy: CANCEL_NEW
+      collision_strategy: ENQUEUE
     work_pool: *default_pool
     parameters:
       command: build
@@ -142,6 +142,23 @@ deployments:
     tags: [exchange, bootstrap, manual]
     <<: *manual
 
+  - name: monthly
+    flow_name: exchange-catalog-refresh
+    description: >
+      Scheduled monthly EODHD exchange catalog refresh.
+
+      Keeps provider exchange/API catalog Bronze data current for exchange-build.
+      Schedule: First day of each month at 6am America/New_York.
+    entrypoint: domains.exchange.flows:exchange_catalog_flow
+    tags: [exchange, scheduled]
+    schedule:
+      cron: "0 6 1 * *"
+      timezone: America/New_York
+    concurrency_limit:
+      limit: 1
+      collision_strategy: CANCEL_NEW
+    <<: *scheduled
+
   - name: manual
     flow_name: exchange-mic-registry-refresh
     description: >
@@ -150,6 +167,25 @@ deployments:
     entrypoint: domains.exchange.flows:exchange_mic_registry_flow
     tags: [exchange, bootstrap, manual]
     <<: *manual
+
+  - name: monthly
+    flow_name: exchange-mic-registry-refresh
+    description: >
+      Scheduled monthly ISO 10383 MIC registry refresh.
+
+      Keeps MIC mappings current for exchange-build.
+      Schedule: First day of each month at 6:30am America/New_York.
+    entrypoint: domains.exchange.flows:exchange_mic_registry_flow
+    tags: [exchange, scheduled]
+    parameters:
+      snapshot_date: null
+    schedule:
+      cron: "30 6 1 * *"
+      timezone: America/New_York
+    concurrency_limit:
+      limit: 1
+      collision_strategy: CANCEL_NEW
+    <<: *scheduled
 
   # ═══════════════════════════════════════════════════════════════════════════
   # Exchange schedule — trading hours and holidays
@@ -173,6 +209,29 @@ deployments:
       provider_batch_delay_seconds: 0.0
       run_dbt_build: true
     <<: *manual
+
+  - name: weekly
+    flow_name: exchange-schedule-refresh
+    description: >
+      Scheduled weekly exchange trading-hours and holiday refresh.
+
+      Keeps exchange calendars current and triggers dbt-build/exchange-build after clean ingestion.
+      Schedule: Sunday 7am America/New_York.
+    entrypoint: domains.exchange_schedule.flows:exchange_schedule_flow
+    tags: [exchange, schedule, scheduled]
+    parameters:
+      snapshot_date: null
+      provider_schedule_exchange_codes: null
+      batch_size: 10
+      provider_batch_delay_seconds: 0.0
+      run_dbt_build: true
+    schedule:
+      cron: "0 7 * * 0"
+      timezone: America/New_York
+    concurrency_limit:
+      limit: 1
+      collision_strategy: CANCEL_NEW
+    <<: *scheduled
 
   # ═══════════════════════════════════════════════════════════════════════════
   # Instrument — instrument lists per exchange (requires exchange-build first)
@@ -231,6 +290,32 @@ deployments:
       batch_size: 1
       run_dbt_build: true
     <<: *manual
+
+  - name: quarterly
+    flow_name: fundamental-quarterly
+    description: >
+      Scheduled quarterly fundamentals refresh with changed-payload handling.
+
+      Re-fetches latest provider documents on the first day of each calendar quarter
+      and triggers dbt-build/fundamental-build after clean ingestion.
+      Schedule: Jan/Apr/Jul/Oct 6am America/New_York.
+    entrypoint: domains.fundamental.flows:fundamental_flow
+    tags: [fundamental, scheduled]
+    parameters:
+      skip_existing: false
+      refresh_existing: true
+      continue_ingestion_batch: true
+      batch_size: 5
+      provider_batch_delay_seconds: 1.0
+      provider_credits_per_call: 10
+      run_dbt_build: true
+    schedule:
+      cron: "0 6 1 1,4,7,10 *"
+      timezone: America/New_York
+    concurrency_limit:
+      limit: 1
+      collision_strategy: CANCEL_NEW
+    <<: *scheduled
 
   - name: backfill
     flow_name: fundamental-quarterly

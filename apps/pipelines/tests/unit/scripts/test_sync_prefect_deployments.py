@@ -21,7 +21,7 @@ APPS_PIPELINES = APP_ROOT
 def test_load_prefect_yaml_deployments() -> None:
     """The repo manifest should declare the current deployment set."""
     deployments = load_prefect_yaml_deployments(APPS_PIPELINES / DEFAULT_PREFECT_YAML)
-    assert len(deployments) == 15
+    assert len(deployments) == 19
 
 
 def test_expected_deployment_keys_matches_manifest() -> None:
@@ -32,8 +32,10 @@ def test_expected_deployment_keys_matches_manifest() -> None:
     assert DeploymentKey("eod-price-daily", "daily") in keys
     assert DeploymentKey("dbt-build", "instrument-build") in keys
     assert DeploymentKey("dbt-build", "fundamental-build") in keys
+    assert DeploymentKey("exchange-schedule-refresh", "weekly") in keys
+    assert DeploymentKey("fundamental-quarterly", "quarterly") in keys
     assert DeploymentKey("fundamental-quarterly", "replay") in keys
-    assert len(keys) == 15
+    assert len(keys) == 19
 
 
 def test_ingestion_deployments_enable_clean_post_ingestion_builds() -> None:
@@ -48,9 +50,11 @@ def test_ingestion_deployments_enable_clean_post_ingestion_builds() -> None:
         DeploymentKey("eod-price-daily", "backfill"),
         DeploymentKey("eod-price-backfill", "historical-backfill"),
         DeploymentKey("exchange-schedule-refresh", "manual"),
+        DeploymentKey("exchange-schedule-refresh", "weekly"),
         DeploymentKey("instrument-refresh", "weekly"),
         DeploymentKey("instrument-refresh", "manual"),
         DeploymentKey("fundamental-quarterly", "manual"),
+        DeploymentKey("fundamental-quarterly", "quarterly"),
         DeploymentKey("fundamental-quarterly", "backfill"),
         DeploymentKey("fundamental-quarterly", "replay"),
     ):

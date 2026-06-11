@@ -1,7 +1,6 @@
 WITH instrument AS (
     SELECT *
-    FROM {{ ref('int_latest_instrument_universe') }}
-    WHERE is_tradable
+    FROM {{ ref('dim_instrument_core') }}
 ),
 
 fundamentals AS (
@@ -27,8 +26,8 @@ final AS (
         instrument.provider_instrument_code,
         COALESCE(fundamentals.instrument_name, instrument.instrument_name) AS instrument_name,
         fundamentals.primary_ticker,
-        COALESCE(fundamentals.currency_code, instrument.currency) AS currency_code,
-        COALESCE(fundamentals.country_name, instrument.country) AS country_name,
+        COALESCE(fundamentals.currency_code, instrument.currency_code) AS currency_code,
+        COALESCE(fundamentals.country_name, instrument.country_name) AS country_name,
         fundamentals.country_iso,
         instrument.asset_type,
         instrument.normalized_asset_type,
@@ -61,8 +60,8 @@ final AS (
         fundamentals.fund_inception_date,
         fundamentals.provider_updated_at AS fundamentals_provider_updated_at,
         fundamentals.latest_snapshot_date AS fundamentals_snapshot_date,
-        instrument.snapshot_date AS instrument_snapshot_date,
-        instrument.ingested_at AS instrument_ingested_at
+        instrument.instrument_snapshot_date,
+        instrument.instrument_ingested_at
     FROM instrument
     LEFT JOIN fundamentals
         ON instrument.data_provider = fundamentals.data_provider

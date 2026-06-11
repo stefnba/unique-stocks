@@ -125,7 +125,7 @@ Runtime values such as dates, provider codes, instrument codes, limits, and hash
 template. `make sql-lint` and `make sql-format` let SQLFluff discover SQL files from the app root; add new SQL folders without touching the
 Makefile. Add focused tests for non-trivial SQL files that assert the rendered query keeps important joins, filters, and parameter ordering intact.
 
-`config/settings.py` holds environment-variable-backed settings. `config/blocks.py` defines the Prefect block registry, which wires secrets plus non-secret infrastructure values into named Prefect blocks at startup. Tasks and flows always load credentials from the block registry at runtime, not from settings directly.
+`config/settings.py` holds environment-variable-backed settings. `config/blocks.py` defines the Prefect block registry, which wires secrets plus non-secret infrastructure values into named Prefect blocks at startup. `make blocks-save` is allowed to create blank Secret/AWS blocks so they exist in the Prefect UI and can be filled in or corrected there. Tasks and flows always load credentials from the block registry at runtime, not from settings directly.
 
 ## Prerequisites
 
@@ -365,6 +365,8 @@ or full rebuilds. dbt builds read `dbt/target/run_results.json` and write dbt au
 If a post-ingestion dbt deployment fails after the ingestion audit has completed, the parent Prefect
 flow intentionally fails for alerting while `pipeline.runs` keeps the ingestion status and dbt audit
 tables carry the transformation failure details.
+The shared dbt build deployment uses a one-run queue, so overlapping clean ingestion runs wait for
+the active transform instead of cancelling a newer promotion.
 
 DuckDB allows one writer at a time. If `make lake-migrate` or `make dbt-build` reports a database lock, close any local DuckDB/Cursor/VS Code database viewer connected to `unique_stocks.duckdb` and rerun the command.
 
@@ -408,17 +410,17 @@ make dbt-build
 `prefect.yaml` registers one deployment per operational mode (scheduled, manual, backfill, build).
 Each mode maps to the same domain flow with different default parameters.
 
-| Domain                     | Deployments                                                                           | Mode                     |
-| -------------------------- | ------------------------------------------------------------------------------------- | ------------------------ |
-| EOD price (bulk)           | `eod-price-daily/daily`, `/backfill`                                                  | scheduled, backfill      |
-| EOD price (per-instrument) | `eod-price-backfill/historical-backfill`                                              | backfill                 |
-| Exchange catalog / MIC     | `exchange-catalog-refresh/manual`, `exchange-mic-registry-refresh/manual`             | bootstrap                |
-| Exchange schedule          | `exchange-schedule-refresh/manual`                                                    | manual                   |
-| Instrument                 | `instrument-refresh/weekly`, `/manual`                                                | scheduled, manual        |
-| Fundamental                | `fundamental-quarterly/manual`, `/backfill`, `/replay`                                | manual, backfill, replay |
-| dbt                        | `dbt-build/exchange-build`, `/instrument-build`, `/price-build`, `/fundamental-build` | build                    |
+| Domain                     | Deployments                                                                                       | Mode                                |
+| -------------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| EOD price (bulk)           | `eod-price-daily/daily`, `/backfill`                                                              | scheduled, backfill                 |
+| EOD price (per-instrument) | `eod-price-backfill/historical-backfill`                                                          | backfill                            |
+| Exchange catalog / MIC     | `exchange-catalog-refresh/monthly`, `/manual`; `exchange-mic-registry-refresh/monthly`, `/manual` | scheduled, bootstrap                |
+| Exchange schedule          | `exchange-schedule-refresh/weekly`, `/manual`                                                     | scheduled, manual                   |
+| Instrument                 | `instrument-refresh/weekly`, `/manual`                                                            | scheduled, manual                   |
+| Fundamental                | `fundamental-quarterly/quarterly`, `/manual`, `/backfill`, `/replay`                              | scheduled, manual, backfill, replay |
+| dbt                        | `dbt-build/exchange-build`, `/instrument-build`, `/price-build`, `/fundamental-build`             | build                               |
 
-Bootstrap order for a new environment: exchange catalog manual → exchange MIC manual → exchange schedule manual → exchange-build → instrument → ingest. In normal operation, ingestion deployments trigger their matching dbt build after a clean audit status; pass `run_dbt_build=false` for Bronze-only runs. Historical EOD backfill also has a preflight guard: the deployment sets `build_selection_views_if_missing=true`, so it runs `dbt-build/price-build` before provider-instrument selection when the required Silver selector views do not exist yet.
+Bootstrap order for a new environment: exchange catalog manual → exchange MIC manual → exchange schedule manual → exchange-build → instrument → ingest. In normal operation, scheduled exchange schedule, instrument, EOD price, and fundamentals deployments trigger their matching dbt build after a clean audit status; pass `run_dbt_build=false` for Bronze-only runs. Historical EOD backfill also has a preflight guard: the deployment sets `build_selection_views_if_missing=true`, so it runs `dbt-build/price-build` before provider-instrument selection when the required Silver selector views do not exist yet.
 
 `make deploy` is the source-of-truth sync: it removes orphaned deployments owned by this app
 (entrypoints under `domains.*` or `core.transforms.*`), then applies `prefect.yaml`.
@@ -468,6 +470,7 @@ Optional production infrastructure configuration:
 - `OPERATIONAL_HEALTH_LAKE_READ_ONLY` — defaults to `auto`; leave it there for regular MotherDuck tokens, or set `true` when the monitor uses a MotherDuck read-scaling token.
 
 Production fails closed when `ENVIRONMENT=prod` is set without `MOTHERDUCK_TOKEN`; set the token or use `ENVIRONMENT=dev` for local work.
+Blank Prefect blocks may still be saved during setup; update provider and AWS block values in the Prefect UI before running live provider or S3-backed flows.
 
 Production applies pending lake migrations through the one-shot `pipelines-migrator` service before workers start. This
 keeps deploys with schema changes from consuming work against an old lake schema and avoids every worker racing to run
@@ -481,7 +484,8 @@ specific work pool is consuming every expected deployment.
 The deployed `pipelines-operational-health` service converts the operational health command into a Docker health status
 that Coolify, Docker, or a container-aware uptime monitor can watch. By default it checks Prefect reachability, the
 presence of `pipeline.runs`, and stale running rows. Set `OPERATIONAL_HEALTH_RECENT_DOMAINS` in production to add
-freshness checks for the domains you care about:
+freshness checks for the domains you care about. Domain freshness requires recent `completed` runs; `partial` and
+`skipped` runs remain visible in the dashboard but do not satisfy the production health gate:
 
 ```bash
 OPERATIONAL_HEALTH_RECENT_DOMAINS=eod_price,fundamental
