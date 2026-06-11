@@ -104,9 +104,9 @@ Prefer file-backed SQL for lake reads or writes when the query has meaningful sh
 multi-CTEs, window functions, optional joins, dashboard read models, or ingestion selection logic.
 Keep tiny existence checks and simple idempotency `COUNT(*)` queries inline when a separate file would add more ceremony than clarity.
 
-Domain-owned SQL files live next to their Python owner under `domains/<domain>/sql/` and use descriptive action names such as
-`load_backfill_pending_instruments.sql`. Python call sites should keep orchestration and row parsing in Python while delegating the SQL body to
-`DataLakeClient.query_file()`, `query_one_file()`, or `execute_file()`.
+SQL files live next to their Python owner and use descriptive action names such as `load_backfill_pending_instruments.sql`.
+Domain SQL belongs under `domains/<domain>/sql/`; dashboard SQL belongs under `dashboard/read_models/sql/`. Python call sites should keep
+orchestration and row parsing in Python while delegating the SQL body to `DataLakeClient.query_file()`, `query_one_file()`, or `execute_file()`.
 
 SQL files may use strict Jinja templating for trusted SQL structure only:
 
@@ -117,8 +117,8 @@ SQL files may use strict Jinja templating for trusted SQL structure only:
 
 Runtime values such as dates, provider codes, instrument codes, limits, and hashes must stay as DuckDB parameters. In SQL files, write
 `{{ param() }}` instead of raw `?`; the runtime renderer turns it into `?`, while SQLFluff renders a lint-only literal so editors can parse the
-template. New domain SQL folders are included in `make sql-lint` and `make sql-format`. Add focused tests for non-trivial SQL files that assert
-the rendered query keeps important joins, filters, and parameter ordering intact.
+template. `make sql-lint` and `make sql-format` let SQLFluff discover SQL files from the app root; add new SQL folders without touching the
+Makefile. Add focused tests for non-trivial SQL files that assert the rendered query keeps important joins, filters, and parameter ordering intact.
 
 `config/settings.py` holds environment-variable-backed settings. `config/blocks.py` defines the Prefect block registry, which wires secrets plus non-secret infrastructure values into named Prefect blocks at startup. Tasks and flows always load credentials from the block registry at runtime, not from settings directly.
 
