@@ -1,24 +1,22 @@
 .DEFAULT_GOAL := help
 .PHONY: help \
         pipelines-install pipelines-test pipelines-check pipelines-lint pipelines-typecheck pipelines-dashboard \
-        pipelines-worker pipelines-deploy \
-        infra-up infra-up-prod infra-down infra-down-volumes infra-logs infra-logs-pipelines infra-logs-dashboard infra-ps \
+        pipelines-worker pipelines-setup pipelines-deploy pipelines-ci \
+        prod-guard infra-up infra-up-prod infra-down infra-down-prod infra-down-volumes \
+        infra-logs infra-logs-prod infra-logs-pipelines infra-logs-dashboard infra-ps infra-ps-prod \
         dbt-install dbt-debug dbt-compile dbt-run dbt-test dbt-build dbt-clean dbt-run-staging dbt-run-marts \
         dbt-docs-generate dbt-docs-serve dbt-docs
 
 # ── Colours ────────────────────────────────────────────────────────────────
 BOLD  := \033[1m
 RESET := \033[0m
-GREEN := \033[32m
 CYAN  := \033[36m
-DIM   := \033[2m
 
 # ── Directories ────────────────────────────────────────────────────────────
 PIPELINES_DIR  := apps/pipelines
 DEPLOY_DIR     := $(PIPELINES_DIR)/deploy
-COMPOSE_BASE   := docker compose -f $(DEPLOY_DIR)/docker-compose.yml
-COMPOSE_DEV    := $(COMPOSE_BASE) -f $(DEPLOY_DIR)/docker-compose.dev.yml
-COMPOSE_PROD   := $(COMPOSE_BASE) -f $(DEPLOY_DIR)/docker-compose.prod.yml
+PROD_COMPOSE_PROJECT ?= unique-stocks-prod
+COMPOSE_PROD   := docker compose -p $(PROD_COMPOSE_PROJECT) -f $(DEPLOY_DIR)/docker-compose.yml -f $(DEPLOY_DIR)/docker-compose.prod.yml
 
 
 # ── Help ────────────────────────────────────────────────────────────────────
@@ -26,18 +24,12 @@ help: ## Show this help
 	@echo ""
 	@echo "  $(BOLD)unique-stocks monorepo$(RESET)"
 	@echo ""
-	@echo "  $(DIM)── Pipelines ─────────────────────────────────────────────────$(RESET)"
-	@awk 'BEGIN {FS = ":.*##"} /^pipelines-[a-zA-Z_-]+:.*?##/ { printf "  $(CYAN)%-28s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
-	@echo ""
-	@echo "  $(DIM)── Infrastructure (Docker) ────────────────────────────────────$(RESET)"
-	@awk 'BEGIN {FS = ":.*##"} /^infra-[a-zA-Z_-]+:.*?##/ { printf "  $(CYAN)%-28s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
-	@echo ""
-	@echo "  $(DIM)── dbt ─────────────────────────────────────────────────────────$(RESET)"
-	@awk 'BEGIN {FS = ":.*##"} /^dbt-[a-zA-Z_-]+:.*?##/ { printf "  $(CYAN)%-28s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"} /^##@ / { printf "\n  $(BOLD)%s$(RESET)\n", substr($$0, 5); next } /^[a-zA-Z0-9_-]+:.*?##/ { printf "  $(CYAN)%-22s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 	@echo ""
 	@echo "  Run $(CYAN)make -C apps/pipelines help$(RESET) for the full pipelines command list."
 	@echo ""
 
+##@ Pipelines
 # ── Pipelines ──────────────────────────────────────────────────────────────
 pipelines-install: ## Install pipeline deps
 	$(MAKE) -C $(PIPELINES_DIR) install
@@ -45,7 +37,7 @@ pipelines-install: ## Install pipeline deps
 pipelines-test: ## Run all pipeline tests
 	$(MAKE) -C $(PIPELINES_DIR) test
 
-pipelines-check: ## Run full pipeline quality gate (format + lint + typecheck + test)
+pipelines-check: ## Run full local pipeline quality gate
 	$(MAKE) -C $(PIPELINES_DIR) check
 
 pipelines-lint: ## Lint pipeline code
@@ -66,31 +58,52 @@ pipelines-setup: ## Full one-time setup: init lake, save blocks, create pool, de
 pipelines-deploy: ## Register all Prefect deployments
 	$(MAKE) -C $(PIPELINES_DIR) deploy
 
+pipelines-ci: ## Run the same pipeline checks as GitHub CI
+	$(MAKE) -C $(PIPELINES_DIR) ci-local
+
+##@ Infrastructure (Docker)
 # ── Infrastructure ─────────────────────────────────────────────────────────
 infra-up: ## Start dev stack (Docker) — Prefect server + Postgres + worker + dashboard
-	$(COMPOSE_DEV) up -d
+	$(MAKE) -C $(PIPELINES_DIR) docker-up
 
-infra-up-prod: ## Start production stack
-	$(COMPOSE_PROD) up -d
+prod-guard:
+	@if [ "$(CONFIRM_PROD)" != "1" ]; then \
+		echo "Production infrastructure targets require CONFIRM_PROD=1."; \
+		echo "Example: CONFIRM_PROD=1 make infra-up-prod"; \
+		exit 2; \
+	fi
+
+infra-up-prod: prod-guard ## Start production stack (requires CONFIRM_PROD=1)
+	$(COMPOSE_PROD) up -d --build --remove-orphans
 
 infra-down: ## Stop all services
-	$(COMPOSE_DEV) down
+	$(MAKE) -C $(PIPELINES_DIR) docker-down
 
-infra-down-volumes: ## Stop all services AND delete persistent data (⚠ destructive)
-	$(COMPOSE_DEV) down -v
+infra-down-prod: prod-guard ## Stop production stack (requires CONFIRM_PROD=1)
+	$(COMPOSE_PROD) down
+
+infra-down-volumes: ## Stop dev stack AND delete persistent data (requires CONFIRM=1)
+	$(MAKE) -C $(PIPELINES_DIR) docker-down-volumes
 
 infra-logs: ## Tail logs for all services (Ctrl-C to stop)
-	$(COMPOSE_DEV) logs -f
+	$(MAKE) -C $(PIPELINES_DIR) docker-logs
+
+infra-logs-prod: ## Tail production stack logs (Ctrl-C to stop)
+	$(COMPOSE_PROD) logs -f
 
 infra-logs-pipelines: ## Tail pipeline worker logs only
-	$(COMPOSE_DEV) logs -f pipelines-worker
+	$(MAKE) -C $(PIPELINES_DIR) docker-logs-worker
 
 infra-logs-dashboard: ## Tail pipeline dashboard logs only
-	$(COMPOSE_DEV) logs -f pipelines-dashboard
+	$(MAKE) -C $(PIPELINES_DIR) docker-logs-dashboard
 
 infra-ps: ## Show running service status
-	$(COMPOSE_DEV) ps
+	$(MAKE) -C $(PIPELINES_DIR) docker-ps
 
+infra-ps-prod: ## Show production stack service status
+	$(COMPOSE_PROD) ps
+
+##@ dbt
 # ── dbt ────────────────────────────────────────────────────────────────────
 dbt-install: ## Install dbt deps
 	$(MAKE) -C $(PIPELINES_DIR) dbt-install
