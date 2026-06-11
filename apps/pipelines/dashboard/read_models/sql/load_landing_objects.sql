@@ -12,6 +12,6 @@ SELECT
     content_hash,
     recorded_at
 FROM pipeline.landing_objects
-WHERE {{ where_clauses }}
+WHERE {{ where_clauses | default("TRUE") }}
 ORDER BY recorded_at DESC
 LIMIT {{ param() }}

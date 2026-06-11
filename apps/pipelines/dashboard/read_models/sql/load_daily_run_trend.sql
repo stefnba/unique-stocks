@@ -6,6 +6,6 @@ SELECT
     COALESCE(SUM(rows_written), 0) AS rows_written,
     COALESCE(SUM(rows_rejected), 0) AS rows_rejected
 FROM pipeline.runs
-WHERE {{ where_clauses }}
+WHERE {{ where_clauses | default("TRUE") }}
 GROUP BY run_date, domain
 ORDER BY run_date, domain

@@ -10,7 +10,7 @@ WITH ranked AS (
         rows_rejected,
         ROW_NUMBER() OVER (PARTITION BY domain ORDER BY completed_at DESC) AS row_number
     FROM pipeline.runs
-    WHERE {{ where_clauses }}
+    WHERE {{ where_clauses | default("TRUE") }}
 )
 
 SELECT * EXCLUDE (row_number)

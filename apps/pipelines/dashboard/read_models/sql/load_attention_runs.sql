@@ -17,6 +17,6 @@ SELECT
     error_class,
     error_message
 FROM pipeline.runs
-WHERE {{ where_clauses }}
+WHERE {{ where_clauses | default("TRUE") }}
 ORDER BY started_at DESC
 LIMIT {{ param() }}

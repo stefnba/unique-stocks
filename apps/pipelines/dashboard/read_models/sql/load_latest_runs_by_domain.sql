@@ -18,7 +18,7 @@ WITH ranked AS (
         error_message,
         ROW_NUMBER() OVER (PARTITION BY domain ORDER BY started_at DESC) AS row_number
     FROM pipeline.runs
-    {{ where_sql }}
+    {{ where_sql | default("") }}
 )
 
 SELECT * EXCLUDE (row_number)

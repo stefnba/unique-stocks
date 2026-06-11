@@ -1,3 +1,3 @@
 SELECT COUNT(*) AS rejection_samples
 FROM pipeline.rejections
-WHERE {{ where_clauses }}
+WHERE {{ where_clauses | default("TRUE") }}

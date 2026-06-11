@@ -6,4 +6,4 @@ SELECT
 FROM pipeline.dbt_invocations AS invocation
 INNER JOIN pipeline.runs AS run
     ON invocation.run_id = run.run_id
-WHERE {{ where_clauses }}
+WHERE {{ where_clauses | default("TRUE") }}

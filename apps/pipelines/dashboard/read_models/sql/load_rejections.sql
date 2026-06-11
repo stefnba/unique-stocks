@@ -10,6 +10,6 @@ SELECT
     raw_sample_json,
     recorded_at
 FROM pipeline.rejections
-WHERE {{ where_clauses }}
+WHERE {{ where_clauses | default("TRUE") }}
 ORDER BY recorded_at DESC
 LIMIT {{ param() }}

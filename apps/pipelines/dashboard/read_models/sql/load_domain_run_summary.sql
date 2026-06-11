@@ -9,6 +9,6 @@ SELECT
     COALESCE(SUM(rows_rejected), 0) AS rows_rejected,
     MAX(started_at) AS latest_started_at
 FROM pipeline.runs
-WHERE {{ where_clauses }}
+WHERE {{ where_clauses | default("TRUE") }}
 GROUP BY domain
 ORDER BY attention_runs DESC, running_runs DESC, rows_rejected DESC, domain ASC
