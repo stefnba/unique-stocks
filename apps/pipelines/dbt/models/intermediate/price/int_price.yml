@@ -201,11 +201,36 @@ models:
         data_tests:
           - not_null
       - name: expected_price_start_date
-        description: First date from which the coverage model can normally expect prices; observed price history wins, otherwise current date is used until provider evidence exists.
+        description: First date from which the coverage model can normally expect prices; provider listing or fund inception dates are used when available, otherwise first observed price history, otherwise current date.
+        data_tests:
+          - not_null
+      - name: expected_price_end_date
+        description: Last date from which the coverage model can normally expect prices, currently populated from provider delisting dates when supplied.
+      - name: provider_lifecycle_start_date
+        description: Provider-supplied listing/inception date used as lifecycle evidence when available.
+      - name: provider_lifecycle_start_date_source
+        description: Provider source field used for the lifecycle start date.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - stock_ipo_date
+                  - fund_inception_date
+      - name: provider_lifecycle_end_date
+        description: Provider-supplied lifecycle end date used as delisting evidence when available.
+      - name: provider_lifecycle_end_date_source
+        description: Provider source field used for the lifecycle end date.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - stock_delisted_date
+      - name: has_fundamental_lifecycle_dates
+        description: True when provider fundamentals supplied an IPO, fund inception, or delisting date.
         data_tests:
           - not_null
       - name: has_provider_lifecycle_evidence
-        description: True when observed prices or terminal backfill coverage prove provider lifecycle behavior for this instrument.
+        description: True when provider fundamentals, observed prices, or terminal backfill coverage prove provider lifecycle behavior for this instrument.
         data_tests:
           - not_null
       - name: lifecycle_evidence_source
@@ -215,6 +240,7 @@ models:
           - accepted_values:
               arguments:
                 values:
+                  - provider_fundamental_profile
                   - observed_price_history
                   - terminal_no_data
                   - completed_backfill
@@ -226,6 +252,7 @@ models:
           - accepted_values:
               arguments:
                 values:
+                  - provider_fundamental
                   - observed
                   - provider_terminal
                   - unconfirmed
@@ -273,9 +300,17 @@ models:
         data_tests:
           - not_null
       - name: has_provider_lifecycle_evidence
-        description: True when observed prices or terminal backfill coverage prove provider lifecycle behavior for this instrument.
+        description: True when provider fundamentals, observed prices, or terminal backfill coverage prove provider lifecycle behavior for this instrument.
         data_tests:
           - not_null
+      - name: has_fundamental_lifecycle_dates
+        description: True when provider fundamentals supplied an IPO, fund inception, or delisting date.
+        data_tests:
+          - not_null
+      - name: provider_lifecycle_start_date
+        description: Provider-supplied listing/inception date used as lifecycle evidence when available.
+      - name: provider_lifecycle_end_date
+        description: Provider-supplied lifecycle end date used as delisting evidence when available.
       - name: is_trading_day
         description: True when the mapped exchange calendar says this date is an open trading day.
         data_tests:
@@ -333,9 +368,17 @@ models:
         data_tests:
           - not_null
       - name: has_provider_lifecycle_evidence
-        description: True when observed prices or terminal backfill coverage prove provider lifecycle behavior for this instrument.
+        description: True when provider fundamentals, observed prices, or terminal backfill coverage prove provider lifecycle behavior for this instrument.
         data_tests:
           - not_null
+      - name: has_fundamental_lifecycle_dates
+        description: True when provider fundamentals supplied an IPO, fund inception, or delisting date.
+        data_tests:
+          - not_null
+      - name: provider_lifecycle_start_date
+        description: Provider-supplied listing/inception date used as lifecycle evidence when available.
+      - name: provider_lifecycle_end_date
+        description: Provider-supplied lifecycle end date used as delisting evidence when available.
       - name: is_calendar_coverage_known
         description: True when the mapped holiday calendar covers this local exchange date.
         data_tests:

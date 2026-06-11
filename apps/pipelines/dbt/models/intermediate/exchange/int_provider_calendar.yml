@@ -182,7 +182,7 @@ models:
           - not_null
 
   - name: int_exchange_trading_day
-    description: Provider exchange trading-day calendar by provider request code and local date, generated from the MIC creation date, provider holiday coverage, or current-date fallback through the end of next calendar year or the provider holiday horizon.
+    description: Provider exchange trading-day calendar by provider request code and local date, generated from the MIC creation date, provider holiday coverage, reviewed calendar-coverage overrides, or current-date fallback through the end of next calendar year or the trusted holiday horizon.
     config:
       tags:
         - ingestion_control
@@ -212,9 +212,9 @@ models:
       - name: exchange_creation_date
         description: MIC registry creation date for the mapped exchange, when known; not necessarily the exchange's first trading date.
       - name: calendar_coverage_start_date
-        description: First holiday-calendar date available for the mapped provider schedule code, when supplied by the provider.
+        description: First holiday-calendar date covered by provider rows and/or reviewed coverage overrides for the mapped schedule code.
       - name: calendar_coverage_end_date
-        description: Latest holiday-calendar date available for the mapped provider schedule code, when supplied by the provider.
+        description: Latest holiday-calendar date covered by provider rows and/or reviewed coverage overrides for the mapped schedule code.
       - name: calendar_start_date
         description: First local date generated for this provider exchange calendar, based on MIC creation date, holiday coverage, or current date fallback.
         data_tests:
@@ -228,6 +228,7 @@ models:
                 values:
                   - mic_creation_date
                   - provider_holiday_calendar
+                  - reviewed_calendar_coverage
                   - current_date_default
       - name: provider_schedule_exchange_code
         description: Provider schedule endpoint code mapped to the EOD price request code, when known.
@@ -251,6 +252,17 @@ models:
         description: True when the mapped holiday calendar covers this local exchange date.
         data_tests:
           - not_null
+      - name: calendar_coverage_source
+        description: Source used to determine the trusted holiday-calendar coverage horizon.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - provider_holiday_calendar
+                  - reviewed_override
+                  - provider_holiday_calendar_and_reviewed_override
+                  - none
       - name: calendar_coverage_status
         description: Coverage status of the provider holiday calendar for this generated exchange/date.
         data_tests:
@@ -261,8 +273,25 @@ models:
                   - covered
                   - before_holiday_coverage
                   - after_holiday_coverage
+                  - holiday_coverage_gap
                   - unknown_holiday_coverage
                   - unknown_schedule_mapping
+      - name: holiday_coverage_start_date
+        description: First holiday date supplied by the provider for the mapped schedule code.
+      - name: holiday_coverage_end_date
+        description: Latest holiday date supplied by the provider for the mapped schedule code.
+      - name: override_coverage_start_date
+        description: First reviewed override coverage date for the mapped schedule code, when supplied.
+      - name: override_coverage_end_date
+        description: Latest reviewed override coverage date for the mapped schedule code, when supplied.
+      - name: override_coverage_confidence
+        description: Most conservative confidence label among reviewed override rows contributing to the schedule-code horizon.
+      - name: override_coverage_source_names
+        description: Comma-separated reviewed source names behind the override coverage horizon.
+      - name: override_coverage_source_urls
+        description: Comma-separated reviewed source URLs behind the override coverage horizon.
+      - name: override_coverage_last_reviewed_on
+        description: Latest review date among override rows contributing to the schedule-code horizon.
       - name: is_working_day
         description: True when the date's day name is present in the provider working_days expression.
         data_tests:

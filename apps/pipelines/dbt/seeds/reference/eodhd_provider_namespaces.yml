@@ -48,3 +48,45 @@ seeds:
           - not_null
       - name: notes
         description: Short source and verification note for humans reviewing curated provider coverage.
+
+  - name: exchange_calendar_coverage_overrides
+    description: Reviewed provider schedule-code holiday-calendar coverage windows. Rows assert that the available holiday rows are complete enough for coverage decisions over the stated date range.
+    columns:
+      - name: data_provider
+        description: Market data provider that owns the schedule code.
+        data_tests:
+          - not_null
+      - name: provider_schedule_exchange_code
+        description: Provider schedule endpoint code whose holiday coverage was reviewed.
+        data_tests:
+          - not_null
+      - name: coverage_start_date
+        description: First local exchange date covered by the reviewed holiday calendar window.
+        data_tests:
+          - not_null
+      - name: coverage_end_date
+        description: Last local exchange date covered by the reviewed holiday calendar window.
+        data_tests:
+          - not_null
+      - name: coverage_confidence
+        description: Confidence assigned by the reviewer for this coverage assertion.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - high
+                  - medium
+                  - low
+      - name: source_name
+        description: Source used to review the coverage window.
+        data_tests:
+          - not_null
+      - name: source_url
+        description: Optional URL for the reviewed source.
+      - name: reviewed_on
+        description: Date when the coverage assertion was reviewed.
+        data_tests:
+          - not_null
+      - name: notes
+        description: Human-readable review note.

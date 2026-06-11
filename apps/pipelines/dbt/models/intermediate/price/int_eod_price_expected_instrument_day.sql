@@ -28,6 +28,13 @@ expected AS (
         instrument.first_observed_price_date AS min_bar_date,
         instrument.last_observed_price_date AS max_bar_date,
         instrument.observed_price_days AS bar_count,
+        instrument.fundamental_profile_id,
+        instrument.provider_lifecycle_start_date,
+        instrument.provider_lifecycle_start_date_source,
+        instrument.provider_lifecycle_end_date,
+        instrument.provider_lifecycle_end_date_source,
+        instrument.has_fundamental_lifecycle_dates,
+        instrument.is_delisted,
         instrument.expected_price_start_date,
         instrument.expected_price_end_date,
         instrument.has_observed_price_history,
@@ -65,7 +72,13 @@ expected AS (
     WHERE (trading_day.is_trading_day OR NOT trading_day.is_calendar_known)
         AND trading_day.bar_date <= CURRENT_DATE
         AND (
-            trading_day.bar_date >= instrument.expected_price_start_date
+            (
+                trading_day.bar_date >= instrument.expected_price_start_date
+                AND (
+                    instrument.expected_price_end_date IS NULL
+                    OR trading_day.bar_date <= instrument.expected_price_end_date
+                )
+            )
             OR (
                 no_data_coverage.unit_key_hash IS NOT NULL
                 AND (
@@ -94,6 +107,13 @@ SELECT
     min_bar_date,
     max_bar_date,
     bar_count,
+    fundamental_profile_id,
+    provider_lifecycle_start_date,
+    provider_lifecycle_start_date_source,
+    provider_lifecycle_end_date,
+    provider_lifecycle_end_date_source,
+    has_fundamental_lifecycle_dates,
+    is_delisted,
     expected_price_start_date,
     expected_price_end_date,
     has_observed_price_history,

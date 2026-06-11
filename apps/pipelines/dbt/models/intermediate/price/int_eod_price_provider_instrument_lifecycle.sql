@@ -17,6 +17,11 @@ terminal_coverage AS (
     FROM {{ ref('int_eod_price_backfill_terminal_coverage') }}
 ),
 
+fundamental_profile AS (
+    SELECT *
+    FROM {{ ref('int_fundamental_instrument_profile') }}
+),
+
 no_data_coverage AS (
     SELECT
         data_provider,
@@ -54,6 +59,20 @@ joined AS (
         instrument.provider_instrument_code,
         instrument.instrument_family,
         instrument.is_tradable,
+        fundamental_profile.fundamental_profile_id,
+        fundamental_profile.ipo_date,
+        fundamental_profile.fund_inception_date,
+        COALESCE(fundamental_profile.ipo_date, fundamental_profile.fund_inception_date)
+            AS provider_lifecycle_start_date,
+        CASE
+            WHEN fundamental_profile.ipo_date IS NOT NULL THEN 'stock_ipo_date'
+            WHEN fundamental_profile.fund_inception_date IS NOT NULL THEN 'fund_inception_date'
+        END AS provider_lifecycle_start_date_source,
+        COALESCE(fundamental_profile.is_delisted, FALSE) AS is_delisted,
+        fundamental_profile.delisted_date AS provider_lifecycle_end_date,
+        CASE
+            WHEN fundamental_profile.delisted_date IS NOT NULL THEN 'stock_delisted_date'
+        END AS provider_lifecycle_end_date_source,
         price_ranges.min_bar_date AS first_observed_price_date,
         price_ranges.max_bar_date AS last_observed_price_date,
         price_ranges.bar_count AS observed_price_days,
@@ -68,6 +87,10 @@ joined AS (
             AS has_open_start_completed_coverage,
         COALESCE(completed_coverage.completed_coverage_windows, 0) AS completed_coverage_windows
     FROM instrument
+    LEFT JOIN fundamental_profile
+        ON instrument.data_provider = fundamental_profile.data_provider
+        AND instrument.provider_exchange_code = fundamental_profile.provider_exchange_code
+        AND instrument.provider_instrument_code = fundamental_profile.provider_instrument_code
     LEFT JOIN price_ranges
         ON instrument.data_provider = price_ranges.data_provider
         AND instrument.provider_exchange_code = price_ranges.provider_exchange_code
@@ -86,22 +109,38 @@ final AS (
     SELECT
         *,
         first_observed_price_date IS NOT NULL AS has_observed_price_history,
+        (
+            provider_lifecycle_start_date IS NOT NULL
+            OR provider_lifecycle_end_date IS NOT NULL
+        ) AS has_fundamental_lifecycle_dates,
         no_data_coverage_windows > 0 AS has_terminal_no_data_coverage,
         completed_coverage_windows > 0 AS has_completed_backfill_coverage,
         (
             first_observed_price_date IS NOT NULL
+            OR provider_lifecycle_start_date IS NOT NULL
+            OR provider_lifecycle_end_date IS NOT NULL
             OR no_data_coverage_windows > 0
             OR completed_coverage_windows > 0
         ) AS has_provider_lifecycle_evidence,
-        COALESCE(first_observed_price_date, CURRENT_DATE) AS expected_price_start_date,
-        CAST(NULL AS DATE) AS expected_price_end_date,
         CASE
+            WHEN provider_lifecycle_start_date IS NOT NULL AND first_observed_price_date IS NOT NULL
+                THEN LEAST(provider_lifecycle_start_date, first_observed_price_date)
+            WHEN provider_lifecycle_start_date IS NOT NULL THEN provider_lifecycle_start_date
+            WHEN first_observed_price_date IS NOT NULL THEN first_observed_price_date
+            ELSE CURRENT_DATE
+        END AS expected_price_start_date,
+        provider_lifecycle_end_date AS expected_price_end_date,
+        CASE
+            WHEN provider_lifecycle_start_date IS NOT NULL OR provider_lifecycle_end_date IS NOT NULL
+                THEN 'provider_fundamental_profile'
             WHEN first_observed_price_date IS NOT NULL THEN 'observed_price_history'
             WHEN no_data_coverage_windows > 0 THEN 'terminal_no_data'
             WHEN completed_coverage_windows > 0 THEN 'completed_backfill'
             ELSE 'latest_universe_only'
         END AS lifecycle_evidence_source,
         CASE
+            WHEN provider_lifecycle_start_date IS NOT NULL OR provider_lifecycle_end_date IS NOT NULL
+                THEN 'provider_fundamental'
             WHEN first_observed_price_date IS NOT NULL THEN 'observed'
             WHEN no_data_coverage_windows > 0 THEN 'provider_terminal'
             WHEN completed_coverage_windows > 0 THEN 'provider_terminal'
