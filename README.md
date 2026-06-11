@@ -86,6 +86,7 @@ From the repository root:
 
 ```bash
 make help
+make pipelines-ci
 make pipelines-check
 make pipelines-test
 make infra-up

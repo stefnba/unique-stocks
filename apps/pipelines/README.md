@@ -372,9 +372,16 @@ cd apps/pipelines
 make check
 ```
 
+Run the exact GitHub CI quality path locally:
+
+```bash
+make ci-local
+```
+
 Focused commands:
 
 ```bash
+make ci-local
 make test
 make test-unit
 make test-integration

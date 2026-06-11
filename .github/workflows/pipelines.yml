@@ -38,28 +38,9 @@ jobs:
         working-directory: apps/pipelines
         run: uv sync --frozen --extra dashboard
 
-      - name: Format check
+      - name: Quality checks
         working-directory: apps/pipelines
-        run: uv run ruff format . --check
-
-      - name: Lint
-        working-directory: apps/pipelines
-        run: uv run ruff check .
-
-      - name: Typecheck
-        working-directory: apps/pipelines
-        run: uv run --frozen --extra dashboard basedpyright
-
-      - name: Unit tests
-        working-directory: apps/pipelines
-        run: uv run --frozen --extra dashboard pytest tests/unit -q
-
-      - name: Render production compose
-        env:
-          POSTGRES_PASSWORD: test-postgres-password
-          MOTHERDUCK_TOKEN: test-motherduck-token
-          PREFECT_UI_API_URL: https://prefect.example.com/api
-        run: docker compose -f apps/pipelines/deploy/docker-compose.yml -f apps/pipelines/deploy/docker-compose.prod.yml config
+        run: make ci-local
 
   secret-scan:
     name: Secret scan
