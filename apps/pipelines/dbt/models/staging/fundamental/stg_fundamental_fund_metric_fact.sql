@@ -28,6 +28,7 @@ deduplicated AS (
         ROW_NUMBER() OVER (
             PARTITION BY
                 snapshot_date,
+                provider_exchange_code,
                 provider_instrument_code,
                 instrument_family,
                 metric_group,

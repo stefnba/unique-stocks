@@ -220,6 +220,7 @@ CREATE TABLE IF NOT EXISTS bronze.fundamental_statement_fact (
     ingested_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (
         snapshot_date,
+        provider_exchange_code,
         provider_instrument_code,
         statement_type,
         period_type,
@@ -251,6 +252,7 @@ CREATE TABLE IF NOT EXISTS bronze.fundamental_stock_earnings_fact (
     ingested_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (
         snapshot_date,
+        provider_exchange_code,
         provider_instrument_code,
         earnings_section,
         period_type,
@@ -297,7 +299,14 @@ CREATE TABLE IF NOT EXISTS bronze.fundamental_stock_outstanding_shares (
     row_hash VARCHAR NOT NULL,
     source_uri VARCHAR,
     ingested_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE (snapshot_date, provider_instrument_code, period_type, period_end_date, data_provider)
+    UNIQUE (
+        snapshot_date,
+        provider_exchange_code,
+        provider_instrument_code,
+        period_type,
+        period_end_date,
+        data_provider
+    )
 );
 
 CREATE TABLE IF NOT EXISTS bronze.fundamental_stock_holder (
@@ -319,7 +328,15 @@ CREATE TABLE IF NOT EXISTS bronze.fundamental_stock_holder (
     row_hash VARCHAR NOT NULL,
     source_uri VARCHAR,
     ingested_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE (snapshot_date, provider_instrument_code, holder_type, holder_name, report_date, data_provider)
+    UNIQUE (
+        snapshot_date,
+        provider_exchange_code,
+        provider_instrument_code,
+        holder_type,
+        holder_name,
+        report_date,
+        data_provider
+    )
 );
 
 CREATE TABLE IF NOT EXISTS bronze.fundamental_stock_insider_transaction (
@@ -345,6 +362,7 @@ CREATE TABLE IF NOT EXISTS bronze.fundamental_stock_insider_transaction (
     ingested_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (
         snapshot_date,
+        provider_exchange_code,
         provider_instrument_code,
         provider_position,
         owner_name,
@@ -567,6 +585,7 @@ CREATE TABLE IF NOT EXISTS bronze.fundamental_fund_metric_fact (
     ingested_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (
         snapshot_date,
+        provider_exchange_code,
         provider_instrument_code,
         instrument_family,
         metric_group,

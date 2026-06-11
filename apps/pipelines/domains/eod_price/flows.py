@@ -546,7 +546,7 @@ async def eod_price_backfill_flow(
             during this run. Re-run later with the same date window to resume from
             the Silver completion/no-data coverage pending-instrument detection.
         build_selection_views_if_missing: When true, launch
-            ``dbt-build/price-build`` before pending-symbol selection if the
+            ``dbt-build/price-build`` before pending-instrument selection if the
             required Silver selector views are absent.
         run_dbt_build: When true, launch ``dbt-build/price-build`` after a
             clean ingestion audit status.

@@ -50,6 +50,7 @@ class FundamentalStatementFactTable(BronzeTableModel):
     row_model = FundamentalStatementFact
     unique_columns = (
         "snapshot_date",
+        "provider_exchange_code",
         "provider_instrument_code",
         "statement_type",
         "period_type",
@@ -67,6 +68,7 @@ class FundamentalStockEarningsFactTable(BronzeTableModel):
     row_model = FundamentalStockEarningsFact
     unique_columns = (
         "snapshot_date",
+        "provider_exchange_code",
         "provider_instrument_code",
         "earnings_section",
         "period_type",
@@ -93,6 +95,7 @@ class FundamentalStockOutstandingSharesTable(BronzeTableModel):
     row_model = FundamentalStockOutstandingShares
     unique_columns = (
         "snapshot_date",
+        "provider_exchange_code",
         "provider_instrument_code",
         "period_type",
         "period_end_date",
@@ -108,6 +111,7 @@ class FundamentalStockHolderTable(BronzeTableModel):
     row_model = FundamentalStockHolder
     unique_columns = (
         "snapshot_date",
+        "provider_exchange_code",
         "provider_instrument_code",
         "holder_type",
         "holder_name",
@@ -124,6 +128,7 @@ class FundamentalStockInsiderTransactionTable(BronzeTableModel):
     row_model = FundamentalStockInsiderTransaction
     unique_columns = (
         "snapshot_date",
+        "provider_exchange_code",
         "provider_instrument_code",
         "provider_position",
         "owner_name",
@@ -248,6 +253,7 @@ class FundamentalFundMetricFactTable(BronzeTableModel):
     row_model = FundamentalFundMetricFact
     unique_columns = (
         "snapshot_date",
+        "provider_exchange_code",
         "provider_instrument_code",
         "instrument_family",
         "metric_group",

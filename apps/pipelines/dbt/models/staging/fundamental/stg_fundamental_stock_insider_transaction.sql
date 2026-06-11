@@ -33,6 +33,7 @@ deduplicated AS (
         ROW_NUMBER() OVER (
             PARTITION BY
                 snapshot_date,
+                provider_exchange_code,
                 provider_instrument_code,
                 provider_position,
                 owner_name,
