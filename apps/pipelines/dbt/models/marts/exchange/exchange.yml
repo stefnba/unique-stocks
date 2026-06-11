@@ -338,6 +338,18 @@ models:
         description: Session open time for trading dates; null on closed or unknown-calendar dates.
       - name: effective_session_close
         description: Session close time for trading dates, using early close time when present.
+      - name: effective_session_open_local_at
+        description: Local exchange timestamp for the effective session open on trading dates.
+      - name: effective_session_close_local_at
+        description: Local exchange timestamp for the effective session close on trading dates, using early close time when present.
+      - name: effective_session_open_utc_at
+        description: UTC timestamp for the effective session open, derived from the local timestamp and IANA timezone.
+      - name: effective_session_close_utc_at
+        description: UTC timestamp for the effective session close, derived from the local timestamp and IANA timezone.
+      - name: utc_offset_minutes_at_session_open
+        description: Local exchange UTC offset in minutes at the effective session open; negative values are west of UTC.
+      - name: utc_offset_minutes_at_session_close
+        description: Local exchange UTC offset in minutes at the effective session close; negative values are west of UTC.
       - name: pre_market_open
         description: Pre-market session open time when supplied.
       - name: pre_market_close

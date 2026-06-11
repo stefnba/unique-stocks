@@ -77,6 +77,11 @@ Providers can return several exchange-like identifiers. Keep them distinct in Py
 | `provider_schedule_exchange_code` | Provider schedule/calendar endpoint code. Some values look like MICs, but this is still the provider-specific request code for that endpoint.                | `US`, `XHKG`, `XETR`          |
 | `provider_listing_exchange_code`  | Exchange-like code returned on an individual instrument row from `/exchange-symbol-list/{EXCHANGE_CODE}`.                                                    | `NASDAQ`, `WAR`               |
 
+Exchange schedule rows keep provider-supplied IANA timezone names as the source
+of truth. UTC session timestamps and offsets are derived per trading date in dbt
+instead of using a static offset seed or timezone API. See
+[docs/exchange_timezones.md](docs/exchange_timezones.md) for the decision record.
+
 ## Project structure
 
 ```text

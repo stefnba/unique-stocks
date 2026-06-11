@@ -8,7 +8,7 @@ exchange_calendar AS (
     FROM {{ ref('int_exchange_calendar') }}
 ),
 
-final AS (
+base AS (
     SELECT
         {{ surrogate_key([
             "trading_day.data_provider",
@@ -91,6 +91,113 @@ final AS (
     LEFT JOIN exchange_calendar
         ON trading_day.data_provider = exchange_calendar.data_provider
         AND trading_day.provider_schedule_exchange_code = exchange_calendar.provider_schedule_exchange_code
+),
+
+session_times AS (
+    SELECT
+        *,
+        CASE
+            WHEN effective_session_open IS NOT NULL
+                AND timezone IS NOT NULL
+                THEN trading_date + CAST(effective_session_open AS TIME)
+        END AS effective_session_open_local_at,
+        CASE
+            WHEN effective_session_close IS NOT NULL
+                AND timezone IS NOT NULL
+                THEN trading_date + CAST(effective_session_close AS TIME)
+        END AS effective_session_close_local_at
+    FROM base
+),
+
+session_instants AS (
+    SELECT
+        *,
+        CASE
+            WHEN effective_session_open_local_at IS NOT NULL
+                AND timezone IS NOT NULL
+                THEN (effective_session_open_local_at AT TIME ZONE timezone) AT TIME ZONE 'UTC'
+        END AS effective_session_open_utc_at,
+        CASE
+            WHEN effective_session_close_local_at IS NOT NULL
+                AND timezone IS NOT NULL
+                THEN (effective_session_close_local_at AT TIME ZONE timezone) AT TIME ZONE 'UTC'
+        END AS effective_session_close_utc_at
+    FROM session_times
+),
+
+final AS (
+    SELECT
+        exchange_trading_day_pk,
+        exchange_calendar_pk,
+        exchange_pk,
+        data_provider,
+        provider_exchange_code,
+        mic,
+        provider_code_kind,
+        source_kind,
+        exchange_catalog_name,
+        provider_schedule_exchange_code,
+        schedule_mapping_method,
+        schedule_mapping_confidence,
+        mic_mapping_method,
+        mic_mapping_confidence,
+        exchange_schedule_name,
+        timezone,
+        working_days,
+        day_name,
+        trading_day_status,
+        closure_reason,
+        is_calendar_known,
+        is_working_day,
+        is_full_holiday,
+        is_early_close,
+        is_trading_day,
+        is_closed,
+        has_pre_market,
+        has_after_hours,
+        has_lunch_break,
+        full_holiday_name,
+        early_close_name,
+        session_open,
+        session_close,
+        effective_session_open,
+        effective_session_close,
+        effective_session_open_local_at,
+        effective_session_close_local_at,
+        effective_session_open_utc_at,
+        effective_session_close_utc_at,
+        CASE
+            WHEN effective_session_open_utc_at IS NOT NULL
+                AND effective_session_open_local_at IS NOT NULL
+                THEN DATE_DIFF(
+                        'minute',
+                        effective_session_open_utc_at,
+                        effective_session_open_local_at
+                    )
+        END AS utc_offset_minutes_at_session_open,
+        CASE
+            WHEN effective_session_close_utc_at IS NOT NULL
+                AND effective_session_close_local_at IS NOT NULL
+                THEN DATE_DIFF(
+                        'minute',
+                        effective_session_close_utc_at,
+                        effective_session_close_local_at
+                    )
+        END AS utc_offset_minutes_at_session_close,
+        pre_market_open,
+        pre_market_close,
+        after_hours_open,
+        after_hours_close,
+        lunch_break_start,
+        lunch_break_end,
+        early_close_time,
+        trading_date,
+        exchange_creation_date,
+        calendar_start_date,
+        calendar_start_date_source,
+        schedule_snapshot_date,
+        schedule_ingested_at
+    FROM session_instants
 )
 
 SELECT * FROM final

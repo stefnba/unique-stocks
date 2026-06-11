@@ -25,3 +25,43 @@ OR (
     is_trading_day
     AND effective_session_close IS NULL
 )
+OR (
+    is_trading_day
+    AND effective_session_open_local_at IS NULL
+)
+OR (
+    is_trading_day
+    AND effective_session_close_local_at IS NULL
+)
+OR (
+    is_trading_day
+    AND effective_session_open_utc_at IS NULL
+)
+OR (
+    is_trading_day
+    AND effective_session_close_utc_at IS NULL
+)
+OR (
+    is_trading_day
+    AND utc_offset_minutes_at_session_open IS NULL
+)
+OR (
+    is_trading_day
+    AND utc_offset_minutes_at_session_close IS NULL
+)
+OR (
+    effective_session_open_utc_at IS NOT NULL
+    AND utc_offset_minutes_at_session_open != DATE_DIFF(
+        'minute',
+        effective_session_open_utc_at,
+        effective_session_open_local_at
+    )
+)
+OR (
+    effective_session_close_utc_at IS NOT NULL
+    AND utc_offset_minutes_at_session_close != DATE_DIFF(
+        'minute',
+        effective_session_close_utc_at,
+        effective_session_close_local_at
+    )
+)
