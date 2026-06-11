@@ -2,14 +2,8 @@
 
 WITH instrument AS (
     SELECT *
-    FROM {{ ref('int_latest_instrument_universe') }}
-    WHERE data_provider = 'eodhd'
-        AND is_tradable
-),
-
-price_ranges AS (
-    SELECT *
-    FROM {{ ref('int_eod_price_completion_ranges') }}
+    FROM {{ ref('int_eod_price_provider_instrument_lifecycle') }}
+    WHERE is_tradable
 ),
 
 no_data_coverage AS (
@@ -30,10 +24,16 @@ expected AS (
         instrument.provider_instrument_code,
         instrument.instrument_family,
         instrument.instrument_universe_id,
-        instrument.snapshot_date AS instrument_snapshot_date,
-        price_ranges.min_bar_date,
-        price_ranges.max_bar_date,
-        price_ranges.bar_count,
+        instrument.instrument_snapshot_date,
+        instrument.first_observed_price_date AS min_bar_date,
+        instrument.last_observed_price_date AS max_bar_date,
+        instrument.observed_price_days AS bar_count,
+        instrument.expected_price_start_date,
+        instrument.expected_price_end_date,
+        instrument.has_observed_price_history,
+        instrument.has_provider_lifecycle_evidence,
+        instrument.lifecycle_evidence_source,
+        instrument.lifecycle_confidence,
         trading_day.provider_schedule_exchange_code,
         trading_day.schedule_mapping_method,
         trading_day.schedule_mapping_confidence,
@@ -43,6 +43,10 @@ expected AS (
         trading_day.bar_date,
         trading_day.day_name,
         trading_day.is_calendar_known,
+        trading_day.is_calendar_coverage_known,
+        trading_day.calendar_coverage_status,
+        trading_day.calendar_coverage_start_date,
+        trading_day.calendar_coverage_end_date,
         trading_day.is_working_day,
         trading_day.is_full_holiday,
         trading_day.is_early_close,
@@ -54,10 +58,6 @@ expected AS (
     INNER JOIN trading_day
         ON instrument.data_provider = trading_day.data_provider
         AND instrument.provider_exchange_code = trading_day.provider_exchange_code
-    LEFT JOIN price_ranges
-        ON instrument.data_provider = price_ranges.data_provider
-        AND instrument.provider_exchange_code = price_ranges.provider_exchange_code
-        AND instrument.provider_instrument_code = price_ranges.provider_instrument_code
     LEFT JOIN no_data_coverage
         ON instrument.data_provider = no_data_coverage.data_provider
         AND instrument.provider_exchange_code = no_data_coverage.provider_exchange_code
@@ -65,7 +65,7 @@ expected AS (
     WHERE (trading_day.is_trading_day OR NOT trading_day.is_calendar_known)
         AND trading_day.bar_date <= CURRENT_DATE
         AND (
-            trading_day.bar_date >= COALESCE(price_ranges.min_bar_date, CURRENT_DATE)
+            trading_day.bar_date >= instrument.expected_price_start_date
             OR (
                 no_data_coverage.unit_key_hash IS NOT NULL
                 AND (
@@ -94,6 +94,12 @@ SELECT
     min_bar_date,
     max_bar_date,
     bar_count,
+    expected_price_start_date,
+    expected_price_end_date,
+    has_observed_price_history,
+    has_provider_lifecycle_evidence,
+    lifecycle_evidence_source,
+    lifecycle_confidence,
     provider_schedule_exchange_code,
     schedule_mapping_method,
     schedule_mapping_confidence,
@@ -103,6 +109,10 @@ SELECT
     bar_date,
     day_name,
     is_calendar_known,
+    is_calendar_coverage_known,
+    calendar_coverage_status,
+    calendar_coverage_start_date,
+    calendar_coverage_end_date,
     is_working_day,
     is_full_holiday,
     is_early_close,

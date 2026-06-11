@@ -174,8 +174,64 @@ models:
         data_tests:
           - not_null
 
+  - name: int_eod_price_provider_instrument_lifecycle
+    description: Ingestion-control view describing provider instrument price lifecycle evidence from the latest tradable universe, observed EOD price bounds, and terminal backfill coverage.
+    config:
+      tags:
+        - ingestion_control
+    columns:
+      - name: instrument_universe_id
+        description: Stable provider exchange/instrument key from the latest instrument universe.
+        data_tests:
+          - not_null
+      - name: data_provider
+        description: Provider for the instrument lifecycle row.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - eodhd
+      - name: provider_exchange_code
+        description: Provider exchange code used for price request namespaces.
+        data_tests:
+          - not_null
+      - name: provider_instrument_code
+        description: Provider instrument code evaluated for price lifecycle evidence.
+        data_tests:
+          - not_null
+      - name: expected_price_start_date
+        description: First date from which the coverage model can normally expect prices; observed price history wins, otherwise current date is used until provider evidence exists.
+        data_tests:
+          - not_null
+      - name: has_provider_lifecycle_evidence
+        description: True when observed prices or terminal backfill coverage prove provider lifecycle behavior for this instrument.
+        data_tests:
+          - not_null
+      - name: lifecycle_evidence_source
+        description: Dominant evidence used to explain provider instrument lifecycle expectedness.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - observed_price_history
+                  - terminal_no_data
+                  - completed_backfill
+                  - latest_universe_only
+      - name: lifecycle_confidence
+        description: Confidence tier for provider lifecycle expectedness.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - observed
+                  - provider_terminal
+                  - unconfirmed
+
   - name: int_eod_price_expected_instrument_day
-    description: Expected EOD price instrument-days for active tradable instruments on open or unknown-calendar exchange dates. Observed prices define the normal history range, current no-price instruments are expected today, and terminal no-data backfill windows add only their covered date ranges.
+    description: Expected EOD price instrument-days for active tradable instruments on open or unknown-calendar exchange dates. Provider lifecycle evidence defines the normal history range, current no-price instruments are expected today, and terminal no-data backfill windows add only their covered date ranges.
     config:
       tags:
         - ingestion_control
@@ -210,6 +266,14 @@ models:
           - not_null
       - name: is_calendar_known
         description: True when the provider exchange can be mapped to schedule metadata.
+        data_tests:
+          - not_null
+      - name: is_calendar_coverage_known
+        description: True when the mapped holiday calendar covers this local exchange date.
+        data_tests:
+          - not_null
+      - name: has_provider_lifecycle_evidence
+        description: True when observed prices or terminal backfill coverage prove provider lifecycle behavior for this instrument.
         data_tests:
           - not_null
       - name: is_trading_day
@@ -258,12 +322,22 @@ models:
                   - missing_price
                   - known_no_data
                   - unknown_calendar
+                  - unknown_calendar_coverage
+                  - unknown_instrument_lifecycle
       - name: has_price
         description: True when a staged EOD price row exists for the expected instrument-day.
         data_tests:
           - not_null
       - name: has_no_data_coverage
         description: True when terminal no-data coverage covers this expected instrument-day.
+        data_tests:
+          - not_null
+      - name: has_provider_lifecycle_evidence
+        description: True when observed prices or terminal backfill coverage prove provider lifecycle behavior for this instrument.
+        data_tests:
+          - not_null
+      - name: is_calendar_coverage_known
+        description: True when the mapped holiday calendar covers this local exchange date.
         data_tests:
           - not_null
 
@@ -339,6 +413,14 @@ models:
         description: Expected instruments whose provider exchange has no known trading calendar mapping.
         data_tests:
           - not_null
+      - name: unknown_calendar_coverage_instruments
+        description: Expected instruments on a mapped exchange date that sits outside the available holiday calendar coverage horizon.
+        data_tests:
+          - not_null
+      - name: unknown_instrument_lifecycle_instruments
+        description: Expected instruments without observed price or terminal backfill evidence proving provider lifecycle behavior.
+        data_tests:
+          - not_null
       - name: priced_instrument_ratio
         description: Share of expected instruments with staged EOD price rows; null when no instruments are expected.
       - name: exchange_day_status
@@ -351,5 +433,7 @@ models:
                   - complete
                   - missing_price
                   - unknown_calendar
+                  - unknown_calendar_coverage
+                  - unknown_instrument_lifecycle
                   - closed_exchange
                   - no_expected_instruments

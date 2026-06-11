@@ -28,6 +28,12 @@ joined AS (
         expected.min_bar_date,
         expected.max_bar_date,
         expected.bar_count,
+        expected.expected_price_start_date,
+        expected.expected_price_end_date,
+        expected.has_observed_price_history,
+        expected.has_provider_lifecycle_evidence,
+        expected.lifecycle_evidence_source,
+        expected.lifecycle_confidence,
         expected.provider_schedule_exchange_code,
         expected.schedule_mapping_method,
         expected.schedule_mapping_confidence,
@@ -37,6 +43,10 @@ joined AS (
         expected.bar_date,
         expected.day_name,
         expected.is_calendar_known,
+        expected.is_calendar_coverage_known,
+        expected.calendar_coverage_status,
+        expected.calendar_coverage_start_date,
+        expected.calendar_coverage_end_date,
         expected.is_working_day,
         expected.is_full_holiday,
         expected.is_early_close,
@@ -86,6 +96,12 @@ SELECT
     min_bar_date,
     max_bar_date,
     bar_count,
+    expected_price_start_date,
+    expected_price_end_date,
+    has_observed_price_history,
+    has_provider_lifecycle_evidence,
+    lifecycle_evidence_source,
+    lifecycle_confidence,
     provider_schedule_exchange_code,
     schedule_mapping_method,
     schedule_mapping_confidence,
@@ -95,6 +111,10 @@ SELECT
     bar_date,
     day_name,
     is_calendar_known,
+    is_calendar_coverage_known,
+    calendar_coverage_status,
+    calendar_coverage_start_date,
+    calendar_coverage_end_date,
     is_working_day,
     is_full_holiday,
     is_early_close,
@@ -105,6 +125,8 @@ SELECT
         WHEN NOT is_calendar_known THEN 'unknown_calendar'
         WHEN price_ingestion_id IS NOT NULL THEN 'priced'
         WHEN no_data_unit_key_hash IS NOT NULL THEN 'known_no_data'
+        WHEN NOT is_calendar_coverage_known THEN 'unknown_calendar_coverage'
+        WHEN NOT has_provider_lifecycle_evidence THEN 'unknown_instrument_lifecycle'
         ELSE 'missing_price'
     END AS coverage_status,
     price_ingestion_id,

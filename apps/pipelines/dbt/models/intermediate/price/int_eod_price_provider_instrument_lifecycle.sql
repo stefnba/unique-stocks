@@ -1,0 +1,113 @@
+{{ config(tags=['ingestion_control']) }}
+
+WITH instrument AS (
+    SELECT *
+    FROM {{ ref('int_latest_instrument_universe') }}
+    WHERE data_provider = 'eodhd'
+        AND is_tradable
+),
+
+price_ranges AS (
+    SELECT *
+    FROM {{ ref('int_eod_price_completion_ranges') }}
+),
+
+terminal_coverage AS (
+    SELECT *
+    FROM {{ ref('int_eod_price_backfill_terminal_coverage') }}
+),
+
+no_data_coverage AS (
+    SELECT
+        data_provider,
+        provider_exchange_code,
+        provider_instrument_code,
+        MIN(COALESCE(from_date, to_date)) AS first_no_data_coverage_date,
+        MAX(to_date) AS last_no_data_coverage_date,
+        BOOL_OR(from_date IS NULL) AS has_open_start_no_data_coverage,
+        COUNT(*) AS no_data_coverage_windows
+    FROM terminal_coverage
+    WHERE status = 'no_data'
+    GROUP BY 1, 2, 3
+),
+
+completed_coverage AS (
+    SELECT
+        data_provider,
+        provider_exchange_code,
+        provider_instrument_code,
+        MIN(COALESCE(from_date, to_date)) AS first_completed_coverage_date,
+        MAX(to_date) AS last_completed_coverage_date,
+        BOOL_OR(from_date IS NULL) AS has_open_start_completed_coverage,
+        COUNT(*) AS completed_coverage_windows
+    FROM terminal_coverage
+    WHERE status = 'completed'
+    GROUP BY 1, 2, 3
+),
+
+joined AS (
+    SELECT
+        instrument.instrument_universe_id,
+        instrument.snapshot_date AS instrument_snapshot_date,
+        instrument.data_provider,
+        instrument.provider_exchange_code,
+        instrument.provider_instrument_code,
+        instrument.instrument_family,
+        instrument.is_tradable,
+        price_ranges.min_bar_date AS first_observed_price_date,
+        price_ranges.max_bar_date AS last_observed_price_date,
+        price_ranges.bar_count AS observed_price_days,
+        no_data_coverage.first_no_data_coverage_date,
+        no_data_coverage.last_no_data_coverage_date,
+        COALESCE(no_data_coverage.has_open_start_no_data_coverage, FALSE)
+            AS has_open_start_no_data_coverage,
+        COALESCE(no_data_coverage.no_data_coverage_windows, 0) AS no_data_coverage_windows,
+        completed_coverage.first_completed_coverage_date,
+        completed_coverage.last_completed_coverage_date,
+        COALESCE(completed_coverage.has_open_start_completed_coverage, FALSE)
+            AS has_open_start_completed_coverage,
+        COALESCE(completed_coverage.completed_coverage_windows, 0) AS completed_coverage_windows
+    FROM instrument
+    LEFT JOIN price_ranges
+        ON instrument.data_provider = price_ranges.data_provider
+        AND instrument.provider_exchange_code = price_ranges.provider_exchange_code
+        AND instrument.provider_instrument_code = price_ranges.provider_instrument_code
+    LEFT JOIN no_data_coverage
+        ON instrument.data_provider = no_data_coverage.data_provider
+        AND instrument.provider_exchange_code = no_data_coverage.provider_exchange_code
+        AND instrument.provider_instrument_code = no_data_coverage.provider_instrument_code
+    LEFT JOIN completed_coverage
+        ON instrument.data_provider = completed_coverage.data_provider
+        AND instrument.provider_exchange_code = completed_coverage.provider_exchange_code
+        AND instrument.provider_instrument_code = completed_coverage.provider_instrument_code
+),
+
+final AS (
+    SELECT
+        *,
+        first_observed_price_date IS NOT NULL AS has_observed_price_history,
+        no_data_coverage_windows > 0 AS has_terminal_no_data_coverage,
+        completed_coverage_windows > 0 AS has_completed_backfill_coverage,
+        (
+            first_observed_price_date IS NOT NULL
+            OR no_data_coverage_windows > 0
+            OR completed_coverage_windows > 0
+        ) AS has_provider_lifecycle_evidence,
+        COALESCE(first_observed_price_date, CURRENT_DATE) AS expected_price_start_date,
+        CAST(NULL AS DATE) AS expected_price_end_date,
+        CASE
+            WHEN first_observed_price_date IS NOT NULL THEN 'observed_price_history'
+            WHEN no_data_coverage_windows > 0 THEN 'terminal_no_data'
+            WHEN completed_coverage_windows > 0 THEN 'completed_backfill'
+            ELSE 'latest_universe_only'
+        END AS lifecycle_evidence_source,
+        CASE
+            WHEN first_observed_price_date IS NOT NULL THEN 'observed'
+            WHEN no_data_coverage_windows > 0 THEN 'provider_terminal'
+            WHEN completed_coverage_windows > 0 THEN 'provider_terminal'
+            ELSE 'unconfirmed'
+        END AS lifecycle_confidence
+    FROM joined
+)
+
+SELECT * FROM final

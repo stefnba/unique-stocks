@@ -22,7 +22,12 @@ instrument_day_coverage AS (
         COUNT(*) AS expected_instrument_days,
         SUM(CASE WHEN coverage_status = 'missing_price' THEN 1 ELSE 0 END) AS missing_price_days,
         SUM(CASE WHEN coverage_status = 'unknown_calendar' THEN 1 ELSE 0 END) AS unknown_calendar_days,
-        MAX(CASE WHEN min_bar_date IS NOT NULL THEN 1 ELSE 0 END) AS has_observed_price_range
+        SUM(CASE WHEN coverage_status = 'unknown_calendar_coverage' THEN 1 ELSE 0 END)
+            AS unknown_calendar_coverage_days,
+        SUM(CASE WHEN coverage_status = 'unknown_instrument_lifecycle' THEN 1 ELSE 0 END)
+            AS unknown_instrument_lifecycle_days,
+        MAX(CASE WHEN min_bar_date IS NOT NULL THEN 1 ELSE 0 END) AS has_observed_price_range,
+        MAX(CASE WHEN has_provider_lifecycle_evidence THEN 1 ELSE 0 END) AS has_provider_lifecycle_evidence
     FROM {{ instrument_day_coverage_relation }}
     WHERE data_provider = {{ param() }}
         AND provider_exchange_code = {{ param() }}
@@ -54,7 +59,11 @@ scoped_symbols AS (
         COALESCE(instrument_day_coverage.expected_instrument_days, 0) AS expected_instrument_days,
         COALESCE(instrument_day_coverage.missing_price_days, 0) AS missing_price_days,
         COALESCE(instrument_day_coverage.unknown_calendar_days, 0) AS unknown_calendar_days,
+        COALESCE(instrument_day_coverage.unknown_calendar_coverage_days, 0) AS unknown_calendar_coverage_days,
+        COALESCE(instrument_day_coverage.unknown_instrument_lifecycle_days, 0) AS unknown_instrument_lifecycle_days,
         COALESCE(instrument_day_coverage.has_observed_price_range, 0) > 0 AS has_observed_price_range,
+        COALESCE(instrument_day_coverage.has_provider_lifecycle_evidence, 0) > 0
+            AS has_provider_lifecycle_evidence,
         exchange_scope.expected_exchange_days
     FROM instrument_universe
     CROSS JOIN exchange_scope
@@ -69,6 +78,8 @@ SELECT
     expected_instrument_days,
     missing_price_days,
     unknown_calendar_days,
+    unknown_calendar_coverage_days,
+    unknown_instrument_lifecycle_days,
     COUNT(*) OVER () AS total_instruments,
     SUM(CASE WHEN has_completed_coverage THEN 1 ELSE 0 END) OVER () AS completed_coverage_instruments,
     SUM(CASE WHEN has_no_data_coverage THEN 1 ELSE 0 END) OVER () AS terminal_no_data_instruments
@@ -79,7 +90,10 @@ WHERE expected_exchange_days > 0
     AND (
         {{ param() }} IS NULL
         OR missing_price_days > 0
+        OR unknown_calendar_coverage_days > 0
+        OR unknown_instrument_lifecycle_days > 0
         OR expected_instrument_days = 0
         OR NOT has_observed_price_range
+        OR NOT has_provider_lifecycle_evidence
     )
 ORDER BY provider_instrument_code

@@ -75,7 +75,8 @@ schedule_holiday_bounds AS (
     SELECT
         data_provider,
         provider_schedule_exchange_code,
-        MIN(holiday_date) AS min_holiday_date
+        MIN(holiday_date) AS holiday_coverage_start_date,
+        MAX(holiday_date) AS holiday_coverage_end_date
     FROM holiday
     GROUP BY 1, 2
 ),
@@ -96,14 +97,17 @@ provider_exchange_bounds AS (
         mic_mapping.mic_mapping_method,
         mic_mapping.mic_mapping_confidence,
         exchange_universe.creation_date AS exchange_creation_date,
+        schedule_holiday_bounds.holiday_coverage_start_date,
+        schedule_holiday_bounds.holiday_coverage_end_date,
         CASE
             WHEN exchange_universe.creation_date IS NOT NULL THEN exchange_universe.creation_date
-            WHEN schedule_holiday_bounds.min_holiday_date <= CURRENT_DATE THEN schedule_holiday_bounds.min_holiday_date
+            WHEN schedule_holiday_bounds.holiday_coverage_start_date <= CURRENT_DATE
+                THEN schedule_holiday_bounds.holiday_coverage_start_date
             ELSE CURRENT_DATE
         END AS calendar_start_date,
         CASE
             WHEN exchange_universe.creation_date IS NOT NULL THEN 'mic_creation_date'
-            WHEN schedule_holiday_bounds.min_holiday_date <= CURRENT_DATE THEN 'provider_holiday_calendar'
+            WHEN schedule_holiday_bounds.holiday_coverage_start_date <= CURRENT_DATE THEN 'provider_holiday_calendar'
             ELSE 'current_date_default'
         END AS calendar_start_date_source
     FROM provider_exchange
@@ -154,6 +158,8 @@ joined AS (
         provider_exchange.mic_mapping_method,
         provider_exchange.mic_mapping_confidence,
         provider_exchange.exchange_creation_date,
+        provider_exchange.holiday_coverage_start_date AS calendar_coverage_start_date,
+        provider_exchange.holiday_coverage_end_date AS calendar_coverage_end_date,
         provider_exchange.calendar_start_date,
         provider_exchange.calendar_start_date_source,
         schedule_mapping.provider_schedule_exchange_code,
@@ -165,6 +171,18 @@ joined AS (
         date_spine.bar_date,
         date_spine.day_name,
         calendar.provider_schedule_exchange_code IS NOT NULL AS is_calendar_known,
+        calendar.provider_schedule_exchange_code IS NOT NULL
+        AND provider_exchange.holiday_coverage_start_date IS NOT NULL
+        AND date_spine.bar_date BETWEEN
+        provider_exchange.holiday_coverage_start_date AND provider_exchange.holiday_coverage_end_date
+            AS is_calendar_coverage_known,
+        CASE
+            WHEN calendar.provider_schedule_exchange_code IS NULL THEN 'unknown_schedule_mapping'
+            WHEN provider_exchange.holiday_coverage_start_date IS NULL THEN 'unknown_holiday_coverage'
+            WHEN date_spine.bar_date < provider_exchange.holiday_coverage_start_date THEN 'before_holiday_coverage'
+            WHEN date_spine.bar_date > provider_exchange.holiday_coverage_end_date THEN 'after_holiday_coverage'
+            ELSE 'covered'
+        END AS calendar_coverage_status,
         calendar.provider_schedule_exchange_code IS NOT NULL
         AND POSITION(',' || date_spine.day_name || ',' IN ',' || calendar.working_days || ',') > 0
             AS is_working_day,
@@ -205,6 +223,8 @@ SELECT
     mic_mapping_method,
     mic_mapping_confidence,
     exchange_creation_date,
+    calendar_coverage_start_date,
+    calendar_coverage_end_date,
     calendar_start_date,
     calendar_start_date_source,
     provider_schedule_exchange_code,
@@ -216,6 +236,8 @@ SELECT
     bar_date,
     day_name,
     is_calendar_known,
+    is_calendar_coverage_known,
+    calendar_coverage_status,
     is_working_day,
     is_full_holiday,
     is_early_close,

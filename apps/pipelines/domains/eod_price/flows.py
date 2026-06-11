@@ -465,7 +465,12 @@ def _coverage_gate_summary(gaps: list[EODPriceCoverageGap]) -> dict[str, object]
         by_status[status] = by_status.get(status, 0) + 1
     return {
         "status": "failed" if gaps else "passed",
-        "blocking_statuses": ["missing_price", "unknown_calendar"],
+        "blocking_statuses": [
+            "missing_price",
+            "unknown_calendar",
+            "unknown_calendar_coverage",
+            "unknown_instrument_lifecycle",
+        ],
         "gaps": len(gaps),
         "by_status": by_status,
         "sample": [_coverage_gap_summary_row(gap) for gap in gaps[:20]],
@@ -483,6 +488,8 @@ def _coverage_gap_summary_row(gap: EODPriceCoverageGap) -> dict[str, object]:
         "priced_instruments": gap["priced_instruments"],
         "missing_price_instruments": gap["missing_price_instruments"],
         "unknown_calendar_instruments": gap["unknown_calendar_instruments"],
+        "unknown_calendar_coverage_instruments": gap["unknown_calendar_coverage_instruments"],
+        "unknown_instrument_lifecycle_instruments": gap["unknown_instrument_lifecycle_instruments"],
     }
 
 

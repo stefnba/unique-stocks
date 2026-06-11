@@ -44,6 +44,7 @@ base AS (
         trading_day.day_name,
         CASE
             WHEN NOT trading_day.is_calendar_known THEN 'unknown_calendar'
+            WHEN NOT trading_day.is_calendar_coverage_known THEN 'unknown_calendar_coverage'
             WHEN trading_day.is_full_holiday THEN 'closed_holiday'
             WHEN NOT trading_day.is_working_day THEN 'closed_non_working_day'
             WHEN trading_day.is_early_close THEN 'early_close'
@@ -51,10 +52,13 @@ base AS (
         END AS trading_day_status,
         CASE
             WHEN NOT trading_day.is_calendar_known THEN 'unknown_calendar'
+            WHEN NOT trading_day.is_calendar_coverage_known THEN 'unknown_calendar_coverage'
             WHEN trading_day.is_full_holiday THEN 'full_holiday'
             WHEN NOT trading_day.is_working_day THEN 'non_working_day'
         END AS closure_reason,
         trading_day.is_calendar_known,
+        trading_day.is_calendar_coverage_known,
+        trading_day.calendar_coverage_status,
         trading_day.is_working_day,
         trading_day.is_full_holiday,
         trading_day.is_early_close,
@@ -83,6 +87,8 @@ base AS (
         trading_day.early_close_time,
         trading_day.bar_date AS trading_date,
         trading_day.exchange_creation_date,
+        trading_day.calendar_coverage_start_date,
+        trading_day.calendar_coverage_end_date,
         trading_day.calendar_start_date,
         trading_day.calendar_start_date_source,
         exchange_calendar.schedule_snapshot_date,
@@ -148,6 +154,8 @@ final AS (
         trading_day_status,
         closure_reason,
         is_calendar_known,
+        is_calendar_coverage_known,
+        calendar_coverage_status,
         is_working_day,
         is_full_holiday,
         is_early_close,
@@ -193,6 +201,8 @@ final AS (
         early_close_time,
         trading_date,
         exchange_creation_date,
+        calendar_coverage_start_date,
+        calendar_coverage_end_date,
         calendar_start_date,
         calendar_start_date_source,
         schedule_snapshot_date,

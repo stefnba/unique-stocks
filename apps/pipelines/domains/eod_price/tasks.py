@@ -67,6 +67,8 @@ class EODPriceCoverageGap(TypedDict):
     missing_price_instruments: int
     known_no_data_instruments: int
     unknown_calendar_instruments: int
+    unknown_calendar_coverage_instruments: int
+    unknown_instrument_lifecycle_instruments: int
 
 
 @task(name="fetch-eod-provider-exchange-codes")
@@ -453,6 +455,8 @@ def load_eod_price_coverage_gaps(
             "missing_price_instruments": int(row["missing_price_instruments"]),
             "known_no_data_instruments": int(row["known_no_data_instruments"]),
             "unknown_calendar_instruments": int(row["unknown_calendar_instruments"]),
+            "unknown_calendar_coverage_instruments": int(row["unknown_calendar_coverage_instruments"]),
+            "unknown_instrument_lifecycle_instruments": int(row["unknown_instrument_lifecycle_instruments"]),
         }
         for row in rows
     ]
@@ -838,7 +842,12 @@ def _eod_exchange_day_has_blocking_gap(lake: Any, *, provider_exchange_code: str
     )
     if not row:
         return False
-    return row["exchange_day_status"] in {"missing_price", "unknown_calendar"}
+    return row["exchange_day_status"] in {
+        "missing_price",
+        "unknown_calendar",
+        "unknown_calendar_coverage",
+        "unknown_instrument_lifecycle",
+    }
 
 
 def _query_exchange_day_coverage_gaps(

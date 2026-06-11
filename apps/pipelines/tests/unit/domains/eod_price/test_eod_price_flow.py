@@ -247,6 +247,8 @@ async def test_eod_daily_coverage_gate_marks_run_partial(monkeypatch: pytest.Mon
                 "missing_price_instruments": 1,
                 "known_no_data_instruments": 0,
                 "unknown_calendar_instruments": 0,
+                "unknown_calendar_coverage_instruments": 0,
+                "unknown_instrument_lifecycle_instruments": 0,
             }
         ]
 
@@ -293,6 +295,8 @@ async def test_eod_daily_no_data_still_runs_coverage_gate(monkeypatch: pytest.Mo
                 "missing_price_instruments": 2,
                 "known_no_data_instruments": 0,
                 "unknown_calendar_instruments": 0,
+                "unknown_calendar_coverage_instruments": 0,
+                "unknown_instrument_lifecycle_instruments": 0,
             }
         ]
 

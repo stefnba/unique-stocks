@@ -78,6 +78,8 @@ class FakeLake:
                     "expected_instrument_days": details["expected_days"],
                     "missing_price_days": details["missing_days"],
                     "unknown_calendar_days": details["unknown_days"],
+                    "unknown_calendar_coverage_days": details["unknown_calendar_coverage_days"],
+                    "unknown_instrument_lifecycle_days": details["unknown_lifecycle_days"],
                     "total_instruments": len(self.instrument_rows),
                     "completed_coverage_instruments": len(completed),
                     "terminal_no_data_instruments": len(covered),
@@ -135,19 +137,47 @@ class FakeLake:
                 continue
             instrument = str(row["provider_instrument_code"])
             details = coverage_by_instrument.setdefault(
-                instrument, {"expected_days": 0, "missing_days": 0, "unknown_days": 0, "has_observed": 0}
+                instrument,
+                {
+                    "expected_days": 0,
+                    "missing_days": 0,
+                    "unknown_days": 0,
+                    "unknown_calendar_coverage_days": 0,
+                    "unknown_lifecycle_days": 0,
+                    "has_observed": 0,
+                    "has_lifecycle_evidence": 0,
+                },
             )
             details["expected_days"] += 1
             if row.get("coverage_status") == "missing_price":
                 details["missing_days"] += 1
             if row.get("coverage_status") == "unknown_calendar":
                 details["unknown_days"] += 1
+            if row.get("coverage_status") == "unknown_calendar_coverage":
+                details["unknown_calendar_coverage_days"] += 1
+            if row.get("coverage_status") == "unknown_instrument_lifecycle":
+                details["unknown_lifecycle_days"] += 1
             if row.get("coverage_status") == "priced" or row.get("min_bar_date") is not None:
                 details["has_observed"] = 1
+            if (
+                row.get("has_provider_lifecycle_evidence")
+                or row.get("min_bar_date") is not None
+                or row.get("coverage_status") == "priced"
+            ):
+                details["has_lifecycle_evidence"] = 1
         pending: list[tuple[str, dict[str, int]]] = []
         for instrument in all_instruments:
             details = coverage_by_instrument.get(
-                instrument, {"expected_days": 0, "missing_days": 0, "unknown_days": 0, "has_observed": 0}
+                instrument,
+                {
+                    "expected_days": 0,
+                    "missing_days": 0,
+                    "unknown_days": 0,
+                    "unknown_calendar_coverage_days": 0,
+                    "unknown_lifecycle_days": 0,
+                    "has_observed": 0,
+                    "has_lifecycle_evidence": 0,
+                },
             )
             if self.expected_exchange_days <= 0:
                 continue
@@ -156,8 +186,11 @@ class FakeLake:
             if (
                 requested_from is None
                 or details["missing_days"] > 0
+                or details["unknown_calendar_coverage_days"] > 0
+                or details["unknown_lifecycle_days"] > 0
                 or details["expected_days"] == 0
                 or not details["has_observed"]
+                or not details["has_lifecycle_evidence"]
             ):
                 pending.append((instrument, details))
         return pending, completed_coverage, covered
@@ -223,6 +256,8 @@ def test_load_backfill_pending_excludes_price_and_no_data_coverage(
     assert "silver.int_eod_price_backfill_terminal_coverage" in sql
     assert "coverage.status = 'completed'" in sql
     assert "coverage_status = 'missing_price'" in sql
+    assert "coverage_status = 'unknown_calendar_coverage'" in sql
+    assert "coverage_status = 'unknown_instrument_lifecycle'" in sql
     assert "coverage.status = 'completed'" in sql
     assert "COUNT(*) OVER () AS total_instruments" in sql
     assert params and params[12] == "eodhd"
@@ -270,6 +305,38 @@ def test_load_backfill_pending_keeps_partial_price_history_pending(
     pending = tasks.load_backfill_pending_instruments.fn("US", FROM_DATE, TO_DATE)
 
     assert pending == ["AAPL"]
+
+
+def test_load_backfill_pending_keeps_unknown_control_states_pending(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Calendar-horizon and lifecycle unknowns should remain planned work."""
+    lake = FakeLake(
+        instrument_rows=[
+            {"provider_instrument_code": "HOLIDAY"},
+            {"provider_instrument_code": "NEWIPO"},
+        ],
+        day_coverage_rows=[
+            {
+                "provider_instrument_code": "HOLIDAY",
+                "bar_date": date(2026, 5, 15),
+                "coverage_status": "unknown_calendar_coverage",
+                "has_provider_lifecycle_evidence": True,
+            },
+            {
+                "provider_instrument_code": "NEWIPO",
+                "bar_date": date(2026, 5, 15),
+                "coverage_status": "unknown_instrument_lifecycle",
+            },
+        ],
+    )
+    import core.clients.lake as lake_module
+
+    monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
+
+    pending = tasks.load_backfill_pending_instruments.fn("US", FROM_DATE, TO_DATE)
+
+    assert pending == ["HOLIDAY", "NEWIPO"]
 
 
 def test_load_backfill_pending_keeps_partial_no_data_without_observed_history_pending(

@@ -287,6 +287,7 @@ models:
                   - closed_holiday
                   - closed_non_working_day
                   - unknown_calendar
+                  - unknown_calendar_coverage
       - name: closure_reason
         description: Closure reason for non-trading dates when known.
         data_tests:
@@ -296,10 +297,27 @@ models:
                   - full_holiday
                   - non_working_day
                   - unknown_calendar
+                  - unknown_calendar_coverage
       - name: is_calendar_known
         description: True when a schedule-code mapping and latest schedule row are available.
         data_tests:
           - not_null
+      - name: is_calendar_coverage_known
+        description: True when the mapped holiday calendar covers this local exchange date.
+        data_tests:
+          - not_null
+      - name: calendar_coverage_status
+        description: Coverage status of the provider holiday calendar for this generated exchange/date.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - covered
+                  - before_holiday_coverage
+                  - after_holiday_coverage
+                  - unknown_holiday_coverage
+                  - unknown_schedule_mapping
       - name: is_working_day
         description: True when the date's day name is present in the provider working-days expression.
         data_tests:
@@ -370,6 +388,10 @@ models:
           - not_null
       - name: exchange_creation_date
         description: MIC registry creation date for the mapped exchange, when known; not necessarily the exchange's first trading date.
+      - name: calendar_coverage_start_date
+        description: First holiday-calendar date available for the mapped provider schedule code, when supplied by the provider.
+      - name: calendar_coverage_end_date
+        description: Latest holiday-calendar date available for the mapped provider schedule code, when supplied by the provider.
       - name: calendar_start_date
         description: First local date generated for this provider exchange calendar.
         data_tests:
