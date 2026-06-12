@@ -18,6 +18,7 @@ from core.ingestion import (
     RunStatus,
     terminal_status,
 )
+from core.prefect_controls import observe_bronze_assets, publish_ingestion_observability
 from core.transforms import run_dbt_build_after_ingestion
 from domains.fundamental.tasks import (
     delete_fundamental_snapshot_rows,
@@ -679,6 +680,24 @@ async def fundamental_flow(
                 ),
                 summary=summary,
             )
+            if total_written:
+                observe_bronze_assets(
+                    ["fundamental"],
+                    metadata={
+                        "app_run_id": run.run_id,
+                        "snapshot_date": snapshot_date.isoformat(),
+                        "provider": "eodhd",
+                        "rows_written": total_written,
+                        "instruments": len(summary["instruments"]),
+                    },
+                )
+            await publish_ingestion_observability(
+                flow_name="fundamental-quarterly",
+                domain="fundamental",
+                app_run_id=run.run_id,
+                status=run_status,
+                summary=summary,
+            )
             log.info(
                 "fundamental.flow_done",
                 snapshot_date=snapshot_date,
@@ -698,6 +717,13 @@ async def fundamental_flow(
                     ),
                     summary=summary,
                 )
+            await publish_ingestion_observability(
+                flow_name="fundamental-quarterly",
+                domain="fundamental",
+                app_run_id=run.run_id,
+                status="failed",
+                summary=summary,
+            )
             raise
 
     if run_dbt_build and run_id is not None and run_status is not None:

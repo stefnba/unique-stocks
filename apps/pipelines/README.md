@@ -254,8 +254,8 @@ global concurrency limits for shared lake and provider resources.
 `make prefect-controls` upserts two Prefect global limits: `unique-stocks.lake-writer`
 for lake/dbt/migration writes and `unique-stocks.provider-api-credit` for outbound provider calls.
 It also creates event automations for dbt failures, EOD coverage-gate gaps, stale running audit
-rows, and cancellations. The automations use a no-op action unless `PREFECT_NOTIFICATION_BLOCK_ID`
-is set to a Prefect notification block UUID.
+rows, ingestion partial/failure outcomes, and cancellations. The automations use a no-op action
+unless `PREFECT_NOTIFICATION_BLOCK_ID` is set to a Prefect notification block UUID.
 
 Trigger a flow run manually:
 
@@ -381,9 +381,10 @@ runs do not auto-promote Bronze data. Run the dbt deployments directly for boots
 or full rebuilds. Each dbt invocation writes to its own `dbt/target/pipeline-runs/<dbt_run_id>/`
 directory; orchestration reads `run_results.json` only from that per-run path, records the exact
 artifact path in the dbt audit table, and publishes a Prefect Markdown artifact with the invocation
-summary. EOD coverage gates publish a Prefect table artifact when they find gaps.
-Successful Bronze EOD writes and dbt build/run invocations also observe simple Prefect assets for
-Bronze, Silver, and Gold layer visibility in Prefect.
+summary. Every ingestion flow publishes a compact Prefect Markdown summary artifact, and EOD
+coverage gates publish a Prefect table artifact when they find gaps. Successful Bronze writes and
+dbt build/run invocations observe simple Prefect assets for Bronze, Silver, and Gold layer
+visibility in Prefect.
 If a post-ingestion dbt deployment fails after the ingestion audit has completed, the parent Prefect
 flow intentionally fails for alerting while `pipeline.runs` keeps the ingestion status and dbt audit
 tables carry the transformation failure details.

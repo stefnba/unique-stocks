@@ -5,6 +5,7 @@ from datetime import date
 from prefect import flow
 
 from core.ingestion import PipelineRunTracker, RunCounters, terminal_status
+from core.prefect_controls import observe_bronze_assets, publish_ingestion_observability
 from domains.exchange.tasks.eodhd import (
     fetch_exchange_catalog,
     write_bronze_exchange_catalog,
@@ -30,6 +31,9 @@ async def exchange_catalog_flow() -> int:
     """Fetch the provider exchange catalog and write landing + bronze snapshots."""
     snapshot_date = date.today()
     tracker = PipelineRunTracker()
+    rows_raw = 0
+    rows_written = 0
+    summary: dict[str, object] = {"snapshot_date": snapshot_date.isoformat()}
     with tracker.track_run(
         flow_name="exchange-catalog-refresh",
         domain="exchange",
@@ -39,31 +43,69 @@ async def exchange_catalog_flow() -> int:
         target_window_start=snapshot_date,
         target_window_end=snapshot_date,
     ) as run:
-        with run.track_unit(
-            unit_type="catalog_snapshot",
-            unit_key={"snapshot_date": snapshot_date.isoformat()},
-        ) as unit:
-            exchange = await fetch_exchange_catalog()
-            landing = await write_exchange_catalog_to_landing_zone(exchange=exchange, snapshot_date=snapshot_date)
-            bronze = write_bronze_exchange_catalog(
-                exchange=exchange,
-                snapshot_date=snapshot_date,
-                source_uri=landing.source_uri,
+        try:
+            with run.track_unit(
+                unit_type="catalog_snapshot",
+                unit_key={"snapshot_date": snapshot_date.isoformat()},
+            ) as unit:
+                exchange = await fetch_exchange_catalog()
+                landing = await write_exchange_catalog_to_landing_zone(exchange=exchange, snapshot_date=snapshot_date)
+                bronze = write_bronze_exchange_catalog(
+                    exchange=exchange,
+                    snapshot_date=snapshot_date,
+                    source_uri=landing.source_uri,
+                )
+                rows_raw = landing.rows_raw or 0
+                rows_written = bronze.rows_written
+                summary = {"snapshot_date": snapshot_date.isoformat(), "rows_written": rows_written}
+                unit.complete_with_landing(
+                    landing=landing,
+                    reason=bronze.reason,
+                    rows_valid=rows_written,
+                    rows_written=rows_written,
+                )
+            status = terminal_status(failed=run.tally.failed)
+            run.complete(
+                status=status,
+                rows_raw=rows_raw,
+                rows_valid=rows_written,
+                rows_written=rows_written,
+                summary=summary,
             )
-            unit.complete_with_landing(
-                landing=landing,
-                reason=bronze.reason,
-                rows_valid=bronze.rows_written,
-                rows_written=bronze.rows_written,
+            if rows_written:
+                observe_bronze_assets(
+                    ["exchange_catalog"],
+                    metadata={
+                        "app_run_id": run.run_id,
+                        "snapshot_date": snapshot_date.isoformat(),
+                        "provider": "eodhd",
+                        "rows_written": rows_written,
+                        "source_uri": landing.source_uri,
+                    },
+                )
+            await publish_ingestion_observability(
+                flow_name="exchange-catalog-refresh",
+                domain="exchange",
+                app_run_id=run.run_id,
+                status=status,
+                summary=summary,
             )
-        run.complete(
-            status=terminal_status(failed=run.tally.failed),
-            rows_raw=landing.rows_raw,
-            rows_valid=bronze.rows_written,
-            rows_written=bronze.rows_written,
-            summary={"snapshot_date": snapshot_date.isoformat(), "rows_written": bronze.rows_written},
-        )
-        return bronze.rows_written
+            return rows_written
+        except Exception as exc:
+            if not run.is_terminal:
+                run.fail(
+                    exc,
+                    counters=RunCounters(rows_raw=rows_raw, rows_valid=rows_written, rows_written=rows_written),
+                    summary=summary,
+                )
+            await publish_ingestion_observability(
+                flow_name="exchange-catalog-refresh",
+                domain="exchange",
+                app_run_id=run.run_id,
+                status="failed",
+                summary=summary,
+            )
+            raise
 
 
 @flow(
@@ -144,6 +186,24 @@ async def exchange_mic_registry_flow(snapshot_date: date | None = None) -> dict[
                 ),
                 summary=summary,
             )
+            status = terminal_status(failed=run.tally.failed, rejected=rows_rejected)
+            if rows_written:
+                observe_bronze_assets(
+                    ["exchange_mic_registry"],
+                    metadata={
+                        "app_run_id": run.run_id,
+                        "snapshot_date": snapshot_date.isoformat(),
+                        "provider": "iso10383",
+                        "rows_written": rows_written,
+                    },
+                )
+            await publish_ingestion_observability(
+                flow_name="exchange-mic-registry-refresh",
+                domain="exchange",
+                app_run_id=run.run_id,
+                status=status,
+                summary=summary,
+            )
         except Exception as exc:
             if not run.is_terminal:
                 run.fail(
@@ -156,6 +216,13 @@ async def exchange_mic_registry_flow(snapshot_date: date | None = None) -> dict[
                     ),
                     summary=summary,
                 )
+            await publish_ingestion_observability(
+                flow_name="exchange-mic-registry-refresh",
+                domain="exchange",
+                app_run_id=run.run_id,
+                status="failed",
+                summary=summary,
+            )
             raise
 
     return summary

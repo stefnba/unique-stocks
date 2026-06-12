@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import inspect
+import json
 import os
+import re
 import sys
-from collections.abc import Generator, Sequence
+from collections.abc import Callable, Generator, Sequence
 from contextlib import contextmanager
 from datetime import date, datetime
 from decimal import Decimal
@@ -10,6 +13,7 @@ from typing import Any
 from uuid import UUID
 
 import structlog
+from prefect.artifacts import create_markdown_artifact
 from prefect.assets import Asset, AssetProperties, materialize
 from prefect.concurrency.asyncio import rate_limit
 from prefect.concurrency.sync import concurrency
@@ -22,6 +26,8 @@ PROVIDER_API_CREDIT_LIMIT = "unique-stocks.provider-api-credit"
 
 DBT_FAILED_EVENT = "unique-stocks.dbt.failed"
 COVERAGE_GATE_FAILED_EVENT = "unique-stocks.coverage-gate.failed"
+INGESTION_PARTIAL_EVENT = "unique-stocks.ingestion.partial"
+INGESTION_FAILED_EVENT = "unique-stocks.ingestion.failed"
 PIPELINE_STALE_RUNNING_EVENT = "unique-stocks.pipeline.stale-running"
 PIPELINE_CANCELLED_EVENT = "unique-stocks.pipeline.cancelled"
 
@@ -173,6 +179,31 @@ def emit_coverage_gate_failed_event(
     )
 
 
+def emit_ingestion_status_event(
+    *,
+    flow_name: str,
+    domain: str,
+    app_run_id: str,
+    status: str,
+    summary: dict[str, Any],
+) -> None:
+    """Emit a generic ingestion partial/failed event for operator automation."""
+    if status not in {"partial", "failed"}:
+        return
+    emit_pipeline_event(
+        event=INGESTION_PARTIAL_EVENT if status == "partial" else INGESTION_FAILED_EVENT,
+        resource_id=f"unique-stocks.ingestion-run.{app_run_id}",
+        resource_name=flow_name,
+        payload={
+            "app_run_id": app_run_id,
+            "flow_name": flow_name,
+            "domain": domain,
+            "status": status,
+            "summary": summary,
+        },
+    )
+
+
 def emit_stale_runs_event(
     *,
     stale_runs: Sequence[dict[str, Any]],
@@ -212,6 +243,73 @@ def emit_pipeline_cancelled_event(
     )
 
 
+async def publish_ingestion_observability(
+    *,
+    flow_name: str,
+    domain: str,
+    app_run_id: str,
+    status: str,
+    summary: dict[str, Any],
+) -> None:
+    """Publish a compact ingestion summary artifact and any terminal alert event."""
+    await _create_ingestion_summary_artifact(
+        flow_name=flow_name,
+        domain=domain,
+        app_run_id=app_run_id,
+        status=status,
+        summary=summary,
+    )
+    emit_ingestion_status_event(
+        flow_name=flow_name,
+        domain=domain,
+        app_run_id=app_run_id,
+        status=status,
+        summary=summary,
+    )
+
+
+async def _create_ingestion_summary_artifact(
+    *,
+    flow_name: str,
+    domain: str,
+    app_run_id: str,
+    status: str,
+    summary: dict[str, Any],
+) -> None:
+    try:
+        summary_json = json.dumps(_jsonable(summary), default=str, indent=2, sort_keys=True)
+        if len(summary_json) > 12_000:
+            summary_json = f"{summary_json[:12_000]}\n... truncated ..."
+        body = "\n".join(
+            [
+                f"# {flow_name} {status}",
+                "",
+                f"- Domain: `{domain}`",
+                f"- App run: `{app_run_id}`",
+                f"- Status: `{status}`",
+                "",
+                "```json",
+                summary_json,
+                "```",
+            ]
+        )
+        artifact_id = create_markdown_artifact(
+            key=f"ingestion-{_slug(flow_name)}-{_slug(app_run_id)[:16]}",
+            markdown=body,
+            description=f"{flow_name} ingestion summary ({status}).",
+        )
+        if inspect.isawaitable(artifact_id):
+            await artifact_id
+    except Exception as exc:
+        logger.warning(
+            "prefect_ingestion_summary_artifact_failed",
+            flow_name=flow_name,
+            domain=domain,
+            run_id=app_run_id,
+            error=str(exc),
+        )
+
+
 @materialize(
     Asset(
         key="duckdb://unique-stocks/bronze/eod_price",
@@ -229,6 +327,81 @@ def _observe_bronze_eod_price_asset(**metadata: Any) -> dict[str, Any]:
 
 @materialize(
     Asset(
+        key="duckdb://unique-stocks/bronze/exchange_catalog",
+        properties=AssetProperties(name="Bronze exchange catalog"),
+    ),
+    by="python",
+    name="observe-bronze-exchange-catalog-asset",
+)
+def _observe_bronze_exchange_catalog_asset(**metadata: Any) -> dict[str, Any]:
+    return metadata
+
+
+@materialize(
+    Asset(
+        key="duckdb://unique-stocks/bronze/exchange_mic_registry",
+        properties=AssetProperties(name="Bronze exchange MIC registry"),
+    ),
+    by="python",
+    name="observe-bronze-exchange-mic-registry-asset",
+)
+def _observe_bronze_exchange_mic_registry_asset(**metadata: Any) -> dict[str, Any]:
+    return metadata
+
+
+@materialize(
+    Asset(
+        key="duckdb://unique-stocks/bronze/exchange_schedule",
+        properties=AssetProperties(name="Bronze exchange schedule"),
+    ),
+    by="python",
+    name="observe-bronze-exchange-schedule-asset",
+)
+def _observe_bronze_exchange_schedule_asset(**metadata: Any) -> dict[str, Any]:
+    return metadata
+
+
+@materialize(
+    Asset(
+        key="duckdb://unique-stocks/bronze/exchange_holiday",
+        properties=AssetProperties(name="Bronze exchange holiday"),
+    ),
+    by="python",
+    name="observe-bronze-exchange-holiday-asset",
+)
+def _observe_bronze_exchange_holiday_asset(**metadata: Any) -> dict[str, Any]:
+    return metadata
+
+
+@materialize(
+    Asset(
+        key="duckdb://unique-stocks/bronze/instrument",
+        properties=AssetProperties(name="Bronze instrument"),
+    ),
+    by="python",
+    name="observe-bronze-instrument-asset",
+)
+def _observe_bronze_instrument_asset(**metadata: Any) -> dict[str, Any]:
+    return metadata
+
+
+@materialize(
+    Asset(
+        key="duckdb://unique-stocks/bronze/fundamental",
+        properties=AssetProperties(
+            name="Bronze fundamental",
+            description="Aggregate observation for bronze.fundamental_* tables.",
+        ),
+    ),
+    by="python",
+    name="observe-bronze-fundamental-asset",
+)
+def _observe_bronze_fundamental_asset(**metadata: Any) -> dict[str, Any]:
+    return metadata
+
+
+@materialize(
+    Asset(
         key="duckdb://unique-stocks/silver/exchange",
         properties=AssetProperties(name="Silver exchange"),
     ),
@@ -240,6 +413,22 @@ def _observe_bronze_eod_price_asset(**metadata: Any) -> dict[str, Any]:
     name="observe-dbt-exchange-assets",
 )
 def _observe_dbt_exchange_assets(**metadata: Any) -> dict[str, Any]:
+    return metadata
+
+
+@materialize(
+    Asset(
+        key="duckdb://unique-stocks/silver/exchange_schedule",
+        properties=AssetProperties(name="Silver exchange schedule"),
+    ),
+    Asset(
+        key="duckdb://unique-stocks/gold/exchange_schedule",
+        properties=AssetProperties(name="Gold exchange schedule"),
+    ),
+    by="dbt",
+    name="observe-dbt-exchange-schedule-assets",
+)
+def _observe_dbt_exchange_schedule_assets(**metadata: Any) -> dict[str, Any]:
     return metadata
 
 
@@ -293,12 +482,44 @@ def _observe_dbt_fundamental_assets(**metadata: Any) -> dict[str, Any]:
 
 def observe_bronze_eod_price_asset(**metadata: Any) -> None:
     """Observe Bronze EOD price writes as a Prefect asset materialization."""
+    observe_bronze_assets(["eod_price"], metadata=metadata)
+
+
+def observe_bronze_assets(
+    asset_names: Sequence[str],
+    *,
+    metadata: dict[str, Any],
+) -> None:
+    """Observe one or more Bronze asset materializations by logical asset name."""
+    observers: dict[str, Callable[..., Any]] = {
+        "eod_price": _observe_bronze_eod_price_asset,
+        "exchange_catalog": _observe_bronze_exchange_catalog_asset,
+        "exchange_mic_registry": _observe_bronze_exchange_mic_registry_asset,
+        "exchange_schedule": _observe_bronze_exchange_schedule_asset,
+        "exchange_holiday": _observe_bronze_exchange_holiday_asset,
+        "instrument": _observe_bronze_instrument_asset,
+        "fundamental": _observe_bronze_fundamental_asset,
+    }
+    for asset_name in asset_names:
+        observer = observers.get(asset_name)
+        if observer is None:
+            logger.warning("prefect_unknown_bronze_asset", asset_name=asset_name)
+            continue
+        _observe_bronze_asset(asset_name=asset_name, observer=observer, metadata=metadata)
+
+
+def _observe_bronze_asset(
+    *,
+    asset_name: str,
+    observer: Callable[..., Any],
+    metadata: dict[str, Any],
+) -> None:
     try:
-        _observe_bronze_eod_price_asset(**metadata)
+        observer(**metadata)
     except Exception as exc:
         logger.warning(
             "prefect_bronze_asset_observation_failed",
-            asset_key="duckdb://unique-stocks/bronze/eod_price",
+            asset_name=asset_name,
             error=str(exc),
         )
 
@@ -312,6 +533,7 @@ def materialize_dbt_assets(
     groups = _selected_dbt_asset_groups(select)
     observers = {
         "exchange": _observe_dbt_exchange_assets,
+        "exchange_schedule": _observe_dbt_exchange_schedule_assets,
         "instrument": _observe_dbt_instrument_assets,
         "price": _observe_dbt_price_assets,
         "fundamental": _observe_dbt_fundamental_assets,
@@ -329,19 +551,25 @@ def materialize_dbt_assets(
 
 def _selected_dbt_asset_groups(select: Sequence[str]) -> list[str]:
     if not select:
-        return ["exchange", "instrument", "price", "fundamental"]
+        return ["exchange", "exchange_schedule", "instrument", "price", "fundamental"]
 
     joined = " ".join(select).lower()
     groups: list[str] = []
     for group, needles in {
         "exchange": ("exchange", "provider_namespace"),
+        "exchange_schedule": ("exchange_schedule", "schedule", "holiday"),
         "instrument": ("instrument",),
         "price": ("price", "eod"),
         "fundamental": ("fundamental",),
     }.items():
         if any(needle in joined for needle in needles):
             groups.append(group)
-    return groups or ["exchange", "instrument", "price", "fundamental"]
+    return groups or ["exchange", "exchange_schedule", "instrument", "price", "fundamental"]
+
+
+def _slug(value: str) -> str:
+    slug = re.sub(r"[^a-zA-Z0-9-]+", "-", value).strip("-").lower()
+    return slug or "run"
 
 
 def _jsonable(value: Any) -> Any:

@@ -35,6 +35,7 @@ from core.ingestion.parser import attach_source_uri
 from core.prefect_controls import (
     emit_coverage_gate_failed_event,
     observe_bronze_eod_price_asset,
+    publish_ingestion_observability,
 )
 from core.transforms import run_dbt_build_after_ingestion, run_dbt_build_deployment
 from domains.eod_price.models import EODBar
@@ -330,10 +331,24 @@ async def eod_price_flow(
                 except Exception as exc:
                     summary["post_ingestion_error"] = _exception_summary(exc)
                     run.complete(status=ingestion_status, counters=counters, summary=summary)
+                    await publish_ingestion_observability(
+                        flow_name="eod-price-daily",
+                        domain="eod_price",
+                        app_run_id=run.run_id,
+                        status=ingestion_status,
+                        summary=summary,
+                    )
                     raise
             run.complete(
                 status=run_status,
                 counters=counters,
+                summary=summary,
+            )
+            await publish_ingestion_observability(
+                flow_name="eod-price-daily",
+                domain="eod_price",
+                app_run_id=run.run_id,
+                status=run_status,
                 summary=summary,
             )
             log.info(
@@ -353,6 +368,13 @@ async def eod_price_flow(
                         rows_rejected=total_rejected,
                         rows_written=total_written,
                     ),
+                    summary=summary,
+                )
+                await publish_ingestion_observability(
+                    flow_name="eod-price-daily",
+                    domain="eod_price",
+                    app_run_id=run.run_id,
+                    status="failed",
                     summary=summary,
                 )
             raise
@@ -1070,10 +1092,24 @@ async def eod_price_backfill_flow(
                 except Exception as exc:
                     summary["post_ingestion_error"] = _exception_summary(exc)
                     run.complete(status=ingestion_status, counters=counters, summary=summary)
+                    await publish_ingestion_observability(
+                        flow_name="eod-price-backfill",
+                        domain="eod_price",
+                        app_run_id=run.run_id,
+                        status=ingestion_status,
+                        summary=summary,
+                    )
                     raise
             run.complete(
                 status=run_status,
                 counters=counters,
+                summary=summary,
+            )
+            await publish_ingestion_observability(
+                flow_name="eod-price-backfill",
+                domain="eod_price",
+                app_run_id=run.run_id,
+                status=run_status,
                 summary=summary,
             )
             log.info(
@@ -1092,6 +1128,13 @@ async def eod_price_backfill_flow(
                         rows_rejected=total_rejected,
                         rows_written=total_written,
                     ),
+                    summary=summary,
+                )
+                await publish_ingestion_observability(
+                    flow_name="eod-price-backfill",
+                    domain="eod_price",
+                    app_run_id=run.run_id,
+                    status="failed",
                     summary=summary,
                 )
             raise

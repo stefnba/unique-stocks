@@ -17,6 +17,8 @@ from prefect.events.schemas.automations import AutomationCore, EventTrigger, Pos
 from core.prefect_controls import (
     COVERAGE_GATE_FAILED_EVENT,
     DBT_FAILED_EVENT,
+    INGESTION_FAILED_EVENT,
+    INGESTION_PARTIAL_EVENT,
     LAKE_WRITER_LIMIT,
     PIPELINE_CANCELLED_EVENT,
     PIPELINE_STALE_RUNNING_EVENT,
@@ -94,6 +96,16 @@ def _automations() -> list[AutomationCore]:
             name="unique-stocks coverage gate alert",
             event=COVERAGE_GATE_FAILED_EVENT,
             description="Runs when the EOD price coverage gate finds gaps.",
+        ),
+        _automation(
+            name="unique-stocks ingestion partial alert",
+            event=INGESTION_PARTIAL_EVENT,
+            description="Runs when an ingestion flow completes with partial data.",
+        ),
+        _automation(
+            name="unique-stocks ingestion failure alert",
+            event=INGESTION_FAILED_EVENT,
+            description="Runs when an ingestion flow fails before completing cleanly.",
         ),
         _automation(
             name="unique-stocks stale running audit alert",

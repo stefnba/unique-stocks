@@ -7,6 +7,7 @@ import structlog
 from prefect import flow
 
 from core.ingestion import PipelineRunTracker, RunCounters, RunStatus, RunUnitTally, terminal_status
+from core.prefect_controls import observe_bronze_assets, publish_ingestion_observability
 from core.transforms import run_dbt_build_after_ingestion
 from domains.instrument.tasks import (
     fetch_instrument,
@@ -143,9 +144,34 @@ async def instrument_flow(
                 counters=_instrument_counters(tally=run.tally, summary=summary),
                 summary=summary,
             )
+            rows_written = sum(row.get("rows", 0) for row in summary["exchange"].values())
+            if rows_written:
+                observe_bronze_assets(
+                    ["instrument"],
+                    metadata={
+                        "app_run_id": run.run_id,
+                        "snapshot_date": snapshot_date.isoformat(),
+                        "provider": "eodhd",
+                        "rows_written": rows_written,
+                    },
+                )
+            await publish_ingestion_observability(
+                flow_name="instrument-refresh",
+                domain="instrument",
+                app_run_id=run.run_id,
+                status=run_status,
+                summary=summary,
+            )
         except Exception as exc:
             if not run.is_terminal:
                 run.fail(exc, counters=_instrument_counters(tally=run.tally, summary=summary), summary=summary)
+            await publish_ingestion_observability(
+                flow_name="instrument-refresh",
+                domain="instrument",
+                app_run_id=run.run_id,
+                status="failed",
+                summary=summary,
+            )
             raise
     if run_dbt_build and run_id is not None and run_status is not None:
         summary["dbt_build"] = await run_dbt_build_after_ingestion(

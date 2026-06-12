@@ -7,6 +7,7 @@ import structlog
 from prefect import flow
 
 from core.ingestion import PipelineRunTracker, RunCounters, RunStatus, RunUnitTally, terminal_status
+from core.prefect_controls import observe_bronze_assets, publish_ingestion_observability
 from core.transforms import run_dbt_build_after_ingestion
 from domains.exchange_schedule.tasks import (
     fetch_exchange_details,
@@ -189,9 +190,41 @@ async def exchange_schedule_flow(
                 counters=_schedule_counters(tally=run.tally, summary=summary),
                 summary=summary,
             )
+            schedule_rows = sum(row.get("schedule_rows", 0) for row in summary["exchange"].values())
+            holiday_rows = sum(row.get("holiday_rows", 0) for row in summary["exchange"].values())
+            asset_names = []
+            if schedule_rows:
+                asset_names.append("exchange_schedule")
+            if holiday_rows:
+                asset_names.append("exchange_holiday")
+            if asset_names:
+                observe_bronze_assets(
+                    asset_names,
+                    metadata={
+                        "app_run_id": run.run_id,
+                        "snapshot_date": snapshot_date.isoformat(),
+                        "provider": "eodhd",
+                        "schedule_rows": schedule_rows,
+                        "holiday_rows": holiday_rows,
+                    },
+                )
+            await publish_ingestion_observability(
+                flow_name="exchange-schedule-refresh",
+                domain="exchange_schedule",
+                app_run_id=run.run_id,
+                status=run_status,
+                summary=summary,
+            )
         except Exception as exc:
             if not run.is_terminal:
                 run.fail(exc, counters=_schedule_counters(tally=run.tally, summary=summary), summary=summary)
+            await publish_ingestion_observability(
+                flow_name="exchange-schedule-refresh",
+                domain="exchange_schedule",
+                app_run_id=run.run_id,
+                status="failed",
+                summary=summary,
+            )
             raise
     if run_dbt_build and run_id is not None and run_status is not None:
         summary["dbt_build"] = await run_dbt_build_after_ingestion(
