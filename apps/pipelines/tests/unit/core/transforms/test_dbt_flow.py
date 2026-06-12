@@ -16,6 +16,7 @@ from core.transforms import dbt
 
 def test_run_dbt_command_uses_app_root_paths_and_env_overlay(
     monkeypatch: MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     """Dbt subprocesses should run from app root with derived dbt env."""
     settings = Settings(local_lake_path="unique_stocks.duckdb", motherduck_token=SecretStr(""))
@@ -55,6 +56,7 @@ def test_run_dbt_command_uses_app_root_paths_and_env_overlay(
         project_dir="dbt",
         profiles_dir="dbt",
         target=None,
+        target_path=str(tmp_path / "dbt-target"),
     )
 
     args = captured["args"]
@@ -71,6 +73,8 @@ def test_run_dbt_command_uses_app_root_paths_and_env_overlay(
     ]
     assert "--target" in args
     assert args[args.index("--target") + 1] == "dev"
+    assert "--target-path" in args
+    assert args[args.index("--target-path") + 1] == str(tmp_path / "dbt-target")
     assert captured["cwd"] == APP_ROOT
     assert isinstance(env, dict)
     assert env["AWS_ACCESS_KEY_ID"] == "keep-me"
@@ -80,7 +84,7 @@ def test_run_dbt_command_uses_app_root_paths_and_env_overlay(
     assert env["DBT_DUCKDB_PATH"] == str(APP_ROOT / "unique_stocks.duckdb")
 
 
-def test_run_dbt_command_passes_indirect_selection_for_build(monkeypatch: MonkeyPatch) -> None:
+def test_run_dbt_command_passes_indirect_selection_for_build(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
     """Partial deployment builds should avoid eager tests outside the selected graph."""
     settings = Settings(local_lake_path="unique_stocks.duckdb", motherduck_token=SecretStr(""))
     captured: dict[str, object] = {}
@@ -109,6 +113,7 @@ def test_run_dbt_command_passes_indirect_selection_for_build(monkeypatch: Monkey
         project_dir="dbt",
         profiles_dir="dbt",
         target=None,
+        target_path=str(tmp_path / "dbt-target"),
     )
 
     args = captured["args"]
@@ -117,7 +122,10 @@ def test_run_dbt_command_passes_indirect_selection_for_build(monkeypatch: Monkey
     assert args[args.index("--indirect-selection") + 1] == "buildable"
 
 
-def test_run_dbt_command_ensures_motherduck_database_for_prod(monkeypatch: MonkeyPatch) -> None:
+def test_run_dbt_command_ensures_motherduck_database_for_prod(
+    monkeypatch: MonkeyPatch,
+    tmp_path: Path,
+) -> None:
     """Prod dbt runs should create the MotherDuck database before connecting."""
     settings = Settings(motherduck_token=SecretStr("test-token"))
     ensure_calls: list[Settings] = []
@@ -140,12 +148,13 @@ def test_run_dbt_command_ensures_motherduck_database_for_prod(monkeypatch: Monke
         project_dir="dbt",
         profiles_dir="dbt",
         target=None,
+        target_path=str(tmp_path / "dbt-target"),
     )
 
     assert ensure_calls == [settings]
 
 
-def test_run_dbt_command_rejects_explicit_target_conflict(monkeypatch: MonkeyPatch) -> None:
+def test_run_dbt_command_rejects_explicit_target_conflict(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
     """Explicit dbt targets should not drift from the selected lake backend."""
     monkeypatch.setattr(dbt, "get_settings", lambda: Settings(motherduck_token=SecretStr("")))
 
@@ -157,6 +166,7 @@ def test_run_dbt_command_rejects_explicit_target_conflict(monkeypatch: MonkeyPat
             project_dir="dbt",
             profiles_dir="dbt",
             target="prod",
+            target_path=str(tmp_path / "dbt-target"),
         )
 
 
@@ -208,14 +218,61 @@ def test_dbt_error_message_prefixes_duckdb_lock_errors() -> None:
     assert message.startswith("DuckDB file lock conflict")
 
 
-def test_read_dbt_run_results_uses_resolved_project_path(tmp_path: Path) -> None:
-    """Dbt artifact reads should use the resolved project path."""
-    target_dir = tmp_path / "target"
-    target_dir.mkdir()
+def test_read_dbt_run_results_uses_per_run_target_path(tmp_path: Path) -> None:
+    """Dbt artifact reads should use the exact per-run target path."""
+    target_dir = tmp_path / "target" / "pipeline-runs" / "run-1"
+    target_dir.mkdir(parents=True)
     artifact = target_dir / "run_results.json"
     artifact.write_text('{"metadata": {"adapter_type": "duckdb"}, "results": []}')
 
-    assert dbt.read_dbt_run_results.fn(project_dir=str(tmp_path)) == {
+    assert dbt.read_dbt_run_results.fn(target_path=str(target_dir)) == {
         "metadata": {"adapter_type": "duckdb"},
         "results": [],
     }
+
+
+def test_read_dbt_run_results_ignores_stale_shared_target(tmp_path: Path) -> None:
+    """A stale shared dbt target artifact must not be used for a failed invocation."""
+    shared_target = tmp_path / "target"
+    shared_target.mkdir()
+    (shared_target / "run_results.json").write_text('{"metadata": {"adapter_type": "duckdb"}, "results": ["stale"]}')
+    per_run_target = tmp_path / "target" / "pipeline-runs" / "run-1"
+    per_run_target.mkdir(parents=True)
+
+    assert dbt.read_dbt_run_results.fn(target_path=str(per_run_target)) is None
+
+
+def test_run_dbt_command_uses_distinct_artifact_paths(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
+    """Separate invocations should report artifact paths under separate target directories."""
+    settings = Settings(local_lake_path="unique_stocks.duckdb", motherduck_token=SecretStr(""))
+
+    def fake_run(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(dbt, "get_settings", lambda: settings)
+    monkeypatch.setattr(dbt, "_dbt_base_command", lambda: ["dbt"])
+    monkeypatch.setattr(dbt.subprocess, "run", fake_run)
+
+    first = dbt.run_dbt_command.fn(
+        command="compile",
+        select=[],
+        exclude=[],
+        project_dir="dbt",
+        profiles_dir="dbt",
+        target=None,
+        target_path=str(tmp_path / "target" / "pipeline-runs" / "run-1"),
+    )
+    second = dbt.run_dbt_command.fn(
+        command="compile",
+        select=[],
+        exclude=[],
+        project_dir="dbt",
+        profiles_dir="dbt",
+        target=None,
+        target_path=str(tmp_path / "target" / "pipeline-runs" / "run-2"),
+    )
+
+    assert first.command_args[first.command_args.index("--target-path") + 1].endswith("run-1")
+    assert second.command_args[second.command_args.index("--target-path") + 1].endswith("run-2")
+    assert first.artifact_path is None
+    assert second.artifact_path is None

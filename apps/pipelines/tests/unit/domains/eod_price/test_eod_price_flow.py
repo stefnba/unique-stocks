@@ -29,6 +29,8 @@ class FakeRun:
         self.units: list[dict[str, object]] = []
         self.completed_status: object | None = None
         self.completed_summary: dict[str, object] | None = None
+        self.failed_error: object | None = None
+        self.failed_summary: dict[str, object] | None = None
 
     def record_unit(self, **kwargs: object) -> str:
         """Capture one unit row and update tally."""
@@ -77,8 +79,10 @@ class FakeRun:
         self.completed_summary = summary
         self.is_terminal = True
 
-    def fail(self, *_: object, **__: object) -> None:
+    def fail(self, *args: object, **kwargs: object) -> None:
         """Mark the run failed."""
+        self.failed_error = args[0] if args else None
+        self.failed_summary = cast(dict[str, object] | None, kwargs.get("summary"))
         self.is_terminal = True
 
 
@@ -267,6 +271,42 @@ async def test_eod_daily_coverage_gate_marks_run_partial(monkeypatch: pytest.Mon
     assert run.completed_status == "partial"
     assert coverage_gate["status"] == "failed"
     assert coverage_gate["by_status"] == {"missing_price": 1}
+
+
+@pytest.mark.asyncio
+async def test_eod_daily_dbt_failure_preserves_ingestion_audit_status(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A post-ingestion dbt exception should complete the app run, then fail Prefect."""
+    run = FakeRun()
+
+    async def fetch(**_: object) -> list[object]:
+        return [object()]
+
+    async def write_landing(*_: object, **__: object) -> LandingWrite:
+        return LandingWrite(
+            dataset="eod_price.daily",
+            source_uri="s3://bucket/daily.jsonl",
+            partition={"provider_exchange_code": "US", "bar_date": TO_DATE},
+            rows_raw=1,
+        )
+
+    async def dbt_build(**_: object) -> dict[str, object]:
+        raise RuntimeError("dbt failed")
+
+    monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
+    monkeypatch.setattr(flows, "eod_price_already_ingested", lambda *_: False)
+    monkeypatch.setattr(flows, "fetch_eod_price_bulk", fetch)
+    monkeypatch.setattr(flows, "write_eod_price_to_landing", write_landing)
+    monkeypatch.setattr(flows, "parse_eod_price", lambda *_args, **_kwargs: ([object()], []))
+    monkeypatch.setattr(flows, "write_bronze_eod_price", lambda *_args, **_kwargs: BronzeWrite(rows_written=1))
+    monkeypatch.setattr(flows, "run_dbt_build_after_ingestion", dbt_build)
+
+    with pytest.raises(RuntimeError, match="dbt failed"):
+        await flows.eod_price_flow.fn(trade_date=TO_DATE, provider_exchange_codes=["US"], run_dbt_build=True)
+
+    assert run.completed_status == "completed"
+    assert run.failed_error is None
+    assert run.completed_summary is not None
+    assert run.completed_summary["post_ingestion_error"] == {"type": "RuntimeError", "message": "dbt failed"}
 
 
 @pytest.mark.asyncio
@@ -538,7 +578,7 @@ async def test_eod_backfill_builds_missing_selection_views_before_pending_select
     assert build_calls == [
         {
             "build": "price-build",
-            "parent_run_id": None,
+            "parent_run_id": "run-1",
             "tags": ["preflight-dbt", "price-build"],
         }
     ]
@@ -557,6 +597,48 @@ async def test_eod_backfill_builds_missing_selection_views_before_pending_select
         "missing_after": [],
     }
     assert summary["exchange"] == {"US": {"instruments": 0, "rows": 0}}
+
+
+@pytest.mark.asyncio
+async def test_eod_backfill_preflight_failure_is_audited(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Preflight dbt failures should fail the tracked app run with preflight context."""
+    run = FakeRun()
+    build_calls: list[dict[str, object]] = []
+
+    def load_missing_views() -> list[str]:
+        return ["int_eod_price_backfill_terminal_coverage"]
+
+    async def build_price(**kwargs: object) -> dict[str, object]:
+        build_calls.append(kwargs)
+        raise RuntimeError("preflight dbt failed")
+
+    def fail_pending(*_: object) -> list[str]:
+        raise AssertionError("pending selection should not run after preflight failure")
+
+    monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
+    monkeypatch.setattr(flows, "load_missing_eod_backfill_selection_views", load_missing_views)
+    monkeypatch.setattr(flows, "run_dbt_build_deployment", build_price)
+    monkeypatch.setattr(flows, "load_backfill_pending_instruments", fail_pending)
+
+    with pytest.raises(RuntimeError, match="preflight dbt failed"):
+        await flows.eod_price_backfill_flow.fn(
+            from_date=FROM_DATE,
+            to_date=TO_DATE,
+            provider_exchange_codes=["US"],
+            build_selection_views_if_missing=True,
+        )
+
+    assert build_calls == [
+        {
+            "build": "price-build",
+            "parent_run_id": "run-1",
+            "tags": ["preflight-dbt", "price-build"],
+        }
+    ]
+    assert run.failed_summary is not None
+    preflight = cast(dict[str, object], run.failed_summary["preflight_dbt_build"])
+    assert preflight["status"] == "failed"
+    assert preflight["error"] == {"type": "RuntimeError", "message": "preflight dbt failed"}
 
 
 @pytest.mark.asyncio

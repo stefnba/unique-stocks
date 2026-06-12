@@ -14,6 +14,7 @@ x-pipelines-worker-build: &pipelines-worker-build
 x-pipelines-runtime-environment: &pipelines-runtime-environment
   PREFECT_API_URL: http://pipelines-server:4200/api
   PREFECT_WORK_DIR: /app
+  PREFECT_WORKER_LIMIT: ${PREFECT_WORKER_LIMIT:-1}
   PREFECT_LOGGING_EXTRA_LOGGERS: core,domains,providers,config,scripts
   PREFECT_LOGGING_LOG_PRINTS: "False"
   GIT_SHA: ${GIT_SHA:-}
@@ -84,7 +85,12 @@ services:
         condition: service_healthy
       pipelines-migrator:
         condition: service_completed_successfully
-    command: ["uv", "run", "--no-dev", "--frozen", "prefect", "worker", "start", "--pool", "default-process-pool"]
+    command:
+      [
+        "sh",
+        "-c",
+        "uv run --no-dev --frozen prefect worker start --pool default-process-pool --limit $${PREFECT_WORKER_LIMIT:-1}",
+      ]
     healthcheck:
       test: ["CMD", "uv", "run", "--no-dev", "--frozen", "python", "scripts/check_worker_health.py"]
       interval: 30s

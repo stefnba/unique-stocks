@@ -9,11 +9,13 @@ that closed by then (US at ~21:00 UTC, Europe by ~18:00 UTC).
 """
 
 import asyncio
+import inspect
 import uuid
 from datetime import date
 
 import structlog
 from prefect import flow
+from prefect.artifacts import create_table_artifact
 from pydantic import ValidationError
 
 from core.clients.http.base import ProviderRateLimitError
@@ -291,26 +293,33 @@ async def eod_price_flow(
                 rejected=total_rejected,
                 skipped_all=_all_units_skipped(total=run.tally.total, skipped=run.tally.skipped),
             )
-            if run_dbt_build and run_id is not None:
-                run_status = await _run_price_post_ingestion_checks(
-                    summary=summary,
-                    upstream_status=run_status,
-                    parent_run_id=run_id,
-                    provider_exchange_codes=codes,
-                    from_date=trade_date,
-                    to_date=trade_date,
-                    exchange_dates=coverage_exchange_dates,
-                )
             if latest_date_mismatches and run_status == "completed":
                 run_status = "partial"
+            ingestion_status = run_status
+            counters = run.tally.counters(
+                rows_raw=total_raw,
+                rows_valid=total_valid,
+                rows_rejected=total_rejected,
+                rows_written=total_written,
+            )
+            if run_dbt_build and run_id is not None:
+                try:
+                    run_status = await _run_price_post_ingestion_checks(
+                        summary=summary,
+                        upstream_status=ingestion_status,
+                        parent_run_id=run_id,
+                        provider_exchange_codes=codes,
+                        from_date=trade_date,
+                        to_date=trade_date,
+                        exchange_dates=coverage_exchange_dates,
+                    )
+                except Exception as exc:
+                    summary["post_ingestion_error"] = _exception_summary(exc)
+                    run.complete(status=ingestion_status, counters=counters, summary=summary)
+                    raise
             run.complete(
                 status=run_status,
-                counters=run.tally.counters(
-                    rows_raw=total_raw,
-                    rows_valid=total_valid,
-                    rows_rejected=total_rejected,
-                    rows_written=total_written,
-                ),
+                counters=counters,
                 summary=summary,
             )
             log.info(
@@ -413,21 +422,23 @@ async def _run_price_post_ingestion_checks(
     """Run dbt and downgrade the audit status when the coverage gate finds gaps."""
     reset_lake_client()
     force_skipped_gate = upstream_status == "skipped" and bool(exchange_dates)
-    if force_skipped_gate:
-        summary["dbt_build"] = await run_dbt_build_deployment(
-            build="price-build",
-            parent_run_id=parent_run_id,
-            idempotency_key=f"{parent_run_id}:price-build",
-            tags=["post-ingestion-dbt", "price-build"],
-        )
-    else:
-        summary["dbt_build"] = await run_dbt_build_after_ingestion(
-            enabled=True,
-            build="price-build",
-            upstream_status=upstream_status,
-            parent_run_id=parent_run_id,
-        )
-    reset_lake_client()
+    try:
+        if force_skipped_gate:
+            summary["dbt_build"] = await run_dbt_build_deployment(
+                build="price-build",
+                parent_run_id=parent_run_id,
+                idempotency_key=f"{parent_run_id}:price-build",
+                tags=["post-ingestion-dbt", "price-build"],
+            )
+        else:
+            summary["dbt_build"] = await run_dbt_build_after_ingestion(
+                enabled=True,
+                build="price-build",
+                upstream_status=upstream_status,
+                parent_run_id=parent_run_id,
+            )
+    finally:
+        reset_lake_client()
     dbt_build = summary["dbt_build"]
     if not isinstance(dbt_build, dict) or not dbt_build.get("triggered"):
         summary["coverage_gate"] = {
@@ -444,6 +455,7 @@ async def _run_price_post_ingestion_checks(
         exchange_dates=exchange_dates,
     )
     summary["coverage_gate"] = _coverage_gate_summary(gaps)
+    await _emit_coverage_gate_artifact(gaps=gaps, parent_run_id=parent_run_id)
     if gaps:
         log.warning(
             "price.coverage_gate_failed",
@@ -493,28 +505,74 @@ def _coverage_gap_summary_row(gap: EODPriceCoverageGap) -> dict[str, object]:
     }
 
 
-async def _build_price_selection_views_if_missing() -> dict[str, object]:
+async def _emit_coverage_gate_artifact(*, gaps: list[EODPriceCoverageGap], parent_run_id: str) -> None:
+    """Publish a table artifact with a bounded sample of coverage gaps."""
+    if not gaps:
+        return
+    rows = [_coverage_gap_summary_row(gap) for gap in gaps[:100]]
+    try:
+        artifact_id = create_table_artifact(
+            key=f"eod-price-coverage-{parent_run_id}",
+            table=rows,
+            description=f"EOD price coverage gate found {len(gaps)} gap(s).",
+        )
+        if inspect.isawaitable(artifact_id):
+            await artifact_id
+    except Exception:
+        log.warning("price.coverage_gate_artifact_failed", parent_run_id=parent_run_id, exc_info=True)
+
+
+def _exception_summary(exc: Exception) -> dict[str, str]:
+    """Return a compact JSON-safe exception summary for run metadata."""
+    return {"type": type(exc).__name__, "message": str(exc)[-2000:]}
+
+
+async def _build_price_selection_views_if_missing(
+    *,
+    parent_run_id: str,
+    summary: dict[str, object],
+) -> dict[str, object]:
     """Build price Silver selector views when historical backfill needs them."""
     missing_before = load_missing_eod_backfill_selection_views()
     if not missing_before:
-        return {
+        result: dict[str, object] = {
             "enabled": True,
             "triggered": False,
             "build": "price-build",
             "reason": "selection_views_present",
             "missing": [],
         }
+        summary["preflight_dbt_build"] = result
+        return result
 
     log.info("backfill.selection_views_missing", missing=missing_before)
+    preflight_summary: dict[str, object] = {
+        "enabled": True,
+        "triggered": True,
+        "build": "price-build",
+        "missing_before": missing_before,
+    }
+    summary["preflight_dbt_build"] = preflight_summary
     reset_lake_client()
-    result = await run_dbt_build_deployment(
-        build="price-build",
-        parent_run_id=None,
-        tags=["preflight-dbt", "price-build"],
-    )
-    reset_lake_client()
+    try:
+        result = await run_dbt_build_deployment(
+            build="price-build",
+            parent_run_id=parent_run_id,
+            tags=["preflight-dbt", "price-build"],
+        )
+    except Exception as exc:
+        preflight_summary["status"] = "failed"
+        preflight_summary["error"] = _exception_summary(exc)
+        raise
+    finally:
+        reset_lake_client()
     missing_after = load_missing_eod_backfill_selection_views()
     if missing_after:
+        result["reason"] = "missing_selection_views"
+        result["missing_before"] = missing_before
+        result["missing_after"] = missing_after
+        result["status"] = "failed"
+        summary["preflight_dbt_build"] = result
         missing = ", ".join(f"silver.{table}" for table in missing_after)
         raise RuntimeError(
             f"dbt-build/price-build completed but required backfill selector views are missing: {missing}"
@@ -522,6 +580,7 @@ async def _build_price_selection_views_if_missing() -> dict[str, object]:
     result["reason"] = "missing_selection_views"
     result["missing_before"] = missing_before
     result["missing_after"] = []
+    summary["preflight_dbt_build"] = result
     return result
 
 
@@ -608,9 +667,6 @@ async def eod_price_backfill_flow(
             "deferred": 0,
         },
     }
-    if build_selection_views_if_missing:
-        summary["preflight_dbt_build"] = await _build_price_selection_views_if_missing()
-
     tracker = PipelineRunTracker()
     run_id: str | None = None
     run_status: RunStatus | None = None
@@ -642,6 +698,9 @@ async def eod_price_backfill_flow(
         )
 
         try:
+            if build_selection_views_if_missing and run_id is not None:
+                await _build_price_selection_views_if_missing(parent_run_id=run_id, summary=summary)
+
             stop_after_exchange = False
             for provider_exchange_code in codes:
                 pending_all = load_backfill_pending_instruments(provider_exchange_code, from_date, to_date)
@@ -958,24 +1017,31 @@ async def eod_price_backfill_flow(
                 rejected=total_rejected,
                 skipped_all=_all_units_skipped(total=run.tally.total, skipped=run.tally.skipped),
             )
+            ingestion_status = run_status
+            counters = run.tally.counters(
+                rows_raw=total_raw,
+                rows_valid=total_valid,
+                rows_rejected=total_rejected,
+                rows_written=total_written,
+            )
             if run_dbt_build and run_id is not None:
-                run_status = await _run_price_post_ingestion_checks(
-                    summary=summary,
-                    upstream_status=run_status,
-                    parent_run_id=run_id,
-                    provider_exchange_codes=codes,
-                    from_date=from_date,
-                    to_date=to_date,
-                    exchange_dates=None,
-                )
+                try:
+                    run_status = await _run_price_post_ingestion_checks(
+                        summary=summary,
+                        upstream_status=ingestion_status,
+                        parent_run_id=run_id,
+                        provider_exchange_codes=codes,
+                        from_date=from_date,
+                        to_date=to_date,
+                        exchange_dates=None,
+                    )
+                except Exception as exc:
+                    summary["post_ingestion_error"] = _exception_summary(exc)
+                    run.complete(status=ingestion_status, counters=counters, summary=summary)
+                    raise
             run.complete(
                 status=run_status,
-                counters=run.tally.counters(
-                    rows_raw=total_raw,
-                    rows_valid=total_valid,
-                    rows_rejected=total_rejected,
-                    rows_written=total_written,
-                ),
+                counters=counters,
                 summary=summary,
             )
             log.info(

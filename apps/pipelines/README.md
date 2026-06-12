@@ -246,6 +246,10 @@ make setup                 # migrate lake, save blocks, create work pool, regist
 make prefect-worker        # start the worker
 ```
 
+`make prefect-worker` defaults to one concurrent flow run (`PREFECT_WORKER_LIMIT=1`) so separate
+deployments do not write the same local lake at the same time. Raise it only after adding Prefect
+global concurrency limits for shared lake and provider resources.
+
 Trigger a flow run manually:
 
 ```bash
@@ -267,6 +271,8 @@ make docker-setup          # migrate container lake, save blocks, create work po
 ```
 
 The default docker-dev lake is isolated from the host and shared only between the `pipelines-worker` and `pipelines-dashboard` containers at `/app/lake-data/unique_stocks.duckdb`. This avoids host file-lock and path drift while still letting the dashboard inspect the worker's local audit rows. If `MOTHERDUCK_TOKEN` is set in `.env`, docker-dev intentionally targets MotherDuck instead for integration testing.
+The Docker worker also defaults to `PREFECT_WORKER_LIMIT=1`; set a higher value only with matching
+Prefect global concurrency limits for the shared lake and provider APIs.
 
 Useful commands:
 
@@ -307,7 +313,11 @@ make lake-migration EMPTY=1                 # manual migration skeleton
 
 `make lake-migration` compares `lake/schema.py` against the connected lake, so it needs the same local DuckDB or MotherDuck access as `make lake-migrate`. If the diff contains only warnings and no executable SQL, it prints the warnings and does not create a no-op migration file.
 
-On the first run against an older lake that does not have `lake.schema_migration`, `make lake-migrate` treats every migration file as pending. The initial migration is written with `IF NOT EXISTS` DDL so it can bootstrap tracking and record checksums for an existing local lake.
+On the first run, `make lake-migrate` applies pending migrations and then validates the live Bronze
+and pipeline schemas against `lake/schema.py`. Because this app is not deployed yet, older local
+lakes are not upgraded in place: if validation finds drift, reset the local lake or recreate the
+MotherDuck database, then rerun migrations. `make lake-migration-status` remains non-mutating and
+only reports pending/applied migration files.
 
 During greenfield schema rewrites, reset the local DuckDB lake with:
 
@@ -361,7 +371,10 @@ Ingestion deployments set `run_dbt_build=true` where Silver/Gold freshness matte
 domain audit status (`pipeline.runs.status = 'completed'`) launches the matching dbt deployment
 with the ingestion `run_id` as `parent_run_id`; `partial`, `failed`, or all-skipped ingestion
 runs do not auto-promote Bronze data. Run the dbt deployments directly for bootstrap, repair,
-or full rebuilds. dbt builds read `dbt/target/run_results.json` and write dbt audit rows to the lake.
+or full rebuilds. Each dbt invocation writes to its own `dbt/target/pipeline-runs/<dbt_run_id>/`
+directory; orchestration reads `run_results.json` only from that per-run path, records the exact
+artifact path in the dbt audit table, and publishes a Prefect Markdown artifact with the invocation
+summary. EOD coverage gates publish a Prefect table artifact when they find gaps.
 If a post-ingestion dbt deployment fails after the ingestion audit has completed, the parent Prefect
 flow intentionally fails for alerting while `pipeline.runs` keeps the ingestion status and dbt audit
 tables carry the transformation failure details.
@@ -464,6 +477,7 @@ Optional production infrastructure configuration:
 - `DASHBOARD_HOST_BIND_IP` — defaults to `127.0.0.1`; use `0.0.0.0` only behind a protected reverse proxy.
 - `DASHBOARD_MOTHERDUCK_TOKEN` — optional dashboard-specific MotherDuck token. Prefer a read-only token here; when omitted, the dashboard falls back to `MOTHERDUCK_TOKEN`.
 - `PREFECT_UI_URL` — optional browser-facing Prefect UI base URL used for run deep links from the dashboard.
+- `PREFECT_WORKER_LIMIT` — maximum concurrent flow runs per worker process; defaults to `1`.
 - `OPERATIONAL_HEALTH_RECENT_DOMAINS` — optional comma- or whitespace-separated domains the deployed `pipelines-operational-health` container must see recently, for example `eod_price,fundamental`.
 - `OPERATIONAL_HEALTH_RECENT_HOURS` — freshness window for configured recent domains; defaults to `36`.
 - `OPERATIONAL_HEALTH_STALE_RUNNING_HOURS` — stale-running threshold; defaults to `2`.
@@ -476,6 +490,10 @@ Production applies pending lake migrations through the one-shot `pipelines-migra
 keeps deploys with schema changes from consuming work against an old lake schema and avoids every worker racing to run
 migrations when the worker service is scaled out. `pipelines-migrator` is expected to exit successfully after applying
 migrations; `make setup` still runs migrations idempotently as part of first-time bootstrap.
+
+Workers are serialized by default with `PREFECT_WORKER_LIMIT=1`. Keep deployment-level concurrency
+limits in place, and add Prefect global concurrency limits before scaling worker concurrency for
+shared lake files, MotherDuck writes, or provider quotas.
 
 Docker healthchecks are intentionally container-local. The worker healthcheck verifies that the container can reach the
 Prefect API and that a Prefect worker process is running; it does not prove that scheduled ingestion is fresh or that a

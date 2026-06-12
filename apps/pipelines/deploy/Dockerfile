@@ -35,5 +35,5 @@ RUN useradd --create-home --uid 10001 app \
 
 USER app
 
-# Default: start a Prefect worker. Override in docker-compose for other commands.
-CMD ["uv", "run", "--no-dev", "--frozen", "prefect", "worker", "start", "--pool", "default-process-pool"]
+# Default: start a serialized Prefect worker. Override in docker-compose for other commands.
+CMD ["sh", "-c", "uv run --no-dev --frozen prefect worker start --pool default-process-pool --limit ${PREFECT_WORKER_LIMIT:-1}"]

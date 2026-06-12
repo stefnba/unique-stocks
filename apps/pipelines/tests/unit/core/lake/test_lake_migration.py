@@ -34,6 +34,7 @@ from core.lake.migration.runner import (
     ensure_migration_table,
     plan_migrations,
 )
+from core.lake.migration.validation import LakeSchemaValidationError, has_any_desired_table, validate_lake_schema
 from core.lake.schema import VARCHAR, SchemaName, SqlColumn, TableModel
 
 
@@ -250,6 +251,60 @@ def test_diff_allows_extra_unique_when_desired_unique_exists() -> None:
     diff = diff_lake_schema(actual, desired)
 
     assert diff.warnings == ()
+
+
+def test_validate_lake_schema_ignores_dbt_runtime_tables() -> None:
+    """Post-migration validation should allow dbt-created Silver/Gold tables."""
+    conn = duckdb.connect(":memory:")
+    conn.execute("CREATE SCHEMA bronze")
+    conn.execute("CREATE SCHEMA silver")
+    conn.execute("CREATE SCHEMA gold")
+    conn.execute("CREATE SCHEMA pipeline")
+    conn.execute("CREATE SCHEMA lake")
+    conn.execute("CREATE TABLE pipeline.demo (id BIGINT NOT NULL, note VARCHAR, UNIQUE (id))")
+    conn.execute("CREATE TABLE lake.schema_migration (version VARCHAR)")
+    conn.execute("CREATE TABLE silver.dbt_model (id BIGINT)")
+    conn.execute("CREATE TABLE gold.dbt_mart (id BIGINT)")
+
+    validate_lake_schema(conn, tables=(DemoTable,))
+
+
+def test_validate_lake_schema_fails_on_current_table_drift() -> None:
+    """Validation is intentionally breaking: drift should fail instead of being upgraded."""
+    conn = duckdb.connect(":memory:")
+    conn.execute("CREATE SCHEMA bronze")
+    conn.execute("CREATE SCHEMA silver")
+    conn.execute("CREATE SCHEMA gold")
+    conn.execute("CREATE SCHEMA pipeline")
+    conn.execute("CREATE SCHEMA lake")
+    conn.execute("CREATE TABLE pipeline.demo (id INTEGER, old_name VARCHAR)")
+
+    with pytest.raises(LakeSchemaValidationError) as exc_info:
+        validate_lake_schema(conn, tables=(DemoTable,))
+
+    message = str(exc_info.value)
+    assert "type differs" in message
+    assert "nullability differs" in message
+    assert "old_name" in message
+
+
+def test_untracked_existing_schema_requires_prevalidation() -> None:
+    """Untracked app tables should be validated before applying first migrations."""
+    conn = duckdb.connect(":memory:")
+    conn.execute("CREATE SCHEMA bronze")
+    conn.execute("CREATE SCHEMA silver")
+    conn.execute("CREATE SCHEMA gold")
+    conn.execute("CREATE SCHEMA pipeline")
+    conn.execute("CREATE SCHEMA lake")
+    conn.execute("CREATE TABLE pipeline.demo (id INTEGER, old_name VARCHAR)")
+
+    assert has_any_desired_table(conn, tables=(DemoTable,)) is True
+    assert migrate_module._should_validate_existing_schema_before_apply(conn, (DemoTable,)) is True
+    with pytest.raises(LakeSchemaValidationError):
+        validate_lake_schema(conn, tables=(DemoTable,), allow_pending_changes=True)
+
+    conn.execute("CREATE TABLE lake.schema_migration (version VARCHAR)")
+    assert migrate_module._should_validate_existing_schema_before_apply(conn, (DemoTable,)) is False
 
 
 def test_migration_file_naming_and_listing(tmp_path: Path) -> None:

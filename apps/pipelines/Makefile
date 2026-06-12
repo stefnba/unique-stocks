@@ -91,10 +91,11 @@ s3-landing-zone: ## Create/update AWS S3 landing-zone resources (pass ARGS="--dr
 
 ##@ Quality
 ci-local: ## Run the same quality checks as GitHub CI
-	$(UV) run --frozen ruff format . --check
-	$(UV) run --frozen ruff check .
-	$(UV) run --frozen --extra dashboard basedpyright
-	$(UV) run --frozen --extra dashboard pytest tests/unit -q
+	$(MAKE) format-check
+	$(MAKE) python-lint
+	$(MAKE) typecheck
+	$(MAKE) test-unit
+	$(MAKE) dbt-compile
 	$(MAKE) docker-prod-config
 
 check: format-check python-lint typecheck test ## Run full local quality gate
@@ -173,7 +174,7 @@ prefect-server: ## Start a local Prefect server (no Docker)
 	$(UV) run prefect server start
 
 prefect-worker: ## Start a Prefect worker connected to PREFECT_API_URL
-	$(UV) run prefect worker start --pool default-process-pool
+	$(UV) run prefect worker start --pool default-process-pool --limit $${PREFECT_WORKER_LIMIT:-1}
 
 DEPLOY_DIR   := deploy
 COMPOSE_BASE := docker compose -f $(DEPLOY_DIR)/docker-compose.yml

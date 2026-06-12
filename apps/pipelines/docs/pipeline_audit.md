@@ -15,7 +15,7 @@ what partitions were attempted, skipped, failed, landed, parsed, rejected, and w
 | `pipeline.landing_objects`    | Raw S3 landing objects produced or consumed by a run, linked to the run and optional work unit.                                                                                                                                     |
 | `pipeline.rejections`         | Sampled structured parser rejection records. Counts on runs/units are exhaustive; row samples are capped to keep audit volume bounded.                                                                                              |
 | `pipeline.dbt_invocations`    | One row per dbt command run by the dbt Prefect flow.                                                                                                                                                                                |
-| `pipeline.dbt_node_results`   | Per-model/per-test results loaded from dbt `target/run_results.json`.                                                                                                                                                               |
+| `pipeline.dbt_node_results`   | Per-model/per-test results loaded from each dbt invocation's per-run `run_results.json`.                                                                                                                                            |
 
 ## Runs vs Run Units
 
@@ -170,7 +170,7 @@ dbt model failures, and dbt test failures independently visible.
 
 The current deployment is `dbt-build/price-build`. It runs `dbt build` for the price staging,
 ingestion-control, and mart paths,
-then reads `dbt/target/run_results.json` and writes:
+then reads `dbt/target/pipeline-runs/<dbt_run_id>/run_results.json` and writes:
 
 - `pipeline.dbt_invocations`
 - `pipeline.dbt_node_results`
