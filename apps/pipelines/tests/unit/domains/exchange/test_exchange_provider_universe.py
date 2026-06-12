@@ -96,6 +96,18 @@ def test_load_provider_exchange_codes_uses_requested_purpose_flag_directly(monke
     assert "information_schema.columns" not in lake.last_query
 
 
+def test_load_provider_exchange_codes_filters_eod_backfill_purpose(monkeypatch: MonkeyPatch) -> None:
+    """Historical EOD backfill should have a separate eligibility flag."""
+    lake = FakeLake(exists=True, rows=[{"provider_exchange_code": "US"}])
+    monkeypatch.setattr(provider_universe, "get_lake_client", lambda: lake)
+
+    codes = provider_universe.load_provider_exchange_codes("eodhd", purpose="eod_backfill")
+
+    assert codes == ["US"]
+    assert lake.last_query is not None
+    assert "is_enabled_for_eod_backfill" in lake.last_query
+
+
 def test_load_provider_exchange_codes_raises_when_contract_missing(monkeypatch: MonkeyPatch) -> None:
     """Fresh environments should fail until the provider universe contract is built."""
     lake = FakeLake(exists=False)

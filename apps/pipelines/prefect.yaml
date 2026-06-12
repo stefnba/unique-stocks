@@ -11,6 +11,7 @@
 #   backfill           — scoped or credit-capped replay
 #   historical-backfill — heavy multi-day per-unit backfill (eod_price only)
 #   replay             — re-parse from S3 landing, no provider calls
+#   ingestion-control-build — dbt runtime selector/control contract for ingestion
 #   *-build            — dbt transform for a bronze domain
 #
 # Bootstrap order (new environments):
@@ -19,7 +20,8 @@
 #   3. exchange-schedule-refresh/manual
 #   4. dbt-build/exchange-build
 #   5. instrument-refresh/manual or /weekly
-#   6. ingest domains; clean runs auto-trigger matching dbt *-build deployment
+#   6. dbt-build/ingestion-control-build when runtime selector/control views are needed
+#   7. ingest domains; clean runs auto-trigger matching dbt *-build deployment
 #
 # Workers read PREFECT_API_URL from the environment (.env / docker-compose).
 # The pull step uses PREFECT_WORK_DIR so both local dev (.) and Docker (/app)
@@ -368,15 +370,29 @@ deployments:
   # dbt — bronze → staging → marts (run after matching ingestion)
   # ═══════════════════════════════════════════════════════════════════════════
 
+  - name: ingestion-control-build
+    description: >
+      dbt build for the Silver models Python ingestion reads at runtime.
+
+      Builds models tagged ingestion_control plus their upstream dependencies,
+      including selector views for provider universes, EOD coverage gates, and
+      backfill resume planning. This is the explicit Python↔dbt runtime contract.
+    tags: [dbt, build, ingestion-control]
+    parameters:
+      select:
+        - +tag:ingestion_control
+    <<: *dbt_build
+
   - name: exchange-build
     description: >
       dbt build for exchange reference models (bootstrap step 3).
 
-      Seeds eodhd_provider_namespaces + staging/exchange + schedules + exchange marts.
+      Seeds provider namespace policy/curated namespaces + staging/exchange + schedules + exchange marts.
       Required before instrument and price ingestion universes resolve correctly.
     tags: [dbt, build, exchange]
     parameters:
       select:
+        - provider_namespace_policy
         - eodhd_provider_namespaces
         - path:models/staging/exchange
         - path:models/staging/exchange_schedule

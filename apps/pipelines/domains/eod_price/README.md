@@ -16,15 +16,18 @@ Deployments are defined in `prefect.yaml` (`eod-price-daily`, `eod-price-backfil
 The operational goal is:
 
 ```text
-For every active tradable provider instrument on every enabled provider exchange,
-every local exchange trading day is either priced, explicitly covered as no-data,
-or flagged as an actionable gap.
+For every active tradable provider instrument in the enabled provider policy
+universe, every local exchange trading day is either priced, explicitly covered
+as no-data, or flagged as a transparent gap. Only namespaces with
+`daily_coverage_mode = 'blocking'` block the daily flow, and only on their latest
+expected trading day.
 ```
 
 The current flow mechanics cover pieces of that goal:
 
 | Mechanism                   | Current behavior                                                                                                                                                                                                                                                                                                        |
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Provider universe policy    | `reference.provider_namespace_policy` is the reviewed control table for default runtime scope. The provider catalog remains visible in Silver, but catalog rows without policy stay `catalog_only`; daily price, historical backfill, instruments, and fundamentals can have different enablement flags.                |
 | Daily upsert/idempotency    | Daily bulk skips explicit `(provider_exchange_code, bar_date)` partitions only when a `daily_bulk` Bronze row already exists and rebuilt exchange/day coverage has no blocking gap. Bronze uniqueness is per provider exchange, provider instrument, date, and provider.                                                |
 | Historical resume           | Backfill recomputes pending instruments from Silver instrument-day coverage plus exact-window terminal coverage rows. A canceled run resumes at the next not-covered instrument after dbt rebuilds the selector views.                                                                                                  |
 | Partial historical coverage | Explicit `from_date` backfills keep an instrument pending when any requested trading day is still missing or lifecycle/calendar-coverage unknown. Open-start backfills require exact-window completed/no-data coverage because a single daily bar does not prove full history.                                          |
@@ -39,19 +42,20 @@ The new dbt control views make the invariant observable:
 
 | Model                                                | Purpose                                                                                                                                                                                                                         |
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `silver.int_exchange_trading_day`                    | One row per enabled EOD provider exchange and calendar date, with known/unknown calendar, trusted holiday-calendar coverage, working-day, holiday, early-close, and trading-day flags.                                          |
+| `silver.int_exchange_provider_policy_resolution`     | One row per provider namespace policy entry, showing whether the desired code resolved to provider catalog or curated namespace metadata before flows can use it.                                                               |
+| `silver.int_exchange_trading_day`                    | One row per daily-enabled EOD provider namespace and calendar date, with policy tier/mode, known/unknown calendar, trusted holiday-calendar coverage, working-day, holiday, early-close, and trading-day flags.                 |
 | `silver.int_eod_price_provider_instrument_lifecycle` | Provider instrument lifecycle evidence from latest universe, provider fundamentals, observed price bounds, and terminal backfill outcomes.                                                                                      |
 | `silver.int_eod_price_expected_instrument_day`       | Expected instrument/date rows for active tradable instruments on trading days, plus unknown-calendar dates. Provider lifecycle evidence, today's no-price instruments, and terminal no-data windows define the expected ranges. |
 | `silver.int_eod_price_instrument_day_coverage`       | Classifies each expected instrument/date as `priced`, `known_no_data`, `missing_price`, `unknown_calendar`, `unknown_calendar_coverage`, or `unknown_instrument_lifecycle`.                                                     |
-| `silver.int_eod_price_exchange_day_status`           | Exchange/date rollup for daily gates and monitoring: `complete`, `missing_price`, `unknown_calendar`, `unknown_calendar_coverage`, `unknown_instrument_lifecycle`, `closed_exchange`, or `no_expected_instruments`.             |
+| `silver.int_eod_price_exchange_day_status`           | Exchange/date rollup for daily gates and monitoring: observed status stays visible for all rows, while `is_blocking_coverage_gap` identifies latest-day blocking gaps for daily operation.                                      |
 
-The dbt control views are also used operationally: post-ingestion price builds query `silver.int_eod_price_exchange_day_status`, and the EOD run is audited as `partial` when rebuilt coverage still contains `missing_price`, `unknown_calendar`, `unknown_calendar_coverage`, or `unknown_instrument_lifecycle`.
+The dbt control views are also used operationally: post-ingestion price builds query `silver.int_eod_price_exchange_day_status`, and the EOD run is audited as `partial` only when rebuilt coverage returns rows with `is_blocking_coverage_gap = true`. Historical and monitor-only gaps remain queryable in Silver without blocking the daily flow.
 
 Full historical assurance before an instrument's first observed price uses provider fundamentals when IPO, fund inception, or delisting dates are available. Instruments without those fields still need provider-backed terminal no-data windows before older dates can be treated as reviewed outcomes instead of lifecycle unknowns.
 
 `silver.int_eod_price_instrument_history_bounds` exposes each provider exchange/instrument pair's first and latest observed EOD price dates. For open-start historical backfills, the provider determines the first available bar date; this is a provider-observed first price date for that exchange/instrument pair, not necessarily the official listing date. Exchange-level first trading dates should be treated the same way unless an authoritative exchange inception source is added.
 
-`reference.exchange_calendar_coverage_overrides` is the explicit source-data input for reviewed historical or future holiday-calendar horizons. Add one row per `(data_provider, provider_schedule_exchange_code)` coverage window after reviewing an external source; dbt will widen the trusted calendar horizon and carry the review source and latest review date into the exchange trading-day mart.
+`reference.exchange_calendar_coverage_overrides` is the explicit source-data input for reviewed historical or future holiday-calendar horizons. Add one row per `(data_provider, provider_schedule_exchange_code)` coverage window after reviewing an external source; dbt will widen the trusted calendar horizon and carry the review source and latest review date into the exchange trading-day mart. This keeps historical transparency without forcing every older calendar gap to block the daily gate.
 
 ## Historical backfill resume
 
@@ -101,7 +105,7 @@ Helpers: `domains/eod_price/coverage.py` (unit key builder), `core/ingestion/cov
 Fundamentals also uses the same table with `domain = 'fundamental'`, `unit_type = 'instrument_snapshot'`, and
 `status = 'provider_quota_deferred'` for instrument snapshots skipped after credit or rate-limit exhaustion.
 
-**Force retry:** delete the matching `ingestion_coverage` row (and any `bronze.eod_price` rows if re-ingesting prices), rebuild `dbt-build/price-build`, then re-run backfill.
+**Force retry:** delete the matching `ingestion_coverage` row (and any `bronze.eod_price` rows if re-ingesting prices), rebuild `dbt-build/ingestion-control-build`, then re-run backfill.
 
 ```sql
 SELECT provider_exchange_code, provider_instrument_code, unit_key_hash, rows_raw, rows_valid, source_uri
@@ -123,8 +127,10 @@ was partial, rerunning the same explicit exchange/date fetches again and inserts
 only still-missing Bronze keys. Provider-latest runs with no `trade_date` still
 fetch first because the bar date is unknown before the provider response.
 When `run_dbt_build=true`, provider-latest runs compare the returned provider
-date with the latest expected exchange trading date from `silver.int_exchange_trading_day`;
-a mismatch is audited as `partial`, and the coverage gate checks the expected date.
+date with the latest expected exchange trading date from `silver.int_exchange_trading_day`
+for blocking daily namespaces; a mismatch is audited as `partial`, and the coverage
+gate checks the expected date. Monitor-only namespaces can still be ingested and
+reported, but they do not downgrade the run.
 
 ## Local smoke
 

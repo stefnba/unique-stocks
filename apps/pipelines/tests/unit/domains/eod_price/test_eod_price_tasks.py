@@ -504,6 +504,7 @@ def test_query_exchange_day_coverage_gaps_by_explicit_pairs_renders_sql_file() -
     sql, params = lake.queries[0]
     assert "FROM silver.int_eod_price_exchange_day_status" in sql
     assert "(provider_exchange_code = ? AND bar_date = ?) OR (provider_exchange_code = ? AND bar_date = ?)" in sql
+    assert "AND is_blocking_coverage_gap" in sql
     assert params == ["eodhd", "LSE", TO_DATE.isoformat(), "US", FROM_DATE.isoformat()]
 
 
@@ -524,6 +525,7 @@ def test_query_exchange_day_coverage_gaps_by_codes_renders_optional_dates() -> N
     assert "provider_exchange_code IN (?, ?)" in sql
     assert "AND bar_date >= ?" in sql
     assert "AND bar_date <= ?" in sql
+    assert "AND is_blocking_coverage_gap" in sql
     assert params == ["eodhd", "LSE", "US", FROM_DATE.isoformat(), TO_DATE.isoformat()]
 
 

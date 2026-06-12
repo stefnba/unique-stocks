@@ -1,0 +1,12 @@
+data_provider,provider_exchange_code,universe_tier,is_enabled_for_instrument,is_enabled_for_eod_price,is_enabled_for_eod_backfill,is_enabled_for_fundamental,daily_coverage_mode,historical_coverage_mode,region,priority,review_reason,owner,last_reviewed_on
+eodhd,US,core_v1,true,true,true,true,blocking,on_demand,americas,10,Core US operating universe for v1 production ingestion,data-platform,2026-06-12
+eodhd,LSE,core_v1,true,true,true,true,blocking,on_demand,europe,20,Core London market for v1 production ingestion,data-platform,2026-06-12
+eodhd,XETRA,core_v1,true,true,true,true,blocking,on_demand,europe,30,Core Deutsche Boerse Xetra market for v1 production ingestion,data-platform,2026-06-12
+eodhd,PA,core_v1,true,true,true,true,blocking,on_demand,europe,40,Core Euronext Paris market for v1 production ingestion,data-platform,2026-06-12
+eodhd,AS,core_v1,true,true,true,true,blocking,on_demand,europe,50,Core Euronext Amsterdam market for v1 production ingestion,data-platform,2026-06-12
+eodhd,SW,core_v1,true,true,true,true,blocking,on_demand,europe,60,Core SIX Swiss Exchange market for v1 production ingestion,data-platform,2026-06-12
+eodhd,MC,core_v1,true,true,true,true,blocking,on_demand,europe,70,Core BME Madrid market for v1 production ingestion,data-platform,2026-06-12
+eodhd,AU,core_v1,true,true,true,true,blocking,on_demand,asia_pacific,80,Core Australia market for v1 production ingestion,data-platform,2026-06-12
+eodhd,SHG,core_v1,true,true,true,true,blocking,on_demand,asia,90,Core Shanghai market for v1 production ingestion,data-platform,2026-06-12
+eodhd,KO,core_v1,true,true,true,true,blocking,on_demand,asia,100,Core Korea market for v1 production ingestion,data-platform,2026-06-12
+eodhd,INDX,core_v1,true,true,false,true,monitor_only,none,global,110,Curated global index namespace kept visible but excluded from historical backfill,data-platform,2026-06-12

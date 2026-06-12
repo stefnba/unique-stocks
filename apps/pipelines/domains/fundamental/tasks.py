@@ -67,20 +67,16 @@ from domains.fundamental.parsers import (
     parse_fund_metric_facts,
     parse_fundamental_document,
     parse_index_components,
-    parse_index_historical_components,
     parse_index_identity_snapshot,
     parse_mutual_fund_holdings,
     parse_mutual_fund_identity_snapshot,
-    parse_stock_dividend_counts,
     parse_stock_earnings_facts,
-    parse_stock_esg_activities,
     parse_stock_holders,
     parse_stock_identity_snapshot,
     parse_stock_insider_transactions,
     parse_stock_metric_facts,
     parse_stock_outstanding_shares,
     parse_stock_shares_stats_snapshot,
-    parse_stock_splits_dividends_snapshot,
     parse_stock_statement_facts,
 )
 from domains.instrument.universe import (
@@ -659,10 +655,7 @@ def parse_fundamental_stock(
     list[BronzeParseResult[FundamentalStockOutstandingShares]],
     list[BronzeParseResult[FundamentalStockHolder]],
     list[BronzeParseResult[FundamentalStockInsiderTransaction]],
-    BronzeParseResult[FundamentalStockSplitsDividendsSnapshot] | None,
-    list[BronzeParseResult[FundamentalStockDividendCount]],
     list[BronzeParseResult[FundamentalStockMetricFact]],
-    list[BronzeParseResult[FundamentalStockEsgActivity]],
     BronzeParseResult[FundamentalEtfIdentitySnapshot] | None,
     BronzeParseResult[FundamentalMutualFundIdentitySnapshot] | None,
     BronzeParseResult[FundamentalIndexIdentitySnapshot] | None,
@@ -670,7 +663,6 @@ def parse_fundamental_stock(
     list[BronzeParseResult[FundamentalMutualFundHolding]],
     list[BronzeParseResult[FundamentalFundMetricFact]],
     list[BronzeParseResult[FundamentalIndexComponent]],
-    list[BronzeParseResult[FundamentalIndexHistoricalComponent]],
     list[dict[str, object]],
 ]:
     """Parse the stock fundamentals slice currently supported by this domain."""
@@ -722,25 +714,7 @@ def parse_fundamental_stock(
         provider_instrument_code=provider_instrument_code,
         snapshot_date=snapshot_date,
     )
-    splits_dividends = parse_stock_splits_dividends_snapshot(
-        raw,
-        provider_exchange_code=provider_exchange_code,
-        provider_instrument_code=provider_instrument_code,
-        snapshot_date=snapshot_date,
-    )
-    dividend_counts, dividend_rejected = parse_stock_dividend_counts(
-        raw,
-        provider_exchange_code=provider_exchange_code,
-        provider_instrument_code=provider_instrument_code,
-        snapshot_date=snapshot_date,
-    )
     metric_facts = parse_stock_metric_facts(
-        raw,
-        provider_exchange_code=provider_exchange_code,
-        provider_instrument_code=provider_instrument_code,
-        snapshot_date=snapshot_date,
-    )
-    esg_activities, esg_rejected = parse_stock_esg_activities(
         raw,
         provider_exchange_code=provider_exchange_code,
         provider_instrument_code=provider_instrument_code,
@@ -788,24 +762,15 @@ def parse_fundamental_stock(
         provider_instrument_code=provider_instrument_code,
         snapshot_date=snapshot_date,
     )
-    index_historical_components, index_historical_rejected = parse_index_historical_components(
-        raw,
-        provider_exchange_code=provider_exchange_code,
-        provider_instrument_code=provider_instrument_code,
-        snapshot_date=snapshot_date,
-    )
     rejected: list[dict[str, object]] = [
         *statement_rejected,
         *earnings_rejected,
         *outstanding_rejected,
         *holders_rejected,
         *insider_transactions_rejected,
-        *dividend_rejected,
-        *esg_rejected,
         *etf_rejected,
         *mutual_fund_rejected,
         *index_rejected,
-        *index_historical_rejected,
     ]
     log.info(
         "fundamental.parsed",
@@ -818,10 +783,7 @@ def parse_fundamental_stock(
         outstanding_shares=len(outstanding_shares),
         holders=len(holders),
         insider_transactions=len(insider_transactions),
-        splits_dividends=splits_dividends is not None,
-        dividend_counts=len(dividend_counts),
         metric_facts=len(metric_facts),
-        esg_activities=len(esg_activities),
         etf_identity=etf_identity is not None,
         mutual_fund_identity=mutual_fund_identity is not None,
         index_identity=index_identity is not None,
@@ -829,7 +791,6 @@ def parse_fundamental_stock(
         mutual_fund_holdings=len(mutual_fund_holdings),
         fund_metric_facts=len(fund_metric_facts),
         index_components=len(index_components),
-        index_historical_components=len(index_historical_components),
         rejected=len(rejected),
     )
     return (
@@ -841,10 +802,7 @@ def parse_fundamental_stock(
         outstanding_shares,
         holders,
         insider_transactions,
-        splits_dividends,
-        dividend_counts,
         metric_facts,
-        esg_activities,
         etf_identity,
         mutual_fund_identity,
         index_identity,
@@ -852,7 +810,6 @@ def parse_fundamental_stock(
         mutual_fund_holdings,
         fund_metric_facts,
         index_components,
-        index_historical_components,
         rejected,
     )
 

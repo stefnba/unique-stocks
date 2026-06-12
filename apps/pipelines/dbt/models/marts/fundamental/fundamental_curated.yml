@@ -354,12 +354,12 @@ models:
         data_tests:
           - not_null
       - name: component_source
-        description: Whether the row came from the current or historical index component payload.
+        description: Component payload source. Historical index components remain preserved in landed raw JSON until modeled.
         data_tests:
           - not_null
           - accepted_values:
               arguments:
-                values: [current_component, historical_component]
+                values: [current_component]
       - name: component_provider_instrument_code
         description: Provider instrument code for the component security.
         data_tests:

@@ -5,7 +5,8 @@ The exchange dbt models publish the operational list of EODHD request codes in
 ``provider_exchange_code`` name, these values are provider endpoint/symbol
 namespace codes, not always real exchanges. Examples include ``US`` and
 ``XETRA`` for exchange-like namespaces and ``INDX`` for the curated global
-index namespace.
+index namespace. The Silver model keeps provider catalog visibility broad, but
+runtime eligibility is controlled by the dbt ``provider_namespace_policy`` seed.
 """
 
 from typing import Literal
@@ -19,12 +20,13 @@ log = structlog.get_logger(__name__)
 INGESTION_UNIVERSE_SCHEMA = "silver"
 INGESTION_UNIVERSE_TABLE = "int_exchange_provider_ingestion_universe"
 
-type ProviderCodePurpose = Literal["ingestion", "instrument", "eod_price", "fundamental"]
+type ProviderCodePurpose = Literal["ingestion", "instrument", "eod_price", "eod_backfill", "fundamental"]
 
 _PURPOSE_FILTER_COLUMNS: dict[ProviderCodePurpose, str] = {
     "ingestion": "is_enabled_for_ingestion",
     "instrument": "is_enabled_for_instrument",
     "eod_price": "is_enabled_for_eod_price",
+    "eod_backfill": "is_enabled_for_eod_backfill",
     "fundamental": "is_enabled_for_fundamental",
 }
 
@@ -52,6 +54,8 @@ def load_provider_exchange_codes(
       instrument reference flow.
     - ``"eod_price"`` uses ``is_enabled_for_eod_price`` and is used by the
       bulk EOD price flow.
+    - ``"eod_backfill"`` uses ``is_enabled_for_eod_backfill`` and is used by
+      the per-instrument historical EOD backfill flow.
     - ``"fundamental"`` uses ``is_enabled_for_fundamental`` and is used by the
       fundamentals flow before it auto-selects split provider instruments from
       the Silver ingestion universe.

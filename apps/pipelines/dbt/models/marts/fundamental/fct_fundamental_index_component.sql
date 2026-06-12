@@ -1,4 +1,4 @@
-WITH current_component AS (
+WITH component AS (
     SELECT
         data_provider,
         provider_exchange_code,
@@ -18,34 +18,6 @@ WITH current_component AS (
         CAST(NULL AS BOOLEAN) AS is_delisted,
         ingested_at
     FROM {{ ref('stg_fundamental_index_component') }}
-),
-
-historical_component AS (
-    SELECT
-        data_provider,
-        provider_exchange_code,
-        provider_instrument_code,
-        snapshot_date,
-        'historical_component' AS component_source,
-        provider_position,
-        CAST(NULL AS VARCHAR) AS component_provider_exchange_code,
-        component_provider_instrument_code,
-        component_name,
-        CAST(NULL AS VARCHAR) AS sector,
-        CAST(NULL AS VARCHAR) AS industry,
-        CAST(NULL AS DECIMAL(38, 10)) AS weight,
-        start_date,
-        end_date,
-        is_active_now,
-        is_delisted,
-        ingested_at
-    FROM {{ ref('stg_fundamental_index_historical_component') }}
-),
-
-component AS (
-    SELECT * FROM current_component
-    UNION ALL
-    SELECT * FROM historical_component
 ),
 
 instrument AS (

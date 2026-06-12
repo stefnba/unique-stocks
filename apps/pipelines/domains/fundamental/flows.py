@@ -34,21 +34,17 @@ from domains.fundamental.tasks import (
     write_bronze_fundamental_etf_identity,
     write_bronze_fundamental_fund_metric_facts,
     write_bronze_fundamental_index_components,
-    write_bronze_fundamental_index_historical_components,
     write_bronze_fundamental_index_identity,
     write_bronze_fundamental_mutual_fund_holdings,
     write_bronze_fundamental_mutual_fund_identity,
     write_bronze_fundamental_statement_facts,
-    write_bronze_fundamental_stock_dividend_counts,
     write_bronze_fundamental_stock_earnings_facts,
-    write_bronze_fundamental_stock_esg_activities,
     write_bronze_fundamental_stock_holders,
     write_bronze_fundamental_stock_identity,
     write_bronze_fundamental_stock_insider_transactions,
     write_bronze_fundamental_stock_metric_facts,
     write_bronze_fundamental_stock_outstanding_shares,
     write_bronze_fundamental_stock_shares_stats,
-    write_bronze_fundamental_stock_splits_dividends,
     write_fundamental_deferred_coverage,
     write_fundamental_to_landing,
 )
@@ -62,8 +58,8 @@ _REJECTION_SAMPLE_LIMIT_PER_INSTRUMENT = 100
 @flow(
     name="fundamental-quarterly",
     description=(
-        "Ingest EODHD fundamental JSON per provider_instrument_code: identity, statements, metrics, holders, "
-        "insider transactions, dividends, and more. Writes S3 landing + multiple bronze.fundamental_* tables."
+        "Ingest EODHD fundamental JSON per provider_instrument_code. Writes S3 landing, document metadata, "
+        "and curated bronze.fundamental_* slices for active marts."
     ),
 )
 async def fundamental_flow(
@@ -87,9 +83,9 @@ async def fundamental_flow(
 
     Automatic provider_instrument_code selection reads all latest EODHD provider instruments from
     ``silver.int_fundamental_ingestion_universe``; run instrument and
-    fundamental dbt builds before auto-selecting instruments. The flow writes every
-    fundamentals document row and then extracts the family-specific slices that
-    the domain currently models.
+    fundamental dbt builds before auto-selecting instruments. The flow lands every
+    fundamentals document for replay, writes document metadata, and extracts only
+    the family-specific slices that active marts currently model.
     ``snapshot_date`` and ``ingestion_batch_date`` are the bronze partition key
     ``(snapshot_date, provider_instrument_code)``. Use ``ingestion_batch_date`` to pin a multi-day
     backfill campaign. With ``continue_ingestion_batch=True`` and no explicit
@@ -346,10 +342,7 @@ async def fundamental_flow(
                         outstanding_shares,
                         holders,
                         insider_transactions,
-                        splits_dividends,
-                        dividend_counts,
                         metric_facts,
-                        esg_activities,
                         etf_identity,
                         mutual_fund_identity,
                         index_identity,
@@ -357,7 +350,6 @@ async def fundamental_flow(
                         mutual_fund_holdings,
                         fund_metric_facts,
                         index_components,
-                        index_historical_components,
                         rejected_rows,
                     ) = parse_fundamental_stock(raw, provider_exchange_code, provider_instrument_code, snapshot_date)
                     rows_valid = (
@@ -369,10 +361,7 @@ async def fundamental_flow(
                         + len(outstanding_shares)
                         + len(holders)
                         + len(insider_transactions)
-                        + (1 if splits_dividends is not None else 0)
-                        + len(dividend_counts)
                         + len(metric_facts)
-                        + len(esg_activities)
                         + (1 if etf_identity is not None else 0)
                         + (1 if mutual_fund_identity is not None else 0)
                         + (1 if index_identity is not None else 0)
@@ -380,7 +369,6 @@ async def fundamental_flow(
                         + len(mutual_fund_holdings)
                         + len(fund_metric_facts)
                         + len(index_components)
-                        + len(index_historical_components)
                     )
                     rejected = len(rejected_rows)
                     total_raw += 1
@@ -465,25 +453,8 @@ async def fundamental_flow(
                         snapshot_date=snapshot_date,
                         source_uri=landing.source_uri,
                     )
-                    splits_dividends_write = write_bronze_fundamental_stock_splits_dividends(
-                        splits_dividends,
-                        source_uri=landing.source_uri,
-                        provider_instrument_code=provider_instrument_code,
-                    )
-                    dividend_counts_write = write_bronze_fundamental_stock_dividend_counts(
-                        dividend_counts,
-                        provider_instrument_code=provider_instrument_code,
-                        snapshot_date=snapshot_date,
-                        source_uri=landing.source_uri,
-                    )
                     metric_facts_write = write_bronze_fundamental_stock_metric_facts(
                         metric_facts,
-                        provider_instrument_code=provider_instrument_code,
-                        snapshot_date=snapshot_date,
-                        source_uri=landing.source_uri,
-                    )
-                    esg_activities_write = write_bronze_fundamental_stock_esg_activities(
-                        esg_activities,
                         provider_instrument_code=provider_instrument_code,
                         snapshot_date=snapshot_date,
                         source_uri=landing.source_uri,
@@ -527,12 +498,6 @@ async def fundamental_flow(
                         snapshot_date=snapshot_date,
                         source_uri=landing.source_uri,
                     )
-                    index_historical_components_write = write_bronze_fundamental_index_historical_components(
-                        index_historical_components,
-                        provider_instrument_code=provider_instrument_code,
-                        snapshot_date=snapshot_date,
-                        source_uri=landing.source_uri,
-                    )
 
                     rows_written = (
                         document_write.rows_written
@@ -543,10 +508,7 @@ async def fundamental_flow(
                         + outstanding_shares_write.rows_written
                         + holders_write.rows_written
                         + insider_transactions_write.rows_written
-                        + splits_dividends_write.rows_written
-                        + dividend_counts_write.rows_written
                         + metric_facts_write.rows_written
-                        + esg_activities_write.rows_written
                         + etf_identity_write.rows_written
                         + mutual_fund_identity_write.rows_written
                         + index_identity_write.rows_written
@@ -554,7 +516,6 @@ async def fundamental_flow(
                         + mutual_fund_holdings_write.rows_written
                         + fund_metric_facts_write.rows_written
                         + index_components_write.rows_written
-                        + index_historical_components_write.rows_written
                     )
                     total_written += rows_written
 
@@ -572,10 +533,7 @@ async def fundamental_flow(
                             outstanding_shares_write.reason,
                             holders_write.reason,
                             insider_transactions_write.reason,
-                            splits_dividends_write.reason,
-                            dividend_counts_write.reason,
                             metric_facts_write.reason,
-                            esg_activities_write.reason,
                             etf_identity_write.reason,
                             mutual_fund_identity_write.reason,
                             index_identity_write.reason,
@@ -583,7 +541,6 @@ async def fundamental_flow(
                             mutual_fund_holdings_write.reason,
                             fund_metric_facts_write.reason,
                             index_components_write.reason,
-                            index_historical_components_write.reason,
                         ),
                         rows_raw=1,
                         rows_valid=rows_valid,
@@ -608,15 +565,11 @@ async def fundamental_flow(
                         "outstanding_shares": len(outstanding_shares),
                         "holders": len(holders),
                         "insider_transactions": len(insider_transactions),
-                        "splits_dividends": splits_dividends is not None,
-                        "dividend_counts": len(dividend_counts),
                         "metric_facts": len(metric_facts),
-                        "esg_activities": len(esg_activities),
                         "etf_holdings": len(etf_holdings),
                         "mutual_fund_holdings": len(mutual_fund_holdings),
                         "fund_metric_facts": len(fund_metric_facts),
                         "index_components": len(index_components),
-                        "index_historical_components": len(index_historical_components),
                         "rows_written": rows_written,
                     }
 

@@ -283,6 +283,41 @@ models:
         description: Provider instrument code expected to have an EOD price.
         data_tests:
           - not_null
+      - name: universe_tier
+        description: Provider namespace policy tier carried from the exchange trading-day contract.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - core_v1
+                  - watchlist
+                  - catalog_only
+                  - disabled
+      - name: daily_coverage_mode
+        description: Daily coverage contract carried from provider namespace policy.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - blocking
+                  - monitor_only
+                  - none
+      - name: historical_coverage_mode
+        description: Historical coverage contract carried from provider namespace policy.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - full_assurance
+                  - on_demand
+                  - none
+      - name: is_daily_coverage_blocking
+        description: True when this expected instrument-day belongs to a namespace whose latest daily coverage can block a run.
+        data_tests:
+          - not_null
       - name: instrument_family
         description: Broad dbt instrument classification from the latest instrument universe.
         data_tests:
@@ -340,6 +375,41 @@ models:
           - not_null
       - name: provider_instrument_code
         description: Provider instrument code evaluated for EOD price coverage.
+        data_tests:
+          - not_null
+      - name: universe_tier
+        description: Provider namespace policy tier carried from the expected instrument-day contract.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - core_v1
+                  - watchlist
+                  - catalog_only
+                  - disabled
+      - name: daily_coverage_mode
+        description: Daily coverage contract carried from provider namespace policy.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - blocking
+                  - monitor_only
+                  - none
+      - name: historical_coverage_mode
+        description: Historical coverage contract carried from provider namespace policy.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - full_assurance
+                  - on_demand
+                  - none
+      - name: is_daily_coverage_blocking
+        description: True when this instrument-day belongs to a namespace whose latest daily coverage can block a run.
         data_tests:
           - not_null
       - name: bar_date
@@ -412,8 +482,57 @@ models:
         description: Provider display name for the mapped exchange schedule.
       - name: timezone
         description: IANA timezone for the mapped exchange schedule.
+      - name: universe_tier
+        description: Provider namespace policy tier carried from the exchange trading-day contract.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - core_v1
+                  - watchlist
+                  - catalog_only
+                  - disabled
+      - name: daily_coverage_mode
+        description: Daily coverage contract for this provider namespace.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - blocking
+                  - monitor_only
+                  - none
+      - name: historical_coverage_mode
+        description: Historical coverage contract for this provider namespace.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - full_assurance
+                  - on_demand
+                  - none
+      - name: is_daily_coverage_blocking
+        description: True when latest daily coverage gaps for this namespace should downgrade the run.
+        data_tests:
+          - not_null
+      - name: policy_priority
+        description: Provider namespace policy priority; lower numbers are reviewed and ingested first.
+      - name: policy_reason
+        description: Human-readable reason for the namespace's current policy tier.
+      - name: policy_owner
+        description: Team or role responsible for reviewing the namespace policy.
+      - name: policy_last_reviewed_on
+        description: Date when the namespace policy was last reviewed.
       - name: bar_date
         description: Local exchange date evaluated for EOD price coverage.
+        data_tests:
+          - not_null
+      - name: latest_expected_bar_date
+        description: Latest local exchange date at or before the build date that should have daily coverage for this provider namespace.
+      - name: is_latest_expected_trading_day
+        description: True when this row is the latest expected daily coverage date for the namespace.
         data_tests:
           - not_null
       - name: is_calendar_known
@@ -480,3 +599,7 @@ models:
                   - unknown_instrument_lifecycle
                   - closed_exchange
                   - no_expected_instruments
+      - name: is_blocking_coverage_gap
+        description: True when this row should block the daily coverage gate. This is limited to blocking-mode namespaces on their latest expected trading day with an actionable missing or unknown status.
+        data_tests:
+          - not_null

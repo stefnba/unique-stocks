@@ -2,6 +2,13 @@ SELECT
     data_provider,
     provider_exchange_code,
     bar_date,
+    universe_tier,
+    daily_coverage_mode,
+    historical_coverage_mode,
+    is_daily_coverage_blocking,
+    latest_expected_bar_date,
+    is_latest_expected_trading_day,
+    is_blocking_coverage_gap,
     exchange_day_status,
     expected_instruments,
     priced_instruments,
@@ -19,10 +26,5 @@ WHERE data_provider = {{ param() }}
     {% if to_date_filter %}
         AND bar_date <= {{ param() }}
     {% endif %}
-    AND exchange_day_status IN (
-        'missing_price',
-        'unknown_calendar',
-        'unknown_calendar_coverage',
-        'unknown_instrument_lifecycle'
-    )
+    AND is_blocking_coverage_gap
 ORDER BY provider_exchange_code, bar_date

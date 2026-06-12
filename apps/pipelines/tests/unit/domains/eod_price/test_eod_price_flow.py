@@ -556,7 +556,7 @@ async def test_eod_backfill_builds_missing_selection_views_before_pending_select
             "enabled": True,
             "triggered": True,
             "build": kwargs["build"],
-            "deployment": "dbt-build/price-build",
+            "deployment": f"dbt-build/{kwargs['build']}",
         }
 
     def load_pending(provider_exchange_code: str, _: date, __: date) -> list[str]:
@@ -577,18 +577,18 @@ async def test_eod_backfill_builds_missing_selection_views_before_pending_select
 
     assert build_calls == [
         {
-            "build": "price-build",
+            "build": "ingestion-control-build",
             "parent_run_id": "run-1",
-            "idempotency_key": "run-1:preflight:price-build",
-            "tags": ["preflight-dbt", "price-build"],
+            "idempotency_key": "run-1:preflight:ingestion-control-build",
+            "tags": ["preflight-dbt", "ingestion-control-build"],
         }
     ]
     assert pending_calls == ["US"]
     assert summary["preflight_dbt_build"] == {
         "enabled": True,
         "triggered": True,
-        "build": "price-build",
-        "deployment": "dbt-build/price-build",
+        "build": "ingestion-control-build",
+        "deployment": "dbt-build/ingestion-control-build",
         "reason": "missing_selection_views",
         "missing_before": [
             "int_exchange_trading_day",
@@ -631,10 +631,10 @@ async def test_eod_backfill_preflight_failure_is_audited(monkeypatch: pytest.Mon
 
     assert build_calls == [
         {
-            "build": "price-build",
+            "build": "ingestion-control-build",
             "parent_run_id": "run-1",
-            "idempotency_key": "run-1:preflight:price-build",
-            "tags": ["preflight-dbt", "price-build"],
+            "idempotency_key": "run-1:preflight:ingestion-control-build",
+            "tags": ["preflight-dbt", "ingestion-control-build"],
         }
     ]
     assert run.failed_summary is not None

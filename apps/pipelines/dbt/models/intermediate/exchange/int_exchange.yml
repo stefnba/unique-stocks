@@ -168,7 +168,7 @@ models:
         description: Timestamp when the matched registry row was written to Bronze.
 
   - name: int_exchange_provider_ingestion_universe
-    description: Operational provider code universe consumed by downstream ingestion flows, including provider catalog exchanges and curated symbol namespaces accepted by provider endpoints.
+    description: Operational provider code universe consumed by downstream ingestion flows. Provider catalog exchanges and curated symbol namespaces remain visible, but default ingestion eligibility and coverage behavior come from the explicit provider_namespace_policy seed.
     columns:
       - name: data_provider
         description: Market data provider that supplies the catalog code.
@@ -235,6 +235,10 @@ models:
         description: True when EOD price flows should use this provider code.
         data_tests:
           - not_null
+      - name: is_enabled_for_eod_backfill
+        description: True when historical EOD price backfill should use this provider code by default.
+        data_tests:
+          - not_null
       - name: is_enabled_for_fundamental
         description: True when fundamentals flows may use this provider code for automatic provider_instrument_code discovery.
         data_tests:
@@ -243,9 +247,115 @@ models:
         description: Backward-compatible aggregate ingestion flag used by generic and legacy Python readers.
         data_tests:
           - not_null
+      - name: universe_tier
+        description: Policy tier for this provider namespace; catalog rows without a policy row remain catalog_only, and curated rows without policy are disabled.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - core_v1
+                  - watchlist
+                  - catalog_only
+                  - disabled
+      - name: daily_coverage_mode
+        description: Daily EOD price coverage behavior for this namespace.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - blocking
+                  - monitor_only
+                  - none
+      - name: historical_coverage_mode
+        description: Historical EOD price coverage behavior for this namespace.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - full_assurance
+                  - on_demand
+                  - none
+      - name: region
+        description: Policy region used for operational grouping.
+      - name: policy_priority
+        description: Policy sort priority; lower numbers are reviewed and ingested first.
+      - name: policy_reason
+        description: Human-readable reason for the current policy tier and enablement.
+      - name: policy_owner
+        description: Team or role responsible for reviewing this namespace policy.
+      - name: policy_last_reviewed_on
+        description: Date when the namespace policy was last reviewed.
       - name: verification_symbol
         description: Representative exchange-qualified API symbol used to verify curated namespace endpoint support.
       - name: last_verified_on
         description: Date curated namespace endpoint support was last manually verified.
       - name: notes
         description: Human-readable source and verification notes for curated namespaces.
+
+  - name: int_exchange_provider_policy_resolution
+    description: Resolution report for provider namespace policy rows, showing whether each reviewed policy code is present in the provider catalog or curated namespace seed before flows can use it.
+    columns:
+      - name: provider_policy_resolution_id
+        description: Stable key for one provider namespace policy row.
+        data_tests:
+          - not_null
+          - unique
+      - name: data_provider
+        description: Market data provider governed by the policy row.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider endpoint namespace requested by the policy row.
+        data_tests:
+          - not_null
+      - name: universe_tier
+        description: Policy tier requested for this provider namespace.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - core_v1
+                  - watchlist
+                  - catalog_only
+                  - disabled
+      - name: daily_coverage_mode
+        description: Daily EOD price coverage mode requested by policy.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - blocking
+                  - monitor_only
+                  - none
+      - name: historical_coverage_mode
+        description: Historical EOD price coverage mode requested by policy.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - full_assurance
+                  - on_demand
+                  - none
+      - name: is_resolved_in_provider_universe
+        description: True when the policy row matches a provider catalog row or curated namespace row in the operational universe.
+        data_tests:
+          - not_null
+      - name: resolution_status
+        description: Resolution state for the policy row.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - resolved
+                  - missing_provider_catalog_or_curated_namespace
+      - name: resolved_source_kind
+        description: Source of the resolved provider namespace, such as provider_catalog or curated_seed.
+      - name: resolved_exchange_catalog_name
+        description: Provider display name when the policy row resolves.

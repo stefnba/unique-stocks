@@ -37,13 +37,14 @@ from core.prefect_controls import (
     observe_bronze_eod_price_asset,
     publish_ingestion_observability,
 )
-from core.transforms import run_dbt_build_after_ingestion, run_dbt_build_deployment
+from core.transforms import DbtBuildDeployment, run_dbt_build_after_ingestion, run_dbt_build_deployment
 from domains.eod_price.models import EODBar
 from domains.eod_price.parsers import infer_bulk_bar_date, parse_instrument_bars
 from domains.eod_price.tasks import (
     EODBackfillCoverageOutcome,
     EODPriceCoverageGap,
     eod_price_already_ingested,
+    fetch_eod_backfill_provider_exchange_codes,
     fetch_eod_price_bulk,
     fetch_eod_provider_exchange_codes,
     fetch_instrument_eod_history,
@@ -84,8 +85,9 @@ async def eod_price_flow(
         trade_date: Specific trading date to ingest. If omitted, the provider returns
             its latest available trading day per exchange.
         provider_exchange_codes: Provider catalog/API codes to ingest. Defaults
-            to all provider codes present in the exchange ingestion universe. Pass ["US"] to
-            restrict to US equities only.
+            to provider namespaces enabled for daily EOD price ingestion by the
+            dbt provider namespace policy. Pass ["US"] to restrict to US
+            equities only.
         run_dbt_build: When true, launch ``dbt-build/price-build`` after a
             clean ingestion audit status.
     """
@@ -515,19 +517,23 @@ async def _run_price_post_ingestion_checks(
 def _coverage_gate_summary(gaps: list[EODPriceCoverageGap]) -> dict[str, object]:
     """Return compact run-summary metadata for exchange/day coverage gaps."""
     by_status: dict[str, int] = {}
+    by_tier: dict[str, int] = {}
+    by_daily_mode: dict[str, int] = {}
     for gap in gaps:
         status = str(gap["exchange_day_status"])
         by_status[status] = by_status.get(status, 0) + 1
+        tier = str(gap.get("universe_tier", "unknown"))
+        by_tier[tier] = by_tier.get(tier, 0) + 1
+        daily_mode = str(gap.get("daily_coverage_mode", "unknown"))
+        by_daily_mode[daily_mode] = by_daily_mode.get(daily_mode, 0) + 1
     return {
         "status": "failed" if gaps else "passed",
-        "blocking_statuses": [
-            "missing_price",
-            "unknown_calendar",
-            "unknown_calendar_coverage",
-            "unknown_instrument_lifecycle",
-        ],
+        "scope": "blocking_latest_daily_coverage",
+        "blocking_flag": "is_blocking_coverage_gap",
         "gaps": len(gaps),
         "by_status": by_status,
+        "by_tier": by_tier,
+        "by_daily_mode": by_daily_mode,
         "sample": [_coverage_gap_summary_row(gap) for gap in gaps[:20]],
     }
 
@@ -535,9 +541,18 @@ def _coverage_gate_summary(gaps: list[EODPriceCoverageGap]) -> dict[str, object]
 def _coverage_gap_summary_row(gap: EODPriceCoverageGap) -> dict[str, object]:
     """Return a JSON-safe compact representation of one coverage gap."""
     bar_date = gap["bar_date"]
+    latest_expected_bar_date = gap.get("latest_expected_bar_date")
     return {
         "provider_exchange_code": gap["provider_exchange_code"],
         "bar_date": bar_date.isoformat() if isinstance(bar_date, date) else str(bar_date),
+        "universe_tier": gap.get("universe_tier", "unknown"),
+        "daily_coverage_mode": gap.get("daily_coverage_mode", "unknown"),
+        "latest_expected_bar_date": (
+            latest_expected_bar_date.isoformat()
+            if isinstance(latest_expected_bar_date, date)
+            else latest_expected_bar_date
+        ),
+        "is_blocking_coverage_gap": gap.get("is_blocking_coverage_gap", True),
         "exchange_day_status": gap["exchange_day_status"],
         "expected_instruments": gap["expected_instruments"],
         "priced_instruments": gap["priced_instruments"],
@@ -575,13 +590,14 @@ async def _build_price_selection_views_if_missing(
     parent_run_id: str,
     summary: dict[str, object],
 ) -> dict[str, object]:
-    """Build price Silver selector views when historical backfill needs them."""
+    """Build ingestion-control selector views when historical backfill needs them."""
+    build_name: DbtBuildDeployment = "ingestion-control-build"
     missing_before = load_missing_eod_backfill_selection_views()
     if not missing_before:
         result: dict[str, object] = {
             "enabled": True,
             "triggered": False,
-            "build": "price-build",
+            "build": build_name,
             "reason": "selection_views_present",
             "missing": [],
         }
@@ -592,7 +608,7 @@ async def _build_price_selection_views_if_missing(
     preflight_summary: dict[str, object] = {
         "enabled": True,
         "triggered": True,
-        "build": "price-build",
+        "build": build_name,
         "missing_before": missing_before,
     }
     summary["preflight_dbt_build"] = preflight_summary
@@ -600,10 +616,10 @@ async def _build_price_selection_views_if_missing(
     try:
         with transaction(key=f"eod-price-selection-views:{','.join(sorted(missing_before))}"):
             result = await run_dbt_build_deployment(
-                build="price-build",
+                build=build_name,
                 parent_run_id=parent_run_id,
-                idempotency_key=f"{parent_run_id}:preflight:price-build",
-                tags=["preflight-dbt", "price-build"],
+                idempotency_key=f"{parent_run_id}:preflight:{build_name}",
+                tags=["preflight-dbt", build_name],
             )
     except Exception as exc:
         preflight_summary["status"] = "failed"
@@ -620,7 +636,7 @@ async def _build_price_selection_views_if_missing(
         summary["preflight_dbt_build"] = result
         missing = ", ".join(f"silver.{table}" for table in missing_after)
         raise RuntimeError(
-            f"dbt-build/price-build completed but required backfill selector views are missing: {missing}"
+            f"dbt-build/{build_name} completed but required backfill selector views are missing: {missing}"
         )
     result["reason"] = "missing_selection_views"
     result["missing_before"] = missing_before
@@ -676,7 +692,8 @@ async def eod_price_backfill_flow(
             retrieve all available provider history.
         to_date: Latest bar date. Defaults to today.
         provider_exchange_codes: Provider catalog/API codes to backfill. Defaults
-            to all provider codes present in the exchange ingestion universe.
+            to provider namespaces enabled for historical EOD backfill by the
+            dbt provider namespace policy.
         batch_size: Instruments fetched concurrently per batch. Keep this low
             enough to stay within the provider's API rate limits.
             At batch_size=50 and ~0.75 s/call the flow can process ~5 k
@@ -685,13 +702,13 @@ async def eod_price_backfill_flow(
             during this run. Re-run later with the same date window to resume from
             the Silver completion/no-data coverage pending-instrument detection.
         build_selection_views_if_missing: When true, launch
-            ``dbt-build/price-build`` before pending-instrument selection if the
+            ``dbt-build/ingestion-control-build`` before pending-instrument selection if the
             required Silver selector views are absent.
         run_dbt_build: When true, launch ``dbt-build/price-build`` after a
             clean ingestion audit status.
     """
     to_date = to_date or date.today()
-    codes = provider_exchange_codes or await fetch_eod_provider_exchange_codes()
+    codes = provider_exchange_codes or await fetch_eod_backfill_provider_exchange_codes()
     provider_call_limit = None if max_provider_calls is None else max(0, int(max_provider_calls))
     provider_calls_submitted = 0
     provider_calls_deferred = 0

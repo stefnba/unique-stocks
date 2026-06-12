@@ -372,41 +372,6 @@ CREATE TABLE IF NOT EXISTS bronze.fundamental_stock_insider_transaction (
     )
 );
 
-CREATE TABLE IF NOT EXISTS bronze.fundamental_stock_splits_dividends (
-    ingestion_id UUID DEFAULT GEN_RANDOM_UUID(),
-    snapshot_date DATE NOT NULL,
-    provider_exchange_code VARCHAR NOT NULL,
-    provider_instrument_code VARCHAR NOT NULL,
-    forward_annual_dividend_rate DECIMAL,
-    forward_annual_dividend_yield DECIMAL,
-    payout_ratio DECIMAL,
-    dividend_date DATE,
-    ex_dividend_date DATE,
-    last_split_factor VARCHAR,
-    last_split_date DATE,
-    data_provider VARCHAR NOT NULL,
-    raw_json JSON NOT NULL,
-    row_hash VARCHAR NOT NULL,
-    source_uri VARCHAR,
-    ingested_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE (snapshot_date, provider_exchange_code, provider_instrument_code, data_provider)
-);
-
-CREATE TABLE IF NOT EXISTS bronze.fundamental_stock_dividend_count (
-    ingestion_id UUID DEFAULT GEN_RANDOM_UUID(),
-    snapshot_date DATE NOT NULL,
-    provider_exchange_code VARCHAR NOT NULL,
-    provider_instrument_code VARCHAR NOT NULL,
-    year BIGINT NOT NULL,
-    dividend_count BIGINT NOT NULL,
-    data_provider VARCHAR NOT NULL,
-    raw_json JSON NOT NULL,
-    row_hash VARCHAR NOT NULL,
-    source_uri VARCHAR,
-    ingested_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE (snapshot_date, provider_exchange_code, provider_instrument_code, year, data_provider)
-);
-
 CREATE TABLE IF NOT EXISTS bronze.fundamental_stock_metric_fact (
     ingestion_id UUID DEFAULT GEN_RANDOM_UUID(),
     snapshot_date DATE NOT NULL,
@@ -422,22 +387,6 @@ CREATE TABLE IF NOT EXISTS bronze.fundamental_stock_metric_fact (
     source_uri VARCHAR,
     ingested_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (snapshot_date, provider_exchange_code, provider_instrument_code, metric_group, metric_name, data_provider)
-);
-
-CREATE TABLE IF NOT EXISTS bronze.fundamental_stock_esg_activity (
-    ingestion_id UUID DEFAULT GEN_RANDOM_UUID(),
-    snapshot_date DATE NOT NULL,
-    provider_exchange_code VARCHAR NOT NULL,
-    provider_instrument_code VARCHAR NOT NULL,
-    rating_date DATE,
-    activity VARCHAR NOT NULL,
-    involvement VARCHAR,
-    data_provider VARCHAR NOT NULL,
-    raw_json JSON NOT NULL,
-    row_hash VARCHAR NOT NULL,
-    source_uri VARCHAR,
-    ingested_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE (snapshot_date, provider_exchange_code, provider_instrument_code, activity, data_provider)
 );
 
 CREATE TABLE IF NOT EXISTS bronze.fundamental_etf_identity (
@@ -618,33 +567,6 @@ CREATE TABLE IF NOT EXISTS bronze.fundamental_index_component (
         provider_instrument_code,
         component_provider_instrument_code,
         component_provider_exchange_code,
-        data_provider
-    )
-);
-
-CREATE TABLE IF NOT EXISTS bronze.fundamental_index_historical_component (
-    ingestion_id UUID DEFAULT GEN_RANDOM_UUID(),
-    snapshot_date DATE NOT NULL,
-    provider_exchange_code VARCHAR NOT NULL,
-    provider_instrument_code VARCHAR NOT NULL,
-    provider_position BIGINT,
-    component_provider_instrument_code VARCHAR NOT NULL,
-    component_name VARCHAR,
-    start_date DATE,
-    end_date DATE,
-    is_active_now BOOLEAN,
-    is_delisted BOOLEAN,
-    data_provider VARCHAR NOT NULL,
-    raw_json JSON NOT NULL,
-    row_hash VARCHAR NOT NULL,
-    source_uri VARCHAR,
-    ingested_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE (
-        snapshot_date,
-        provider_exchange_code,
-        provider_instrument_code,
-        component_provider_instrument_code,
-        start_date,
         data_provider
     )
 );

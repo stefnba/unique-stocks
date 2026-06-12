@@ -444,10 +444,7 @@ async def test_skip_existing_false_uses_changed_payload_refresh(monkeypatch: pyt
     monkeypatch.setattr(flows, "write_bronze_fundamental_stock_outstanding_shares", fail_if_called)
     monkeypatch.setattr(flows, "write_bronze_fundamental_stock_holders", fail_if_called)
     monkeypatch.setattr(flows, "write_bronze_fundamental_stock_insider_transactions", fail_if_called)
-    monkeypatch.setattr(flows, "write_bronze_fundamental_stock_splits_dividends", fail_if_called)
-    monkeypatch.setattr(flows, "write_bronze_fundamental_stock_dividend_counts", fail_if_called)
     monkeypatch.setattr(flows, "write_bronze_fundamental_stock_metric_facts", fail_if_called)
-    monkeypatch.setattr(flows, "write_bronze_fundamental_stock_esg_activities", fail_if_called)
     monkeypatch.setattr(flows, "write_bronze_fundamental_etf_identity", fail_if_called)
     monkeypatch.setattr(flows, "write_bronze_fundamental_mutual_fund_identity", fail_if_called)
     monkeypatch.setattr(flows, "write_bronze_fundamental_index_identity", fail_if_called)
@@ -455,7 +452,6 @@ async def test_skip_existing_false_uses_changed_payload_refresh(monkeypatch: pyt
     monkeypatch.setattr(flows, "write_bronze_fundamental_mutual_fund_holdings", fail_if_called)
     monkeypatch.setattr(flows, "write_bronze_fundamental_fund_metric_facts", fail_if_called)
     monkeypatch.setattr(flows, "write_bronze_fundamental_index_components", fail_if_called)
-    monkeypatch.setattr(flows, "write_bronze_fundamental_index_historical_components", fail_if_called)
 
     summary = await flows.fundamental_flow.fn(
         provider_instruments=[_instrument()],
@@ -530,10 +526,7 @@ async def test_replay_landing_uses_landed_json_without_provider_fetch(monkeypatc
         "write_bronze_fundamental_stock_outstanding_shares",
         "write_bronze_fundamental_stock_holders",
         "write_bronze_fundamental_stock_insider_transactions",
-        "write_bronze_fundamental_stock_splits_dividends",
-        "write_bronze_fundamental_stock_dividend_counts",
         "write_bronze_fundamental_stock_metric_facts",
-        "write_bronze_fundamental_stock_esg_activities",
         "write_bronze_fundamental_etf_identity",
         "write_bronze_fundamental_mutual_fund_identity",
         "write_bronze_fundamental_index_identity",
@@ -541,7 +534,6 @@ async def test_replay_landing_uses_landed_json_without_provider_fetch(monkeypatc
         "write_bronze_fundamental_mutual_fund_holdings",
         "write_bronze_fundamental_fund_metric_facts",
         "write_bronze_fundamental_index_components",
-        "write_bronze_fundamental_index_historical_components",
     ):
         monkeypatch.setattr(flows, name, write_none)
 

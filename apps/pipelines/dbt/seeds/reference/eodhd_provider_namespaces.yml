@@ -1,8 +1,87 @@
 version: 2
 
 seeds:
+  - name: provider_namespace_policy
+    description: Explicit operational policy for provider endpoint namespaces. Provider catalog rows remain visible, but only rows opted in here are eligible for Python ingestion and blocking coverage gates.
+    columns:
+      - name: data_provider
+        description: Market data provider that owns the namespace policy.
+        data_tests:
+          - not_null
+      - name: provider_exchange_code
+        description: Provider endpoint path and provider_instrument_code suffix code governed by this policy row.
+        data_tests:
+          - not_null
+      - name: universe_tier
+        description: Operational tier for this namespace.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - core_v1
+                  - watchlist
+                  - catalog_only
+                  - disabled
+      - name: is_enabled_for_instrument
+        description: True when instrument reference flows may ingest this provider namespace by default.
+        data_tests:
+          - not_null
+      - name: is_enabled_for_eod_price
+        description: True when daily EOD price flows may ingest this provider namespace by default.
+        data_tests:
+          - not_null
+      - name: is_enabled_for_eod_backfill
+        description: True when historical EOD backfill may ingest this provider namespace by default.
+        data_tests:
+          - not_null
+      - name: is_enabled_for_fundamental
+        description: True when fundamentals flows may auto-discover provider instruments in this namespace.
+        data_tests:
+          - not_null
+      - name: daily_coverage_mode
+        description: Daily price coverage contract for this namespace.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - blocking
+                  - monitor_only
+                  - none
+      - name: historical_coverage_mode
+        description: Historical price coverage contract for this namespace.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - full_assurance
+                  - on_demand
+                  - none
+      - name: region
+        description: Coarse region used for operational grouping.
+        data_tests:
+          - not_null
+      - name: priority
+        description: Lower numbers are ingested first when humans review or operators run narrow scopes.
+        data_tests:
+          - not_null
+      - name: review_reason
+        description: Human-readable reason this namespace is in its current tier.
+        data_tests:
+          - not_null
+      - name: owner
+        description: Team or role responsible for reviewing this policy row.
+        data_tests:
+          - not_null
+      - name: last_reviewed_on
+        description: Date when this policy row was last reviewed.
+        data_tests:
+          - not_null
+
   - name: eodhd_provider_namespaces
-    description: Curated EODHD symbol namespaces that are accepted by provider endpoints but omitted from /exchanges-list.
+    description: Curated EODHD symbol namespaces that are accepted by provider endpoints but omitted from /exchanges-list. Runtime eligibility is governed by provider_namespace_policy.
     columns:
       - name: data_provider
         description: Market data provider that owns the namespace.
@@ -31,11 +110,11 @@ seeds:
       - name: currency
         description: Optional currency when the namespace is single-currency.
       - name: is_enabled_for_instrument
-        description: True when the instrument flow should ingest this namespace.
+        description: Historical verification hint retained with the curated namespace metadata; provider_namespace_policy controls runtime instrument ingestion.
         data_tests:
           - not_null
       - name: is_enabled_for_eod_price
-        description: True when EOD price flows should ingest this namespace.
+        description: Historical verification hint retained with the curated namespace metadata; provider_namespace_policy controls runtime EOD price ingestion.
         data_tests:
           - not_null
       - name: verification_symbol

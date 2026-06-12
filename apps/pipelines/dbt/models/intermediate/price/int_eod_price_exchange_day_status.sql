@@ -28,7 +28,18 @@ aggregated AS (
     GROUP BY 1, 2, 3
 ),
 
-final AS (
+latest_expected_trading_day AS (
+    SELECT
+        data_provider,
+        provider_exchange_code,
+        MAX(bar_date) AS latest_expected_bar_date
+    FROM trading_day
+    WHERE bar_date <= CURRENT_DATE
+        AND (is_trading_day OR NOT is_calendar_known)
+    GROUP BY 1, 2
+),
+
+status_base AS (
     SELECT
         trading_day.data_provider
         || ':'
@@ -40,7 +51,20 @@ final AS (
         trading_day.provider_schedule_exchange_code,
         trading_day.exchange_schedule_name,
         trading_day.timezone,
+        trading_day.universe_tier,
+        trading_day.daily_coverage_mode,
+        trading_day.historical_coverage_mode,
+        trading_day.is_daily_coverage_blocking,
+        trading_day.policy_priority,
+        trading_day.policy_reason,
+        trading_day.policy_owner,
+        trading_day.policy_last_reviewed_on,
         trading_day.bar_date,
+        latest_expected_trading_day.latest_expected_bar_date,
+        COALESCE(
+            trading_day.bar_date = latest_expected_trading_day.latest_expected_bar_date,
+            FALSE
+        ) AS is_latest_expected_trading_day,
         trading_day.is_calendar_known,
         trading_day.is_calendar_coverage_known,
         trading_day.calendar_coverage_status,
@@ -79,7 +103,25 @@ final AS (
         ON trading_day.data_provider = aggregated.data_provider
         AND trading_day.provider_exchange_code = aggregated.provider_exchange_code
         AND trading_day.bar_date = aggregated.bar_date
+    LEFT JOIN latest_expected_trading_day
+        ON trading_day.data_provider = latest_expected_trading_day.data_provider
+        AND trading_day.provider_exchange_code = latest_expected_trading_day.provider_exchange_code
     WHERE trading_day.bar_date <= CURRENT_DATE
+),
+
+final AS (
+    SELECT
+        *,
+        is_daily_coverage_blocking
+        AND is_latest_expected_trading_day
+        AND exchange_day_status IN (
+            'missing_price',
+            'unknown_calendar',
+            'unknown_calendar_coverage',
+            'unknown_instrument_lifecycle'
+        )
+            AS is_blocking_coverage_gap
+    FROM status_base
 )
 
 SELECT * FROM final

@@ -10,6 +10,7 @@ from core.ingestion.run_tracking import RunStatus
 log = structlog.get_logger(__name__)
 
 type DbtBuildDeployment = Literal[
+    "ingestion-control-build",
     "exchange-build",
     "instrument-build",
     "price-build",

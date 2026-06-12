@@ -14,6 +14,14 @@ The dbt-visible names are the YAML `sources[].name` and `tables[].name` values. 
 
 `pipeline` sources are orchestration metadata, not Bronze market data. Use them only for audit and ingestion-control staging/intermediate models, tag those models with `ingestion_control`, and keep them out of consumer-facing marts unless a concrete consumer need appears.
 
+Models tagged `ingestion_control` form a runtime contract with Python ingestion.
+They are built explicitly by the `dbt-build/ingestion-control-build` Prefect
+deployment, which selects `+tag:ingestion_control` so the tagged selector/control
+models and their upstream dependencies are refreshed together.
+Provider-scope control seeds such as `provider_namespace_policy` belong in dbt
+for lineage, documentation, and tests; Prefect parameters are only manual
+overrides for a specific run.
+
 ### Data Flow
 
 The pipeline flow before and inside dbt is:

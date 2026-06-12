@@ -61,6 +61,13 @@ class EODPriceCoverageGap(TypedDict):
     data_provider: str
     provider_exchange_code: str
     bar_date: date
+    universe_tier: str
+    daily_coverage_mode: str
+    historical_coverage_mode: str
+    is_daily_coverage_blocking: bool
+    latest_expected_bar_date: date | None
+    is_latest_expected_trading_day: bool
+    is_blocking_coverage_gap: bool
     exchange_day_status: str
     expected_instruments: int
     priced_instruments: int
@@ -82,6 +89,16 @@ async def fetch_eod_provider_exchange_codes() -> list[str]:
 
     codes = load_provider_exchange_codes("eodhd", purpose="eod_price")
     log.info("price.provider_exchange_codes_loaded", count=len(codes))
+    return codes
+
+
+@task(name="fetch-eod-backfill-provider-exchange-codes")
+async def fetch_eod_backfill_provider_exchange_codes() -> list[str]:
+    """Provider request codes eligible for historical EOD backfill."""
+    from domains.exchange.provider_universe import load_provider_exchange_codes
+
+    codes = load_provider_exchange_codes("eodhd", purpose="eod_backfill")
+    log.info("backfill.provider_exchange_codes_loaded", count=len(codes))
     return codes
 
 
@@ -337,15 +354,15 @@ def load_backfill_pending_instruments(provider_exchange_code: str, from_date: da
         lake, INSTRUMENT_UNIVERSE_TABLE, build_hint="instrument-build"
     )
     coverage_q = require_silver_ingestion_model(
-        lake, EOD_PRICE_INSTRUMENT_DAY_COVERAGE_TABLE, build_hint="dbt-build/price-build"
+        lake, EOD_PRICE_INSTRUMENT_DAY_COVERAGE_TABLE, build_hint="dbt-build/ingestion-control-build"
     )
     trading_day_q = require_silver_ingestion_model(
-        lake, EOD_PRICE_EXCHANGE_TRADING_DAY_TABLE, build_hint="dbt-build/exchange-build"
+        lake, EOD_PRICE_EXCHANGE_TRADING_DAY_TABLE, build_hint="dbt-build/ingestion-control-build"
     )
     terminal_coverage_q = require_silver_ingestion_model(
         lake,
         EOD_PRICE_BACKFILL_TERMINAL_COVERAGE_TABLE,
-        build_hint="dbt-build/price-build",
+        build_hint="dbt-build/ingestion-control-build",
     )
     from_date_param = from_date.isoformat() if from_date else None
     to_date_param = to_date.isoformat()
@@ -434,7 +451,7 @@ def load_eod_price_coverage_gaps(
 
     lake = get_lake_client()
     status_q = require_silver_ingestion_model(
-        lake, EOD_PRICE_EXCHANGE_DAY_STATUS_TABLE, build_hint="dbt-build/price-build"
+        lake, EOD_PRICE_EXCHANGE_DAY_STATUS_TABLE, build_hint="dbt-build/ingestion-control-build"
     )
     rows = _query_exchange_day_coverage_gaps(
         lake,
@@ -449,6 +466,15 @@ def load_eod_price_coverage_gaps(
             "data_provider": str(row["data_provider"]),
             "provider_exchange_code": str(row["provider_exchange_code"]),
             "bar_date": row["bar_date"],
+            "universe_tier": str(row["universe_tier"]),
+            "daily_coverage_mode": str(row["daily_coverage_mode"]),
+            "historical_coverage_mode": str(row["historical_coverage_mode"]),
+            "is_daily_coverage_blocking": _coerce_bool(row["is_daily_coverage_blocking"]),
+            "latest_expected_bar_date": (
+                _coerce_date(row["latest_expected_bar_date"]) if row["latest_expected_bar_date"] is not None else None
+            ),
+            "is_latest_expected_trading_day": _coerce_bool(row["is_latest_expected_trading_day"]),
+            "is_blocking_coverage_gap": _coerce_bool(row["is_blocking_coverage_gap"]),
             "exchange_day_status": str(row["exchange_day_status"]),
             "expected_instruments": int(row["expected_instruments"]),
             "priced_instruments": int(row["priced_instruments"]),
@@ -469,7 +495,7 @@ def load_eod_latest_expected_exchange_dates(
     provider_exchange_codes: list[str],
     as_of_date: date,
 ) -> dict[str, date]:
-    """Return the expected latest EOD date per exchange from the trading-day control surface."""
+    """Return latest expected EOD dates for namespaces with blocking daily coverage."""
     from core.clients.lake import get_lake_client
     from domains.instrument.universe import (
         EOD_PRICE_EXCHANGE_TRADING_DAY_TABLE,
@@ -484,7 +510,7 @@ def load_eod_latest_expected_exchange_dates(
     trading_day_q = require_silver_ingestion_model(
         lake,
         EOD_PRICE_EXCHANGE_TRADING_DAY_TABLE,
-        build_hint="dbt-build/exchange-build",
+        build_hint="dbt-build/ingestion-control-build",
     )
     code_placeholders = ", ".join("?" for _ in codes)
     rows = lake.query_file(
@@ -803,6 +829,15 @@ def _coerce_date(value: object) -> date:
     return date.fromisoformat(str(value))
 
 
+def _coerce_bool(value: object) -> bool:
+    """Return a bool from lake query output."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return bool(value)
+    return str(value).strip().lower() in {"1", "true", "t", "yes", "y"}
+
+
 def _eod_daily_bulk_already_ingested(lake: Any, *, provider_exchange_code: str, bar_date: date) -> bool:
     """Return whether the daily bulk path already wrote any row for an exchange/date."""
     if not lake.table_exists(EOD_PRICE_DATASET.schema, EOD_PRICE_DATASET.table_name):
@@ -830,18 +865,32 @@ def _eod_exchange_day_has_blocking_gap(lake: Any, *, provider_exchange_code: str
         return False
 
     qualified = lake.qualified_name("silver", status_table)
-    row = lake.query_one(
-        f"""
-        SELECT exchange_day_status
-        FROM {qualified}
-        WHERE data_provider = ?
-          AND provider_exchange_code = ?
-          AND bar_date = ?
-        """,
-        [str(EOD_PRICE_DATASET.provider), provider_exchange_code, bar_date.isoformat()],
-    )
+    try:
+        row = lake.query_one(
+            f"""
+            SELECT exchange_day_status, is_blocking_coverage_gap
+            FROM {qualified}
+            WHERE data_provider = ?
+              AND provider_exchange_code = ?
+              AND bar_date = ?
+            """,
+            [str(EOD_PRICE_DATASET.provider), provider_exchange_code, bar_date.isoformat()],
+        )
+    except Exception:
+        row = lake.query_one(
+            f"""
+            SELECT exchange_day_status
+            FROM {qualified}
+            WHERE data_provider = ?
+              AND provider_exchange_code = ?
+              AND bar_date = ?
+            """,
+            [str(EOD_PRICE_DATASET.provider), provider_exchange_code, bar_date.isoformat()],
+        )
     if not row:
         return False
+    if "is_blocking_coverage_gap" in row and row["is_blocking_coverage_gap"] is not None:
+        return _coerce_bool(row["is_blocking_coverage_gap"])
     return row["exchange_day_status"] in {
         "missing_price",
         "unknown_calendar",
