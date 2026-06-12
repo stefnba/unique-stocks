@@ -79,6 +79,11 @@ before the provider's daily call quota. For example, if the provider account has
 recomputes pending instruments from the Silver instrument-day coverage view and
 Silver exact-window terminal coverage, then continues with the remaining instruments.
 
+`batch_size` and `max_provider_calls` are local to one EOD backfill run. The shared
+Prefect limit `unique-stocks.provider-api-credit` is a cross-domain, cross-worker
+pre-call throttle in the HTTP client. Keep the global limit for production safety,
+then tune `batch_size` and `max_provider_calls` for the specific backfill workload.
+
 If the provider returns HTTP 429, the flow stops scheduling later batches. The
 429 instrument is recorded as a failed run unit, unscheduled instruments get
 `provider_quota_deferred` audit coverage, and no `no_data` coverage row is

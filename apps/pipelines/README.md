@@ -261,6 +261,22 @@ unless `PREFECT_NOTIFICATION_BLOCK_ID` is set to a Prefect notification block UU
 If Prefect logs that `unique-stocks.provider-api-credit` does not exist, run `make prefect-controls`
 against the same `PREFECT_API_URL` used by the worker.
 
+### Provider Call Controls
+
+Provider-call controls exist at different layers:
+
+| Control                                          | Scope                 | Purpose                                                                                                   |
+| ------------------------------------------------ | --------------------- | --------------------------------------------------------------------------------------------------------- |
+| `PREFECT_WORKER_LIMIT`                           | Worker process        | Caps concurrent flow runs on one worker. Defaults to `1`, which serializes local/dev flow execution.      |
+| Deployment `concurrency_limit` in `prefect.yaml` | One deployment        | Prevents overlapping runs of the same scheduled/manual deployment.                                        |
+| EOD backfill `batch_size`                        | One EOD backfill run  | Caps how many per-instrument EOD history requests that single run submits concurrently.                   |
+| EOD backfill `max_provider_calls`                | One EOD backfill run  | Stops that run after a fixed number of submitted provider calls, useful for daily quota or spend caps.    |
+| Provider HTTP 429 handling                       | One active flow run   | Reacts when the provider says the limit was hit, stops later batches, and leaves deferred work retryable. |
+| `unique-stocks.provider-api-credit` global limit | All flows and workers | Pre-call shared throttle for outbound provider requests across domains, runs, and scaled workers.         |
+
+With a single worker and `PREFECT_WORKER_LIMIT=1`, the global provider limit is mostly a safety net.
+It becomes important when multiple provider-calling flows or workers can run at the same time.
+
 Trigger a flow run manually:
 
 ```bash

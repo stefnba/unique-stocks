@@ -24,6 +24,9 @@ logger = structlog.get_logger(__name__)
 LAKE_WRITER_LIMIT = "unique-stocks.lake-writer"
 PROVIDER_API_CREDIT_LIMIT = "unique-stocks.provider-api-credit"
 
+_lake_writer_limit_missing = False
+_provider_api_credit_limit_missing = False
+
 DBT_FAILED_EVENT = "unique-stocks.dbt.failed"
 COVERAGE_GATE_FAILED_EVENT = "unique-stocks.coverage-gate.failed"
 INGESTION_PARTIAL_EVENT = "unique-stocks.ingestion.partial"
@@ -49,17 +52,25 @@ def lake_writer_limit(operation: str | None = None) -> Generator[None]:
     break if the Prefect server has not had limits created yet. Set
     PREFECT_GLOBAL_LIMITS_STRICT=true in production once limits are managed.
     """
+    global _lake_writer_limit_missing
+
+    strict_limits = _strict_limits()
+    if _lake_writer_limit_missing and not strict_limits:
+        yield
+        return
+
     manager = concurrency(
         LAKE_WRITER_LIMIT,
         occupy=1,
-        strict=_strict_limits(),
+        strict=True,
         raise_on_lease_renewal_failure=False,
     )
     try:
         manager.__enter__()
     except Exception as exc:
-        if _strict_limits():
+        if strict_limits:
             raise
+        _lake_writer_limit_missing = True
         logger.warning(
             "prefect_lake_writer_limit_unavailable",
             operation=operation,
@@ -85,15 +96,22 @@ async def wait_for_provider_api_credit(
     operation: str | None = None,
 ) -> None:
     """Apply the shared provider/API-credit rate limit before outbound calls."""
+    global _provider_api_credit_limit_missing
+
+    strict_limits = _strict_limits()
+    if _provider_api_credit_limit_missing and not strict_limits:
+        return
+
     try:
         await rate_limit(
             PROVIDER_API_CREDIT_LIMIT,
             occupy=1,
-            strict=_strict_limits(),
+            strict=True,
         )
     except Exception as exc:
-        if _strict_limits():
+        if strict_limits:
             raise
+        _provider_api_credit_limit_missing = True
         logger.warning(
             "prefect_provider_api_limit_unavailable",
             provider=provider,

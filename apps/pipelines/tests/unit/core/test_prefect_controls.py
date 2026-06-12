@@ -17,12 +17,18 @@ def test_lake_writer_limit_fails_open_when_not_strict(monkeypatch: pytest.Monkey
         yield
 
     monkeypatch.delenv("PREFECT_GLOBAL_LIMITS_STRICT", raising=False)
+    monkeypatch.setattr(prefect_controls, "_lake_writer_limit_missing", False)
     monkeypatch.setattr(prefect_controls, "concurrency", unavailable_limit)
 
     with prefect_controls.lake_writer_limit("test"):
         observed = True
 
     assert observed is True
+
+    with prefect_controls.lake_writer_limit("test"):
+        observed_again = True
+
+    assert observed_again is True
 
 
 def test_lake_writer_limit_raises_when_strict(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -34,6 +40,7 @@ def test_lake_writer_limit_raises_when_strict(monkeypatch: pytest.MonkeyPatch) -
         yield
 
     monkeypatch.setenv("PREFECT_GLOBAL_LIMITS_STRICT", "true")
+    monkeypatch.setattr(prefect_controls, "_lake_writer_limit_missing", False)
     monkeypatch.setattr(prefect_controls, "concurrency", unavailable_limit)
 
     with pytest.raises(RuntimeError, match="limit missing"), prefect_controls.lake_writer_limit("test"):
@@ -50,11 +57,13 @@ async def test_wait_for_provider_api_credit_fails_open_when_not_strict(monkeypat
         raise RuntimeError("limit missing")
 
     monkeypatch.delenv("PREFECT_GLOBAL_LIMITS_STRICT", raising=False)
+    monkeypatch.setattr(prefect_controls, "_provider_api_credit_limit_missing", False)
     monkeypatch.setattr(prefect_controls, "rate_limit", unavailable_rate_limit)
 
     await prefect_controls.wait_for_provider_api_credit(provider="demo", operation="GET /prices")
+    await prefect_controls.wait_for_provider_api_credit(provider="demo", operation="GET /prices")
 
-    assert calls
+    assert len(calls) == 1
 
 
 @pytest.mark.asyncio

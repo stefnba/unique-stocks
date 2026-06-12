@@ -21,7 +21,7 @@ APPS_PIPELINES = APP_ROOT
 def test_load_prefect_yaml_deployments() -> None:
     """The repo manifest should declare the current deployment set."""
     deployments = load_prefect_yaml_deployments(APPS_PIPELINES / DEFAULT_PREFECT_YAML)
-    assert len(deployments) == 19
+    assert len(deployments) == 20
 
 
 def test_expected_deployment_keys_matches_manifest() -> None:
@@ -29,13 +29,13 @@ def test_expected_deployment_keys_matches_manifest() -> None:
     deployments = load_prefect_yaml_deployments(APPS_PIPELINES / DEFAULT_PREFECT_YAML)
     keys = expected_deployment_keys(deployments)
 
-    assert DeploymentKey("eod-price-daily", "daily") in keys
+    assert DeploymentKey("eod-price-daily", "eod-price-refresh-daily") in keys
     assert DeploymentKey("dbt-build", "instrument-build") in keys
     assert DeploymentKey("dbt-build", "fundamental-build") in keys
-    assert DeploymentKey("exchange-schedule-refresh", "weekly") in keys
-    assert DeploymentKey("fundamental-quarterly", "quarterly") in keys
-    assert DeploymentKey("fundamental-quarterly", "replay") in keys
-    assert len(keys) == 19
+    assert DeploymentKey("exchange-schedule-refresh", "exchange-schedule-refresh-weekly") in keys
+    assert DeploymentKey("fundamental-quarterly", "fundamental-refresh-quarterly") in keys
+    assert DeploymentKey("fundamental-quarterly", "fundamental-replay") in keys
+    assert len(keys) == 20
 
 
 def test_ingestion_deployments_enable_clean_post_ingestion_builds() -> None:
@@ -46,23 +46,23 @@ def test_ingestion_deployments_enable_clean_post_ingestion_builds() -> None:
     }
 
     for key in (
-        DeploymentKey("eod-price-daily", "daily"),
-        DeploymentKey("eod-price-daily", "backfill"),
-        DeploymentKey("eod-price-backfill", "historical-backfill"),
-        DeploymentKey("exchange-schedule-refresh", "manual"),
-        DeploymentKey("exchange-schedule-refresh", "weekly"),
-        DeploymentKey("instrument-refresh", "weekly"),
-        DeploymentKey("instrument-refresh", "manual"),
-        DeploymentKey("fundamental-quarterly", "manual"),
-        DeploymentKey("fundamental-quarterly", "quarterly"),
-        DeploymentKey("fundamental-quarterly", "backfill"),
-        DeploymentKey("fundamental-quarterly", "replay"),
+        DeploymentKey("eod-price-daily", "eod-price-refresh-daily"),
+        DeploymentKey("eod-price-daily", "eod-price-backfill"),
+        DeploymentKey("eod-price-backfill", "eod-price-historical-backfill"),
+        DeploymentKey("exchange-schedule-refresh", "exchange-schedule-refresh-manual"),
+        DeploymentKey("exchange-schedule-refresh", "exchange-schedule-refresh-weekly"),
+        DeploymentKey("instrument-refresh", "instrument-refresh-weekly"),
+        DeploymentKey("instrument-refresh", "instrument-refresh-manual"),
+        DeploymentKey("fundamental-quarterly", "fundamental-refresh-manual"),
+        DeploymentKey("fundamental-quarterly", "fundamental-refresh-quarterly"),
+        DeploymentKey("fundamental-quarterly", "fundamental-backfill"),
+        DeploymentKey("fundamental-quarterly", "fundamental-replay"),
     ):
         parameters = by_key[key].get("parameters")
         assert isinstance(parameters, dict)
         assert parameters["run_dbt_build"] is True
 
-    historical_backfill_parameters = by_key[DeploymentKey("eod-price-backfill", "historical-backfill")].get(
+    historical_backfill_parameters = by_key[DeploymentKey("eod-price-backfill", "eod-price-historical-backfill")].get(
         "parameters"
     )
     assert isinstance(historical_backfill_parameters, dict)
@@ -85,7 +85,7 @@ def test_is_managed_entrypoint(entrypoint: str | None, expected: bool) -> None:
 
 def test_find_orphaned_deployments_only_prunes_managed_entries() -> None:
     """Orphans should exclude yaml entries and unrelated UI deployments."""
-    expected = {DeploymentKey("eod-price-daily", "daily")}
+    expected = {DeploymentKey("eod-price-daily", "eod-price-refresh-daily")}
     delete_id = UUID("00000000-0000-0000-0000-000000000001")
     keep_id = UUID("00000000-0000-0000-0000-000000000002")
     ignore_id = UUID("00000000-0000-0000-0000-000000000003")
@@ -96,7 +96,10 @@ def test_find_orphaned_deployments_only_prunes_managed_entries() -> None:
             self.entrypoint = entrypoint
 
     server = [
-        (DeploymentKey("eod-price-daily", "daily"), _Deployment(keep_id, "domains.eod_price.flows:eod_price_flow")),
+        (
+            DeploymentKey("eod-price-daily", "eod-price-refresh-daily"),
+            _Deployment(keep_id, "domains.eod_price.flows:eod_price_flow"),
+        ),
         (
             DeploymentKey("eod-price-daily", "legacy-backfill"),
             _Deployment(delete_id, "domains.eod_price.flows:eod_price_flow"),
