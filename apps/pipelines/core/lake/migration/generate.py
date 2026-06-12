@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import importlib
 import os
 from collections.abc import Sequence
 from pathlib import Path
@@ -12,8 +11,8 @@ from core.clients.lake import DataLakeClient
 from core.lake.migration.diff import diff_lake_schema
 from core.lake.migration.files import empty_migration_sql, write_migration_file
 from core.lake.migration.introspection import desired_lake_schema_from_tables, inspect_lake_schema
+from core.lake.migration.refs import load_table_specs
 from core.lake.schema.ddl import DEFAULT_SCHEMAS
-from core.lake.schema.table import TableModel
 
 
 def main(argv: Sequence[str] | None = None) -> None:
@@ -51,34 +50,6 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     path = write_migration_file(migrations_dir, sql=diff.to_sql(), name=name or diff.suggested_name)
     print(f"Created lake migration: {path}")
-
-
-def load_table_specs(ref: str) -> tuple[type[TableModel], ...]:
-    """Load table specs from a ``module:attribute`` reference.
-
-    Args:
-        ref: Import reference such as ``"lake.schema:ALL_TABLES"``.
-
-    Returns:
-        Table model classes from the referenced attribute.
-
-    Raises:
-        TypeError: If the referenced value is not a sequence of table classes.
-        ValueError: If the reference is not in ``module:attribute`` form.
-    """
-    module_name, separator, attr_name = ref.partition(":")
-    if not module_name or separator != ":" or not attr_name:
-        raise ValueError(f"Invalid table spec reference {ref!r}; expected module:attribute")
-
-    value = getattr(importlib.import_module(module_name), attr_name)
-    if isinstance(value, str) or not isinstance(value, Sequence):
-        raise TypeError(f"{ref} must reference a sequence of TableModel classes")
-
-    tables = tuple(value)
-    invalid = tuple(table for table in tables if not isinstance(table, type) or not issubclass(table, TableModel))
-    if invalid:
-        raise TypeError(f"{ref} contains non-TableModel entries: {invalid!r}")
-    return tables
 
 
 def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
