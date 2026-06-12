@@ -12,6 +12,7 @@ from core.transforms import run_dbt_build_after_ingestion
 from domains.exchange_schedule.tasks import (
     fetch_exchange_details,
     fetch_provider_schedule_exchange_codes,
+    resolve_operational_schedule_exchange_codes,
     schedule_already_ingested,
     write_bronze_exchange_holiday,
     write_bronze_exchange_schedule,
@@ -24,7 +25,7 @@ log = structlog.get_logger(__name__)
 @flow(
     name="exchange-schedule-refresh",
     description=(
-        "Ingest trading hours and holidays for provider schedule API codes. "
+        "Ingest trading hours and holidays for operational provider schedule API codes. "
         "Writes bronze.exchange_schedule and bronze.exchange_holiday. Skips exchanges already ingested for "
         "snapshot_date. Provider fetches run in bounded batches; landing and Bronze writes stay sequential."
     ),
@@ -36,23 +37,40 @@ async def exchange_schedule_flow(
     provider_batch_delay_seconds: float = 0.0,
     run_dbt_build: bool = False,
 ) -> dict[str, object]:
-    """Ingest exchange schedule and holiday for the provider schedule API universe.
+    """Ingest exchange schedule and holiday for the operational provider schedule universe.
 
-    ``batch_size`` caps concurrent provider fetches per batch; landing and Bronze
-    writes stay sequential within each batch. ``provider_batch_delay_seconds`` adds
-    a pause between fetch batches to reduce rate-limit and overload errors. Set
-    ``run_dbt_build=True`` to launch ``dbt-build/exchange-build`` after a clean
-    ingestion audit status.
+    When ``provider_schedule_exchange_codes`` is omitted, the flow calls the
+    provider's live schedule-code list and intersects it with the dbt-built EOD
+    price universe and MIC candidates. ``batch_size`` caps concurrent provider
+    fetches per batch; landing and Bronze writes stay sequential within each
+    batch. ``provider_batch_delay_seconds`` adds a pause between fetch batches
+    to reduce rate-limit and overload errors. Set ``run_dbt_build=True`` to
+    launch ``dbt-build/exchange-build`` after a clean ingestion audit status.
     """
     snapshot_date = snapshot_date or date.today()
     fetch_batch_size = max(1, int(batch_size))
     fetch_batch_delay = max(0.0, float(provider_batch_delay_seconds))
-    codes = provider_schedule_exchange_codes or await fetch_provider_schedule_exchange_codes()
+    if provider_schedule_exchange_codes is None:
+        available_schedule_codes = await fetch_provider_schedule_exchange_codes()
+        codes = resolve_operational_schedule_exchange_codes(available_schedule_codes)
+        scope = {
+            "source": "operational_universe_overlap",
+            "available_provider_schedule_codes": len(available_schedule_codes),
+            "selected_provider_schedule_codes": len(codes),
+        }
+    else:
+        codes = _normalize_codes(provider_schedule_exchange_codes)
+        scope = {
+            "source": "explicit_parameter",
+            "available_provider_schedule_codes": None,
+            "selected_provider_schedule_codes": len(codes),
+        }
     tracker = PipelineRunTracker()
     run_id: str | None = None
     run_status: RunStatus | None = None
     summary: dict = {
         "snapshot_date": snapshot_date.isoformat(),
+        "scope": scope,
         "exchange": {},
         "unsupported": [],
         "skipped": [],
@@ -234,6 +252,11 @@ async def exchange_schedule_flow(
             parent_run_id=run_id,
         )
     return summary
+
+
+def _normalize_codes(codes: list[str]) -> list[str]:
+    """Return stable uppercase provider codes with blanks removed."""
+    return sorted({code.strip().upper() for code in codes if code and code.strip()})
 
 
 def _schedule_counters(*, tally: RunUnitTally, summary: dict) -> RunCounters:

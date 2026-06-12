@@ -43,6 +43,6 @@ SELECT
     holiday.source_uri AS holiday_source_uri,
     holiday.ingested_at AS holiday_ingested_at
 FROM holiday
-LEFT JOIN calendar
+INNER JOIN calendar
     ON holiday.data_provider = calendar.data_provider
     AND holiday.provider_schedule_exchange_code = calendar.provider_schedule_exchange_code

@@ -17,16 +17,19 @@ class FakeLake:
         *,
         exists: bool,
         rows: list[dict[str, Any]] | None = None,
+        existing_tables: set[tuple[str, str]] | None = None,
     ) -> None:
         """Create a fake lake with table existence and query rows."""
-        self.exists = exists
+        if existing_tables is None:
+            existing_tables = {("silver", "int_exchange_provider_ingestion_universe")} if exists else set()
+        self.existing_tables: set[tuple[str, str]] = existing_tables
         self.rows = rows or []
         self.last_query: str | None = None
         self.last_params: Sequence[Any] | None = None
 
     def table_exists(self, schema: str, table: str) -> bool:
         """Return configured table existence."""
-        return self.exists and schema == "silver" and table == "int_exchange_provider_ingestion_universe"
+        return (schema, table) in self.existing_tables
 
     def qualified_name(self, schema: str, table: str) -> str:
         """Return a simple qualified name for query assertions."""
@@ -124,3 +127,67 @@ def test_load_provider_exchange_codes_raises_when_no_codes_enabled(monkeypatch: 
 
     with pytest.raises(provider_universe.ProviderUniverseContractError, match="No provider exchange codes enabled"):
         provider_universe.load_provider_exchange_codes("eodhd", purpose="eod_price")
+
+
+def test_load_provider_schedule_exchange_codes_intersects_live_provider_support(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """Schedule scope should use live provider support but stay inside the operational universe."""
+    lake = FakeLake(
+        exists=True,
+        existing_tables={
+            ("silver", "int_exchange_provider_ingestion_universe"),
+            ("silver", "int_exchange_provider_coverage"),
+        },
+        rows=[
+            {"provider_schedule_exchange_code": "US"},
+            {"provider_schedule_exchange_code": "XETR"},
+        ],
+    )
+    monkeypatch.setattr(provider_universe, "get_lake_client", lambda: lake)
+
+    codes = provider_universe.load_provider_schedule_exchange_codes(
+        "eodhd",
+        available_schedule_codes=["XHKG", "xetr", "US", ""],
+        purpose="eod_price",
+    )
+
+    assert codes == ["US", "XETR"]
+    assert lake.last_params == ["US", "XETR", "XHKG", "eodhd"]
+    assert lake.last_query is not None
+    assert "silver.int_exchange_provider_ingestion_universe" in lake.last_query
+    assert "silver.int_exchange_provider_coverage" in lake.last_query
+    assert "is_enabled_for_eod_price" in lake.last_query
+    assert "coverage.mic" in lake.last_query
+    assert "coverage.operating_mic" in lake.last_query
+
+
+def test_load_provider_schedule_exchange_codes_requires_coverage_contract(monkeypatch: MonkeyPatch) -> None:
+    """Schedule-code resolution needs provider coverage so MIC-style schedule codes can match."""
+    lake = FakeLake(exists=True)
+    monkeypatch.setattr(provider_universe, "get_lake_client", lambda: lake)
+
+    with pytest.raises(provider_universe.ProviderUniverseContractError, match="int_exchange_provider_coverage"):
+        provider_universe.load_provider_schedule_exchange_codes(
+            "eodhd",
+            available_schedule_codes=["US", "XETR"],
+        )
+
+
+def test_load_provider_schedule_exchange_codes_raises_when_no_overlap(monkeypatch: MonkeyPatch) -> None:
+    """A missing live overlap should fail visibly instead of silently widening or emptying scope."""
+    lake = FakeLake(
+        exists=True,
+        existing_tables={
+            ("silver", "int_exchange_provider_ingestion_universe"),
+            ("silver", "int_exchange_provider_coverage"),
+        },
+        rows=[],
+    )
+    monkeypatch.setattr(provider_universe, "get_lake_client", lambda: lake)
+
+    with pytest.raises(provider_universe.ProviderUniverseContractError, match="No provider schedule exchange codes"):
+        provider_universe.load_provider_schedule_exchange_codes(
+            "eodhd",
+            available_schedule_codes=["XHKG"],
+        )

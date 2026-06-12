@@ -9,11 +9,15 @@ WITH latest_schedule AS (
 
 provider_links AS (
     SELECT
-        data_provider,
-        mapping_code AS provider_schedule_exchange_code,
-        STRING_AGG(DISTINCT provider_exchange_code, ',') AS linked_provider_exchange_codes
-    FROM {{ ref('int_provider_code_mapping') }}
-    WHERE mapping_type = 'schedule_code'
+        code_mapping.data_provider,
+        code_mapping.mapping_code AS provider_schedule_exchange_code,
+        STRING_AGG(DISTINCT code_mapping.provider_exchange_code, ',') AS linked_provider_exchange_codes
+    FROM {{ ref('int_provider_code_mapping') }} AS code_mapping
+    INNER JOIN {{ ref('int_exchange_provider_ingestion_universe') }} AS provider_universe
+        ON code_mapping.data_provider = provider_universe.data_provider
+        AND code_mapping.provider_exchange_code = provider_universe.provider_exchange_code
+    WHERE code_mapping.mapping_type = 'schedule_code'
+        AND provider_universe.is_enabled_for_eod_price
     GROUP BY 1, 2
 )
 
@@ -41,6 +45,6 @@ SELECT
     latest_schedule.source_uri AS schedule_source_uri,
     latest_schedule.ingested_at AS schedule_ingested_at
 FROM latest_schedule
-LEFT JOIN provider_links
+INNER JOIN provider_links
     ON latest_schedule.data_provider = provider_links.data_provider
     AND latest_schedule.provider_schedule_exchange_code = provider_links.provider_schedule_exchange_code

@@ -6,6 +6,7 @@ from prefect import flow
 
 from core.ingestion import PipelineRunTracker, RunCounters, terminal_status
 from core.prefect_controls import observe_bronze_assets, publish_ingestion_observability
+from core.transforms import run_dbt_build_deployment
 from domains.exchange.tasks.eodhd import (
     fetch_exchange_catalog,
     write_bronze_exchange_catalog,
@@ -225,4 +226,56 @@ async def exchange_mic_registry_flow(snapshot_date: date | None = None) -> dict[
             )
             raise
 
+    return summary
+
+
+@flow(
+    name="exchange-reference-refresh",
+    description=(
+        "Refresh exchange reference inputs in order: provider catalog, ISO MIC registry, "
+        "exchange dbt contract, scoped provider schedules, and exchange calendars."
+    ),
+)
+async def exchange_reference_refresh_flow(
+    snapshot_date: date | None = None,
+    schedule_snapshot_date: date | None = None,
+    schedule_batch_size: int = 10,
+    provider_batch_delay_seconds: float = 0.0,
+    run_dbt_build: bool = True,
+) -> dict[str, object]:
+    """Run the full exchange reference refresh chain.
+
+    ``run_dbt_build=True`` runs ``dbt-build/exchange-build`` after catalog/MIC
+    refresh so the schedule flow can resolve its operational scope from the
+    latest provider universe. The schedule flow then runs the same exchange
+    build again after clean schedule ingestion so calendars include the new
+    trading-hours and holiday rows.
+    """
+    from domains.exchange_schedule.flows import exchange_schedule_flow
+
+    snapshot_date = snapshot_date or date.today()
+    schedule_snapshot_date = schedule_snapshot_date or snapshot_date
+    summary: dict[str, object] = {
+        "snapshot_date": snapshot_date.isoformat(),
+        "schedule_snapshot_date": schedule_snapshot_date.isoformat(),
+    }
+
+    summary["exchange_catalog_rows_written"] = await exchange_catalog_flow()
+    summary["exchange_mic_registry"] = await exchange_mic_registry_flow(snapshot_date=snapshot_date)
+
+    if run_dbt_build:
+        summary["exchange_build_before_schedule"] = await run_dbt_build_deployment(
+            build="exchange-build",
+            parent_run_id=None,
+            tags=["exchange-reference-refresh", "exchange-build", "pre-schedule"],
+        )
+    else:
+        summary["exchange_build_before_schedule"] = {"enabled": False, "triggered": False, "build": "exchange-build"}
+
+    summary["exchange_schedule"] = await exchange_schedule_flow(
+        snapshot_date=schedule_snapshot_date,
+        batch_size=schedule_batch_size,
+        provider_batch_delay_seconds=provider_batch_delay_seconds,
+        run_dbt_build=run_dbt_build,
+    )
     return summary

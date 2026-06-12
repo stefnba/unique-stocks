@@ -32,6 +32,7 @@ def test_expected_deployment_keys_matches_manifest() -> None:
     assert DeploymentKey("eod-price-daily", "eod-price-refresh-daily") in keys
     assert DeploymentKey("dbt-build", "instrument-build") in keys
     assert DeploymentKey("dbt-build", "fundamental-build") in keys
+    assert DeploymentKey("exchange-reference-refresh", "exchange-reference-refresh-monthly") in keys
     assert DeploymentKey("exchange-schedule-refresh", "exchange-schedule-refresh-weekly") in keys
     assert DeploymentKey("fundamental-quarterly", "fundamental-refresh-quarterly") in keys
     assert DeploymentKey("fundamental-quarterly", "fundamental-replay") in keys

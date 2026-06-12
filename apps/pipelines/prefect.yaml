@@ -12,13 +12,10 @@
 #   ingestion-control-build         - dbt runtime selector/control contract for ingestion
 #
 # Bootstrap order (new environments):
-#   1. exchange-catalog-refresh/exchange-catalog-refresh-manual
-#   2. exchange-mic-registry-refresh/exchange-mic-registry-refresh-manual
-#   3. exchange-schedule-refresh/exchange-schedule-refresh-manual
-#   4. dbt-build/exchange-build
-#   5. instrument-refresh/instrument-refresh-manual or /instrument-refresh-weekly
-#   6. dbt-build/ingestion-control-build when runtime selector/control views are needed
-#   7. ingest domains; clean runs auto-trigger matching dbt *-build deployment
+#   1. exchange-reference-refresh/exchange-reference-refresh-manual
+#   2. instrument-refresh/instrument-refresh-manual or /instrument-refresh-weekly
+#   3. dbt-build/ingestion-control-build when runtime selector/control views are needed
+#   4. ingest domains; clean runs auto-trigger matching dbt *-build deployment
 #
 # Workers read PREFECT_API_URL from the environment (.env / docker-compose).
 # The pull step uses PREFECT_WORK_DIR so both local dev (.) and Docker (/app)
@@ -141,23 +138,6 @@ deployments:
     tags: [exchange, bootstrap, manual]
     <<: *manual
 
-  - name: exchange-catalog-refresh-monthly
-    flow_name: exchange-catalog-refresh
-    description: >
-      Scheduled monthly EODHD exchange catalog refresh.
-
-      Keeps provider exchange/API catalog Bronze data current for exchange-build.
-      Schedule: First day of each month at 6am America/New_York.
-    entrypoint: domains.exchange.flows:exchange_catalog_flow
-    tags: [exchange, scheduled]
-    schedule:
-      cron: "0 6 1 * *"
-      timezone: America/New_York
-    concurrency_limit:
-      limit: 1
-      collision_strategy: CANCEL_NEW
-    <<: *scheduled
-
   - name: exchange-mic-registry-refresh-manual
     flow_name: exchange-mic-registry-refresh
     description: >
@@ -167,19 +147,42 @@ deployments:
     tags: [exchange, bootstrap, manual]
     <<: *manual
 
-  - name: exchange-mic-registry-refresh-monthly
-    flow_name: exchange-mic-registry-refresh
+  - name: exchange-reference-refresh-manual
+    flow_name: exchange-reference-refresh
     description: >
-      Scheduled monthly ISO 10383 MIC registry refresh.
+      Refresh the full exchange reference chain.
 
-      Keeps MIC mappings current for exchange-build.
-      Schedule: First day of each month at 6:30am America/New_York.
-    entrypoint: domains.exchange.flows:exchange_mic_registry_flow
-    tags: [exchange, scheduled]
+      Runs provider catalog, ISO MIC registry, exchange-build, scoped exchange schedule,
+      then the schedule flow's clean post-ingestion exchange-build.
+      Use this as the new-environment bootstrap entrypoint.
+    entrypoint: domains.exchange.flows:exchange_reference_refresh_flow
+    tags: [exchange, reference, bootstrap, manual]
     parameters:
       snapshot_date: null
+      schedule_snapshot_date: null
+      schedule_batch_size: 10
+      provider_batch_delay_seconds: 0.0
+      run_dbt_build: true
+    <<: *manual
+
+  - name: exchange-reference-refresh-monthly
+    flow_name: exchange-reference-refresh
+    description: >
+      Scheduled monthly exchange reference refresh.
+
+      Keeps provider catalog, MIC mappings, operational schedules, and exchange calendars
+      current through one explicit reference chain.
+      Schedule: First day of each month at 6am America/New_York.
+    entrypoint: domains.exchange.flows:exchange_reference_refresh_flow
+    tags: [exchange, reference, scheduled]
+    parameters:
+      snapshot_date: null
+      schedule_snapshot_date: null
+      schedule_batch_size: 10
+      provider_batch_delay_seconds: 0.0
+      run_dbt_build: true
     schedule:
-      cron: "30 6 1 * *"
+      cron: "0 6 1 * *"
       timezone: America/New_York
     concurrency_limit:
       limit: 1
@@ -193,9 +196,11 @@ deployments:
   - name: exchange-schedule-refresh-manual
     flow_name: exchange-schedule-refresh
     description: >
-      Ingest trading hours and holidays for provider schedule API codes.
+      Ingest trading hours and holidays for operational provider schedule API codes.
 
       One API call per exchange → bronze.exchange_schedule + bronze.exchange_holiday.
+      Default scope calls the provider schedule-code list and keeps only the overlap with the
+      dbt-built EOD price universe and MIC candidates.
       Skips exchanges already ingested for snapshot_date.
       On clean ingestion completion, triggers dbt-build/exchange-build.
       Optional: snapshot_date, provider_schedule_exchange_codes.
@@ -212,9 +217,10 @@ deployments:
   - name: exchange-schedule-refresh-weekly
     flow_name: exchange-schedule-refresh
     description: >
-      Scheduled weekly exchange trading-hours and holiday refresh.
+      Scheduled weekly operational exchange trading-hours and holiday refresh.
 
-      Keeps exchange calendars current and triggers dbt-build/exchange-build after clean ingestion.
+      Keeps calendars current for the EOD price universe and triggers dbt-build/exchange-build
+      after clean ingestion.
       Schedule: Sunday 7am America/New_York.
     entrypoint: domains.exchange_schedule.flows:exchange_schedule_flow
     tags: [exchange, schedule, scheduled]

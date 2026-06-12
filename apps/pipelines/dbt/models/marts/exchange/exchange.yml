@@ -86,7 +86,7 @@ models:
           - not_null
 
   - name: dim_exchange_calendar
-    description: Gold latest provider trading-hours calendar by schedule endpoint code.
+    description: Gold latest provider trading-hours calendar for schedule endpoint codes linked to EOD-price-enabled provider namespaces.
     columns:
       - name: exchange_calendar_pk
         description: Deterministic hashed primary key for one latest exchange schedule row.
@@ -106,7 +106,7 @@ models:
         data_tests:
           - not_null
       - name: linked_provider_exchange_codes
-        description: Comma-separated provider request codes linked to this schedule code.
+        description: Comma-separated EOD-price-enabled provider request codes linked to this schedule code.
       - name: exchange_schedule_name
         description: Provider display name for the exchange schedule.
         data_tests:
@@ -161,7 +161,7 @@ models:
           - not_null
 
   - name: dim_exchange_holiday_calendar
-    description: Gold latest provider holiday and early-close calendar by schedule endpoint code.
+    description: Gold latest provider holiday and early-close calendar for schedule endpoint codes linked to EOD-price-enabled provider namespaces.
     columns:
       - name: exchange_holiday_calendar_pk
         description: Deterministic hashed primary key for one latest holiday or early-close row.
@@ -181,7 +181,7 @@ models:
         data_tests:
           - not_null
       - name: linked_provider_exchange_codes
-        description: Comma-separated provider request codes linked to this schedule code.
+        description: Comma-separated EOD-price-enabled provider request codes linked to this schedule code.
       - name: exchange_schedule_name
         description: Provider display name for the exchange schedule.
       - name: timezone

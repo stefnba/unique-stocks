@@ -47,6 +47,24 @@ async def fetch_provider_schedule_exchange_codes() -> list[str]:
     return codes
 
 
+@task(name="resolve-operational-schedule-exchange-codes")
+def resolve_operational_schedule_exchange_codes(available_schedule_codes: list[str]) -> list[str]:
+    """Intersect live provider schedule support with the dbt operational universe."""
+    from domains.exchange.provider_universe import load_provider_schedule_exchange_codes
+
+    codes = load_provider_schedule_exchange_codes(
+        "eodhd",
+        available_schedule_codes=available_schedule_codes,
+        purpose="eod_price",
+    )
+    log.info(
+        "schedule.operational_schedule_exchange_codes_resolved",
+        available_count=len(available_schedule_codes),
+        selected_count=len(codes),
+    )
+    return codes
+
+
 @task(
     name="fetch-exchange-details",
     task_run_name="fetch-exchange-details-{provider_schedule_exchange_code}",

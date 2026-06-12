@@ -9,16 +9,18 @@ index namespace. The Silver model keeps provider catalog visibility broad, but
 runtime eligibility is controlled by the dbt ``provider_namespace_policy`` seed.
 """
 
+from collections.abc import Sequence
 from typing import Literal
 
 import structlog
 
-from core.clients.lake import get_lake_client
+from core.clients.lake import DataLakeClient, get_lake_client
 
 log = structlog.get_logger(__name__)
 
 INGESTION_UNIVERSE_SCHEMA = "silver"
 INGESTION_UNIVERSE_TABLE = "int_exchange_provider_ingestion_universe"
+PROVIDER_COVERAGE_TABLE = "int_exchange_provider_coverage"
 
 type ProviderCodePurpose = Literal["ingestion", "instrument", "eod_price", "eod_backfill", "fundamental"]
 
@@ -108,3 +110,130 @@ def load_provider_exchange_codes(
 
     log.info("exchange.provider_codes_loaded", data_provider=data_provider, purpose=purpose, count=len(codes))
     return codes
+
+
+def load_provider_schedule_exchange_codes(
+    data_provider: str,
+    *,
+    available_schedule_codes: Sequence[str],
+    purpose: ProviderCodePurpose = "eod_price",
+) -> list[str]:
+    """Return live provider schedule codes that overlap the operational universe.
+
+    EODHD has two related code systems:
+
+    - provider exchange/symbol namespace codes used by instrument and price endpoints;
+    - provider schedule endpoint codes used by ``/v2/exchange-details``.
+
+    Some markets use the same value in both places, while others differ
+    (``XETRA`` for symbols but ``XETR`` for schedules). This reader keeps the
+    provider's live schedule-code list as the availability source and joins it
+    against our dbt-built operational universe plus MIC/operating-MIC candidates.
+    """
+    normalized_available_codes = _normalize_codes(available_schedule_codes)
+    if not normalized_available_codes:
+        msg = "Provider returned no schedule exchange codes; cannot resolve operational schedule scope."
+        raise ProviderUniverseContractError(msg)
+
+    lake = get_lake_client()
+    _require_silver_contract(lake, INGESTION_UNIVERSE_TABLE)
+    _require_silver_contract(lake, PROVIDER_COVERAGE_TABLE)
+
+    ingestion_universe = lake.qualified_name(INGESTION_UNIVERSE_SCHEMA, INGESTION_UNIVERSE_TABLE)
+    provider_coverage = lake.qualified_name(INGESTION_UNIVERSE_SCHEMA, PROVIDER_COVERAGE_TABLE)
+    filter_column = _PURPOSE_FILTER_COLUMNS[purpose]
+    value_placeholders = ", ".join(["(?)"] * len(normalized_available_codes))
+    rows = lake.query(
+        f"""
+        WITH available_schedule_code(provider_schedule_exchange_code) AS (
+            VALUES {value_placeholders}
+        ),
+
+        provider_universe AS (
+            SELECT
+                data_provider,
+                provider_exchange_code,
+                COALESCE(policy_priority, 999999) AS policy_priority
+            FROM {ingestion_universe}
+            WHERE data_provider = ?
+              AND {filter_column}
+        ),
+
+        candidate_schedule_code AS (
+            SELECT
+                data_provider,
+                provider_exchange_code,
+                provider_exchange_code AS provider_schedule_exchange_code,
+                policy_priority
+            FROM provider_universe
+
+            UNION ALL
+
+            SELECT
+                provider_universe.data_provider,
+                provider_universe.provider_exchange_code,
+                coverage.mic AS provider_schedule_exchange_code,
+                provider_universe.policy_priority
+            FROM provider_universe
+            INNER JOIN {provider_coverage} AS coverage
+                ON provider_universe.data_provider = coverage.data_provider
+                AND provider_universe.provider_exchange_code = coverage.provider_exchange_code
+            WHERE coverage.mic IS NOT NULL
+
+            UNION ALL
+
+            SELECT
+                provider_universe.data_provider,
+                provider_universe.provider_exchange_code,
+                coverage.operating_mic AS provider_schedule_exchange_code,
+                provider_universe.policy_priority
+            FROM provider_universe
+            INNER JOIN {provider_coverage} AS coverage
+                ON provider_universe.data_provider = coverage.data_provider
+                AND provider_universe.provider_exchange_code = coverage.provider_exchange_code
+            WHERE coverage.operating_mic IS NOT NULL
+        )
+
+        SELECT
+            candidate_schedule_code.provider_schedule_exchange_code,
+            MIN(candidate_schedule_code.policy_priority) AS policy_priority
+        FROM candidate_schedule_code
+        INNER JOIN available_schedule_code
+            ON candidate_schedule_code.provider_schedule_exchange_code =
+                available_schedule_code.provider_schedule_exchange_code
+        GROUP BY 1
+        ORDER BY policy_priority, provider_schedule_exchange_code
+        """,
+        [*normalized_available_codes, data_provider],
+    )
+    codes = [str(row["provider_schedule_exchange_code"]) for row in rows]
+    if not codes:
+        msg = (
+            f"No provider schedule exchange codes overlap data_provider={data_provider!r}, "
+            f"purpose={purpose!r} and the provider's live schedule-code list."
+        )
+        raise ProviderUniverseContractError(msg)
+
+    log.info(
+        "exchange.provider_schedule_codes_loaded",
+        data_provider=data_provider,
+        purpose=purpose,
+        available_count=len(normalized_available_codes),
+        count=len(codes),
+    )
+    return codes
+
+
+def _require_silver_contract(lake: DataLakeClient, table_name: str) -> None:
+    """Raise a clear error when a required Silver exchange contract is missing."""
+    if not lake.table_exists(INGESTION_UNIVERSE_SCHEMA, table_name):
+        msg = (
+            f"Missing required dbt model {INGESTION_UNIVERSE_SCHEMA}.{table_name}; "
+            "run exchange-build before loading provider exchange codes."
+        )
+        raise ProviderUniverseContractError(msg)
+
+
+def _normalize_codes(codes: Sequence[str]) -> list[str]:
+    """Return stable uppercase provider codes with blanks removed."""
+    return sorted({code.strip().upper() for code in codes if code and code.strip()})

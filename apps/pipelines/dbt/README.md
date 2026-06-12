@@ -21,6 +21,12 @@ models and their upstream dependencies are refreshed together.
 Provider-scope control seeds such as `provider_namespace_policy` belong in dbt
 for lineage, documentation, and tests; Prefect parameters are only manual
 overrides for a specific run.
+Exchange schedule calendars are operationally scoped in Silver/Gold: Python
+uses the provider's live schedule-code list only as availability, intersects it
+with enabled provider namespaces and MIC candidates, and dbt calendar models keep
+only schedule rows linked to the enabled EOD price universe. Historical broad
+Bronze rows can remain replay/debug input without becoming the current calendar
+surface.
 
 ### Data Flow
 
