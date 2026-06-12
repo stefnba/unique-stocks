@@ -3,23 +3,20 @@
 # Deploy all:        make deploy
 # Preview sync:      make deploy-dry
 # Upsert only:       make deploy-upsert
-# Deploy one:        uv run prefect deploy --name daily
+# Deploy one:        uv run prefect deploy --name eod-price-refresh-daily
 #
-# Deployment naming convention (one flow, multiple operational modes):
-#   daily / weekly     — scheduled production runs
-#   manual             — on-demand refresh with flow defaults
-#   backfill           — scoped or credit-capped replay
-#   historical-backfill — heavy multi-day per-unit backfill (eod_price only)
-#   replay             — re-parse from S3 landing, no provider calls
-#   ingestion-control-build — dbt runtime selector/control contract for ingestion
-#   *-build            — dbt transform for a bronze domain
+# Deployment naming convention:
+#   <domain>-<operation>-<mode>     - on-demand ingestion
+#   <domain>-<operation>-<cadence>  - scheduled ingestion
+#   <domain>-build                  - dbt transform for a Bronze domain
+#   ingestion-control-build         - dbt runtime selector/control contract for ingestion
 #
 # Bootstrap order (new environments):
-#   1. exchange-catalog-refresh/manual
-#   2. exchange-mic-registry-refresh/manual
-#   3. exchange-schedule-refresh/manual
+#   1. exchange-catalog-refresh/exchange-catalog-refresh-manual
+#   2. exchange-mic-registry-refresh/exchange-mic-registry-refresh-manual
+#   3. exchange-schedule-refresh/exchange-schedule-refresh-manual
 #   4. dbt-build/exchange-build
-#   5. instrument-refresh/manual or /weekly
+#   5. instrument-refresh/instrument-refresh-manual or /instrument-refresh-weekly
 #   6. dbt-build/ingestion-control-build when runtime selector/control views are needed
 #   7. ingest domains; clean runs auto-trigger matching dbt *-build deployment
 #
@@ -72,7 +69,7 @@ deployments:
   # EOD price — bulk endpoint (one API call per exchange per date)
   # ═══════════════════════════════════════════════════════════════════════════
 
-  - name: daily
+  - name: eod-price-refresh-daily
     description: >
       Scheduled daily EOD OHLCV ingestion for all provider exchange codes in the ingestion universe.
 
@@ -92,7 +89,7 @@ deployments:
       collision_strategy: CANCEL_NEW
     <<: *scheduled
 
-  - name: backfill
+  - name: eod-price-backfill
     description: >
       Single-day EOD backfill via the bulk endpoint (same code path as daily, no schedule).
 
@@ -108,7 +105,7 @@ deployments:
   # EOD price — per-instrument endpoint (one API call per instrument, any date range)
   # ═══════════════════════════════════════════════════════════════════════════
 
-  - name: historical-backfill
+  - name: eod-price-historical-backfill
     description: >
       Historical EOD backfill via the per-instrument endpoint. By default, requests
       each instrument's full available provider history through to_date.
@@ -135,7 +132,7 @@ deployments:
   # Exchange reference — bootstrap before dbt exchange-build
   # ═══════════════════════════════════════════════════════════════════════════
 
-  - name: manual
+  - name: exchange-catalog-refresh-manual
     flow_name: exchange-catalog-refresh
     description: >
       Fetch the EODHD exchange catalog → S3 landing → bronze.exchange_catalog.
@@ -144,7 +141,7 @@ deployments:
     tags: [exchange, bootstrap, manual]
     <<: *manual
 
-  - name: monthly
+  - name: exchange-catalog-refresh-monthly
     flow_name: exchange-catalog-refresh
     description: >
       Scheduled monthly EODHD exchange catalog refresh.
@@ -161,7 +158,7 @@ deployments:
       collision_strategy: CANCEL_NEW
     <<: *scheduled
 
-  - name: manual
+  - name: exchange-mic-registry-refresh-manual
     flow_name: exchange-mic-registry-refresh
     description: >
       Download ISO 10383 MIC registry CSV → S3 landing → bronze.exchange_mic_registry.
@@ -170,7 +167,7 @@ deployments:
     tags: [exchange, bootstrap, manual]
     <<: *manual
 
-  - name: monthly
+  - name: exchange-mic-registry-refresh-monthly
     flow_name: exchange-mic-registry-refresh
     description: >
       Scheduled monthly ISO 10383 MIC registry refresh.
@@ -193,7 +190,7 @@ deployments:
   # Exchange schedule — trading hours and holidays
   # ═══════════════════════════════════════════════════════════════════════════
 
-  - name: manual
+  - name: exchange-schedule-refresh-manual
     flow_name: exchange-schedule-refresh
     description: >
       Ingest trading hours and holidays for provider schedule API codes.
@@ -212,7 +209,7 @@ deployments:
       run_dbt_build: true
     <<: *manual
 
-  - name: weekly
+  - name: exchange-schedule-refresh-weekly
     flow_name: exchange-schedule-refresh
     description: >
       Scheduled weekly exchange trading-hours and holiday refresh.
@@ -239,7 +236,7 @@ deployments:
   # Instrument — instrument lists per exchange (requires exchange-build first)
   # ═══════════════════════════════════════════════════════════════════════════
 
-  - name: weekly
+  - name: instrument-refresh-weekly
     flow_name: instrument-refresh
     description: >
       Scheduled weekly instrument refresh for all provider exchange codes.
@@ -260,7 +257,7 @@ deployments:
       collision_strategy: CANCEL_NEW
     <<: *scheduled
 
-  - name: manual
+  - name: instrument-refresh-manual
     flow_name: instrument-refresh
     description: >
       On-demand instrument refresh. Use for bootstrap or a subset of exchanges.
@@ -278,7 +275,7 @@ deployments:
   # Fundamental — per-instrument EODHD documents (requires instrument bronze)
   # ═══════════════════════════════════════════════════════════════════════════
 
-  - name: manual
+  - name: fundamental-refresh-manual
     flow_name: fundamental-quarterly
     description: >
       On-demand fundamentals ingestion with skip-existing enabled (default flow behaviour).
@@ -293,7 +290,7 @@ deployments:
       run_dbt_build: true
     <<: *manual
 
-  - name: quarterly
+  - name: fundamental-refresh-quarterly
     flow_name: fundamental-quarterly
     description: >
       Scheduled quarterly fundamentals refresh with changed-payload handling.
@@ -319,7 +316,7 @@ deployments:
       collision_strategy: CANCEL_NEW
     <<: *scheduled
 
-  - name: backfill
+  - name: fundamental-backfill
     flow_name: fundamental-quarterly
     description: >
       Credit-aware fundamentals backfill. Re-fetches changed provider documents.
@@ -347,7 +344,7 @@ deployments:
       collision_strategy: CANCEL_NEW
     <<: *manual
 
-  - name: replay
+  - name: fundamental-replay
     flow_name: fundamental-quarterly
     description: >
       Re-parse fundamentals from S3 landing JSON — no provider API calls.

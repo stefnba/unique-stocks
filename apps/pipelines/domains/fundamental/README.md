@@ -26,7 +26,7 @@ Resolution logic lives in `domains/fundamental/batch.py`.
 
 ## Quota and resume
 
-Use `max_provider_credits` on `fundamental-quarterly/backfill` to cap provider
+Use `max_provider_credits` on `fundamental-quarterly/fundamental-backfill` to cap provider
 spend before the EODHD daily quota. Each fundamentals call defaults to
 `provider_credits_per_call = 10`, so a 100k-credit day should run with a
 controlled `max_provider_credits` and `continue_ingestion_batch: true`.
@@ -44,4 +44,4 @@ run treats that instrument snapshot as done.
 
 ## Deployments
 
-See `prefect.yaml`: `fundamental-quarterly/manual`, `/backfill`, `/replay`.
+See `prefect.yaml`: `fundamental-quarterly/fundamental-refresh-manual`, `/fundamental-backfill`, `/fundamental-replay`.

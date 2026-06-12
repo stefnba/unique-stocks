@@ -258,12 +258,14 @@ for lake/dbt/migration writes and `unique-stocks.provider-api-credit` for outbou
 It also creates event automations for dbt failures, EOD coverage-gate gaps, stale running audit
 rows, ingestion partial/failure outcomes, and cancellations. The automations use a no-op action
 unless `PREFECT_NOTIFICATION_BLOCK_ID` is set to a Prefect notification block UUID.
+If Prefect logs that `unique-stocks.provider-api-credit` does not exist, run `make prefect-controls`
+against the same `PREFECT_API_URL` used by the worker.
 
 Trigger a flow run manually:
 
 ```bash
-uv run prefect deployment run 'eod-price-daily/daily'
-uv run prefect deployment run 'eod-price-daily/backfill' -p trade_date=2026-05-09
+uv run prefect deployment run 'eod-price-daily/eod-price-refresh-daily'
+uv run prefect deployment run 'eod-price-daily/eod-price-backfill' -p trade_date=2026-05-09
 ```
 
 ## Local development with Docker (`docker_dev`)
@@ -433,18 +435,18 @@ make dbt-build
 
 ## Prefect deployments
 
-`prefect.yaml` registers one deployment per operational mode (scheduled, manual, backfill, build).
+`prefect.yaml` registers one domain-first deployment name per operational mode (scheduled, manual, backfill, build).
 Each mode maps to the same domain flow with different default parameters.
 
-| Domain                     | Deployments                                                                                                       | Mode                                |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| EOD price (bulk)           | `eod-price-daily/daily`, `/backfill`                                                                              | scheduled, backfill                 |
-| EOD price (per-instrument) | `eod-price-backfill/historical-backfill`                                                                          | backfill                            |
-| Exchange catalog / MIC     | `exchange-catalog-refresh/monthly`, `/manual`; `exchange-mic-registry-refresh/monthly`, `/manual`                 | scheduled, bootstrap                |
-| Exchange schedule          | `exchange-schedule-refresh/weekly`, `/manual`                                                                     | scheduled, manual                   |
-| Instrument                 | `instrument-refresh/weekly`, `/manual`                                                                            | scheduled, manual                   |
-| Fundamental                | `fundamental-quarterly/quarterly`, `/manual`, `/backfill`, `/replay`                                              | scheduled, manual, backfill, replay |
-| dbt                        | `dbt-build/ingestion-control-build`, `/exchange-build`, `/instrument-build`, `/price-build`, `/fundamental-build` | build                               |
+| Domain                     | Deployments                                                                                                                                                                                                                                                          | Mode                                |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| EOD price (bulk)           | `eod-price-daily/eod-price-refresh-daily`, `eod-price-daily/eod-price-backfill`                                                                                                                                                                                      | scheduled, backfill                 |
+| EOD price (per-instrument) | `eod-price-backfill/eod-price-historical-backfill`                                                                                                                                                                                                                   | backfill                            |
+| Exchange catalog / MIC     | `exchange-catalog-refresh/exchange-catalog-refresh-monthly`, `exchange-catalog-refresh/exchange-catalog-refresh-manual`; `exchange-mic-registry-refresh/exchange-mic-registry-refresh-monthly`, `exchange-mic-registry-refresh/exchange-mic-registry-refresh-manual` | scheduled, bootstrap                |
+| Exchange schedule          | `exchange-schedule-refresh/exchange-schedule-refresh-weekly`, `exchange-schedule-refresh/exchange-schedule-refresh-manual`                                                                                                                                           | scheduled, manual                   |
+| Instrument                 | `instrument-refresh/instrument-refresh-weekly`, `instrument-refresh/instrument-refresh-manual`                                                                                                                                                                       | scheduled, manual                   |
+| Fundamental                | `fundamental-quarterly/fundamental-refresh-quarterly`, `fundamental-quarterly/fundamental-refresh-manual`, `fundamental-quarterly/fundamental-backfill`, `fundamental-quarterly/fundamental-replay`                                                                  | scheduled, manual, backfill, replay |
+| dbt                        | `dbt-build/ingestion-control-build`, `dbt-build/exchange-build`, `dbt-build/instrument-build`, `dbt-build/price-build`, `dbt-build/fundamental-build`                                                                                                                | build                               |
 
 Bootstrap order for a new environment: exchange catalog manual → exchange MIC manual → exchange schedule manual → exchange-build → ingestion-control-build when selector/control views are needed → instrument → ingest. In normal operation, scheduled exchange schedule, instrument, EOD price, and fundamentals deployments trigger their matching dbt build after a clean audit status; pass `run_dbt_build=false` for Bronze-only runs. Historical EOD backfill also has a preflight guard: the deployment sets `build_selection_views_if_missing=true`, so it runs `dbt-build/ingestion-control-build` before provider-instrument selection when the required Silver selector views do not exist yet.
 

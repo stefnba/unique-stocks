@@ -67,12 +67,12 @@ pending = latest tradable provider instruments for the exchange
         - instruments in silver.int_eod_price_backfill_terminal_coverage for the exact requested window
 ```
 
-Omit `from_date` on `eod-price-backfill/historical-backfill` to request each
+Omit `from_date` on `eod-price-backfill/eod-price-historical-backfill` to request each
 instrument's full available EODHD history through `to_date` (default: today). In that
 open-start mode, `from_date` is stored as JSON `null` in the backfill unit key
 and the raw landing object uses `from_date=all`.
 
-Use `max_provider_calls` on `eod-price-backfill/historical-backfill` to stop
+Use `max_provider_calls` on `eod-price-backfill/eod-price-historical-backfill` to stop
 before the provider's daily call quota. For example, if the provider account has
 100k daily calls and the exchange universe is 150k instruments, run with a cap below
 100k, then re-run the next day with the same `from_date`/`to_date` window. The next run
@@ -138,4 +138,4 @@ reported, but they do not downgrade the run.
 uv run python scripts/run_smoke.py eod-price
 ```
 
-Per-instrument backfill is started via Prefect (`eod-price-backfill/historical-backfill`), not the smoke preset.
+Per-instrument backfill is started via Prefect (`eod-price-backfill/eod-price-historical-backfill`), not the smoke preset.
