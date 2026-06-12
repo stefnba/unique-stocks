@@ -51,7 +51,7 @@ async def setup_prefect_controls(*, dry_run: bool) -> int:
             f"limit={provider_limit}, slot_decay_per_second={provider_decay}"
         )
         for automation in automations:
-            print(f"Would upsert automation: {automation.name}")
+            print(f"Would upsert automation: {automation.name} (on trigger: {_action_summary(automation)})")
         return 0
 
     async with get_client() as client:
@@ -121,6 +121,7 @@ def _automations() -> list[AutomationCore]:
 
 
 def _automation(*, name: str, event: str, description: str) -> AutomationCore:
+    action = _automation_action(name=name)
     return AutomationCore(
         name=name,
         description=description,
@@ -132,19 +133,28 @@ def _automation(*, name: str, event: str, description: str) -> AutomationCore:
             threshold=1,
             within=timedelta(seconds=0),
         ),
-        actions=[_automation_action(name=name)],
+        actions=[],
+        actions_on_trigger=[action],
     )
 
 
 def _automation_action(*, name: str) -> DoNothing | SendNotification:
     block_id = os.getenv("PREFECT_NOTIFICATION_BLOCK_ID", "").strip()
     if not block_id:
-        return DoNothing()
+        return DoNothing(type="do-nothing")
     return SendNotification(
+        type="send-notification",
         block_document_id=UUID(block_id),
         subject=name,
         body=("{{ event.event }} on {{ event.resource['prefect.resource.name'] }}\n\nPayload:\n{{ event.payload }}"),
     )
+
+
+def _action_summary(automation: AutomationCore) -> str:
+    actions = automation.actions_on_trigger or automation.actions
+    if not actions:
+        return "none"
+    return ", ".join(action.type for action in actions)
 
 
 def _env_int(name: str, default: int) -> int:

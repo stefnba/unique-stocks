@@ -34,12 +34,17 @@ Use `silver.int_exchange_provider_policy_resolution` to see which policy rows re
 
 Python flows read the Silver provider universe with purpose-specific flags. Daily price, historical price backfill, instruments, and fundamentals can have different default scopes. When Silver exists, pass explicit `provider_exchange_codes` to restrict a manual run to one or two provider namespaces.
 
+Exchange schedule refresh is also scoped. By default it calls the provider's live
+schedule-code list, intersects those codes with the dbt-built operational EOD
+price universe and its MIC/operating-MIC candidates, and fetches only the overlap.
+Explicit `provider_schedule_exchange_codes` are still available for narrow manual
+runs. Broad provider schedule availability remains a provider lookup, not a Gold
+calendar surface.
+
 Operational order:
 
 ```text
-exchange-catalog-refresh
-exchange-mic-registry-refresh
-dbt-build/exchange-build
+exchange-reference-refresh
 instrument-refresh and eod-price flows
 ```
 
@@ -258,6 +263,8 @@ for lake/dbt/migration writes and `unique-stocks.provider-api-credit` for outbou
 It also creates event automations for dbt failures, EOD coverage-gate gaps, stale running audit
 rows, ingestion partial/failure outcomes, and cancellations. The automations use a no-op action
 unless `PREFECT_NOTIFICATION_BLOCK_ID` is set to a Prefect notification block UUID.
+If the Prefect UI shows no useful action, set that environment variable and rerun
+`make prefect-controls` against the same `PREFECT_API_URL` used by the worker.
 If Prefect logs that `unique-stocks.provider-api-credit` does not exist, run `make prefect-controls`
 against the same `PREFECT_API_URL` used by the worker.
 
@@ -458,13 +465,13 @@ Each mode maps to the same domain flow with different default parameters.
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
 | EOD price (bulk)           | `eod-price-daily/eod-price-refresh-daily`, `eod-price-daily/eod-price-backfill`                                                                                                                                                                                      | scheduled, backfill                 |
 | EOD price (per-instrument) | `eod-price-backfill/eod-price-historical-backfill`                                                                                                                                                                                                                   | backfill                            |
-| Exchange catalog / MIC     | `exchange-catalog-refresh/exchange-catalog-refresh-monthly`, `exchange-catalog-refresh/exchange-catalog-refresh-manual`; `exchange-mic-registry-refresh/exchange-mic-registry-refresh-monthly`, `exchange-mic-registry-refresh/exchange-mic-registry-refresh-manual` | scheduled, bootstrap                |
+| Exchange reference         | `exchange-reference-refresh/exchange-reference-refresh-monthly`, `exchange-reference-refresh/exchange-reference-refresh-manual`; leaf troubleshooting deployments `exchange-catalog-refresh/exchange-catalog-refresh-manual`, `exchange-mic-registry-refresh/exchange-mic-registry-refresh-manual` | scheduled, bootstrap, manual        |
 | Exchange schedule          | `exchange-schedule-refresh/exchange-schedule-refresh-weekly`, `exchange-schedule-refresh/exchange-schedule-refresh-manual`                                                                                                                                           | scheduled, manual                   |
 | Instrument                 | `instrument-refresh/instrument-refresh-weekly`, `instrument-refresh/instrument-refresh-manual`                                                                                                                                                                       | scheduled, manual                   |
 | Fundamental                | `fundamental-quarterly/fundamental-refresh-quarterly`, `fundamental-quarterly/fundamental-refresh-manual`, `fundamental-quarterly/fundamental-backfill`, `fundamental-quarterly/fundamental-replay`                                                                  | scheduled, manual, backfill, replay |
 | dbt                        | `dbt-build/ingestion-control-build`, `dbt-build/exchange-build`, `dbt-build/instrument-build`, `dbt-build/price-build`, `dbt-build/fundamental-build`                                                                                                                | build                               |
 
-Bootstrap order for a new environment: exchange catalog manual → exchange MIC manual → exchange schedule manual → exchange-build → ingestion-control-build when selector/control views are needed → instrument → ingest. In normal operation, scheduled exchange schedule, instrument, EOD price, and fundamentals deployments trigger their matching dbt build after a clean audit status; pass `run_dbt_build=false` for Bronze-only runs. Historical EOD backfill also has a preflight guard: the deployment sets `build_selection_views_if_missing=true`, so it runs `dbt-build/ingestion-control-build` before provider-instrument selection when the required Silver selector views do not exist yet.
+Bootstrap order for a new environment: exchange reference manual → ingestion-control-build when selector/control views are needed → instrument → ingest. The reference parent runs catalog, MIC, exchange-build, scoped schedule refresh, and the final exchange-build in order. In normal operation, scheduled exchange reference, exchange schedule, instrument, EOD price, and fundamentals deployments trigger their matching dbt build after a clean audit status; pass `run_dbt_build=false` for Bronze-only runs. Historical EOD backfill also has a preflight guard: the deployment sets `build_selection_views_if_missing=true`, so it runs `dbt-build/ingestion-control-build` before provider-instrument selection when the required Silver selector views do not exist yet.
 
 `make deploy` is the source-of-truth sync: it removes orphaned deployments owned by this app
 (entrypoints under `domains.*` or `core.transforms.*`), then applies `prefect.yaml`.

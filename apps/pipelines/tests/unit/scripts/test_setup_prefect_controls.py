@@ -22,6 +22,22 @@ async def test_setup_prefect_controls_dry_run(
     assert "unique-stocks.provider-api-credit: limit=5" in output
     assert "slot_decay_per_second=0.5" in output
     assert "unique-stocks dbt failure alert" in output
+    assert "on trigger: do-nothing" in output
+
+
+def test_automation_puts_action_on_trigger(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Automation payloads should use the trigger-action field rendered by Prefect UI."""
+    monkeypatch.delenv("PREFECT_NOTIFICATION_BLOCK_ID", raising=False)
+
+    automation = setup_prefect_controls._automation(
+        name="dbt alert",
+        event="unique-stocks.dbt.failed",
+        description="dbt failed",
+    )
+    payload = automation.model_dump(mode="json", exclude_unset=True)
+
+    assert payload["actions"] == []
+    assert payload["actions_on_trigger"] == [{"type": "do-nothing"}]
 
 
 def test_automation_action_uses_notification_block_when_configured(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -33,3 +49,20 @@ def test_automation_action_uses_notification_block_when_configured(monkeypatch: 
 
     assert action.type == "send-notification"
     assert str(action.block_document_id) == block_id
+
+
+def test_automation_trigger_action_uses_notification_block_when_configured(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Configured notification blocks should become visible trigger actions."""
+    block_id = "018f0000-0000-7000-8000-000000000001"
+    monkeypatch.setenv("PREFECT_NOTIFICATION_BLOCK_ID", block_id)
+
+    automation = setup_prefect_controls._automation(
+        name="dbt alert",
+        event="unique-stocks.dbt.failed",
+        description="dbt failed",
+    )
+    payload = automation.model_dump(mode="json", exclude_unset=True)
+
+    assert payload["actions"] == []
+    assert payload["actions_on_trigger"][0]["type"] == "send-notification"
+    assert payload["actions_on_trigger"][0]["block_document_id"] == block_id
