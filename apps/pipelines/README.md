@@ -157,6 +157,7 @@ Set at least the active provider API key shown in `.env.example` for live provid
 | `AWS_SECRET_ACCESS_KEY` | No                | AWS secret key when S3 is enabled.                                         |
 | `PREFECT_API_URL`       | Yes               | Prefect API URL for workers and deploy commands.                           |
 | `PREFECT_WORK_DIR`      | Yes               | `.` locally, `/app` in Docker.                                             |
+| `PREFECT_WORKER_LIMIT`  | No                | Worker flow-run concurrency; defaults to serialized runs.                  |
 | `ENVIRONMENT`           | No                | `dev` (default), `docker_dev`, or `prod`.                                  |
 
 ## S3 landing zone
@@ -242,13 +243,19 @@ In a second terminal:
 
 ```bash
 cd apps/pipelines
-make setup                 # migrate lake, save blocks, create work pool, register deployments
+make setup                 # migrate lake, save blocks, create work pool, upsert controls, register deployments
 make prefect-worker        # start the worker
 ```
 
 `make prefect-worker` defaults to one concurrent flow run (`PREFECT_WORKER_LIMIT=1`) so separate
 deployments do not write the same local lake at the same time. Raise it only after adding Prefect
 global concurrency limits for shared lake and provider resources.
+
+`make prefect-controls` upserts two Prefect global limits: `unique-stocks.lake-writer`
+for lake/dbt/migration writes and `unique-stocks.provider-api-credit` for outbound provider calls.
+It also creates event automations for dbt failures, EOD coverage-gate gaps, stale running audit
+rows, and cancellations. The automations use a no-op action unless `PREFECT_NOTIFICATION_BLOCK_ID`
+is set to a Prefect notification block UUID.
 
 Trigger a flow run manually:
 
@@ -267,7 +274,7 @@ Docker Compose sets `ENVIRONMENT=docker_dev` for `pipelines-worker`. Set it in `
 cp .env.example .env
 # edit .env: set ENVIRONMENT=docker_dev and any provider keys
 make docker-up             # start pipelines-server, pipelines-db, worker, and dashboard
-make docker-setup          # migrate container lake, save blocks, create work pool, register deployments
+make docker-setup          # migrate container lake, save blocks, create work pool, upsert controls, register deployments
 ```
 
 The default docker-dev lake is isolated from the host and shared only between the `pipelines-worker` and `pipelines-dashboard` containers at `/app/lake-data/unique_stocks.duckdb`. This avoids host file-lock and path drift while still letting the dashboard inspect the worker's local audit rows. If `MOTHERDUCK_TOKEN` is set in `.env`, docker-dev intentionally targets MotherDuck instead for integration testing.
@@ -375,6 +382,8 @@ or full rebuilds. Each dbt invocation writes to its own `dbt/target/pipeline-run
 directory; orchestration reads `run_results.json` only from that per-run path, records the exact
 artifact path in the dbt audit table, and publishes a Prefect Markdown artifact with the invocation
 summary. EOD coverage gates publish a Prefect table artifact when they find gaps.
+Successful Bronze EOD writes and dbt build/run invocations also observe simple Prefect assets for
+Bronze, Silver, and Gold layer visibility in Prefect.
 If a post-ingestion dbt deployment fails after the ingestion audit has completed, the parent Prefect
 flow intentionally fails for alerting while `pipeline.runs` keeps the ingestion status and dbt audit
 tables carry the transformation failure details.
@@ -478,6 +487,11 @@ Optional production infrastructure configuration:
 - `DASHBOARD_MOTHERDUCK_TOKEN` — optional dashboard-specific MotherDuck token. Prefer a read-only token here; when omitted, the dashboard falls back to `MOTHERDUCK_TOKEN`.
 - `PREFECT_UI_URL` — optional browser-facing Prefect UI base URL used for run deep links from the dashboard.
 - `PREFECT_WORKER_LIMIT` — maximum concurrent flow runs per worker process; defaults to `1`.
+- `PREFECT_LAKE_WRITER_LIMIT` — global lake writer slots created by `make prefect-controls`; defaults to `1`.
+- `PREFECT_PROVIDER_API_CREDIT_LIMIT` — provider/API-credit bucket size; defaults to `1`.
+- `PREFECT_PROVIDER_API_CREDIT_DECAY_PER_SECOND` — provider/API-credit refill rate; defaults to `1.0`.
+- `PREFECT_GLOBAL_LIMITS_STRICT` — fail when Prefect limits are unavailable; keep false for bootstrap, set true after setup in production.
+- `PREFECT_NOTIFICATION_BLOCK_ID` — optional Prefect notification block UUID used by event automations.
 - `OPERATIONAL_HEALTH_RECENT_DOMAINS` — optional comma- or whitespace-separated domains the deployed `pipelines-operational-health` container must see recently, for example `eod_price,fundamental`.
 - `OPERATIONAL_HEALTH_RECENT_HOURS` — freshness window for configured recent domains; defaults to `36`.
 - `OPERATIONAL_HEALTH_STALE_RUNNING_HOURS` — stale-running threshold; defaults to `2`.
@@ -492,8 +506,8 @@ migrations when the worker service is scaled out. `pipelines-migrator` is expect
 migrations; `make setup` still runs migrations idempotently as part of first-time bootstrap.
 
 Workers are serialized by default with `PREFECT_WORKER_LIMIT=1`. Keep deployment-level concurrency
-limits in place, and add Prefect global concurrency limits before scaling worker concurrency for
-shared lake files, MotherDuck writes, or provider quotas.
+limits in place, and keep the `make prefect-controls` global limits in sync before scaling worker
+concurrency for shared lake files, MotherDuck writes, or provider quotas.
 
 Docker healthchecks are intentionally container-local. The worker healthcheck verifies that the container can reach the
 Prefect API and that a Prefect worker process is running; it does not prove that scheduled ingestion is fresh or that a
@@ -536,6 +550,6 @@ make setup
 ```
 
 This assumes `MOTHERDUCK_TOKEN` and `LAKE_NAME` are already present in the deployment environment. The setup command
-saves Prefect blocks, creates/updates the work pool, and registers deployments.
+saves Prefect blocks, creates/updates the work pool, upserts global controls, and registers deployments.
 
 Re-run `make deploy` (not `make setup`) after changing deployment definitions — `setup` is only needed once per new environment.

@@ -1,6 +1,6 @@
 """Tests for post-ingestion dbt build gating."""
 
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date
@@ -69,7 +69,7 @@ class FakeTracker:
         self.run = run
 
     @contextmanager
-    def track_run(self, **_: object) -> Iterator[FakeRun]:
+    def track_run(self, **_: object) -> Generator[FakeRun]:
         """Yield the fake run."""
         yield self.run
 

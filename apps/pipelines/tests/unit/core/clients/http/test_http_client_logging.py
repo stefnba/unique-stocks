@@ -51,6 +51,25 @@ class _DemoClient(HttpClientBase):
 
 
 @pytest.mark.asyncio
+async def test_http_client_waits_for_provider_api_credit(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every provider request should pass through the shared Prefect rate limit."""
+    calls: list[dict[str, object]] = []
+
+    async def wait_for_credit(**kwargs: object) -> None:
+        calls.append(kwargs)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=[], request=request)
+
+    monkeypatch.setattr("core.clients.http.base.wait_for_provider_api_credit", wait_for_credit)
+
+    async with _DemoClient(httpx.MockTransport(handler)) as client:
+        await client._request("/prices", params={"symbol": "AAPL.US"})
+
+    assert calls == [{"provider": "demo", "operation": "GET /prices"}]
+
+
+@pytest.mark.asyncio
 async def test_http_client_redacts_sensitive_query_params_from_logged_path() -> None:
     """Sensitive query parameters passed in paths should be redacted from logs."""
 

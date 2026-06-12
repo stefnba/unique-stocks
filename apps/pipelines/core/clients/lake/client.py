@@ -16,6 +16,7 @@ import structlog
 from core.clients.lake.sql import SqlTemplateContext
 from core.clients.lake.sql import render_sql_file as render_lake_sql_file
 from core.lake.database import ensure_lake_database, motherduck_connection_string
+from core.prefect_controls import lake_writer_limit
 
 log = structlog.get_logger(__name__)
 
@@ -95,7 +96,7 @@ class DataLakeClient:
 
     def execute(self, sql: str, params: Sequence[Any] | None = None) -> None:
         """Run a write statement with no return value."""
-        with self._lock:
+        with lake_writer_limit("lake.execute"), self._lock:
             self.connection.execute(sql, list(params or []))
 
     def query(self, sql: str, params: Sequence[Any] | None = None) -> list[dict[str, Any]]:
@@ -168,7 +169,7 @@ class DataLakeClient:
     ) -> int:
         """Save rows or a supported data file into a lake table."""
         resolved_format = self._infer_format(data, format)
-        with self._lock:
+        with lake_writer_limit(f"lake.save.{schema}.{table}"), self._lock:
             if resolved_format == "rows":
                 return self._save_rows(schema, table, data, mode)
             return self._save_file(schema, table, data, resolved_format, mode)

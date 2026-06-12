@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import subprocess
-from collections.abc import Mapping, Sequence
+from collections.abc import Generator, Mapping, Sequence
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -120,6 +121,37 @@ def test_run_dbt_command_passes_indirect_selection_for_build(monkeypatch: Monkey
     assert isinstance(args, list)
     assert "--indirect-selection" in args
     assert args[args.index("--indirect-selection") + 1] == "buildable"
+
+
+def test_run_dbt_command_enters_lake_writer_limit(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
+    """Dbt subprocesses should serialize against other lake writers."""
+    settings = Settings(local_lake_path="unique_stocks.duckdb", motherduck_token=SecretStr(""))
+    operations: list[str | None] = []
+
+    @contextmanager
+    def fake_lake_writer_limit(operation: str | None = None) -> Generator[None]:
+        operations.append(operation)
+        yield
+
+    def fake_run(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(dbt, "get_settings", lambda: settings)
+    monkeypatch.setattr(dbt, "_dbt_base_command", lambda: ["dbt"])
+    monkeypatch.setattr(dbt, "lake_writer_limit", fake_lake_writer_limit)
+    monkeypatch.setattr(dbt.subprocess, "run", fake_run)
+
+    dbt.run_dbt_command.fn(
+        command="build",
+        select=[],
+        exclude=[],
+        project_dir="dbt",
+        profiles_dir="dbt",
+        target=None,
+        target_path=str(tmp_path / "dbt-target"),
+    )
+
+    assert operations == ["dbt.build"]
 
 
 def test_run_dbt_command_ensures_motherduck_database_for_prod(

@@ -1,6 +1,6 @@
 """Tests for fundamentals flow orchestration branches."""
 
-from collections.abc import Iterator, Sequence
+from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
@@ -101,7 +101,7 @@ class FakeTracker:
         self.run = run
 
     @contextmanager
-    def track_run(self, **_: object) -> Iterator[FakeRun]:
+    def track_run(self, **_: object) -> Generator[FakeRun]:
         """Yield the fake run."""
         yield self.run
 

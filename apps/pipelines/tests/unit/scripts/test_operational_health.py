@@ -125,6 +125,33 @@ def test_operational_lake_read_only_can_be_forced_for_read_scaling_token(monkeyp
     assert check_operational_health.operational_lake_read_only() is True
 
 
+def test_main_emits_stale_runs_event(monkeypatch: Any, capsys: Any) -> None:
+    """Stale running rows should become a Prefect event for automations."""
+    stale_rows = [{"run_id": "run-1", "flow_name": "flow", "domain": "eod_price"}]
+    events: list[dict[str, object]] = []
+
+    class StaleLake(FakeOperationalLake):
+        """Lake double with one stale row."""
+
+        def __init__(self, *_: object, **__: object) -> None:
+            super().__init__(stale_rows=stale_rows)
+
+    def emit_stale(**kwargs: object) -> None:
+        events.append(kwargs)
+
+    monkeypatch.setenv("PREFECT_API_URL", "http://prefect.example/api")
+    monkeypatch.setattr(check_operational_health, "prefect_api_is_healthy", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(check_operational_health, "DataLakeClient", StaleLake)
+    monkeypatch.setattr(check_operational_health, "emit_stale_runs_event", emit_stale)
+
+    exit_code = check_operational_health.main(["--stale-running-hours", "1.5"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "1 stale running pipeline run(s)" in captured.err
+    assert events == [{"stale_runs": stale_rows, "older_than_minutes": 90}]
+
+
 def test_main_reports_redacted_lake_error_detail(monkeypatch: Any, capsys: Any) -> None:
     """Operational alerts should include useful lake errors without leaking tokens."""
 

@@ -23,6 +23,7 @@ from core.clients.lake import get_lake_client, reset_lake_client
 from core.ingestion import PipelineRunTracker, RunCounters, terminal_status
 from core.ingestion.serialization import jsonable
 from core.lake.database import ensure_lake_database
+from core.prefect_controls import emit_dbt_failed_event, lake_writer_limit, materialize_dbt_assets
 
 log = structlog.get_logger(__name__)
 
@@ -130,6 +131,28 @@ async def dbt_build_flow(
                 failed_nodes=failed_nodes,
                 parent_run_id=parent_run_id,
             )
+            if result.return_code != 0 or failed_nodes > 0:
+                emit_dbt_failed_event(
+                    dbt_run_id=dbt_run_id,
+                    app_run_id=run.run_id,
+                    command=command,
+                    target=resolved_target,
+                    return_code=result.return_code,
+                    failed_nodes=failed_nodes,
+                    artifact_path=result.artifact_path,
+                )
+            elif command in {"build", "run"}:
+                materialize_dbt_assets(
+                    select=select,
+                    metadata={
+                        "dbt_run_id": dbt_run_id,
+                        "app_run_id": run.run_id,
+                        "command": command,
+                        "target": resolved_target,
+                        "node_results": node_count,
+                        "artifact_path": result.artifact_path,
+                    },
+                )
 
             if result.return_code != 0:
                 message = _dbt_error_message(result)
@@ -207,14 +230,15 @@ def run_dbt_command(
         select=select,
         indirect_selection=indirect_selection,
     )
-    completed_process = subprocess.run(
-        args,
-        check=False,
-        capture_output=True,
-        text=True,
-        cwd=APP_ROOT,
-        env={**os.environ, **settings.dbt_env_overlay()},
-    )
+    with lake_writer_limit(f"dbt.{command}"):
+        completed_process = subprocess.run(
+            args,
+            check=False,
+            capture_output=True,
+            text=True,
+            cwd=APP_ROOT,
+            env={**os.environ, **settings.dbt_env_overlay()},
+        )
     completed = _now()
     elapsed = max(0.0, (completed - started).total_seconds())
     artifact_path = str(resolved_target_path / "run_results.json")

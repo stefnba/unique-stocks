@@ -7,6 +7,7 @@ what landed, and how many rows moved through each stage.
 
 from __future__ import annotations
 
+import asyncio
 import os
 import uuid
 from collections.abc import Generator, Mapping, Sequence
@@ -18,10 +19,12 @@ from typing import Literal
 from uuid import UUID
 
 import structlog
+from prefect.exceptions import Abort, CancelledRun, ExternalSignal, TerminationSignal
 
 from core.clients.lake import DataLakeClient, get_lake_client
 from core.ingestion.landing import LandingWrite
 from core.ingestion.serialization import canonical_json, jsonable
+from core.prefect_controls import emit_pipeline_cancelled_event
 
 type RunStatus = Literal["running", "completed", "partial", "failed", "skipped", "cancelled"]
 type UnitStatus = Literal["completed", "failed", "skipped", "unsupported"]
@@ -240,6 +243,7 @@ class PipelineRunScope:
         tracker: PipelineRunTracker,
         run_id: str,
         *,
+        flow_name: str,
         domain: str,
         provider: str | None,
     ) -> None:
@@ -248,11 +252,13 @@ class PipelineRunScope:
         Args:
             tracker: Audit writer that owns the lake connection.
             run_id: Existing ``pipeline.runs`` id.
+            flow_name: Prefect/logical flow name.
             domain: Domain bound to child audit rows.
             provider: Default provider bound to child audit rows.
         """
         self.tracker = tracker
         self.run_id = run_id
+        self.flow_name = flow_name
         self.domain = domain
         self.provider = provider
         self.tally = RunUnitTally()
@@ -288,6 +294,33 @@ class PipelineRunScope:
         self.tracker.complete_run(
             self.run_id,
             status=status,
+            counters=counters
+            or self.tally.counters(
+                rows_raw=rows_raw,
+                rows_valid=rows_valid,
+                rows_rejected=rows_rejected,
+                rows_written=rows_written,
+            ),
+            summary=summary,
+        )
+        self._terminal = True
+
+    def cancel(
+        self,
+        error: BaseException | str,
+        *,
+        counters: RunCounters | None = None,
+        rows_raw: int | None = None,
+        rows_valid: int | None = None,
+        rows_rejected: int | None = None,
+        rows_written: int | None = None,
+        summary: dict[str, object] | None = None,
+    ) -> None:
+        """Mark this scoped run cancelled."""
+        self.tracker.cancel_run(
+            self.run_id,
+            error,
+            flow_name=self.flow_name,
             counters=counters
             or self.tally.counters(
                 rows_raw=rows_raw,
@@ -1124,6 +1157,7 @@ class PipelineRunTracker:
         scope = PipelineRunScope(
             self,
             run_id,
+            flow_name=flow_name,
             domain=domain,
             provider=provider,
         )
@@ -1131,7 +1165,10 @@ class PipelineRunTracker:
             yield scope
         except BaseException as exc:
             if not scope.is_terminal:
-                scope.fail(exc)
+                if _is_cancelled_exception(exc):
+                    scope.cancel(exc)
+                else:
+                    scope.fail(exc)
             raise
         else:
             if not scope.is_terminal:
@@ -1258,6 +1295,74 @@ class PipelineRunTracker:
         )
         log.error(
             "pipeline.run.failed",
+            run_id=str(run_id),
+            error_class=error_class,
+            error_message=error_message,
+            units_total=counters.units_total,
+            units_succeeded=counters.units_succeeded,
+            units_failed=counters.units_failed,
+            units_skipped=counters.units_skipped,
+            rows_raw=counters.rows_raw,
+            rows_valid=counters.rows_valid,
+            rows_rejected=counters.rows_rejected,
+            rows_written=counters.rows_written,
+        )
+
+    def cancel_run(
+        self,
+        run_id: str | UUID,
+        error: BaseException | str,
+        *,
+        flow_name: str,
+        counters: RunCounters | None = None,
+        summary: dict[str, object] | None = None,
+    ) -> None:
+        """Mark a pipeline run cancelled with a compact terminal reason."""
+        counters = counters or RunCounters()
+        error_class = type(error).__name__ if isinstance(error, BaseException) else None
+        error_message = str(error)[:_ERROR_LIMIT]
+        self.lake.execute(
+            """
+            UPDATE pipeline.runs
+               SET status = 'cancelled',
+                   completed_at = ?,
+                   units_total = ?,
+                   units_succeeded = ?,
+                   units_failed = ?,
+                   units_skipped = ?,
+                   rows_raw = ?,
+                   rows_valid = ?,
+                   rows_rejected = ?,
+                   rows_written = ?,
+                   summary_json = ?,
+                   error_class = ?,
+                   error_message = ?
+             WHERE run_id = ?
+            """,
+            [
+                _now(),
+                counters.units_total,
+                counters.units_succeeded,
+                counters.units_failed,
+                counters.units_skipped,
+                counters.rows_raw,
+                counters.rows_valid,
+                counters.rows_rejected,
+                counters.rows_written,
+                canonical_json(summary) if summary is not None else None,
+                error_class,
+                error_message,
+                str(run_id),
+            ],
+        )
+        emit_pipeline_cancelled_event(
+            app_run_id=str(run_id),
+            flow_name=flow_name,
+            error_class=error_class or "Cancelled",
+            error_message=error_message,
+        )
+        log.warning(
+            "pipeline.run.cancelled",
             run_id=str(run_id),
             error_class=error_class,
             error_message=error_message,
@@ -1666,6 +1771,19 @@ def _raw_sample(value: object) -> dict[str, object] | None:
 
 def _uuid_or_none(value: str | UUID | None) -> str | None:
     return str(value) if value is not None else None
+
+
+def _is_cancelled_exception(exc: BaseException) -> bool:
+    return isinstance(
+        exc,
+        (
+            asyncio.CancelledError,
+            Abort,
+            CancelledRun,
+            ExternalSignal,
+            TerminationSignal,
+        ),
+    )
 
 
 def _now() -> datetime:

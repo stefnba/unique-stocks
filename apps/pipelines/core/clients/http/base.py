@@ -18,6 +18,7 @@ import httpx
 import structlog
 from pydantic import BaseModel
 
+from core.prefect_controls import wait_for_provider_api_credit
 from core.utils.redaction import redact_sensitive_query_params
 
 log = structlog.get_logger(__name__)
@@ -173,6 +174,10 @@ class HttpClientBase(ABC):
         safe_path = redact_sensitive_query_params(path)
         log.debug(f"http.client.{self.PROVIDER}.request", method=method, path=safe_path)
         try:
+            await wait_for_provider_api_credit(
+                provider=self.PROVIDER,
+                operation=f"{method} {safe_path}",
+            )
             response = await self._http.request(method, path, params=params, json=json)
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:

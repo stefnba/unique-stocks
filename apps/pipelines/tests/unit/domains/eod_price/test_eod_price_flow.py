@@ -1,6 +1,6 @@
 """Tests for EOD price flow orchestration branches."""
 
-from collections.abc import Iterator, Sequence
+from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from datetime import date
 from typing import cast
@@ -94,7 +94,7 @@ class FakeTracker:
         self.run = run
 
     @contextmanager
-    def track_run(self, **_: object) -> Iterator[FakeRun]:
+    def track_run(self, **_: object) -> Generator[FakeRun]:
         """Yield the fake run."""
         yield self.run
 
@@ -579,6 +579,7 @@ async def test_eod_backfill_builds_missing_selection_views_before_pending_select
         {
             "build": "price-build",
             "parent_run_id": "run-1",
+            "idempotency_key": "run-1:preflight:price-build",
             "tags": ["preflight-dbt", "price-build"],
         }
     ]
@@ -632,6 +633,7 @@ async def test_eod_backfill_preflight_failure_is_audited(monkeypatch: pytest.Mon
         {
             "build": "price-build",
             "parent_run_id": "run-1",
+            "idempotency_key": "run-1:preflight:price-build",
             "tags": ["preflight-dbt", "price-build"],
         }
     ]

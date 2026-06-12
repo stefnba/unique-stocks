@@ -16,6 +16,7 @@ from datetime import date
 import structlog
 from prefect import flow
 from prefect.artifacts import create_table_artifact
+from prefect.transactions import transaction
 from pydantic import ValidationError
 
 from core.clients.http.base import ProviderRateLimitError
@@ -31,6 +32,10 @@ from core.ingestion import (
     terminal_status,
 )
 from core.ingestion.parser import attach_source_uri
+from core.prefect_controls import (
+    emit_coverage_gate_failed_event,
+    observe_bronze_eod_price_asset,
+)
 from core.transforms import run_dbt_build_after_ingestion, run_dbt_build_deployment
 from domains.eod_price.models import EODBar
 from domains.eod_price.parsers import infer_bulk_bar_date, parse_instrument_bars
@@ -213,6 +218,15 @@ async def eod_price_flow(
                         bar_date=bar_date,
                         source_uri=landing.source_uri,
                     )
+                    if bronze.rows_written:
+                        observe_bronze_eod_price_asset(
+                            app_run_id=run.run_id,
+                            provider_exchange_code=provider_exchange_code,
+                            bar_date=bar_date.isoformat(),
+                            rows_written=bronze.rows_written,
+                            source_uri=landing.source_uri,
+                            ingestion_mode="daily_bulk",
+                        )
 
                     summary["exchange"][provider_exchange_code] = {
                         "bar_date": bar_date.isoformat(),
@@ -464,6 +478,13 @@ async def _run_price_post_ingestion_checks(
             from_date=from_date,
             to_date=to_date,
         )
+        emit_coverage_gate_failed_event(
+            app_run_id=parent_run_id,
+            gaps_count=len(gaps),
+            provider_exchange_codes=provider_exchange_codes,
+            from_date=_iso_date(from_date) or "open",
+            to_date=to_date.isoformat() if to_date else "latest",
+        )
         return "partial"
     log.info("price.coverage_gate_passed", provider_exchange_codes=provider_exchange_codes)
     return upstream_status
@@ -555,11 +576,13 @@ async def _build_price_selection_views_if_missing(
     summary["preflight_dbt_build"] = preflight_summary
     reset_lake_client()
     try:
-        result = await run_dbt_build_deployment(
-            build="price-build",
-            parent_run_id=parent_run_id,
-            tags=["preflight-dbt", "price-build"],
-        )
+        with transaction(key=f"eod-price-selection-views:{','.join(sorted(missing_before))}"):
+            result = await run_dbt_build_deployment(
+                build="price-build",
+                parent_run_id=parent_run_id,
+                idempotency_key=f"{parent_run_id}:preflight:price-build",
+                tags=["preflight-dbt", "price-build"],
+            )
     except Exception as exc:
         preflight_summary["status"] = "failed"
         preflight_summary["error"] = _exception_summary(exc)
@@ -947,6 +970,15 @@ async def eod_price_backfill_flow(
                         )
                         batch_written = bronze_batch.rows_written
                         exchange_written += batch_written
+                        if batch_written:
+                            observe_bronze_eod_price_asset(
+                                app_run_id=run.run_id,
+                                provider_exchange_code=provider_exchange_code,
+                                from_date=_iso_date(from_date),
+                                to_date=to_date.isoformat(),
+                                rows_written=batch_written,
+                                ingestion_mode="historical_backfill",
+                            )
                     if completed_coverage_outcomes:
                         write_eod_backfill_completed_coverage(
                             run_id=str(run.run_id),

@@ -14,6 +14,7 @@ from core.lake.migration.refs import load_table_specs
 from core.lake.migration.runner import apply_pending_migrations, plan_migrations
 from core.lake.migration.validation import has_any_desired_table, validate_lake_schema
 from core.lake.schema.table import TableModel
+from core.prefect_controls import lake_writer_limit
 
 DEFAULT_TABLES_REF = "lake.schema:ALL_TABLES"
 
@@ -35,7 +36,8 @@ def main(argv: Sequence[str] | None = None) -> None:
             return
         if _should_validate_existing_schema_before_apply(client.connection, table_specs):
             validate_lake_schema(client.connection, tables=table_specs, allow_pending_changes=True)
-        result = apply_pending_migrations(client.connection, migrations_dir=migrations_dir)
+        with lake_writer_limit("lake.migrate"):
+            result = apply_pending_migrations(client.connection, migrations_dir=migrations_dir)
         validate_lake_schema(client.connection, tables=table_specs)
     finally:
         client.close()

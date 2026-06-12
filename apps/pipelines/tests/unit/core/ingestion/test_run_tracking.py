@@ -1,5 +1,6 @@
 """Tests for pipeline audit tracking helpers."""
 
+import asyncio
 import json
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any, cast
@@ -9,6 +10,7 @@ import structlog
 from pydantic import SecretStr
 from pytest import CaptureFixture
 
+import core.ingestion.run_tracking as run_tracking_module
 from config.settings import Settings
 from core.clients.lake import DataLakeClient
 from core.ingestion.landing import LandingWrite
@@ -159,6 +161,38 @@ def test_track_run_fails_on_exception() -> None:
     assert lake.executed[-1][1] is not None
     assert lake.executed[-1][1][-3] == "ValueError"
     assert lake.executed[-1][1][-2] == "bad provider response"
+
+
+def test_track_run_marks_cancellation_separately(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Cancellation signals should audit as cancelled, not failed."""
+    lake = FakeLake()
+    tracker = _tracker(lake)
+    events: list[dict[str, object]] = []
+
+    def emit_cancelled(**kwargs: object) -> None:
+        events.append(kwargs)
+
+    monkeypatch.setattr(run_tracking_module, "emit_pipeline_cancelled_event", emit_cancelled)
+
+    with (
+        pytest.raises(asyncio.CancelledError, match="operator stopped"),
+        tracker.track_run(flow_name="flow", domain="domain", run_kind="daily"),
+    ):
+        raise asyncio.CancelledError("operator stopped")
+
+    sql, params = lake.executed[-1]
+    assert "status = 'cancelled'" in sql
+    assert params is not None
+    assert params[-3] == "CancelledError"
+    assert params[-2] == "operator stopped"
+    assert events == [
+        {
+            "app_run_id": lake.inserted[0][2][0]["run_id"],
+            "flow_name": "flow",
+            "error_class": "CancelledError",
+            "error_message": "operator stopped",
+        }
+    ]
 
 
 def test_track_run_allows_explicit_completion() -> None:
