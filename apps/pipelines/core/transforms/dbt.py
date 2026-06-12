@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 import os
 import shutil
@@ -14,6 +15,7 @@ from typing import Any, Literal
 
 import structlog
 from prefect import flow, task
+from prefect.artifacts import create_markdown_artifact
 from pydantic import BaseModel, ConfigDict
 
 from config.settings import APP_ROOT, DbtTarget, get_settings
@@ -88,6 +90,8 @@ async def dbt_build_flow(
         parent_run_id=parent_run_id,
     ) as run:
         try:
+            dbt_run_id = str(uuid.uuid4())
+            target_path = project_path / "target" / "pipeline-runs" / dbt_run_id
             _release_local_lake_lock()
             result = run_dbt_command(
                 command=command,
@@ -97,16 +101,18 @@ async def dbt_build_flow(
                 project_dir=str(project_path),
                 profiles_dir=str(profiles_path),
                 target=resolved_target,
+                target_path=str(target_path),
             )
             _refresh_tracker_lake(tracker)
-            artifact = read_dbt_run_results(project_dir=str(project_path))
+            artifact = read_dbt_run_results(target_path=str(target_path))
             summary.update(
                 {
                     "return_code": result.return_code,
                     "artifact_path": result.artifact_path,
                 }
             )
-            dbt_run_id = _record_dbt_invocation(
+            _record_dbt_invocation(
+                dbt_run_id=dbt_run_id,
                 run_id=run.run_id,
                 result=result,
                 artifact=artifact,
@@ -115,6 +121,15 @@ async def dbt_build_flow(
             node_count = _record_dbt_node_results(dbt_run_id=dbt_run_id, artifact=artifact)
             failed_nodes = _failed_node_count(artifact)
             summary["node_results"] = node_count
+            await _create_dbt_summary_artifact(
+                dbt_run_id=dbt_run_id,
+                command=command,
+                target=resolved_target,
+                result=result,
+                node_count=node_count,
+                failed_nodes=failed_nodes,
+                parent_run_id=parent_run_id,
+            )
 
             if result.return_code != 0:
                 message = _dbt_error_message(result)
@@ -161,6 +176,7 @@ def run_dbt_command(
     project_dir: str,
     profiles_dir: str,
     target: str | None,
+    target_path: str,
 ) -> DbtCommandResult:
     """Run dbt in a subprocess and return captured process metadata."""
     settings = get_settings()
@@ -169,9 +185,12 @@ def run_dbt_command(
         ensure_lake_database(settings)
     project_path = _resolve_app_path(project_dir)
     profiles_path = _resolve_app_path(profiles_dir)
+    resolved_target_path = _resolve_app_path(target_path)
+    resolved_target_path.mkdir(parents=True, exist_ok=True)
     args = _dbt_base_command()
     args.extend([command, "--project-dir", str(project_path), "--profiles-dir", str(profiles_path)])
     args.extend(["--target", resolved_target])
+    args.extend(["--target-path", str(resolved_target_path)])
     if select:
         args.extend(["--select", *select])
     if exclude:
@@ -198,7 +217,7 @@ def run_dbt_command(
     )
     completed = _now()
     elapsed = max(0.0, (completed - started).total_seconds())
-    artifact_path = str(project_path / "target" / "run_results.json")
+    artifact_path = str(resolved_target_path / "run_results.json")
     log.info("dbt.command_done", command=command, return_code=completed_process.returncode, elapsed_seconds=elapsed)
     return DbtCommandResult(
         command_args=args,
@@ -213,9 +232,9 @@ def run_dbt_command(
 
 
 @task(name="read-dbt-run-results")
-def read_dbt_run_results(*, project_dir: str) -> dict[str, Any] | None:
+def read_dbt_run_results(*, target_path: str) -> dict[str, Any] | None:
     """Read dbt's ``run_results.json`` artifact when dbt produced one."""
-    path = _resolve_app_path(project_dir) / "target" / "run_results.json"
+    path = _resolve_app_path(target_path) / "run_results.json"
     if not path.exists():
         log.warning("dbt.run_results_missing", path=str(path))
         return None
@@ -224,13 +243,13 @@ def read_dbt_run_results(*, project_dir: str) -> dict[str, Any] | None:
 
 def _record_dbt_invocation(
     *,
+    dbt_run_id: str,
     run_id: str,
     result: DbtCommandResult,
     artifact: dict[str, Any] | None,
     project_dir: str,
-) -> str:
-    """Insert one row into ``pipeline.dbt_invocations`` and return its id."""
-    dbt_run_id = str(uuid.uuid4())
+) -> None:
+    """Insert one row into ``pipeline.dbt_invocations``."""
     metadata = artifact.get("metadata", {}) if artifact else {}
     args = artifact.get("args", {}) if artifact else {}
     lake = get_lake_client()
@@ -258,7 +277,43 @@ def _record_dbt_invocation(
             }
         ],
     )
-    return dbt_run_id
+
+
+async def _create_dbt_summary_artifact(
+    *,
+    dbt_run_id: str,
+    command: DbtCommand,
+    target: str,
+    result: DbtCommandResult,
+    node_count: int,
+    failed_nodes: int,
+    parent_run_id: str | None,
+) -> None:
+    """Publish a compact dbt invocation summary to Prefect."""
+    status = "completed" if result.return_code == 0 else "failed"
+    artifact_path = result.artifact_path or "(not produced)"
+    parent_line = f"- Parent run: `{parent_run_id}`\n" if parent_run_id else ""
+    markdown = (
+        f"# dbt {command} {status}\n\n"
+        f"- dbt run: `{dbt_run_id}`\n"
+        f"{parent_line}"
+        f"- Target: `{target}`\n"
+        f"- Return code: `{result.return_code}`\n"
+        f"- Node results: `{node_count}`\n"
+        f"- Failed nodes: `{failed_nodes}`\n"
+        f"- Artifact: `{artifact_path}`\n"
+        f"- Elapsed seconds: `{result.elapsed_seconds:.2f}`\n"
+    )
+    try:
+        artifact_id = create_markdown_artifact(
+            key=f"dbt-{dbt_run_id}",
+            markdown=markdown,
+            description=f"dbt {command} {status}",
+        )
+        if inspect.isawaitable(artifact_id):
+            await artifact_id
+    except Exception:
+        log.warning("dbt.prefect_artifact_failed", dbt_run_id=dbt_run_id, exc_info=True)
 
 
 def _record_dbt_node_results(*, dbt_run_id: str, artifact: dict[str, Any] | None) -> int:
