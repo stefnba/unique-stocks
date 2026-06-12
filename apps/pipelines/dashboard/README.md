@@ -40,9 +40,10 @@ shared chrome, and runs the selected page.
 - `routing.py` — URL builders and query-param reads
 - `views/` — page-level rendering only
 - `filters.py` — shared Streamlit controls and normalized filter payloads
-- `domain_health.py`, `charts.py`, and `tables.py` — reusable presentation helpers
+- `domain_health/`, `charts.py`, and `tables/` — reusable presentation helpers
 - `loaders.py` — cached lake loaders used by views
-- `read_models/queries.py` — read-only lake query functions
+- `read_models/queries.py` — compatibility facade for read-only lake query functions
+- `read_models/{runs,run_units,landing_objects,evidence,rejections,dbt}.py` — focused query modules
 - `read_models/sql/` — file-backed SQL templates used by the dashboard query functions
 
 Keep new pages thin: add page rendering under `views/`, cached data assembly in

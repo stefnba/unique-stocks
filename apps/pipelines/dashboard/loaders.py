@@ -1,5 +1,7 @@
 """Cached lake loaders for the pipeline audit dashboard."""
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime
 from typing import Any
 
@@ -41,6 +43,16 @@ from dashboard.read_models.queries import (
 )
 
 
+@contextmanager
+def readonly_lake() -> Iterator[DataLakeClient]:
+    """Yield a read-only lake client and close it after use."""
+    lake = DataLakeClient(read_only=True)
+    try:
+        yield lake
+    finally:
+        lake.close()
+
+
 @st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner=False)
 def load_snapshot(
     *,
@@ -65,8 +77,7 @@ def load_snapshot(
     """
     since = datetime.fromisoformat(since_iso)
     stale_after = datetime.fromisoformat(stale_after_iso)
-    lake = DataLakeClient(read_only=True)
-    try:
+    with readonly_lake() as lake:
         available = pipeline_runs_available(lake)
         stale_runs: list[dict[str, Any]] = []
         attention_runs: list[dict[str, Any]] = []
@@ -91,8 +102,6 @@ def load_snapshot(
             "status_breakdown": load_status_breakdown(lake, since=since, domains=domains),
             "daily_trend": load_daily_run_trend(lake, since=since, domains=domains),
         }
-    finally:
-        lake.close()
 
 
 @st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner=False)
@@ -115,8 +124,7 @@ def load_runs_page(
         Snapshot dictionary containing availability and matching run rows.
     """
     since = datetime.fromisoformat(since_iso)
-    lake = DataLakeClient(read_only=True)
-    try:
+    with readonly_lake() as lake:
         available = pipeline_runs_available(lake)
         return {
             "available": available,
@@ -128,8 +136,6 @@ def load_runs_page(
                 limit=recent_limit,
             ),
         }
-    finally:
-        lake.close()
 
 
 @st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner=False)
@@ -154,8 +160,7 @@ def load_run_units_overview_page(
         Snapshot dictionary containing availability and matching work-unit rows.
     """
     since = datetime.fromisoformat(since_iso)
-    lake = DataLakeClient(read_only=True)
-    try:
+    with readonly_lake() as lake:
         available = run_units_available(lake)
         return {
             "available": available,
@@ -168,8 +173,6 @@ def load_run_units_overview_page(
                 limit=recent_limit,
             ),
         }
-    finally:
-        lake.close()
 
 
 @st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner=False)
@@ -194,8 +197,7 @@ def load_landing_objects_overview_page(
         Snapshot dictionary containing availability and matching landing objects.
     """
     since = datetime.fromisoformat(since_iso)
-    lake = DataLakeClient(read_only=True)
-    try:
+    with readonly_lake() as lake:
         available = landing_objects_available(lake)
         return {
             "available": available,
@@ -208,8 +210,6 @@ def load_landing_objects_overview_page(
                 limit=recent_limit,
             ),
         }
-    finally:
-        lake.close()
 
 
 @st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner=False)
@@ -223,8 +223,7 @@ def load_run_page(run_id: str) -> dict[str, Any]:
         Dictionary with ``run`` and nested ``detail`` lists for units, landing,
         rejections, and dbt node results.
     """
-    lake = DataLakeClient(read_only=True)
-    try:
+    with readonly_lake() as lake:
         return {
             "run": load_run_by_id(lake, run_id=run_id),
             "detail": {
@@ -235,8 +234,6 @@ def load_run_page(run_id: str) -> dict[str, Any]:
                 "dbt_node_results": load_dbt_node_results(lake, run_id=run_id, limit=DBT_NODE_RESULTS_LIMIT),
             },
         }
-    finally:
-        lake.close()
 
 
 @st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner=False)
@@ -250,8 +247,7 @@ def load_unit_page(*, run_id: str, unit_id: str) -> dict[str, Any]:
     Returns:
         Dictionary with ``run``, ``unit``, and unit-scoped ``detail`` lists.
     """
-    lake = DataLakeClient(read_only=True)
-    try:
+    with readonly_lake() as lake:
         return {
             "run": load_run_by_id(lake, run_id=run_id),
             "unit": load_run_unit_by_id(lake, run_id=run_id, unit_id=unit_id),
@@ -270,8 +266,6 @@ def load_unit_page(*, run_id: str, unit_id: str) -> dict[str, Any]:
                 ),
             },
         }
-    finally:
-        lake.close()
 
 
 @st.cache_data(ttl=CACHE_TTL_SECONDS, show_spinner=False)
@@ -285,8 +279,7 @@ def load_landing_object_page(landing_id: str) -> dict[str, Any]:
         Dictionary with the landing object row, parent run, and parent work unit
         when those related rows are available.
     """
-    lake = DataLakeClient(read_only=True)
-    try:
+    with readonly_lake() as lake:
         landing_object = load_landing_object_by_id(lake, landing_id=landing_id)
         run = None
         unit = None
@@ -303,5 +296,3 @@ def load_landing_object_page(landing_id: str) -> dict[str, Any]:
             "run": run,
             "unit": unit,
         }
-    finally:
-        lake.close()

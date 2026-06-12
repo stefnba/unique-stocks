@@ -6,7 +6,7 @@ from typing import Any
 
 import streamlit as st
 
-from dashboard.filters import RunUnitFilters, render_run_unit_controls
+from dashboard.filters import RunUnitFilters, render_run_unit_controls, status_values_from_filter
 from dashboard.formatting import format_int
 from dashboard.loaders import load_run_units_overview_page
 from dashboard.routing import overview_href
@@ -77,7 +77,7 @@ def _load_run_units(filters: RunUnitFilters) -> dict[str, Any] | None:
         lambda: load_run_units_overview_page(
             since_iso=filters["since"].isoformat(),
             domains=tuple(filters["domains"]),
-            statuses=(),
+            statuses=status_values_from_filter(filters["status_filter"]),
             run_id=filters["run_id"],
             recent_limit=int(filters["recent_limit"]),
         ),

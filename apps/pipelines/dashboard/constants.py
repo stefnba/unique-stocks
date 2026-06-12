@@ -12,6 +12,7 @@ LANDING_OBJECTS_LIMIT = 200
 REJECTIONS_LIMIT = 100
 DBT_NODE_RESULTS_LIMIT = 300
 ATTENTION_RUNS_LIMIT = 200
+DEFAULT_DASHBOARD_DOMAINS = ("eod_price", "exchange", "exchange_schedule", "instrument", "fundamental", "dbt")
 
 OVERVIEW_PAGE = "overview"
 DOMAINS_PAGE = "domains"
@@ -24,6 +25,8 @@ LANDING_OBJECTS_PAGE = "landing-objects"
 LANDING_OBJECT_DETAIL_PAGE = "landing-object-detail"
 
 ATTENTION_STATUSES = frozenset({"failed", "partial"})
+RUN_STATUSES = ("running", "completed", "partial", "failed", "skipped", "cancelled")
+HEALTHY_TERMINAL_STATUSES = ("completed", "partial", "skipped")
 UNIT_ATTENTION_STATUSES = frozenset({"failed", "unsupported", "skipped"})
 HEALTHY_RUN_STATUSES = frozenset({"completed", "partial", "skipped"})
 UNIT_STATUSES = ("running", "completed", "failed", "unsupported", "skipped")

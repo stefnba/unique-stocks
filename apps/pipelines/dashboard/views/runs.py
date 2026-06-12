@@ -6,7 +6,7 @@ from typing import Any
 
 import streamlit as st
 
-from dashboard.filters import RunFilters, render_run_controls
+from dashboard.filters import RunFilters, render_run_controls, status_values_from_filter
 from dashboard.formatting import format_int
 from dashboard.loaders import load_runs_page
 from dashboard.routing import overview_href
@@ -73,7 +73,7 @@ def _load_runs(filters: RunFilters) -> dict[str, Any] | None:
         lambda: load_runs_page(
             since_iso=filters["since"].isoformat(),
             domains=tuple(filters["domains"]),
-            statuses=(),
+            statuses=status_values_from_filter(filters["status_filter"]),
             recent_limit=int(filters["recent_limit"]),
         ),
         error_label="Runs",

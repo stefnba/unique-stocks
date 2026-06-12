@@ -8,9 +8,13 @@ from typing import TypedDict, cast
 import streamlit as st
 from streamlit.delta_generator import DeltaGenerator
 
-from dashboard.constants import LANDING_OBJECT_BROWSER_LIMIT, RUN_BROWSER_LIMIT, RUN_UNIT_BROWSER_LIMIT
+from dashboard.constants import (
+    DEFAULT_DASHBOARD_DOMAINS,
+    LANDING_OBJECT_BROWSER_LIMIT,
+    RUN_BROWSER_LIMIT,
+    RUN_UNIT_BROWSER_LIMIT,
+)
 from dashboard.formatting import format_window
-from dashboard.read_models.queries import DEFAULT_DASHBOARD_DOMAINS
 from dashboard.routing import query_param
 
 WINDOW_HOUR_OPTIONS = (24, 72, 168, 336, 720)
@@ -60,6 +64,13 @@ def domains_from_label(label: str) -> list[str]:
     if label == ALL_DOMAINS_LABEL:
         return []
     return [label]
+
+
+def status_values_from_filter(status_filter: str | None) -> tuple[str, ...]:
+    """Convert an optional status preset into query status filters."""
+    if not status_filter or status_filter == ALL_STATUSES_LABEL:
+        return ()
+    return (status_filter,)
 
 
 def render_scope_controls(
