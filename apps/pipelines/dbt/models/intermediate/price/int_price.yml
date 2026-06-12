@@ -552,7 +552,7 @@ models:
         data_tests:
           - not_null
       - name: is_trading_day
-        description: True when the calendar is known, the date is a working day, and it is not a full holiday.
+        description: True when the calendar and holiday coverage are known, the date is a working day, and it is not a full holiday.
         data_tests:
           - not_null
       - name: expected_instruments

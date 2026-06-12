@@ -425,7 +425,10 @@ SELECT
     is_working_day,
     is_full_holiday,
     is_early_close,
-    is_calendar_known AND is_working_day AND NOT is_full_holiday AS is_trading_day,
+    is_calendar_known
+    AND is_calendar_coverage_known
+    AND is_working_day
+    AND NOT is_full_holiday AS is_trading_day,
     full_holiday_name,
     early_close_name,
     early_close_time

@@ -232,6 +232,101 @@ def test_release_local_lake_lock_resets_local_backend(monkeypatch: MonkeyPatch) 
     assert calls == ["reset"]
 
 
+@pytest.mark.asyncio
+async def test_dbt_build_flow_releases_local_lock_before_tracker(monkeypatch: MonkeyPatch) -> None:
+    """dbt-build should not open audit tracking before dropping a stale local DuckDB handle."""
+    events: list[str] = []
+
+    class FailIfConstructedTracker:
+        def __init__(self) -> None:
+            events.append("tracker")
+
+    def stop_after_release() -> None:
+        events.append("release")
+        raise RuntimeError("stop after release")
+
+    monkeypatch.setattr(dbt, "get_settings", lambda: Settings(motherduck_token=SecretStr("")))
+    monkeypatch.setattr(dbt, "_release_local_lake_lock", stop_after_release)
+    monkeypatch.setattr(dbt, "PipelineRunTracker", FailIfConstructedTracker)
+
+    with pytest.raises(RuntimeError, match="stop after release"):
+        await dbt.dbt_build_flow.fn(command="compile")
+
+    assert events == ["release"]
+
+
+@pytest.mark.asyncio
+async def test_dbt_build_flow_releases_local_lock_before_subprocess(monkeypatch: MonkeyPatch) -> None:
+    """dbt-build should drop its own audit connection before the dbt subprocess starts."""
+    events: list[str] = []
+
+    class FakeRun:
+        run_id = "run-1"
+        is_terminal = False
+
+        def complete(self, **_: object) -> None:
+            events.append("complete")
+            self.is_terminal = True
+
+        def fail(self, *_: object, **__: object) -> None:
+            events.append("fail")
+            self.is_terminal = True
+
+    class FakeTracker:
+        def __init__(self) -> None:
+            events.append("tracker")
+            self.lake = object()
+
+        @contextmanager
+        def track_run(self, **_: object) -> Generator[FakeRun]:
+            events.append("track_run")
+            yield FakeRun()
+
+    def fake_release() -> None:
+        events.append("release")
+
+    def fake_run_dbt_command(**_: object) -> dbt.DbtCommandResult:
+        events.append("dbt")
+        return dbt.DbtCommandResult(
+            command_args=["dbt", "compile"],
+            return_code=0,
+            stdout="",
+            stderr="",
+            started_at=dbt._now(),
+            completed_at=dbt._now(),
+            elapsed_seconds=0.0,
+            artifact_path=None,
+        )
+
+    async def fake_create_artifact(**_: object) -> None:
+        events.append("artifact")
+
+    monkeypatch.setattr(dbt, "get_settings", lambda: Settings(motherduck_token=SecretStr("")))
+    monkeypatch.setattr(dbt, "_release_local_lake_lock", fake_release)
+    monkeypatch.setattr(dbt, "PipelineRunTracker", FakeTracker)
+    monkeypatch.setattr(dbt, "run_dbt_command", fake_run_dbt_command)
+    monkeypatch.setattr(dbt, "_refresh_tracker_lake", lambda _tracker: events.append("refresh"))
+    monkeypatch.setattr(dbt, "read_dbt_run_results", lambda **_: None)
+    monkeypatch.setattr(dbt, "_record_dbt_invocation", lambda **_: events.append("invocation"))
+    monkeypatch.setattr(dbt, "_record_dbt_node_results", lambda **_: 0)
+    monkeypatch.setattr(dbt, "_create_dbt_summary_artifact", fake_create_artifact)
+
+    result = await dbt.dbt_build_flow.fn(command="compile")
+
+    assert result["return_code"] == 0
+    assert events == [
+        "release",
+        "tracker",
+        "track_run",
+        "release",
+        "dbt",
+        "refresh",
+        "invocation",
+        "artifact",
+        "complete",
+    ]
+
+
 def test_dbt_error_message_prefixes_duckdb_lock_errors() -> None:
     """Lock failures should surface an actionable hint before the dbt traceback tail."""
     result = dbt.DbtCommandResult(

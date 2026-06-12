@@ -8,7 +8,9 @@ from typing import cast
 from uuid import UUID
 
 import pytest
+from pydantic import SecretStr
 
+from config.settings import Settings
 from core.ingestion import BronzeWrite, LandingWrite, RunUnitTally
 from core.ingestion.run_tracking import UnitStatus
 from core.transforms import post_ingestion
@@ -78,8 +80,17 @@ class FakeTracker:
 async def test_post_ingestion_build_runs_deployment_after_completed_status(monkeypatch: pytest.MonkeyPatch) -> None:
     """A completed upstream audit status should launch the matching dbt deployment."""
     calls: list[dict[str, object]] = []
+    events: list[str] = []
+
+    monkeypatch.setattr(post_ingestion, "get_settings", lambda: Settings(motherduck_token=SecretStr("")))
+
+    def fake_reset_lake_client() -> None:
+        events.append("release")
+
+    monkeypatch.setattr(post_ingestion, "reset_lake_client", fake_reset_lake_client)
 
     async def fake_run_deployment(*args: object, **kwargs: object) -> FakeFlowRun:
+        events.append("submit")
         calls.append({"args": args, "kwargs": kwargs})
         return FakeFlowRun(
             id=UUID("00000000-0000-0000-0000-000000000001"),
@@ -109,6 +120,7 @@ async def test_post_ingestion_build_runs_deployment_after_completed_status(monke
             },
         }
     ]
+    assert events == ["release", "submit"]
 
 
 @pytest.mark.asyncio
@@ -139,6 +151,8 @@ async def test_post_ingestion_build_skips_partial_status(monkeypatch: pytest.Mon
 @pytest.mark.asyncio
 async def test_post_ingestion_build_raises_when_dbt_deployment_fails(monkeypatch: pytest.MonkeyPatch) -> None:
     """The launcher should fail the caller when the dbt deployment does not complete."""
+    monkeypatch.setattr(post_ingestion, "get_settings", lambda: Settings(motherduck_token=SecretStr("")))
+    monkeypatch.setattr(post_ingestion, "reset_lake_client", lambda: None)
 
     async def fake_run_deployment(*_: object, **__: object) -> FakeFlowRun:
         return FakeFlowRun(

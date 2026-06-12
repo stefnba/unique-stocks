@@ -5,6 +5,8 @@ from typing import Any, Literal
 import structlog
 from prefect.deployments.flow_runs import arun_deployment
 
+from config.settings import get_settings
+from core.clients.lake import reset_lake_client
 from core.ingestion.run_tracking import RunStatus
 
 log = structlog.get_logger(__name__)
@@ -65,6 +67,7 @@ async def run_dbt_build_deployment(
     deployment_name = f"dbt-build/{build}"
     parameters: dict[str, Any] = {"parent_run_id": parent_run_id}
     run_tags = tags or ["dbt", build]
+    _release_local_lake_lock_before_dbt(build=build, parent_run_id=parent_run_id)
     if idempotency_key is None:
         flow_run = await arun_deployment(
             deployment_name,
@@ -126,6 +129,14 @@ def _skip_result(*, build: DbtBuildDeployment, reason: str, upstream_status: Run
         "reason": reason,
         "upstream_status": upstream_status,
     }
+
+
+def _release_local_lake_lock_before_dbt(*, build: DbtBuildDeployment, parent_run_id: str | None) -> None:
+    """Close this process's local DuckDB handle before a dbt deployment starts."""
+    if get_settings().lake_backend() != "local":
+        return
+    reset_lake_client()
+    log.info("dbt.local_lake_lock_released_before_deployment", build=build, parent_run_id=parent_run_id)
 
 
 def _state_name(state: Any | None) -> str | None:

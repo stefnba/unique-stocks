@@ -70,6 +70,7 @@ async def dbt_build_flow(
     resolved_target = _resolve_dbt_target(target, settings.resolved_dbt_target(), settings.lake_backend())
     project_path = _resolve_app_path(project_dir)
     profiles_path = _resolve_app_path(profiles_dir)
+    _release_local_lake_lock()
     tracker = PipelineRunTracker()
     artifact: dict[str, Any] | None = None
     result: DbtCommandResult | None = None
