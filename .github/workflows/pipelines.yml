@@ -19,6 +19,8 @@ jobs:
     name: Quality
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      LAKE_NAME: unique_stocks
 
     steps:
       - name: Checkout
