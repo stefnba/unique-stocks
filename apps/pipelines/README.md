@@ -93,9 +93,11 @@ instead of using a static offset seed or timezone API. See
 
 ```text
 apps/pipelines/
-├── config/             App-level configuration: settings and Prefect block registry
+├── config/             Runtime configuration plus provider/domain identity enums
+├── registry/           App registries for providers, domains, and dbt asset metadata
+├── orchestration/      App-level Prefect/dbt composition and operational flows
+├── core/               Reusable infrastructure: ingestion, HTTP, storage, lake, Prefect helpers
 ├── domains/            Domain models, tables, datasets, parsers, tasks, and flows
-├── core/               Shared infrastructure: ingestion, logging, lake, and storage clients
 ├── providers/          Provider-specific clients and raw response models
 ├── dbt/                dbt Core project: Bronze -> Silver -> Gold transformations
 ├── dashboard/          Streamlit operations dashboard for the pipeline audit schema
@@ -108,13 +110,16 @@ apps/pipelines/
 └── Makefile            App-level commands
 ```
 
+`core/` stays generic and does not import concrete app providers, domains, or settings-backed composition. `config/` owns stable identity enums such as providers and domains. `registry/` connects those identities to concrete provider/domain/dbt implementation metadata. `orchestration/` is where Prefect/dbt entrypoints compose `core`, `config`, `registry`, `domains`, and `providers`.
+
 Domain code is organized under `domains/<domain>/`. Ingestion domains usually define `models.py`, `tables.py`, `datasets.py`, `parsers.py`, task modules, and `flows.py`, plus small domain helpers when needed.
 
 ### Script entrypoints
 
 Scripts under `scripts/` are grouped command-line adapters. They own argument
 parsing, environment defaults, console output, and exit codes. Reusable pipeline
-behavior stays in `core/`, domain packages, providers, or config modules.
+behavior stays in `core/`, `registry/`, `orchestration/`, domain packages,
+providers, or config modules.
 
 See [`scripts/README.md`](scripts/README.md) before adding or moving an
 entrypoint.
@@ -203,7 +208,7 @@ table semantics, statuses, and the integration pattern.
 
 ## Pipeline dashboard
 
-The Streamlit dashboard under `dashboard/` is an operational read surface for the pipeline audit schema. It lives in this app so it can reuse `config.settings` and `core.clients.lake.DataLakeClient`, but it runs as a separate process from the Prefect worker.
+The Streamlit dashboard under `dashboard/` is an operational read surface for the pipeline audit schema. It lives in this app so it can reuse `config.settings` and `core.lake.DataLakeClient`, but it runs as a separate process from the Prefect worker.
 
 Dashboard dependencies are kept in the `dashboard` optional extra. Production
 deploys the dashboard service with `deploy/Dockerfile.dashboard`, which installs
@@ -520,12 +525,12 @@ Each mode maps to the same domain flow with different default parameters.
 Bootstrap order for a new environment: exchange reference manual → ingestion-control-build when selector/control views are needed → instrument → ingest. The reference parent runs catalog, MIC, exchange-build, scoped schedule refresh, and the final exchange-build in order. In normal operation, scheduled exchange reference, exchange schedule, instrument, EOD price, and fundamentals deployments trigger their matching dbt build after a clean audit status; pass `run_dbt_build=false` for Bronze-only runs. Historical EOD backfill also has a preflight guard: the deployment sets `build_selection_views_if_missing=true`, so it runs `dbt-build/ingestion-control-build` before provider-instrument selection when the required Silver selector views do not exist yet.
 
 `make deploy` is the source-of-truth sync: it removes orphaned deployments owned by this app
-(entrypoints under `domains.*` or `core.transforms.*`), then applies `prefect.yaml`.
+(entrypoints under `domains.*` or `orchestration.*`), then applies `prefect.yaml`.
 Manual UI experiments with unrelated entrypoints are left untouched.
 
 ```bash
 cd apps/pipelines
-make deploy-dry        # preview manifest + orphan deletions
+make deploy-dry        # preview prefect.yaml entries + orphan deletions
 make deploy            # prune orphans, then apply prefect.yaml
 make deploy-upsert     # apply only — keep orphaned app deployments
 ```
