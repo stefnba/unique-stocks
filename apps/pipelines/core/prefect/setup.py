@@ -1,7 +1,5 @@
 """Combined Prefect setup helpers."""
 
-from __future__ import annotations
-
 from core.prefect.automations import setup_prefect_automations
 from core.prefect.limits import setup_prefect_limits
 from providers.registry import Provider
