@@ -5,6 +5,7 @@ from contextlib import contextmanager
 
 import pytest
 
+from config.settings import get_settings
 from core.prefect import limits as prefect_limits
 from core.prefect.limits import (
     ProviderRateLimitPolicy,
@@ -87,7 +88,9 @@ def test_provider_rate_limit_registrations_include_only_declared_policies() -> N
     assert registrations[0].slot_decay_per_second == 10.0
 
 
-def test_lake_writer_limit_fails_open_when_not_strict(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_lake_writer_limit_fails_open_when_not_strict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Local bootstrap should continue if Prefect global limits are not ready."""
 
     @contextmanager
@@ -96,6 +99,7 @@ def test_lake_writer_limit_fails_open_when_not_strict(monkeypatch: pytest.Monkey
         yield
 
     monkeypatch.delenv("PREFECT_GLOBAL_LIMITS_STRICT", raising=False)
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
     monkeypatch.setattr(prefect_limits, "_lake_writer_limit_missing", False)
     monkeypatch.setattr(prefect_limits, "concurrency", unavailable_limit)
 
@@ -122,12 +126,37 @@ def test_lake_writer_limit_raises_when_strict(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setattr(prefect_limits, "_lake_writer_limit_missing", False)
     monkeypatch.setattr(prefect_limits, "concurrency", unavailable_limit)
 
-    with pytest.raises(RuntimeError, match="limit missing"), prefect_limits.lake_writer_limit("test"):
+    with (
+        pytest.raises(RuntimeError, match="limit missing"),
+        prefect_limits.lake_writer_limit("test"),
+    ):
         pass
 
 
+def test_strict_limits_defaults_to_false_for_bootstrap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """First-run bootstrap should fail open unless strict mode is explicit."""
+    monkeypatch.delenv("PREFECT_GLOBAL_LIMITS_STRICT", raising=False)
+    monkeypatch.setenv("ENVIRONMENT", "prod")
+
+    assert prefect_limits._strict_limits() is False
+
+
+def test_strict_limits_reads_explicit_true(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Operators can fail closed after global limits are bootstrapped."""
+    monkeypatch.setenv("PREFECT_GLOBAL_LIMITS_STRICT", "true")
+    monkeypatch.setenv("ENVIRONMENT", "prod")
+
+    assert prefect_limits._strict_limits() is True
+
+
 @pytest.mark.asyncio
-async def test_wait_for_provider_api_credit_fails_open_when_not_strict(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_wait_for_provider_api_credit_fails_open_when_not_strict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Provider calls should continue locally if the Prefect limit is absent."""
     calls: list[dict[str, object]] = []
     policy = ProviderRateLimitPolicy(burst_capacity=2, slot_decay_per_second=1.0)
@@ -137,6 +166,7 @@ async def test_wait_for_provider_api_credit_fails_open_when_not_strict(monkeypat
         raise RuntimeError("limit missing")
 
     monkeypatch.delenv("PREFECT_GLOBAL_LIMITS_STRICT", raising=False)
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
     monkeypatch.setattr(prefect_limits, "_provider_api_credit_limits_missing", set())
     monkeypatch.setattr(prefect_limits, "rate_limit", unavailable_rate_limit)
 
@@ -153,8 +183,13 @@ async def test_setup_prefect_limits_uses_app_defaults(
 ) -> None:
     """Dry-run should use app-declared provider rate-limit policies."""
     monkeypatch.delenv("PREFECT_LAKE_WRITER_LIMIT", raising=False)
+    monkeypatch.delenv("MOTHERDUCK_TOKEN", raising=False)
+    get_settings.cache_clear()
 
-    exit_code = await setup_prefect_limits(providers=Provider, dry_run=True)
+    try:
+        exit_code = await setup_prefect_limits(providers=Provider, dry_run=True)
+    finally:
+        get_settings.cache_clear()
 
     output = capsys.readouterr().out
     assert exit_code == 0
@@ -164,13 +199,37 @@ async def test_setup_prefect_limits_uses_app_defaults(
 
 
 @pytest.mark.asyncio
+async def test_setup_prefect_limits_uses_motherduck_default(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """MotherDuck should get a higher lake writer default when no override is set."""
+    monkeypatch.delenv("PREFECT_LAKE_WRITER_LIMIT", raising=False)
+    monkeypatch.setenv("MOTHERDUCK_TOKEN", "test-token")
+    get_settings.cache_clear()
+
+    try:
+        exit_code = await setup_prefect_limits(providers=Provider, dry_run=True)
+    finally:
+        get_settings.cache_clear()
+
+    output = capsys.readouterr().out
+    assert exit_code == 0
+    assert "unique-stocks.lake-writer: limit=4" in output
+
+
+@pytest.mark.asyncio
 async def test_setup_prefect_limits_honors_lake_writer_env_override(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """Lake writer limit remains environment-overridable for deployments."""
     monkeypatch.setenv("PREFECT_LAKE_WRITER_LIMIT", "2")
+    monkeypatch.setenv("MOTHERDUCK_TOKEN", "test-token")
+    get_settings.cache_clear()
 
-    exit_code = await setup_prefect_limits(providers=Provider, dry_run=True)
+    try:
+        exit_code = await setup_prefect_limits(providers=Provider, dry_run=True)
+    finally:
+        get_settings.cache_clear()
 
     output = capsys.readouterr().out
     assert exit_code == 0

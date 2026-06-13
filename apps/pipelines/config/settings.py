@@ -15,7 +15,9 @@ type PipelineLogFormat = Literal["auto", "console", "json"]
 
 APP_ROOT: Final[Path] = Path(__file__).resolve().parents[1]
 _DEFAULT_LAKE_NAME: Final[str] = "unique_stocks"
-DEFAULT_PREFECT_LAKE_WRITER_LIMIT: Final[int] = 1
+DEFAULT_PREFECT_LOCAL_LAKE_WRITER_LIMIT: Final[int] = 1
+DEFAULT_PREFECT_MOTHERDUCK_LAKE_WRITER_LIMIT: Final[int] = 4
+DEFAULT_PREFECT_LAKE_WRITER_LIMIT: Final[int] = DEFAULT_PREFECT_LOCAL_LAKE_WRITER_LIMIT
 PROD_MOTHERDUCK_ERROR: Final[str] = (
     "ENVIRONMENT=prod requires MOTHERDUCK_TOKEN; set MOTHERDUCK_TOKEN or use ENVIRONMENT=dev"
 )
@@ -24,7 +26,12 @@ PROD_MOTHERDUCK_ERROR: Final[str] = (
 class _SettingsSection(BaseSettings):
     """Base class for private settings sections."""
 
-    model_config = SettingsConfigDict(env_file=str(APP_ROOT / ".env"), env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=str(APP_ROOT / ".env"),
+        env_file_encoding="utf-8",
+        env_ignore_empty=True,
+        extra="ignore",
+    )
 
 
 class _ProviderSettings(_SettingsSection):
@@ -107,10 +114,10 @@ class _PrefectSettings(_SettingsSection):
 
     prefect_api_url: str = "http://127.0.0.1:4200/api"
     prefect_api_key: SecretStr = Field(default=SecretStr(""), description="API key for Prefect.")
-    prefect_lake_writer_limit: int = Field(
-        default=DEFAULT_PREFECT_LAKE_WRITER_LIMIT,
+    prefect_lake_writer_limit: int | None = Field(
+        default=None,
         ge=1,
-        description="Prefect global concurrency slots for shared lake/dbt writes.",
+        description="Optional Prefect global concurrency slot override for shared lake/dbt writes.",
     )
 
 
@@ -134,7 +141,12 @@ class Settings(_RuntimeSettings, _PrefectSettings, _AwsSettings, _LakeSettings, 
     Secrets are stored as ``SecretStr`` to prevent accidental logging.
     """
 
-    model_config = SettingsConfigDict(env_file=str(APP_ROOT / ".env"), env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=str(APP_ROOT / ".env"),
+        env_file_encoding="utf-8",
+        env_ignore_empty=True,
+        extra="ignore",
+    )
 
     @model_validator(mode="after")
     def validate_environment(self) -> Settings:
@@ -142,6 +154,16 @@ class Settings(_RuntimeSettings, _PrefectSettings, _AwsSettings, _LakeSettings, 
         if self.is_production and self.lake_backend() != "motherduck":
             raise ValueError(PROD_MOTHERDUCK_ERROR)
         return self
+
+    def default_prefect_lake_writer_limit(self) -> int:
+        """Return the backend-aware default for shared lake/dbt write slots."""
+        if self.lake_backend() == "motherduck":
+            return DEFAULT_PREFECT_MOTHERDUCK_LAKE_WRITER_LIMIT
+        return DEFAULT_PREFECT_LOCAL_LAKE_WRITER_LIMIT
+
+    def resolved_prefect_lake_writer_limit(self) -> int:
+        """Return the configured lake writer slots or the backend-aware default."""
+        return self.prefect_lake_writer_limit or self.default_prefect_lake_writer_limit()
 
 
 @lru_cache(maxsize=1)

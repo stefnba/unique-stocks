@@ -46,6 +46,44 @@ def test_lake_backend_uses_motherduck_with_token() -> None:
     assert settings.lake_backend() == "motherduck"
 
 
+def test_prefect_lake_writer_limit_defaults_to_local_serial_writes() -> None:
+    """Local DuckDB should default to one writer slot."""
+    settings = Settings(motherduck_token=SecretStr(""))
+
+    assert settings.default_prefect_lake_writer_limit() == 1
+    assert settings.resolved_prefect_lake_writer_limit() == 1
+
+
+def test_prefect_lake_writer_limit_defaults_higher_for_motherduck() -> None:
+    """MotherDuck can use a modestly higher default writer limit."""
+    settings = Settings(motherduck_token=SecretStr("test-token"))
+
+    assert settings.default_prefect_lake_writer_limit() == 4
+    assert settings.resolved_prefect_lake_writer_limit() == 4
+
+
+def test_prefect_lake_writer_limit_can_be_overridden() -> None:
+    """Operators can override the backend-aware default explicitly."""
+    settings = Settings(motherduck_token=SecretStr("test-token"), prefect_lake_writer_limit=2)
+
+    assert settings.resolved_prefect_lake_writer_limit() == 2
+
+
+def test_empty_prefect_lake_writer_limit_env_is_ignored(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Blank env overrides should fall back to backend-aware defaults."""
+    monkeypatch.setenv("PREFECT_LAKE_WRITER_LIMIT", "")
+    get_settings.cache_clear()
+    try:
+        settings = Settings(motherduck_token=SecretStr(""))
+    finally:
+        get_settings.cache_clear()
+
+    assert settings.prefect_lake_writer_limit is None
+    assert settings.resolved_prefect_lake_writer_limit() == 1
+
+
 def test_resolved_dbt_target_matches_lake_backend() -> None:
     """Dbt target should follow the selected lake backend."""
     assert Settings(motherduck_token=SecretStr("")).resolved_dbt_target() == "dev"

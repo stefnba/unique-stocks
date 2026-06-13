@@ -15,7 +15,7 @@ from prefect.client.orchestration import get_client
 from prefect.concurrency.asyncio import rate_limit
 from prefect.concurrency.sync import concurrency
 
-from config.settings import DEFAULT_PREFECT_LAKE_WRITER_LIMIT
+from config.settings import get_settings
 
 if TYPE_CHECKING:
     from core.clients.http.base import HttpClientBase
@@ -31,7 +31,41 @@ _provider_api_credit_limits_missing: set[str] = set()
 
 @dataclass(frozen=True)
 class ProviderRateLimitPolicy:
-    """Rate limit policy for a provider API."""
+    """Rate limit policy for a provider API.
+
+    Attributes:
+        burst_capacity (int): The maximum number of concurrent "slots" (i.e., requests or operations)
+            that may be occupied at once. This defines the upper limit for a burst of activity before
+            backoff or throttling is enforced. Must be at least 1.
+        slot_decay_per_second (float): The sustained refill rate for the policy, in slots/second.
+            This represents how quickly occupied "slots" become available again (i.e., how fast
+            you can recover from a burst and resume sending requests). Must be greater than 0.
+        name (str | None): Optional explicit Prefect global concurrency limit name. If not set,
+            a default name will be constructed based on the provider string.
+
+    Example:
+        ```python
+        RATE_LIMIT_POLICY = ProviderRateLimitPolicy(
+            burst_capacity=100,
+            slot_decay_per_second=10.0,
+        )
+        ```
+
+    Declared on a provider HTTP client as ``RATE_LIMIT_POLICY`` and registered cluster-wide
+    via ``make prefect-controls``. Prefect applies the limit before each outbound request starts;
+    it does not hold a slot for the full HTTP round-trip.
+
+    Tuning for faster API calls:
+        1. Edit ``RATE_LIMIT_POLICY`` on the provider client (for example
+           ``providers/eodhd/client.py``).
+        2. Raise ``burst_capacity`` to allow more request starts in a short burst before
+           Prefect throttles. Raise ``slot_decay_per_second`` to increase sustained
+           starts/second after a burst.
+        3. Re-register: ``make prefect-controls`` against the same ``PREFECT_API_URL`` as workers.
+        4. For one flow run, also raise deployment params such as EOD backfill ``batch_size``.
+
+    Stay below the provider's real quota; HTTP 429 handling still applies when the limit is hit.
+    """
 
     burst_capacity: int
     """Burst capacity: maximum occupied rate-limit slots at once."""
@@ -96,7 +130,7 @@ def lake_writer_limit(operation: str | None = None) -> Generator[None]:
 
     The default is fail-open so local development and first-run bootstrap do not
     break if the Prefect server has not had limits created yet. Set
-    PREFECT_GLOBAL_LIMITS_STRICT=true in production once limits are managed.
+    PREFECT_GLOBAL_LIMITS_STRICT=true only after limits are managed.
     """
     global _lake_writer_limit_missing
 
@@ -212,7 +246,7 @@ async def setup_prefect_limits(
     dry_run: bool,
 ) -> int:
     """Upsert Prefect global limits for shared lake and provider API resources."""
-    lake_limit = _env_int("PREFECT_LAKE_WRITER_LIMIT", DEFAULT_PREFECT_LAKE_WRITER_LIMIT)
+    lake_limit = get_settings().resolved_prefect_lake_writer_limit()
     provider_limits = list(provider_rate_limit_registrations(providers))
 
     if dry_run:
@@ -244,20 +278,21 @@ async def setup_prefect_limits(
 
 
 def _strict_limits() -> bool:
-    return os.getenv("PREFECT_GLOBAL_LIMITS_STRICT", "").lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
+    configured = _env_bool("PREFECT_GLOBAL_LIMITS_STRICT")
+    return configured is True
 
 
 def _global_limit_message(action: str, name: str, limit: int) -> str:
     return f"{action} global limit {name}: limit={limit}"
 
 
-def _env_int(name: str, default: int) -> int:
-    raw = os.getenv(name, "").strip()
-    if not raw:
-        return default
-    return int(raw)
+def _env_bool(name: str) -> bool | None:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return None
+    value = raw.strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"{name} must be true or false, got {raw!r}")
