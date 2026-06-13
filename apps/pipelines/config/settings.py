@@ -21,17 +21,21 @@ PROD_MOTHERDUCK_ERROR: Final[str] = (
 )
 
 
-class Settings(BaseSettings):
-    """Runtime configuration for the pipelines app.
-
-    All values can be overridden via environment variables or a ``.env`` file.
-    Secrets are stored as ``SecretStr`` to prevent accidental logging.
-    """
+class _SettingsSection(BaseSettings):
+    """Base class for private settings sections."""
 
     model_config = SettingsConfigDict(env_file=str(APP_ROOT / ".env"), env_file_encoding="utf-8", extra="ignore")
 
-    # Data provider
+
+class _ProviderSettings(_SettingsSection):
+    """Provider credentials loaded from the runtime environment."""
+
     eodhd_api_key: SecretStr = Field(default=SecretStr(""), description="API key for EODHD.")
+
+
+class _LakeSettings(_SettingsSection):
+    """Lake configuration and derived dbt runtime settings."""
+
     motherduck_token: SecretStr = Field(
         default=SecretStr(""),
         description="MotherDuck token. When blank, lake.py falls back to the local DuckDB file.",
@@ -45,42 +49,10 @@ class Settings(BaseSettings):
         description="Optional local DuckDB file path when MOTHERDUCK_TOKEN is blank (LOCAL_LAKE_PATH).",
     )
 
-    # AWS credentials (used only in config/blocks.py to bootstrap the S3_BUCKET block)
-    aws_access_key_id: str = Field(default="", description="Access key ID for AWS.")
-    aws_secret_access_key: SecretStr = Field(default=SecretStr(""), description="Secret access key for AWS.")
-
-    # Prefect
-    prefect_api_url: str = "http://127.0.0.1:4200/api"
-    prefect_api_key: SecretStr = Field(default=SecretStr(""), description="API key for Prefect.")
-    prefect_lake_writer_limit: int = Field(
-        default=DEFAULT_PREFECT_LAKE_WRITER_LIMIT,
-        ge=1,
-        description="Prefect global concurrency slots for shared lake/dbt writes.",
-    )
-
-    # Environment
-    environment: Environment = "dev"
-
-    # Logging
-    pipeline_log_level: PipelineLogLevel = "INFO"
-    pipeline_log_format: PipelineLogFormat = "auto"
-
-    @property
-    def is_production(self) -> bool:
-        """Return ``True`` when running in the production environment."""
-        return self.environment == "prod"
-
     @property
     def motherduck_database_name(self) -> str:
         """Return the provider-specific MotherDuck database name for this lake."""
         return self.lake_name
-
-    @model_validator(mode="after")
-    def validate_environment(self) -> Settings:
-        """Reject unsafe production settings before any runtime work starts."""
-        if self.is_production and self.lake_backend() != "motherduck":
-            raise ValueError(PROD_MOTHERDUCK_ERROR)
-        return self
 
     def lake_backend(self) -> LakeBackend:
         """Return the active lake backend selected by runtime credentials."""
@@ -121,6 +93,55 @@ class Settings(BaseSettings):
         else:
             overlay["MOTHERDUCK_TOKEN"] = self.motherduck_token.get_secret_value().strip()
         return overlay
+
+
+class _AwsSettings(_SettingsSection):
+    """AWS credentials used to bootstrap configured Prefect blocks."""
+
+    aws_access_key_id: str = Field(default="", description="Access key ID for AWS.")
+    aws_secret_access_key: SecretStr = Field(default=SecretStr(""), description="Secret access key for AWS.")
+
+
+class _PrefectSettings(_SettingsSection):
+    """Prefect API and orchestration settings."""
+
+    prefect_api_url: str = "http://127.0.0.1:4200/api"
+    prefect_api_key: SecretStr = Field(default=SecretStr(""), description="API key for Prefect.")
+    prefect_lake_writer_limit: int = Field(
+        default=DEFAULT_PREFECT_LAKE_WRITER_LIMIT,
+        ge=1,
+        description="Prefect global concurrency slots for shared lake/dbt writes.",
+    )
+
+
+class _RuntimeSettings(_SettingsSection):
+    """Runtime environment and logging settings."""
+
+    environment: Environment = "dev"
+    pipeline_log_level: PipelineLogLevel = "INFO"
+    pipeline_log_format: PipelineLogFormat = "auto"
+
+    @property
+    def is_production(self) -> bool:
+        """Return ``True`` when running in the production environment."""
+        return self.environment == "prod"
+
+
+class Settings(_RuntimeSettings, _PrefectSettings, _AwsSettings, _LakeSettings, _ProviderSettings):
+    """Runtime configuration for the pipelines app.
+
+    All values can be overridden via environment variables or a ``.env`` file.
+    Secrets are stored as ``SecretStr`` to prevent accidental logging.
+    """
+
+    model_config = SettingsConfigDict(env_file=str(APP_ROOT / ".env"), env_file_encoding="utf-8", extra="ignore")
+
+    @model_validator(mode="after")
+    def validate_environment(self) -> Settings:
+        """Reject unsafe production settings before any runtime work starts."""
+        if self.is_production and self.lake_backend() != "motherduck":
+            raise ValueError(PROD_MOTHERDUCK_ERROR)
+        return self
 
 
 @lru_cache(maxsize=1)
