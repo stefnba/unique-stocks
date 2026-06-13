@@ -49,3 +49,28 @@ def record_exchange_holiday_bronze_materialization(**metadata: object) -> None:
         materializer=_record_bronze_exchange_holiday_materialization,
         metadata=metadata,
     )
+
+
+@materialize(
+    Asset(
+        key="duckdb://unique-stocks/silver/exchange_schedule",
+        properties=AssetProperties(name="Silver exchange schedule"),
+    ),
+    Asset(
+        key="duckdb://unique-stocks/gold/exchange_schedule",
+        properties=AssetProperties(name="Gold exchange schedule"),
+    ),
+    by="dbt",
+    name="record-dbt-exchange-schedule-materializations",
+)
+def _record_dbt_exchange_schedule_materializations(**metadata: object) -> dict[str, object]:
+    return metadata
+
+
+def record_exchange_schedule_dbt_materialization(**metadata: object) -> None:
+    """Record Prefect materializations for dbt-built exchange schedule assets."""
+    record_prefect_materialization(
+        materialization_name="dbt.exchange_schedule",
+        materializer=_record_dbt_exchange_schedule_materializations,
+        metadata=metadata,
+    )

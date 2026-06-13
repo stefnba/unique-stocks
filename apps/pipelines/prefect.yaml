@@ -45,7 +45,7 @@ definitions:
     work_pool: *default_pool
 
   dbt_build: &dbt_build
-    entrypoint: core.transforms.dbt:dbt_build_flow
+    entrypoint: domains.dbt:dbt_build_flow
     flow_name: dbt-build
     enforce_parameter_schema: true
     concurrency_limit:

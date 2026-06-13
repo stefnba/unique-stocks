@@ -24,3 +24,28 @@ def record_instrument_bronze_materialization(**metadata: object) -> None:
         materializer=_record_bronze_instrument_materialization,
         metadata=metadata,
     )
+
+
+@materialize(
+    Asset(
+        key="duckdb://unique-stocks/silver/instrument",
+        properties=AssetProperties(name="Silver instrument"),
+    ),
+    Asset(
+        key="duckdb://unique-stocks/gold/instrument",
+        properties=AssetProperties(name="Gold instrument"),
+    ),
+    by="dbt",
+    name="record-dbt-instrument-materializations",
+)
+def _record_dbt_instrument_materializations(**metadata: object) -> dict[str, object]:
+    return metadata
+
+
+def record_instrument_dbt_materialization(**metadata: object) -> None:
+    """Record Prefect materializations for dbt-built instrument assets."""
+    record_prefect_materialization(
+        materialization_name="dbt.instrument",
+        materializer=_record_dbt_instrument_materializations,
+        metadata=metadata,
+    )

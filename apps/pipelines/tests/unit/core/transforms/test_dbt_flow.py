@@ -15,6 +15,22 @@ from config.settings import APP_ROOT, Settings
 from core.transforms import dbt
 
 
+def test_record_dbt_asset_materializations_calls_hook() -> None:
+    """Core dbt orchestration should call the injected asset materializer hook."""
+    calls: list[dict[str, object]] = []
+
+    def record_assets(*, select: Sequence[str], metadata: dict[str, object]) -> None:
+        calls.append({"select": list(select), "metadata": metadata})
+
+    dbt._record_dbt_asset_materializations(
+        asset_materializer=record_assets,
+        select=["path:models/marts/price"],
+        metadata={"dbt_run_id": "run-1"},
+    )
+
+    assert calls == [{"select": ["path:models/marts/price"], "metadata": {"dbt_run_id": "run-1"}}]
+
+
 def test_run_dbt_command_uses_app_root_paths_and_env_overlay(
     monkeypatch: MonkeyPatch,
     tmp_path: Path,

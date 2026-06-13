@@ -9,9 +9,10 @@ import shutil
 import subprocess
 import sys
 import uuid
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 import structlog
 from prefect import flow, task
@@ -25,12 +26,18 @@ from core.ingestion.serialization import jsonable
 from core.lake.database import ensure_lake_database
 from core.prefect.events import emit_prefect_dbt_failure_event
 from core.prefect.limits import lake_writer_limit
-from core.transforms.dbt_assets import record_dbt_asset_materializations
 
 log = structlog.get_logger(__name__)
 
 type DbtCommand = Literal["build", "run", "test", "compile"]
 type DbtIndirectSelection = Literal["eager", "cautious", "buildable", "empty"]
+
+
+class DbtAssetMaterializer(Protocol):
+    """Callable that records app-specific dbt asset materializations."""
+
+    def __call__(self, *, select: Sequence[str], metadata: dict[str, object]) -> None:
+        """Record materializations for the dbt assets selected by a command."""
 
 
 class DbtCommandResult(BaseModel):
@@ -66,6 +73,32 @@ async def dbt_build_flow(
     parent_run_id: str | None = None,
 ) -> dict[str, object]:
     """Run dbt as a transformation flow and persist its ``run_results.json`` artifact."""
+    return await run_dbt_build(
+        command=command,
+        select=select,
+        exclude=exclude,
+        indirect_selection=indirect_selection,
+        project_dir=project_dir,
+        profiles_dir=profiles_dir,
+        target=target,
+        parent_run_id=parent_run_id,
+        asset_materializer=None,
+    )
+
+
+async def run_dbt_build(
+    *,
+    command: DbtCommand = "build",
+    select: list[str] | None = None,
+    exclude: list[str] | None = None,
+    indirect_selection: DbtIndirectSelection | None = "buildable",
+    project_dir: str = "dbt",
+    profiles_dir: str = "dbt",
+    target: str | None = None,
+    parent_run_id: str | None = None,
+    asset_materializer: DbtAssetMaterializer | None = None,
+) -> dict[str, object]:
+    """Run dbt and optionally record app-specific asset materializations."""
     select = select or []
     exclude = exclude or []
     settings = get_settings()
@@ -90,6 +123,7 @@ async def dbt_build_flow(
             "project_dir": str(project_path),
             "profiles_dir": str(profiles_path),
             "target": resolved_target,
+            "record_dbt_assets": asset_materializer is not None,
         },
         parent_run_id=parent_run_id,
     ) as run:
@@ -145,7 +179,8 @@ async def dbt_build_flow(
                     artifact_path=result.artifact_path,
                 )
             elif command in {"build", "run"}:
-                record_dbt_asset_materializations(
+                _record_dbt_asset_materializations(
+                    asset_materializer=asset_materializer,
                     select=select,
                     metadata={
                         "dbt_run_id": dbt_run_id,
@@ -375,6 +410,18 @@ def _record_dbt_node_results(*, dbt_run_id: str, artifact: dict[str, Any] | None
     return len(rows)
 
 
+def _record_dbt_asset_materializations(
+    *,
+    asset_materializer: DbtAssetMaterializer | None,
+    select: Sequence[str],
+    metadata: dict[str, object],
+) -> None:
+    """Record app-specific dbt asset materializations when a hook is configured."""
+    if not asset_materializer:
+        return
+    asset_materializer(select=select, metadata=metadata)
+
+
 def _dbt_base_command() -> list[str]:
     """Return a dbt executable command that works in uv and deployed environments."""
     if dbt_path := shutil.which("dbt"):
@@ -477,4 +524,4 @@ def _now() -> datetime:
     return datetime.now(UTC).replace(microsecond=0)
 
 
-__all__ = ["dbt_build_flow", "read_dbt_run_results", "run_dbt_command"]
+__all__ = ["dbt_build_flow", "read_dbt_run_results", "run_dbt_build", "run_dbt_command"]
