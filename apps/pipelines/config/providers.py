@@ -1,6 +1,6 @@
 """Stable provider identity keys for the pipelines app.
 
-Executable provider wiring belongs in ``registry.provider_registry``.
+Executable provider wiring belongs in ``providers.registry``.
 """
 
 from enum import StrEnum

@@ -1,7 +1,7 @@
 """Stable domain identity keys for the pipelines app.
 
 Executable domain metadata and cross-domain wiring belong in
-``registry.domain_registry``.
+``domains.registry``.
 """
 
 from enum import StrEnum

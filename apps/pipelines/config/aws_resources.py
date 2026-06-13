@@ -1,11 +1,14 @@
-"""Non-secret AWS resource defaults for the pipelines app."""
+"""Non-secret AWS resource base defaults for the pipelines app."""
 
-from core.utils.env import by_env
-
-# AWS region and bucket name
 DEFAULT_REGION = "eu-central-1"
-DEFAULT_BUCKET_NAME = by_env(default="unique-stocks", add_env="suffix")
+DEFAULT_BUCKET_BASE_NAME = "unique-stocks"
 
-# IAM user and policy names
-DEFAULT_IAM_USER = by_env(default="unique-stocks-pipelines", add_env="suffix")
-DEFAULT_INLINE_POLICY_NAME = by_env(default="unique-stocks-pipelines-s3-landing", add_env="suffix")
+DEFAULT_IAM_USER_BASE_NAME = "unique-stocks-pipelines"
+DEFAULT_INLINE_POLICY_BASE_NAME = "unique-stocks-pipelines-s3-landing"
+
+__all__ = [
+    "DEFAULT_BUCKET_BASE_NAME",
+    "DEFAULT_IAM_USER_BASE_NAME",
+    "DEFAULT_INLINE_POLICY_BASE_NAME",
+    "DEFAULT_REGION",
+]
