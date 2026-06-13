@@ -2,7 +2,7 @@
 .PHONY: help install setup blocks-save s3-landing-zone lake-env-guard prefect-api-guard confirm-destructive
 .PHONY: ci-local check test test-unit test-integration lint lint-fix format format-check typecheck
 .PHONY: python-lint python-lint-fix python-format python-format-check sql-lint sql-format text-format text-format-check
-.PHONY: smoke operational-health dashboard prefect-controls prefect-server prefect-worker
+.PHONY: smoke operational-health dashboard prefect-limits prefect-automations prefect-controls prefect-server prefect-worker
 .PHONY: docker-up docker-down docker-down-volumes docker-logs docker-logs-worker docker-logs-dashboard docker-ps docker-setup docker-prod-config
 .PHONY: lake-reset-local lake-migration lake-migration-status lake-ensure-database lake-migrate lake-ui
 .PHONY: deploy deploy-dry deploy-upsert deploy-dry-manifest
