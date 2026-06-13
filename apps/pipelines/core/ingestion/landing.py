@@ -7,10 +7,10 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import date, datetime
 
-from core.clients.storage.s3.base import S3ObjectRef, S3StorageClient
 from core.ingestion.keys import LandingDomain, LandingFileFormat, ObjectStorageKey
 from core.ingestion.partitioning import LandingPartitionSchema, normalize_partitions, partition_field_names
 from core.ingestion.serialization import jsonable
+from core.storage.s3.base import S3ObjectRef, S3StorageClient
 
 
 @dataclass(frozen=True, slots=True)

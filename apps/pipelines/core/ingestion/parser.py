@@ -11,8 +11,8 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any, Protocol
 
-from core.clients.storage.s3.base import S3ObjectRef
 from core.models import BronzeModel
+from core.storage.s3.base import S3ObjectRef
 
 type ParseFailureHandler[RawT] = Callable[[RawT, Exception], None]
 type StrictRowBuilder[RawT, RowT: BronzeModel] = Callable[[RawT], RowT]

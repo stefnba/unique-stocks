@@ -18,8 +18,8 @@ from hashlib import sha256
 from typing import Any, Literal, Protocol
 from uuid import UUID
 
+from core.ingestion.audit_tables import PIPELINE_INGESTION_COVERAGE_TABLE, PipelineIngestionCoverageRow
 from core.ingestion.serialization import canonical_json, jsonable
-from lake.schema import PIPELINE_INGESTION_COVERAGE_TABLE, PipelineIngestionCoverageRow
 
 INGESTION_COVERAGE_TABLE_NAME = PIPELINE_INGESTION_COVERAGE_TABLE.table_name
 

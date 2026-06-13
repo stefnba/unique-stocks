@@ -1,25 +1,22 @@
-"""Canonical object-key layout for ingestion data."""
+"""Canonical object-key layout for ingestion data.
+
+This core module defines generic object-storage key mechanics only. It accepts
+domain identifiers as strings so ``core`` does not own or import the app's
+business-domain vocabulary. Concrete domain identities live in
+``config.domains.Domain``.
+"""
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
-from enum import StrEnum
 from typing import Literal, Self
 
 from core.ingestion.partitioning import PartitionValue, partition_path, serialize_partition_value
 
 type LandingLayer = Literal["landing"]
 type LandingFileFormat = Literal["json", "jsonl", "csv"]
-
-
-class LandingDomain(StrEnum):
-    """Logical domain segments used in ingestion object keys."""
-
-    EXCHANGE = "exchange"
-    EXCHANGE_SCHEDULE = "exchange_schedule"
-    EOD_PRICE = "eod_price"
-    FUNDAMENTAL = "fundamental"
-    INSTRUMENT = "instrument"
+type LandingDomain = str
+"""Logical domain segment used in ingestion object keys."""
 
 
 def utc_now_stamp() -> str:

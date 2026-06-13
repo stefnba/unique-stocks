@@ -1,4 +1,10 @@
-"""Ingestion utilities."""
+"""Generic ingestion utilities.
+
+This package owns reusable landing, parsing, Bronze-write, coverage, and audit
+helpers. It does not own this app's concrete domain vocabulary; use
+``config.domains.Domain`` in app/domain code and pass those values into these
+generic helpers.
+"""
 
 from .coverage import (
     COVERAGE_STATUS_NO_DATA,
@@ -13,18 +19,16 @@ from .keys import LandingDomain
 from .landing import LandingTarget, LandingWrite
 from .parser import BestEffortParseResult, BronzeParseResult
 from .run_tracking import (
+    LandingObjectRecord,
     PipelineRunScope,
     PipelineRunTracker,
     PipelineUnitScope,
-    terminal_status,
-)
-from .run_tracking_records import (
-    LandingObjectRecord,
     RejectionRecord,
     RunCounters,
     RunStatus,
     RunUnitRecord,
     RunUnitTally,
+    terminal_status,
 )
 
 __all__ = [
