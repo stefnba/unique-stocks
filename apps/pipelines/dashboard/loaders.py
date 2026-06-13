@@ -7,7 +7,7 @@ from typing import Any
 
 import streamlit as st
 
-from core.clients.lake import DataLakeClient
+from core.lake import DataLakeClient
 from dashboard.constants import (
     CACHE_TTL_SECONDS,
     DBT_NODE_RESULTS_LIMIT,

@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Protocol, cast
 
-from core.clients.lake.sql import SqlTemplateContext
+from core.lake.sql import SqlTemplateContext
 
 _SQL_DIR = Path(__file__).with_name("sql")
 
