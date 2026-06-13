@@ -1,11 +1,4 @@
-"""Generic infrastructure for typed Prefect block handles.
-
-This module is app-agnostic.  It provides ``BlockEntry``, ``define_block``,
-and ``ExistsMode`` — the building blocks used by ``config/blocks.py`` to
-define the project's concrete block registry.
-"""
-
-from __future__ import annotations
+"""Generic infrastructure for typed Prefect block handles."""
 
 from dataclasses import dataclass
 from typing import Literal, cast
