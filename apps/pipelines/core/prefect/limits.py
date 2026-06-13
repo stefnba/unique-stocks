@@ -62,7 +62,7 @@ class ProviderRateLimitPolicy:
            Prefect throttles. Raise ``slot_decay_per_second`` to increase sustained
            starts/second after a burst.
         3. Re-register: ``make prefect-controls`` against the same ``PREFECT_API_URL`` as workers.
-        4. For one flow run, also raise deployment params such as EOD backfill ``batch_size``.
+        4. For one flow run, also raise deployment params such as ``batch_size``.
 
     Stay below the provider's real quota; HTTP 429 handling still applies when the limit is hit.
     """
