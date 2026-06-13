@@ -1,6 +1,6 @@
 import pytest
 
-from core.clients.storage.s3.provisioning import (
+from core.storage.s3.provisioning import (
     TLS_POLICY_SID,
     LandingZoneConfig,
     ProvisioningError,

@@ -1,7 +1,7 @@
 """Tests for the app-level lake schema registry."""
 
+from config.domains import Domain
 from config.settings import APP_ROOT
-from core.ingestion import LandingDomain
 from core.lake.migration.files import list_migration_files
 from core.lake.schema.ddl import render_greenfield_schema_sql
 from lake.schema import ALL_TABLES, BRONZE_TABLES
@@ -74,7 +74,7 @@ def test_lake_schema_uses_singular_domain_names() -> None:
         "fundamental_fund_metric_fact",
         "fundamental_index_component",
     )
-    assert tuple(domain.value for domain in LandingDomain) == (
+    assert tuple(domain.value for domain in Domain if domain != Domain.DBT) == (
         "exchange",
         "exchange_schedule",
         "eod_price",

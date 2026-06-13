@@ -9,7 +9,7 @@ from pytest import CaptureFixture
 from structlog.testing import capture_logs
 
 from config.settings import Settings
-from core.clients.http.base import REDACTED_QUERY_VALUE, HttpClientBase, ProviderRateLimitError
+from core.http.base import REDACTED_QUERY_VALUE, HttpClientBase, ProviderRateLimitError
 from core.prefect.limits import ProviderRateLimitPolicy
 from core.utils.logging import configure_logging
 
@@ -66,7 +66,7 @@ async def test_http_client_waits_for_provider_api_credit(monkeypatch: pytest.Mon
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=[], request=request)
 
-    monkeypatch.setattr("core.clients.http.base.wait_for_provider_api_credit", wait_for_credit)
+    monkeypatch.setattr("core.http.base.wait_for_provider_api_credit", wait_for_credit)
 
     async with _DemoClient(httpx.MockTransport(handler)) as client:
         await client._request("/prices", params={"symbol": "AAPL.US"})

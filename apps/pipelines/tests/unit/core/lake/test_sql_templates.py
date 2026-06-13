@@ -7,7 +7,7 @@ import duckdb
 import pytest
 from jinja2 import UndefinedError
 
-from core.clients.lake import DataLakeClient, render_sql_file
+from core.lake import DataLakeClient, render_sql_file
 
 
 def test_query_file_renders_trusted_relation_and_keeps_value_params(tmp_path: Path) -> None:
