@@ -15,31 +15,31 @@
 
 ## Pipeline structure
 
-- Keep a strict boundary between reusable pipeline infrastructure and this app's business vocabulary.
-- Use these questions to decide where pipeline code belongs:
-  - `apps/pipelines/config/` answers: "What are the app's passive settings and names?"
-    Use it for environment-backed settings, stable enums, identity keys, and static non-secret defaults. Avoid executable wiring, registries, factories, or behavior.
-  - `apps/pipelines/platform/` answers: "How is this app wired into Prefect, AWS, deployment, and runtime services?"
-    Use it for app-specific Prefect block definitions, automation setup, concurrency limits, deployment registration, AWS resource naming, and other runtime/platform wiring. Generic reusable helpers still belong in `core/`.
-  - `apps/pipelines/orchestration/` answers: "How do pipeline jobs compose and run?"
-    Use it for flow composition, post-ingestion build policy, smoke-run composition, and app-level workflows that connect domains, dbt, and runtime behavior.
-  - `apps/pipelines/core/` answers: "What reusable machinery exists without knowing this app?"
-    Use it for generic HTTP clients, storage/lake primitives, ingestion helpers, run tracking, schema/migration helpers, Prefect helper abstractions, dbt command execution, and small utilities. `core/` must not import concrete providers, domains, app registries, app settings, Prefect block names, dbt asset groups, or business-specific table manifests.
-  - `apps/pipelines/providers/` answers: "How do we talk to an external data provider?"
-    Use it for concrete provider clients, provider API models, provider identifier rules, and provider-owned parsing or normalization. Providers may depend on `core`, but `core` must not depend on providers.
-  - `apps/pipelines/domains/` answers: "What business ingestion logic does this app own?"
-    Use it for domain models, Bronze table specs, datasets, parsers, tasks, flows, and domain-specific selection logic. New ingestion domains should follow the same local shape unless there is a clear reason not to.
-  - `apps/pipelines/lakehouse/` answers: "Which concrete lake schemas, tables, and migrations does this app ship?"
-    Use it for app-level lake schema registries and migrations that compose core audit tables plus domain-owned Bronze tables. Generic lake clients and schema primitives stay in `core/lake/`.
-  - `apps/pipelines/dbt/` answers: "How does Bronze become Silver and Gold?"
-    Use it for dbt sources, staging models, intermediate models, marts, seeds, macros, snapshots, and dbt tests. Python ingestion should hand off typed Bronze records; dbt owns transformation semantics.
-  - `apps/pipelines/dashboard/` answers: "How do operators inspect pipeline health?"
-    Use it for the Streamlit operational dashboard, read models, dashboard SQL, filters, tables, routing, and presentation code.
-  - `apps/pipelines/scripts/` answers: "What command-line adapter does an operator run?"
-    Use it for thin entrypoints only: argument parsing, environment defaults, console output, and exit codes. Reusable behavior belongs in `core/`, `platform/`, `orchestration/`, domains, providers, lakehouse modules, or dashboard modules.
-- Shared ingestion surfaces belong under `apps/pipelines/core/ingestion/`: landing targets for raw object storage and Bronze datasets for lake writes.
-- S3 storage code belongs under `apps/pipelines/core/storage/s3/`.
-- Lake access code belongs under `apps/pipelines/core/lake/`.
+Keep a strict boundary between reusable pipeline machinery and this app's
+business vocabulary. Use the table below to decide where pipeline code belongs.
+Paths are relative to `apps/pipelines/`.
+
+| Folder           | Question it answers                                                        | Belongs here                                                                                                                                                                                                     |
+| ---------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `config/`        | What are the app's passive settings and names?                             | Environment-backed settings, stable enums, identity keys, and static non-secret defaults. Avoid executable wiring, registries, factories, or behavior.                                                           |
+| `platform/`      | How is this app wired into Prefect, AWS, deployment, and runtime services? | App-specific Prefect block definitions, automation setup, concurrency limits, deployment registration, AWS resource naming, and other runtime/platform wiring. Generic reusable helpers still belong in `core/`. |
+| `orchestration/` | How do pipeline jobs compose and run?                                      | Flow composition, post-ingestion build policy, smoke-run composition, and app-level workflows that connect domains, dbt, and runtime behavior.                                                                   |
+| `core/`          | What reusable machinery exists without knowing this app?                   | Generic HTTP clients, storage/lake primitives, ingestion helpers, run tracking, schema/migration helpers, Prefect helper abstractions, dbt command execution, and small utilities.                               |
+| `providers/`     | How do we talk to an external data provider?                               | Concrete provider clients, provider API models, provider identifier rules, and provider-owned parsing or normalization.                                                                                          |
+| `domains/`       | What business ingestion logic does this app own?                           | Domain models, Bronze table specs, datasets, parsers, tasks, flows, and domain-specific selection logic. New ingestion domains should follow the same local shape unless there is a clear reason not to.         |
+| `lakehouse/`     | Which concrete lake schemas, tables, and migrations does this app ship?    | App-level lake schema registries and migrations that compose core audit tables plus domain-owned Bronze tables. Generic lake clients and schema primitives stay in `core/lake/`.                                 |
+| `dbt/`           | How does Bronze become Silver and Gold?                                    | dbt sources, staging models, intermediate models, marts, seeds, macros, snapshots, and dbt tests. Python ingestion should hand off typed Bronze records; dbt owns transformation semantics.                      |
+| `dashboard/`     | How do operators inspect pipeline health?                                  | Streamlit operational dashboard code, read models, dashboard SQL, filters, tables, routing, and presentation code.                                                                                               |
+| `scripts/`       | What command-line adapter does an operator run?                            | Thin entrypoints only: argument parsing, environment defaults, console output, and exit codes. Reusable behavior belongs outside `scripts/`.                                                                     |
+
+Boundary rules:
+
+- `core/` must not import concrete providers, domains, app registries, app settings, Prefect block names, dbt asset groups, or business-specific table manifests.
+- Provider packages may depend on `core`, but `core` must not depend on providers.
+- Shared ingestion surfaces belong under `core/ingestion/`: landing targets for raw object storage and Bronze datasets for lake writes.
+- S3 storage code belongs under `core/storage/s3/`.
+- Lake access code belongs under `core/lake/`.
+- Keep registries close to the thing they register: domain catalogs in `domains/`, provider catalogs in `providers/`, dbt/build mappings in `orchestration/`, and runtime service wiring in `platform/`.
 - Do not import `boto3` directly in domain code.
 - Do not import `duckdb` directly in domain code.
 - Do not read credentials from `SETTINGS` in tasks or flows. Load credentials from `BlockRegistry` at runtime.
