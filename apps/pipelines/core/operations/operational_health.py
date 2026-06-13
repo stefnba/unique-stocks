@@ -11,14 +11,8 @@ from typing import Any, Protocol
 
 from core.clients.lake import DataLakeClient
 from core.operations.health_common import prefect_api_is_healthy
+from core.prefect.events import emit_prefect_stale_runs_event
 from core.utils.redaction import redact_sensitive_query_params
-
-try:
-    from core.prefect.events import emit_prefect_stale_runs_event
-except ImportError:
-    from core.prefect.controls import emit_stale_runs_event as emit_prefect_stale_runs_event
-
-emit_stale_runs_event = emit_prefect_stale_runs_event
 
 
 class OperationalHealthLake(Protocol):

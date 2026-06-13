@@ -18,8 +18,7 @@ import httpx
 import structlog
 from pydantic import BaseModel
 
-from core.prefect.concurrency import ProviderRateLimitPolicy
-from core.prefect.controls import wait_for_provider_api_credit
+from core.prefect.limits import ProviderRateLimitPolicy, wait_for_provider_api_credit
 from core.utils.redaction import redact_sensitive_query_params
 
 log = structlog.get_logger(__name__)

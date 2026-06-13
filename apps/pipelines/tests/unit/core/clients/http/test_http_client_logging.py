@@ -10,7 +10,7 @@ from structlog.testing import capture_logs
 
 from config.settings import Settings
 from core.clients.http.base import REDACTED_QUERY_VALUE, HttpClientBase, ProviderRateLimitError
-from core.prefect.concurrency import ProviderRateLimitPolicy
+from core.prefect.limits import ProviderRateLimitPolicy
 from core.utils.logging import configure_logging
 
 SECRET_TOKEN = "provider-token-123"

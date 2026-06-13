@@ -16,7 +16,7 @@ import structlog
 from core.clients.lake.sql import SqlTemplateContext
 from core.clients.lake.sql import render_sql_file as render_lake_sql_file
 from core.lake.database import ensure_lake_database, motherduck_connection_string
-from core.prefect.controls import lake_writer_limit
+from core.prefect.limits import lake_writer_limit
 
 log = structlog.get_logger(__name__)
 

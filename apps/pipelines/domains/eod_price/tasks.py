@@ -7,6 +7,7 @@ fetch, validate, or write. No business logic.
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, TypedDict
+from uuid import uuid4
 
 import structlog
 from prefect import task
@@ -958,19 +959,25 @@ def _insert_eod_price_records_ignore_existing(lake: Any, records: list[dict[str,
         lake.execute(EOD_PRICE_DATASET.table.to_ddl())
 
     qualified = lake.qualified_name(EOD_PRICE_DATASET.schema, EOD_PRICE_DATASET.table_name)
-    before = _table_count(lake, qualified)
     columns = list(records[0].keys())
     column_names = ", ".join(_quote_identifier(column) for column in columns)
     placeholders = ", ".join("?" for _ in columns)
     values = [[record[column] for column in columns] for record in records]
-    lake.connection.executemany(f"INSERT OR IGNORE INTO {qualified} ({column_names}) VALUES ({placeholders})", values)
-    return _table_count(lake, qualified) - before
-
-
-def _table_count(lake: Any, qualified: str) -> int:
-    """Return the current row count for a qualified table name."""
-    row = lake.query_one(f"SELECT COUNT(*) AS cnt FROM {qualified}")
-    return int(row["cnt"]) if row else 0
+    stage_name = _quote_identifier(f"tmp_eod_price_insert_{uuid4().hex}")
+    lake.connection.execute(f"CREATE TEMP TABLE {stage_name} AS SELECT {column_names} FROM {qualified} LIMIT 0")
+    try:
+        lake.connection.executemany(f"INSERT INTO {stage_name} ({column_names}) VALUES ({placeholders})", values)
+        inserted = lake.connection.execute(
+            f"""
+            INSERT OR IGNORE INTO {qualified} ({column_names})
+            SELECT {column_names}
+            FROM {stage_name}
+            RETURNING 1
+            """
+        ).fetchall()
+    finally:
+        lake.connection.execute(f"DROP TABLE IF EXISTS {stage_name}")
+    return len(inserted)
 
 
 def _quote_identifier(value: str) -> str:

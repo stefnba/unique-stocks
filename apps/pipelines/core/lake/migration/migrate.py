@@ -14,7 +14,7 @@ from core.lake.migration.refs import load_table_specs
 from core.lake.migration.runner import apply_pending_migrations, plan_migrations
 from core.lake.migration.validation import has_any_desired_table, validate_lake_schema
 from core.lake.schema.table import TableModel
-from core.prefect.controls import lake_writer_limit
+from core.prefect.limits import lake_writer_limit
 
 DEFAULT_TABLES_REF = "lake.schema:ALL_TABLES"
 

@@ -11,7 +11,7 @@ from prefect.client.orchestration import get_client
 from prefect.events.actions import DoNothing, SendNotification
 from prefect.events.schemas.automations import AutomationCore, EventTrigger, Posture
 
-from core.prefect.controls import (
+from core.prefect.events import (
     COVERAGE_GATE_FAILED_EVENT,
     DBT_FAILED_EVENT,
     INGESTION_FAILED_EVENT,

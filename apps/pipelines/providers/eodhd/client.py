@@ -11,7 +11,7 @@ import httpx
 import structlog
 
 from core.clients.http.base import HttpClientBase
-from core.prefect.concurrency import ProviderRateLimitPolicy
+from core.prefect.limits import ProviderRateLimitPolicy
 from providers.registry import Provider
 
 from .models import (

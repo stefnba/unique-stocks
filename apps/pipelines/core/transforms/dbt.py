@@ -24,8 +24,8 @@ from core.ingestion import PipelineRunTracker, RunCounters, terminal_status
 from core.ingestion.serialization import jsonable
 from core.lake.database import ensure_lake_database
 from core.prefect.assets import record_prefect_dbt_materializations
-from core.prefect.controls import lake_writer_limit
 from core.prefect.events import emit_prefect_dbt_failure_event
+from core.prefect.limits import lake_writer_limit
 
 log = structlog.get_logger(__name__)
 
