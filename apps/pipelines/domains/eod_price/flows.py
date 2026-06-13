@@ -32,7 +32,6 @@ from core.ingestion import (
     terminal_status,
 )
 from core.ingestion.parser import attach_source_uri
-from core.prefect.assets import record_prefect_bronze_eod_price_materialization
 from core.prefect.events import emit_prefect_coverage_gate_failure_event, publish_prefect_ingestion_summary
 from core.transforms import DbtBuildDeployment, run_dbt_build_after_ingestion, run_dbt_build_deployment
 from domains.eod_price.models import EODBar
@@ -59,6 +58,8 @@ from domains.eod_price.tasks import (
     write_instrument_eod_history_to_landing,
 )
 from providers.eodhd.models import EODBulkPriceRaw, EODPriceBarRaw
+
+from .assets import record_eod_price_bronze_materialization
 
 log = structlog.get_logger(__name__)
 _REJECTION_SAMPLE_LIMIT_PER_UNIT = 100
@@ -219,7 +220,7 @@ async def eod_price_flow(
                         source_uri=landing.source_uri,
                     )
                     if bronze.rows_written:
-                        record_prefect_bronze_eod_price_materialization(
+                        record_eod_price_bronze_materialization(
                             app_run_id=run.run_id,
                             provider_exchange_code=provider_exchange_code,
                             bar_date=bar_date.isoformat(),
@@ -1007,7 +1008,7 @@ async def eod_price_backfill_flow(
                         batch_written = bronze_batch.rows_written
                         exchange_written += batch_written
                         if batch_written:
-                            record_prefect_bronze_eod_price_materialization(
+                            record_eod_price_bronze_materialization(
                                 app_run_id=run.run_id,
                                 provider_exchange_code=provider_exchange_code,
                                 from_date=_iso_date(from_date),

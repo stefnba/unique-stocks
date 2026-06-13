@@ -6,8 +6,13 @@ from datetime import date
 import structlog
 from prefect import flow
 
-from core.ingestion import PipelineRunTracker, RunCounters, RunStatus, RunUnitTally, terminal_status
-from core.prefect.assets import record_prefect_bronze_materializations
+from core.ingestion import (
+    PipelineRunTracker,
+    RunCounters,
+    RunStatus,
+    RunUnitTally,
+    terminal_status,
+)
 from core.prefect.events import publish_prefect_ingestion_summary
 from core.transforms import run_dbt_build_after_ingestion
 from domains.exchange_schedule.tasks import (
@@ -18,6 +23,11 @@ from domains.exchange_schedule.tasks import (
     write_bronze_exchange_holiday,
     write_bronze_exchange_schedule,
     write_schedule_to_landing_zone,
+)
+
+from .assets import (
+    record_exchange_holiday_bronze_materialization,
+    record_exchange_schedule_bronze_materialization,
 )
 
 log = structlog.get_logger(__name__)
@@ -211,21 +221,21 @@ async def exchange_schedule_flow(
             )
             schedule_rows = sum(row.get("schedule_rows", 0) for row in summary["exchange"].values())
             holiday_rows = sum(row.get("holiday_rows", 0) for row in summary["exchange"].values())
-            asset_names = []
             if schedule_rows:
-                asset_names.append("exchange_schedule")
+                record_exchange_schedule_bronze_materialization(
+                    app_run_id=run.run_id,
+                    snapshot_date=snapshot_date.isoformat(),
+                    provider="eodhd",
+                    schedule_rows=schedule_rows,
+                    holiday_rows=holiday_rows,
+                )
             if holiday_rows:
-                asset_names.append("exchange_holiday")
-            if asset_names:
-                record_prefect_bronze_materializations(
-                    asset_names,
-                    metadata={
-                        "app_run_id": run.run_id,
-                        "snapshot_date": snapshot_date.isoformat(),
-                        "provider": "eodhd",
-                        "schedule_rows": schedule_rows,
-                        "holiday_rows": holiday_rows,
-                    },
+                record_exchange_holiday_bronze_materialization(
+                    app_run_id=run.run_id,
+                    snapshot_date=snapshot_date.isoformat(),
+                    provider="eodhd",
+                    schedule_rows=schedule_rows,
+                    holiday_rows=holiday_rows,
                 )
             await publish_prefect_ingestion_summary(
                 flow_name="exchange-schedule-refresh",
@@ -236,7 +246,11 @@ async def exchange_schedule_flow(
             )
         except Exception as exc:
             if not run.is_terminal:
-                run.fail(exc, counters=_schedule_counters(tally=run.tally, summary=summary), summary=summary)
+                run.fail(
+                    exc,
+                    counters=_schedule_counters(tally=run.tally, summary=summary),
+                    summary=summary,
+                )
             await publish_prefect_ingestion_summary(
                 flow_name="exchange-schedule-refresh",
                 domain="exchange_schedule",
