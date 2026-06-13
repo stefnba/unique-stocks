@@ -8,7 +8,7 @@ from pathlib import Path
 
 import duckdb
 
-from core.clients.lake import DataLakeClient
+from core.lake import DataLakeClient
 from core.lake.migration.files import MigrationFile
 from core.lake.migration.refs import load_table_specs
 from core.lake.migration.runner import apply_pending_migrations, plan_migrations

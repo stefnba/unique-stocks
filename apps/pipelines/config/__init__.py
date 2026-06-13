@@ -1,12 +1,6 @@
-"""App-level configuration: settings and Prefect block registry."""
+"""Configuration and stable identity keys.
 
-from config.blocks import BlockRegistry
-from config.settings import APP_ROOT, SETTINGS, Settings, get_settings
-
-__all__ = [
-    "APP_ROOT",
-    "BlockRegistry",
-    "SETTINGS",
-    "Settings",
-    "get_settings",
-]
+This package owns environment-backed settings, Prefect block definitions,
+non-secret app defaults, and identity vocabularies. Import concrete modules
+directly, such as ``config.settings`` or ``config.blocks``.
+"""

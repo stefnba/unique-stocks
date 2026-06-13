@@ -7,7 +7,7 @@ import os
 from collections.abc import Sequence
 from pathlib import Path
 
-from core.clients.lake import DataLakeClient
+from core.lake import DataLakeClient
 from core.lake.migration.diff import diff_lake_schema
 from core.lake.migration.files import empty_migration_sql, write_migration_file
 from core.lake.migration.introspection import desired_lake_schema_from_tables, inspect_lake_schema

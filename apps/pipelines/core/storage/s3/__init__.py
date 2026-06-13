@@ -1,6 +1,6 @@
 """S3 storage client exports."""
 
-from core.clients.storage.s3.base import (
+from core.storage.s3.base import (
     S3DataFormat,
     S3ObjectRef,
     S3StorageClient,

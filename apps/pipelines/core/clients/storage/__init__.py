@@ -1,1 +1,0 @@
-"""Storage client package."""

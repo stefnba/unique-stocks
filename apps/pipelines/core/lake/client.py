@@ -1,3 +1,10 @@
+"""DuckDB/MotherDuck data lake client.
+
+This module owns generic lake I/O: connection lifecycle, SQL execution,
+row/file writes, and shared client caching. It must stay independent of
+app-specific table registries and domain/provider implementation details.
+"""
+
 from __future__ import annotations
 
 import json
@@ -13,9 +20,9 @@ from typing import Any, Literal, cast
 import duckdb
 import structlog
 
-from core.clients.lake.sql import SqlTemplateContext
-from core.clients.lake.sql import render_sql_file as render_lake_sql_file
 from core.lake.database import ensure_lake_database, motherduck_connection_string
+from core.lake.sql import SqlTemplateContext
+from core.lake.sql import render_sql_file as render_lake_sql_file
 from core.prefect.limits import lake_writer_limit
 
 log = structlog.get_logger(__name__)

@@ -99,23 +99,6 @@ def selected(data: Mapping[str, Any], keys: Sequence[str]) -> dict[str, Any]:
         raise ProvisioningError(f"Unexpected AWS response shape, missing key: {exc}") from exc
 
 
-def aws_resource_defaults() -> AwsResourceDefaults:
-    """Load non-secret AWS resource defaults without importing Prefect block wiring."""
-    from config.aws_resources import (
-        DEFAULT_BUCKET_NAME,
-        DEFAULT_IAM_USER,
-        DEFAULT_INLINE_POLICY_NAME,
-        DEFAULT_REGION,
-    )
-
-    return AwsResourceDefaults(
-        bucket_name=DEFAULT_BUCKET_NAME,
-        region=DEFAULT_REGION,
-        iam_user=DEFAULT_IAM_USER,
-        inline_policy_name=DEFAULT_INLINE_POLICY_NAME,
-    )
-
-
 def validate_config(config: LandingZoneConfig) -> None:
     """Validate non-empty CLI values."""
     if not config.bucket_name:

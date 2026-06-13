@@ -1,18 +1,47 @@
-"""Ensure the configured lake database exists before connecting."""
+"""Ensure a lake database exists before connecting."""
 
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Protocol
 
 import duckdb
 import structlog
 
-from config.settings import Settings
-
 log = structlog.get_logger(__name__)
 
 
-def ensure_lake_database(settings: Settings) -> None:
+class SecretValue(Protocol):
+    """Small protocol for secret wrappers such as Pydantic ``SecretStr``."""
+
+    def get_secret_value(self) -> str:
+        """Return the raw secret value."""
+        ...
+
+
+class LakeDatabaseSettings(Protocol):
+    """Settings shape needed to bootstrap a lake database."""
+
+    @property
+    def motherduck_database_name(self) -> str:
+        """Return the MotherDuck database name."""
+        ...
+
+    @property
+    def motherduck_token(self) -> SecretValue:
+        """Return the wrapped MotherDuck token."""
+        ...
+
+    def lake_backend(self) -> str:
+        """Return the active lake backend."""
+        ...
+
+    def resolved_local_lake_path(self) -> str:
+        """Return the absolute local DuckDB path."""
+        ...
+
+
+def ensure_lake_database(settings: LakeDatabaseSettings) -> None:
     """Create the lake database or local file when it does not exist yet.
 
     MotherDuck requires an explicit ``CREATE DATABASE`` before ``md:<name>`` can
@@ -22,14 +51,29 @@ def ensure_lake_database(settings: Settings) -> None:
     Args:
         settings: Application settings with lake backend and path configuration.
     """
-    backend = settings.lake_backend()
+    ensure_lake_database_for_backend(
+        backend=settings.lake_backend(),
+        database_name=settings.motherduck_database_name,
+        motherduck_token=settings.motherduck_token.get_secret_value(),
+        local_lake_path=settings.resolved_local_lake_path(),
+    )
+
+
+def ensure_lake_database_for_backend(
+    *,
+    backend: str,
+    database_name: str,
+    motherduck_token: str,
+    local_lake_path: str,
+) -> None:
+    """Create the concrete lake database selected by primitive runtime values."""
     if backend == "motherduck":
         _ensure_motherduck_database(
-            database_name=settings.motherduck_database_name,
-            motherduck_token=settings.motherduck_token.get_secret_value(),
+            database_name=database_name,
+            motherduck_token=motherduck_token,
         )
         return
-    _ensure_local_lake_database(settings.resolved_local_lake_path())
+    _ensure_local_lake_database(local_lake_path)
 
 
 def motherduck_connection_string(

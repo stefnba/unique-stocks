@@ -1,0 +1,1 @@
+"""Reusable object-storage infrastructure."""
