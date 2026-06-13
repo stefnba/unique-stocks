@@ -25,14 +25,15 @@ This file is for AI and coding agents working in this repository. Human onboardi
 
 ## Pipeline structure
 
-- Every new ingestion domain under `apps/pipelines/domains/` follows the same pattern: `models.py`, `tables.py`, `datasets.py`, `parsers.py`, `tasks.py`, and `flows.py`.
-- Domain models live with the domain that owns them.
-- Shared infrastructure belongs under `apps/pipelines/core/`.
+- Keep a strict boundary between reusable pipeline infrastructure and this app's business vocabulary.
+- `apps/pipelines/core/` is the generic foundation. It may contain reusable clients, storage/lake primitives, ingestion helpers, orchestration utilities, audit/run-tracking helpers, and small dependency-free utility functions. It must not know concrete providers, concrete domains, app registries, app settings, Prefect block names, dbt asset groups, or business-specific table manifests.
+- `apps/pipelines/config/` is app-specific configuration only. Use it for environment-variable-backed settings, non-secret constants, app vocabulary enums, and Prefect block definitions. Avoid putting composition functions, registries, lookup helpers, or behavior in `config/`; those belong in the app layer that uses the configuration.
+- `apps/pipelines/providers/` contains app-specific provider implementations: concrete HTTP clients, provider API models, provider parsers when they are provider-owned, and provider-specific constants. Provider packages may depend on generic `core` interfaces, but `core` must not import providers.
+- `apps/pipelines/domains/` contains app-specific domain implementations: domain models, tables, datasets, parsers, tasks, and flows. Every new ingestion domain follows the same pattern: `models.py`, `tables.py`, `datasets.py`, `parsers.py`, `tasks.py`, and `flows.py`. Domain models live with the domain that owns them.
+- App-specific wiring, registries, and manifests should be explicit app-layer modules outside `core` and outside pure `config`. They may compose `config`, `domains`, `providers`, and generic `core` surfaces, but they must not make `core` depend on app-specific concepts.
 - Shared ingestion surfaces belong under `apps/pipelines/core/ingestion/`: landing targets for raw object storage and Bronze datasets for lake writes.
-- App-level configuration belongs under `apps/pipelines/config/`: `settings.py` for environment-variable-backed settings, `blocks.py` for the Prefect block registry.
-- Provider-specific clients and raw provider models belong under `apps/pipelines/providers/`.
-- S3 storage code belongs under `apps/pipelines/core/clients/storage/s3/`.
-- Lake access code belongs under `apps/pipelines/core/clients/lake/` and the compatibility wrapper in `apps/pipelines/core/lake.py`.
+- S3 storage code belongs under `apps/pipelines/core/storage/s3/`.
+- Lake access code belongs under `apps/pipelines/core/lake/`.
 - Do not import `boto3` directly in domain code.
 - Do not import `duckdb` directly in domain code.
 - Do not read credentials from `SETTINGS` in tasks or flows. Load credentials from `BlockRegistry` at runtime.
