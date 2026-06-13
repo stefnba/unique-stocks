@@ -1,8 +1,14 @@
-"""Prefect global limit policies, runtime guards, and setup."""
+"""Prefect global limit policies, runtime guards, and setup.
+
+This module is reusable Prefect infrastructure. It knows how to register global
+lake-writer limits and provider API-credit limits from already-supplied HTTP
+client classes, but it does not discover or import this app's concrete provider
+packages. App provider composition belongs in ``registry.provider_registry`` and
+``orchestration.prefect_setup``.
+"""
 
 from __future__ import annotations
 
-import inspect
 import os
 import sys
 from collections.abc import Generator, Iterable, Iterator
@@ -15,10 +21,8 @@ from prefect.client.orchestration import get_client
 from prefect.concurrency.asyncio import rate_limit
 from prefect.concurrency.sync import concurrency
 
-from config.settings import get_settings
-
 if TYPE_CHECKING:
-    from core.clients.http.base import HttpClientBase
+    from core.http.base import HttpClientBase
 
 logger = structlog.get_logger(__name__)
 
@@ -204,36 +208,11 @@ async def wait_for_provider_api_credit(
         )
 
 
-def iter_provider_http_clients(
-    providers: Iterable[Any],
-    *,
-    package: str = "providers",
-) -> Iterator[type[HttpClientBase]]:
-    """Yield HTTP client classes discovered from provider package names."""
-    from importlib import import_module
-
-    from core.clients.http.base import HttpClientBase
-
-    for provider in providers:
-        provider_key = str(provider)
-        module = import_module(f"{package}.{provider_key}.client")
-        for value in vars(module).values():
-            if not inspect.isclass(value):
-                continue
-            if value is HttpClientBase or not issubclass(value, HttpClientBase):
-                continue
-            if str(value.PROVIDER) != provider_key:
-                continue
-            yield value
-
-
 def provider_rate_limit_registrations(
-    providers: Iterable[Any],
-    *,
-    package: str = "providers",
+    provider_clients: Iterable[type[HttpClientBase]],
 ) -> Iterator[ProviderRateLimitRegistration]:
     """Yield Prefect rate-limit registrations declared by provider clients."""
-    for client_cls in iter_provider_http_clients(providers, package=package):
+    for client_cls in provider_clients:
         policy = getattr(client_cls, "RATE_LIMIT_POLICY", None)
         if policy is None:
             continue
@@ -242,15 +221,15 @@ def provider_rate_limit_registrations(
 
 async def setup_prefect_limits(
     *,
-    providers: Iterable[Any],
+    provider_clients: Iterable[type[HttpClientBase]],
+    lake_writer_limit: int,
     dry_run: bool,
 ) -> int:
     """Upsert Prefect global limits for shared lake and provider API resources."""
-    lake_limit = get_settings().resolved_prefect_lake_writer_limit()
-    provider_limits = list(provider_rate_limit_registrations(providers))
+    provider_limits = list(provider_rate_limit_registrations(provider_clients))
 
     if dry_run:
-        print(_global_limit_message("Would upsert", LAKE_WRITER_LIMIT, lake_limit))
+        print(_global_limit_message("Would upsert", LAKE_WRITER_LIMIT, lake_writer_limit))
         for provider_limit in provider_limits:
             print(
                 f"Would upsert provider rate limit {provider_limit.name}: "
@@ -262,12 +241,12 @@ async def setup_prefect_limits(
     async with get_client() as client:
         await client.upsert_global_concurrency_limit_by_name(
             name=LAKE_WRITER_LIMIT,
-            limit=lake_limit,
+            limit=lake_writer_limit,
         )
         for provider_limit in provider_limits:
             await provider_limit.upsert(client)
 
-    print(_global_limit_message("Upserted", LAKE_WRITER_LIMIT, lake_limit))
+    print(_global_limit_message("Upserted", LAKE_WRITER_LIMIT, lake_writer_limit))
     for provider_limit in provider_limits:
         print(
             f"Upserted provider rate limit {provider_limit.name}: "

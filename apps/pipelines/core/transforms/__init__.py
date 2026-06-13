@@ -1,6 +1,30 @@
-"""Transformation orchestration helpers."""
+"""Generic transformation helpers.
 
-from .dbt import dbt_build_flow
-from .post_ingestion import DbtBuildDeployment, run_dbt_build_after_ingestion, run_dbt_build_deployment
+This package contains reusable transformation primitives such as dbt command
+execution and audit persistence. App-specific deployment names, selector-to-
+asset mappings, and post-ingestion build policy belong in ``orchestration``.
+"""
 
-__all__ = ["DbtBuildDeployment", "dbt_build_flow", "run_dbt_build_after_ingestion", "run_dbt_build_deployment"]
+from .dbt import (
+    DbtAssetMaterializer,
+    DbtCommand,
+    DbtCommandResult,
+    DbtIndirectSelection,
+    DbtRuntimeContext,
+    DbtTarget,
+    read_dbt_run_results,
+    run_dbt_build,
+    run_dbt_command,
+)
+
+__all__ = [
+    "DbtAssetMaterializer",
+    "DbtCommand",
+    "DbtCommandResult",
+    "DbtIndirectSelection",
+    "DbtRuntimeContext",
+    "DbtTarget",
+    "read_dbt_run_results",
+    "run_dbt_build",
+    "run_dbt_command",
+]

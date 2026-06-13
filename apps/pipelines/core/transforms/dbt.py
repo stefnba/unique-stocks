@@ -1,4 +1,10 @@
-"""Prefect flow for dbt transformations with lake audit writes."""
+"""Generic dbt command execution with lake audit writes.
+
+This core module runs dbt, persists invocation/node-result audit rows, and
+offers an optional asset-materialization hook. It deliberately does not know
+which concrete domain asset groups exist in this app; that mapping is injected
+from ``orchestration.dbt`` / ``orchestration.dbt_assets``.
+"""
 
 from __future__ import annotations
 
@@ -9,21 +15,21 @@ import shutil
 import subprocess
 import sys
 import uuid
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
 import structlog
-from prefect import flow, task
+from prefect import task
 from prefect.artifacts import create_markdown_artifact
 from pydantic import BaseModel, ConfigDict
 
-from config.settings import APP_ROOT, DbtTarget, get_settings
-from core.clients.lake import get_lake_client, reset_lake_client
 from core.ingestion import PipelineRunTracker, RunCounters, terminal_status
 from core.ingestion.serialization import jsonable
-from core.lake.database import ensure_lake_database
+from core.lake import get_lake_client, reset_lake_client
+from core.lake.database import ensure_lake_database_for_backend
 from core.prefect.events import emit_prefect_dbt_failure_event
 from core.prefect.limits import lake_writer_limit
 
@@ -31,6 +37,38 @@ log = structlog.get_logger(__name__)
 
 type DbtCommand = Literal["build", "run", "test", "compile"]
 type DbtIndirectSelection = Literal["eager", "cautious", "buildable", "empty"]
+type DbtTarget = Literal["dev", "prod"]
+
+
+@dataclass(frozen=True, slots=True)
+class DbtRuntimeContext:
+    """Primitive runtime values needed by generic dbt execution.
+
+    App code builds this from its settings. Core receives only resolved values so
+    it does not import environment-backed app configuration directly.
+    """
+
+    app_root: str
+    expected_target: DbtTarget
+    lake_backend: str
+    env_overlay: Mapping[str, str] = field(default_factory=dict)
+    local_lake_path: str = ""
+    motherduck_database_name: str = ""
+    motherduck_token: str = ""
+
+    @property
+    def app_root_path(self) -> Path:
+        """Return the app root as a path object."""
+        return Path(self.app_root)
+
+    def ensure_database(self) -> None:
+        """Ensure the selected lake database exists before dbt connects."""
+        ensure_lake_database_for_backend(
+            backend=self.lake_backend,
+            database_name=self.motherduck_database_name,
+            motherduck_token=self.motherduck_token,
+            local_lake_path=self.local_lake_path,
+        )
 
 
 class DbtAssetMaterializer(Protocol):
@@ -55,39 +93,9 @@ class DbtCommandResult(BaseModel):
     artifact_path: str | None
 
 
-@flow(
-    name="dbt-build",
-    description=(
-        "Run dbt (build/run/test/compile) against the lake, then persist run_results.json "
-        "to pipeline.dbt_invocations and pipeline.dbt_node_results for audit."
-    ),
-)
-async def dbt_build_flow(
-    command: DbtCommand = "build",
-    select: list[str] | None = None,
-    exclude: list[str] | None = None,
-    indirect_selection: DbtIndirectSelection | None = "buildable",
-    project_dir: str = "dbt",
-    profiles_dir: str = "dbt",
-    target: str | None = None,
-    parent_run_id: str | None = None,
-) -> dict[str, object]:
-    """Run dbt as a transformation flow and persist its ``run_results.json`` artifact."""
-    return await run_dbt_build(
-        command=command,
-        select=select,
-        exclude=exclude,
-        indirect_selection=indirect_selection,
-        project_dir=project_dir,
-        profiles_dir=profiles_dir,
-        target=target,
-        parent_run_id=parent_run_id,
-        asset_materializer=None,
-    )
-
-
 async def run_dbt_build(
     *,
+    runtime: DbtRuntimeContext,
     command: DbtCommand = "build",
     select: list[str] | None = None,
     exclude: list[str] | None = None,
@@ -101,11 +109,10 @@ async def run_dbt_build(
     """Run dbt and optionally record app-specific asset materializations."""
     select = select or []
     exclude = exclude or []
-    settings = get_settings()
-    resolved_target = _resolve_dbt_target(target, settings.resolved_dbt_target(), settings.lake_backend())
-    project_path = _resolve_app_path(project_dir)
-    profiles_path = _resolve_app_path(profiles_dir)
-    _release_local_lake_lock()
+    resolved_target = _resolve_dbt_target(target, runtime.expected_target, runtime.lake_backend)
+    project_path = _resolve_app_path(project_dir, runtime.app_root_path)
+    profiles_path = _resolve_app_path(profiles_dir, runtime.app_root_path)
+    _release_local_lake_lock(runtime)
     tracker = PipelineRunTracker()
     artifact: dict[str, Any] | None = None
     result: DbtCommandResult | None = None
@@ -130,8 +137,9 @@ async def run_dbt_build(
         try:
             dbt_run_id = str(uuid.uuid4())
             target_path = project_path / "target" / "pipeline-runs" / dbt_run_id
-            _release_local_lake_lock()
+            _release_local_lake_lock(runtime)
             result = run_dbt_command(
+                runtime=runtime,
                 command=command,
                 select=select,
                 exclude=exclude,
@@ -142,7 +150,7 @@ async def run_dbt_build(
                 target_path=str(target_path),
             )
             _refresh_tracker_lake(tracker)
-            artifact = read_dbt_run_results(target_path=str(target_path))
+            artifact = read_dbt_run_results(target_path=str(target_path), app_root=runtime.app_root)
             summary.update(
                 {
                     "return_code": result.return_code,
@@ -230,6 +238,7 @@ async def run_dbt_build(
 @task(name="run-dbt-command")
 def run_dbt_command(
     *,
+    runtime: DbtRuntimeContext,
     command: DbtCommand,
     select: list[str],
     exclude: list[str],
@@ -240,13 +249,12 @@ def run_dbt_command(
     target_path: str,
 ) -> DbtCommandResult:
     """Run dbt in a subprocess and return captured process metadata."""
-    settings = get_settings()
-    resolved_target = _resolve_dbt_target(target, settings.resolved_dbt_target(), settings.lake_backend())
+    resolved_target = _resolve_dbt_target(target, runtime.expected_target, runtime.lake_backend)
     if resolved_target == "prod":
-        ensure_lake_database(settings)
-    project_path = _resolve_app_path(project_dir)
-    profiles_path = _resolve_app_path(profiles_dir)
-    resolved_target_path = _resolve_app_path(target_path)
+        runtime.ensure_database()
+    project_path = _resolve_app_path(project_dir, runtime.app_root_path)
+    profiles_path = _resolve_app_path(profiles_dir, runtime.app_root_path)
+    resolved_target_path = _resolve_app_path(target_path, runtime.app_root_path)
     resolved_target_path.mkdir(parents=True, exist_ok=True)
     args = _dbt_base_command()
     args.extend([command, "--project-dir", str(project_path), "--profiles-dir", str(profiles_path)])
@@ -274,8 +282,8 @@ def run_dbt_command(
             check=False,
             capture_output=True,
             text=True,
-            cwd=APP_ROOT,
-            env={**os.environ, **settings.dbt_env_overlay()},
+            cwd=runtime.app_root_path,
+            env={**os.environ, **runtime.env_overlay},
         )
     completed = _now()
     elapsed = max(0.0, (completed - started).total_seconds())
@@ -294,9 +302,9 @@ def run_dbt_command(
 
 
 @task(name="read-dbt-run-results")
-def read_dbt_run_results(*, target_path: str) -> dict[str, Any] | None:
+def read_dbt_run_results(*, target_path: str, app_root: str) -> dict[str, Any] | None:
     """Read dbt's ``run_results.json`` artifact when dbt produced one."""
-    path = _resolve_app_path(target_path) / "run_results.json"
+    path = _resolve_app_path(target_path, Path(app_root)) / "run_results.json"
     if not path.exists():
         log.warning("dbt.run_results_missing", path=str(path))
         return None
@@ -429,12 +437,12 @@ def _dbt_base_command() -> list[str]:
     return [sys.executable, "-m", "dbt.cli.main"]
 
 
-def _resolve_app_path(value: str) -> Path:
+def _resolve_app_path(value: str, app_root: Path) -> Path:
     """Resolve an app-relative path against the pipelines app root."""
     path = Path(value)
     if path.is_absolute():
         return path
-    return APP_ROOT / path
+    return app_root / path
 
 
 def _resolve_dbt_target(target: str | None, expected: DbtTarget, backend: str) -> DbtTarget:
@@ -487,9 +495,9 @@ def _node_result_count(artifact: dict[str, Any] | None) -> int | None:
     return sum(1 for result in artifact.get("results", []) if isinstance(result, dict))
 
 
-def _release_local_lake_lock() -> None:
+def _release_local_lake_lock(runtime: DbtRuntimeContext) -> None:
     """Close cached lake handles so the dbt subprocess can lock the local DuckDB file."""
-    if get_settings().lake_backend() != "local":
+    if runtime.lake_backend != "local":
         return
     reset_lake_client()
 
@@ -524,4 +532,14 @@ def _now() -> datetime:
     return datetime.now(UTC).replace(microsecond=0)
 
 
-__all__ = ["dbt_build_flow", "read_dbt_run_results", "run_dbt_build", "run_dbt_command"]
+__all__ = [
+    "DbtAssetMaterializer",
+    "DbtCommand",
+    "DbtCommandResult",
+    "DbtIndirectSelection",
+    "DbtRuntimeContext",
+    "DbtTarget",
+    "read_dbt_run_results",
+    "run_dbt_build",
+    "run_dbt_command",
+]
