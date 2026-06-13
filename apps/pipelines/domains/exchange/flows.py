@@ -5,7 +5,6 @@ from datetime import date
 from prefect import flow
 
 from core.ingestion import PipelineRunTracker, RunCounters, terminal_status
-from core.prefect.assets import record_prefect_bronze_materializations
 from core.prefect.events import publish_prefect_ingestion_summary
 from core.transforms import run_dbt_build_deployment
 from domains.exchange.tasks.eodhd import (
@@ -19,6 +18,11 @@ from domains.exchange.tasks.iso10383 import (
     parse_iso10383_mic_registry,
     write_bronze_exchange_mic_registry,
     write_mic_registry_to_landing_zone,
+)
+
+from .assets import (
+    record_exchange_catalog_bronze_materialization,
+    record_exchange_mic_registry_bronze_materialization,
 )
 
 
@@ -75,15 +79,12 @@ async def exchange_catalog_flow() -> int:
                 summary=summary,
             )
             if rows_written:
-                record_prefect_bronze_materializations(
-                    ["exchange_catalog"],
-                    metadata={
-                        "app_run_id": run.run_id,
-                        "snapshot_date": snapshot_date.isoformat(),
-                        "provider": "eodhd",
-                        "rows_written": rows_written,
-                        "source_uri": landing.source_uri,
-                    },
+                record_exchange_catalog_bronze_materialization(
+                    app_run_id=run.run_id,
+                    snapshot_date=snapshot_date.isoformat(),
+                    provider="eodhd",
+                    rows_written=rows_written,
+                    source_uri=landing.source_uri,
                 )
             await publish_prefect_ingestion_summary(
                 flow_name="exchange-catalog-refresh",
@@ -190,14 +191,11 @@ async def exchange_mic_registry_flow(snapshot_date: date | None = None) -> dict[
             )
             status = terminal_status(failed=run.tally.failed, rejected=rows_rejected)
             if rows_written:
-                record_prefect_bronze_materializations(
-                    ["exchange_mic_registry"],
-                    metadata={
-                        "app_run_id": run.run_id,
-                        "snapshot_date": snapshot_date.isoformat(),
-                        "provider": "iso10383",
-                        "rows_written": rows_written,
-                    },
+                record_exchange_mic_registry_bronze_materialization(
+                    app_run_id=run.run_id,
+                    snapshot_date=snapshot_date.isoformat(),
+                    provider="iso10383",
+                    rows_written=rows_written,
                 )
             await publish_prefect_ingestion_summary(
                 flow_name="exchange-mic-registry-refresh",

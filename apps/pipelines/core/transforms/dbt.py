@@ -23,9 +23,9 @@ from core.clients.lake import get_lake_client, reset_lake_client
 from core.ingestion import PipelineRunTracker, RunCounters, terminal_status
 from core.ingestion.serialization import jsonable
 from core.lake.database import ensure_lake_database
-from core.prefect.assets import record_prefect_dbt_materializations
 from core.prefect.events import emit_prefect_dbt_failure_event
 from core.prefect.limits import lake_writer_limit
+from core.transforms.dbt_assets import record_dbt_asset_materializations
 
 log = structlog.get_logger(__name__)
 
@@ -145,7 +145,7 @@ async def dbt_build_flow(
                     artifact_path=result.artifact_path,
                 )
             elif command in {"build", "run"}:
-                record_prefect_dbt_materializations(
+                record_dbt_asset_materializations(
                     select=select,
                     metadata={
                         "dbt_run_id": dbt_run_id,

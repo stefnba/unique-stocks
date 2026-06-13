@@ -6,8 +6,13 @@ from datetime import date
 import structlog
 from prefect import flow
 
-from core.ingestion import PipelineRunTracker, RunCounters, RunStatus, RunUnitTally, terminal_status
-from core.prefect.assets import record_prefect_bronze_materializations
+from core.ingestion import (
+    PipelineRunTracker,
+    RunCounters,
+    RunStatus,
+    RunUnitTally,
+    terminal_status,
+)
 from core.prefect.events import publish_prefect_ingestion_summary
 from core.transforms import run_dbt_build_after_ingestion
 from domains.instrument.tasks import (
@@ -17,6 +22,8 @@ from domains.instrument.tasks import (
     write_bronze_instrument,
     write_instrument_to_landing_zone,
 )
+
+from .assets import record_instrument_bronze_materialization
 
 log = structlog.get_logger(__name__)
 
@@ -90,7 +97,9 @@ async def instrument_flow(
             for provider_exchange_code, result in zip(pending, results, strict=True):
                 if isinstance(result, BaseException):
                     log.error(
-                        "instrument.fetch_error", provider_exchange_code=provider_exchange_code, error=str(result)
+                        "instrument.fetch_error",
+                        provider_exchange_code=provider_exchange_code,
+                        error=str(result),
                     )
                     summary["failed"].append(provider_exchange_code)
                     run.record_unit(
@@ -147,14 +156,11 @@ async def instrument_flow(
             )
             rows_written = sum(row.get("rows", 0) for row in summary["exchange"].values())
             if rows_written:
-                record_prefect_bronze_materializations(
-                    ["instrument"],
-                    metadata={
-                        "app_run_id": run.run_id,
-                        "snapshot_date": snapshot_date.isoformat(),
-                        "provider": "eodhd",
-                        "rows_written": rows_written,
-                    },
+                record_instrument_bronze_materialization(
+                    app_run_id=run.run_id,
+                    snapshot_date=snapshot_date.isoformat(),
+                    provider="eodhd",
+                    rows_written=rows_written,
                 )
             await publish_prefect_ingestion_summary(
                 flow_name="instrument-refresh",
@@ -165,7 +171,11 @@ async def instrument_flow(
             )
         except Exception as exc:
             if not run.is_terminal:
-                run.fail(exc, counters=_instrument_counters(tally=run.tally, summary=summary), summary=summary)
+                run.fail(
+                    exc,
+                    counters=_instrument_counters(tally=run.tally, summary=summary),
+                    summary=summary,
+                )
             await publish_prefect_ingestion_summary(
                 flow_name="instrument-refresh",
                 domain="instrument",

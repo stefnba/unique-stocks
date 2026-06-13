@@ -18,7 +18,6 @@ from core.ingestion import (
     RunStatus,
     terminal_status,
 )
-from core.prefect.assets import record_prefect_bronze_materializations
 from core.prefect.events import publish_prefect_ingestion_summary
 from core.transforms import run_dbt_build_after_ingestion
 from domains.fundamental.tasks import (
@@ -51,6 +50,8 @@ from domains.fundamental.tasks import (
 )
 from providers.eodhd.identifiers import EODHDInstrumentRef, eodhd_instrument_key
 from providers.eodhd.models import FundamentalRaw
+
+from .assets import record_fundamental_bronze_materialization
 
 log = structlog.get_logger(__name__)
 _REJECTION_SAMPLE_LIMIT_PER_INSTRUMENT = 100
@@ -635,15 +636,12 @@ async def fundamental_flow(
                 summary=summary,
             )
             if total_written:
-                record_prefect_bronze_materializations(
-                    ["fundamental"],
-                    metadata={
-                        "app_run_id": run.run_id,
-                        "snapshot_date": snapshot_date.isoformat(),
-                        "provider": "eodhd",
-                        "rows_written": total_written,
-                        "instruments": len(summary["instruments"]),
-                    },
+                record_fundamental_bronze_materialization(
+                    app_run_id=run.run_id,
+                    snapshot_date=snapshot_date.isoformat(),
+                    provider="eodhd",
+                    rows_written=total_written,
+                    instruments=len(summary["instruments"]),
                 )
             await publish_prefect_ingestion_summary(
                 flow_name="fundamental-quarterly",

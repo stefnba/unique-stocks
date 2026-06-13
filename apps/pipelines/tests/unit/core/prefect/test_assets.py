@@ -1,14 +1,19 @@
-"""Tests for Prefect asset helpers."""
+"""Tests for generic Prefect asset helpers."""
 
-from core.prefect import assets as prefect_assets
+from core.prefect.assets import record_prefect_materialization
 
 
-def test_selected_dbt_asset_groups_defaults_to_all_for_full_build() -> None:
-    """A full dbt build should record all configured Silver/Gold asset groups."""
-    assert prefect_assets._selected_dbt_asset_groups([]) == [
-        "exchange",
-        "exchange_schedule",
-        "instrument",
-        "price",
-        "fundamental",
-    ]
+def test_record_prefect_materialization_calls_materializer() -> None:
+    """Generic wrapper should pass metadata through to the Prefect materializer."""
+    calls: list[dict[str, object]] = []
+
+    def materializer(**metadata: object) -> None:
+        calls.append(metadata)
+
+    record_prefect_materialization(
+        materialization_name="bronze.demo",
+        materializer=materializer,
+        metadata={"rows_written": 3},
+    )
+
+    assert calls == [{"rows_written": 3}]
