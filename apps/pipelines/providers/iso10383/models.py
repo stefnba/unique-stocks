@@ -5,7 +5,7 @@ from typing import ClassVar, Literal
 
 from pydantic import Field, field_validator
 
-from core.models import ProviderModel
+from core.http.models import ProviderModel
 
 
 class ISO10383MICRaw(ProviderModel):

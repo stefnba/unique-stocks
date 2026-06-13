@@ -4,7 +4,7 @@ from typing import Self
 
 from pydantic import ConfigDict, field_validator, model_validator
 
-from core.models import BronzeModel
+from core.lake.models import BronzeModel
 
 EOD_PRICE_INGESTION_MODES = {"daily_bulk", "historical_backfill"}
 

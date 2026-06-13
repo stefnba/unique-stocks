@@ -8,9 +8,12 @@ parser-owned Pydantic row models.
 ### Row Model
 
 Row models are Pydantic models. They validate normalized rows produced by
-domain parsers before those rows are written to Bronze.
+domain parsers before those rows are written to Bronze. Inherit from
+`BronzeModel` in `core.lake.models`:
 
 ```python
+from core.lake.models import BronzeModel
+
 class ExchangeCatalogSnapshot(BronzeModel):
     snapshot_date: date
     provider_exchange_code: str

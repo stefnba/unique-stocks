@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from core.models import BronzeModel
+from core.lake.models import BronzeModel
 
 
 class ExchangeScheduleSnapshot(BronzeModel):

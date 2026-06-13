@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from pydantic import ConfigDict
 
-from core.models import BronzeModel
+from core.lake.models import BronzeModel
 
 
 class FundamentalDocument(BronzeModel):

@@ -3,8 +3,8 @@
 The ``core`` package contains reusable plumbing that is intentionally not tied
 to one business domain:
 
-- clients for external infrastructure such as S3 and the lake
-- base model contracts used by providers and domains
+- reusable infrastructure capabilities such as HTTP, object storage, and the lake
+- HTTP and lake base model contracts used by providers and domains
 - ingestion helpers that turn parser output into landing objects and Bronze rows
 - small orchestration utilities and environment helpers
 

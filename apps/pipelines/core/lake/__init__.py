@@ -14,9 +14,11 @@ from core.lake.client import (
     get_lake_client,
     reset_lake_client,
 )
+from core.lake.models import BronzeModel
 from core.lake.sql import SqlTemplateContext, render_sql, render_sql_file
 
 __all__ = [
+    "BronzeModel",
     "DataLakeClient",
     "LakeDataFormat",
     "LakeUpload",

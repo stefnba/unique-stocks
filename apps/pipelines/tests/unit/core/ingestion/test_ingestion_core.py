@@ -10,13 +10,11 @@ from typing import Any, ClassVar, cast
 import pytest
 from pydantic import Field
 
-from core.clients.lake import DataLakeClient
-from core.clients.storage.s3.base import S3ObjectRef, S3StorageClient
+from core.http.models import ProviderModel
 from core.ingestion import (
     BronzeDataset,
     BronzeParseResult,
     BronzeWrite,
-    LandingDomain,
     LandingTarget,
 )
 from core.ingestion.landing import PartitionedLandingTarget
@@ -29,8 +27,10 @@ from core.ingestion.parser import (
     parse_strict_rows,
 )
 from core.ingestion.partitioning import LandingPartitionSchema
+from core.lake import DataLakeClient
+from core.lake.models import BronzeModel
 from core.lake.schema import BronzeTableModel
-from core.models import BronzeModel, ProviderModel
+from core.storage.s3.base import S3ObjectRef, S3StorageClient
 from domains.exchange.datasets import EXCHANGE_CATALOG_DATASET, EXCHANGE_MIC_REGISTRY_DATASET
 
 
@@ -153,11 +153,11 @@ class FakeLake:
 
 
 DAILY_LANDING = LandingTarget.partitioned(
-    LandingDomain.EOD_PRICE,
+    "eod_price",
     partition_fields=DailyPricePartition,
 )
 BACKFILL_LANDING = LandingTarget.partitioned(
-    LandingDomain.EOD_PRICE,
+    "eod_price",
     partition_fields=BackfillPricePartition,
 )
 PRICE_DATASET = BronzeDataset(
@@ -178,7 +178,7 @@ def _price(close: str = "190.75") -> PriceRow:
 
 def test_snapshot_landing_key_matches_canonical_path() -> None:
     """Snapshot keys use domain-first layout with provider as a partition."""
-    target = LandingTarget.snapshot(LandingDomain.EXCHANGE)
+    target = LandingTarget.snapshot("exchange")
 
     key = target.key(
         provider="eodhd",
@@ -309,7 +309,7 @@ def test_exchange_mic_registry_landing_uses_iso10383_csv_snapshot() -> None:
 def test_explicit_landing_audit_dataset_overrides_inference() -> None:
     """Landing targets can still override the inferred audit dataset label."""
     explicit = LandingTarget.partitioned(
-        LandingDomain.EOD_PRICE,
+        "eod_price",
         partition_fields=DailyPricePartition,
         audit_dataset="custom.daily",
     )

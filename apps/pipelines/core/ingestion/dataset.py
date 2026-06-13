@@ -10,8 +10,8 @@ from core.ingestion.landing import LandingTargetBase
 from core.ingestion.parser import BronzeParseResult
 from core.ingestion.serialization import canonical_json, sql_value
 from core.lake import DataLakeClient
+from core.lake.models import BronzeModel
 from core.lake.schema import BronzeTableModel
-from core.models import BronzeModel
 from core.storage.s3.base import S3ObjectRef
 
 
