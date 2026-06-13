@@ -32,11 +32,8 @@ from core.ingestion import (
     terminal_status,
 )
 from core.ingestion.parser import attach_source_uri
-from core.prefect_controls import (
-    emit_coverage_gate_failed_event,
-    observe_bronze_eod_price_asset,
-    publish_ingestion_observability,
-)
+from core.prefect.assets import record_prefect_bronze_eod_price_materialization
+from core.prefect.events import emit_prefect_coverage_gate_failure_event, publish_prefect_ingestion_summary
 from core.transforms import DbtBuildDeployment, run_dbt_build_after_ingestion, run_dbt_build_deployment
 from domains.eod_price.models import EODBar
 from domains.eod_price.parsers import infer_bulk_bar_date, parse_instrument_bars
@@ -222,7 +219,7 @@ async def eod_price_flow(
                         source_uri=landing.source_uri,
                     )
                     if bronze.rows_written:
-                        observe_bronze_eod_price_asset(
+                        record_prefect_bronze_eod_price_materialization(
                             app_run_id=run.run_id,
                             provider_exchange_code=provider_exchange_code,
                             bar_date=bar_date.isoformat(),
@@ -333,7 +330,7 @@ async def eod_price_flow(
                 except Exception as exc:
                     summary["post_ingestion_error"] = _exception_summary(exc)
                     run.complete(status=ingestion_status, counters=counters, summary=summary)
-                    await publish_ingestion_observability(
+                    await publish_prefect_ingestion_summary(
                         flow_name="eod-price-daily",
                         domain="eod_price",
                         app_run_id=run.run_id,
@@ -346,7 +343,7 @@ async def eod_price_flow(
                 counters=counters,
                 summary=summary,
             )
-            await publish_ingestion_observability(
+            await publish_prefect_ingestion_summary(
                 flow_name="eod-price-daily",
                 domain="eod_price",
                 app_run_id=run.run_id,
@@ -372,7 +369,7 @@ async def eod_price_flow(
                     ),
                     summary=summary,
                 )
-                await publish_ingestion_observability(
+                await publish_prefect_ingestion_summary(
                     flow_name="eod-price-daily",
                     domain="eod_price",
                     app_run_id=run.run_id,
@@ -502,7 +499,7 @@ async def _run_price_post_ingestion_checks(
             from_date=from_date,
             to_date=to_date,
         )
-        emit_coverage_gate_failed_event(
+        emit_prefect_coverage_gate_failure_event(
             app_run_id=parent_run_id,
             gaps_count=len(gaps),
             provider_exchange_codes=provider_exchange_codes,
@@ -1010,7 +1007,7 @@ async def eod_price_backfill_flow(
                         batch_written = bronze_batch.rows_written
                         exchange_written += batch_written
                         if batch_written:
-                            observe_bronze_eod_price_asset(
+                            record_prefect_bronze_eod_price_materialization(
                                 app_run_id=run.run_id,
                                 provider_exchange_code=provider_exchange_code,
                                 from_date=_iso_date(from_date),
@@ -1109,7 +1106,7 @@ async def eod_price_backfill_flow(
                 except Exception as exc:
                     summary["post_ingestion_error"] = _exception_summary(exc)
                     run.complete(status=ingestion_status, counters=counters, summary=summary)
-                    await publish_ingestion_observability(
+                    await publish_prefect_ingestion_summary(
                         flow_name="eod-price-backfill",
                         domain="eod_price",
                         app_run_id=run.run_id,
@@ -1122,7 +1119,7 @@ async def eod_price_backfill_flow(
                 counters=counters,
                 summary=summary,
             )
-            await publish_ingestion_observability(
+            await publish_prefect_ingestion_summary(
                 flow_name="eod-price-backfill",
                 domain="eod_price",
                 app_run_id=run.run_id,
@@ -1147,7 +1144,7 @@ async def eod_price_backfill_flow(
                     ),
                     summary=summary,
                 )
-                await publish_ingestion_observability(
+                await publish_prefect_ingestion_summary(
                     flow_name="eod-price-backfill",
                     domain="eod_price",
                     app_run_id=run.run_id,

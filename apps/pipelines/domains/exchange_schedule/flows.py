@@ -7,7 +7,8 @@ import structlog
 from prefect import flow
 
 from core.ingestion import PipelineRunTracker, RunCounters, RunStatus, RunUnitTally, terminal_status
-from core.prefect_controls import observe_bronze_assets, publish_ingestion_observability
+from core.prefect.assets import record_prefect_bronze_materializations
+from core.prefect.events import publish_prefect_ingestion_summary
 from core.transforms import run_dbt_build_after_ingestion
 from domains.exchange_schedule.tasks import (
     fetch_exchange_details,
@@ -216,7 +217,7 @@ async def exchange_schedule_flow(
             if holiday_rows:
                 asset_names.append("exchange_holiday")
             if asset_names:
-                observe_bronze_assets(
+                record_prefect_bronze_materializations(
                     asset_names,
                     metadata={
                         "app_run_id": run.run_id,
@@ -226,7 +227,7 @@ async def exchange_schedule_flow(
                         "holiday_rows": holiday_rows,
                     },
                 )
-            await publish_ingestion_observability(
+            await publish_prefect_ingestion_summary(
                 flow_name="exchange-schedule-refresh",
                 domain="exchange_schedule",
                 app_run_id=run.run_id,
@@ -236,7 +237,7 @@ async def exchange_schedule_flow(
         except Exception as exc:
             if not run.is_terminal:
                 run.fail(exc, counters=_schedule_counters(tally=run.tally, summary=summary), summary=summary)
-            await publish_ingestion_observability(
+            await publish_prefect_ingestion_summary(
                 flow_name="exchange-schedule-refresh",
                 domain="exchange_schedule",
                 app_run_id=run.run_id,

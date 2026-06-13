@@ -5,7 +5,8 @@ from datetime import date
 from prefect import flow
 
 from core.ingestion import PipelineRunTracker, RunCounters, terminal_status
-from core.prefect_controls import observe_bronze_assets, publish_ingestion_observability
+from core.prefect.assets import record_prefect_bronze_materializations
+from core.prefect.events import publish_prefect_ingestion_summary
 from core.transforms import run_dbt_build_deployment
 from domains.exchange.tasks.eodhd import (
     fetch_exchange_catalog,
@@ -74,7 +75,7 @@ async def exchange_catalog_flow() -> int:
                 summary=summary,
             )
             if rows_written:
-                observe_bronze_assets(
+                record_prefect_bronze_materializations(
                     ["exchange_catalog"],
                     metadata={
                         "app_run_id": run.run_id,
@@ -84,7 +85,7 @@ async def exchange_catalog_flow() -> int:
                         "source_uri": landing.source_uri,
                     },
                 )
-            await publish_ingestion_observability(
+            await publish_prefect_ingestion_summary(
                 flow_name="exchange-catalog-refresh",
                 domain="exchange",
                 app_run_id=run.run_id,
@@ -99,7 +100,7 @@ async def exchange_catalog_flow() -> int:
                     counters=RunCounters(rows_raw=rows_raw, rows_valid=rows_written, rows_written=rows_written),
                     summary=summary,
                 )
-            await publish_ingestion_observability(
+            await publish_prefect_ingestion_summary(
                 flow_name="exchange-catalog-refresh",
                 domain="exchange",
                 app_run_id=run.run_id,
@@ -189,7 +190,7 @@ async def exchange_mic_registry_flow(snapshot_date: date | None = None) -> dict[
             )
             status = terminal_status(failed=run.tally.failed, rejected=rows_rejected)
             if rows_written:
-                observe_bronze_assets(
+                record_prefect_bronze_materializations(
                     ["exchange_mic_registry"],
                     metadata={
                         "app_run_id": run.run_id,
@@ -198,7 +199,7 @@ async def exchange_mic_registry_flow(snapshot_date: date | None = None) -> dict[
                         "rows_written": rows_written,
                     },
                 )
-            await publish_ingestion_observability(
+            await publish_prefect_ingestion_summary(
                 flow_name="exchange-mic-registry-refresh",
                 domain="exchange",
                 app_run_id=run.run_id,
@@ -217,7 +218,7 @@ async def exchange_mic_registry_flow(snapshot_date: date | None = None) -> dict[
                     ),
                     summary=summary,
                 )
-            await publish_ingestion_observability(
+            await publish_prefect_ingestion_summary(
                 flow_name="exchange-mic-registry-refresh",
                 domain="exchange",
                 app_run_id=run.run_id,

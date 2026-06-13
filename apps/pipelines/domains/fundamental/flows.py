@@ -18,7 +18,8 @@ from core.ingestion import (
     RunStatus,
     terminal_status,
 )
-from core.prefect_controls import observe_bronze_assets, publish_ingestion_observability
+from core.prefect.assets import record_prefect_bronze_materializations
+from core.prefect.events import publish_prefect_ingestion_summary
 from core.transforms import run_dbt_build_after_ingestion
 from domains.fundamental.tasks import (
     delete_fundamental_snapshot_rows,
@@ -634,7 +635,7 @@ async def fundamental_flow(
                 summary=summary,
             )
             if total_written:
-                observe_bronze_assets(
+                record_prefect_bronze_materializations(
                     ["fundamental"],
                     metadata={
                         "app_run_id": run.run_id,
@@ -644,7 +645,7 @@ async def fundamental_flow(
                         "instruments": len(summary["instruments"]),
                     },
                 )
-            await publish_ingestion_observability(
+            await publish_prefect_ingestion_summary(
                 flow_name="fundamental-quarterly",
                 domain="fundamental",
                 app_run_id=run.run_id,
@@ -670,7 +671,7 @@ async def fundamental_flow(
                     ),
                     summary=summary,
                 )
-            await publish_ingestion_observability(
+            await publish_prefect_ingestion_summary(
                 flow_name="fundamental-quarterly",
                 domain="fundamental",
                 app_run_id=run.run_id,
