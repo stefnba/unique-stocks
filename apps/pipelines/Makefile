@@ -162,7 +162,13 @@ operational-health: ## Check Prefect API and lake audit health (pass ARGS="...")
 dashboard: ## Start the Streamlit pipeline audit dashboard
 	$(UV) run --extra dashboard streamlit run dashboard/app.py --server.address 0.0.0.0 --server.port $(STREAMLIT_SERVER_PORT) --server.headless true
 
-prefect-controls: ## Upsert Prefect global limits and event automations (pass ARGS="--dry-run")
+prefect-limits: ## Upsert Prefect global limits and provider rate limits (pass ARGS="--dry-run")
+	$(UV) run python scripts/setup_prefect_limits.py $(ARGS)
+
+prefect-automations: ## Upsert Prefect event automations (pass ARGS="--dry-run")
+	$(UV) run python scripts/setup_prefect_automations.py $(ARGS)
+
+prefect-controls: ## Upsert Prefect limits and automations (pass ARGS="--dry-run")
 	$(UV) run python scripts/setup_prefect_controls.py $(ARGS)
 
 ##@ Local Services

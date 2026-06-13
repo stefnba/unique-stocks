@@ -5,7 +5,8 @@ from contextlib import contextmanager
 
 import pytest
 
-from core import prefect_controls
+from core.prefect import controls as prefect_controls
+from core.prefect.concurrency import ProviderRateLimitPolicy
 
 
 def test_lake_writer_limit_fails_open_when_not_strict(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -51,19 +52,21 @@ def test_lake_writer_limit_raises_when_strict(monkeypatch: pytest.MonkeyPatch) -
 async def test_wait_for_provider_api_credit_fails_open_when_not_strict(monkeypatch: pytest.MonkeyPatch) -> None:
     """Provider calls should continue locally if the Prefect limit is absent."""
     calls: list[dict[str, object]] = []
+    policy = ProviderRateLimitPolicy(burst_capacity=2, slot_decay_per_second=1.0)
 
     async def unavailable_rate_limit(*args: object, **kwargs: object) -> None:
         calls.append({"args": args, "kwargs": kwargs})
         raise RuntimeError("limit missing")
 
     monkeypatch.delenv("PREFECT_GLOBAL_LIMITS_STRICT", raising=False)
-    monkeypatch.setattr(prefect_controls, "_provider_api_credit_limit_missing", False)
+    monkeypatch.setattr(prefect_controls, "_provider_api_credit_limits_missing", set())
     monkeypatch.setattr(prefect_controls, "rate_limit", unavailable_rate_limit)
 
-    await prefect_controls.wait_for_provider_api_credit(provider="demo", operation="GET /prices")
-    await prefect_controls.wait_for_provider_api_credit(provider="demo", operation="GET /prices")
+    await prefect_controls.wait_for_provider_api_credit(provider="demo", policy=policy, operation="GET /prices")
+    await prefect_controls.wait_for_provider_api_credit(provider="demo", policy=policy, operation="GET /prices")
 
     assert len(calls) == 1
+    assert calls[0]["args"] == ("unique-stocks.provider.demo",)
 
 
 @pytest.mark.asyncio

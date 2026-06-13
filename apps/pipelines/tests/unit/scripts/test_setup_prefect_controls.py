@@ -1,4 +1,4 @@
-"""Tests for Prefect controls setup helper."""
+"""Tests for combined Prefect controls setup helper."""
 
 import pytest
 
@@ -6,63 +6,42 @@ from scripts import setup_prefect_controls
 
 
 @pytest.mark.asyncio
-async def test_setup_prefect_controls_dry_run(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+async def test_setup_prefect_controls_runs_limits_and_automations(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Dry-run should describe limits and automations without contacting Prefect."""
-    monkeypatch.setenv("PREFECT_LAKE_WRITER_LIMIT", "2")
-    monkeypatch.setenv("PREFECT_PROVIDER_API_CREDIT_LIMIT", "5")
-    monkeypatch.setenv("PREFECT_PROVIDER_API_CREDIT_DECAY_PER_SECOND", "0.5")
+    """Combined setup should run limits first, then automations."""
+    calls: list[str] = []
+
+    async def setup_limits(**kwargs: object) -> int:
+        calls.append(f"limits:{kwargs['dry_run']}")
+        return 0
+
+    async def setup_automations(**kwargs: object) -> int:
+        calls.append(f"automations:{kwargs['dry_run']}")
+        return 0
+
+    monkeypatch.setattr(setup_prefect_controls, "setup_prefect_limits", setup_limits)
+    monkeypatch.setattr(setup_prefect_controls, "setup_prefect_automations", setup_automations)
 
     exit_code = await setup_prefect_controls.setup_prefect_controls(dry_run=True)
 
-    output = capsys.readouterr().out
     assert exit_code == 0
-    assert "unique-stocks.lake-writer: limit=2" in output
-    assert "unique-stocks.provider-api-credit: limit=5" in output
-    assert "slot_decay_per_second=0.5" in output
-    assert "unique-stocks dbt failure alert" in output
-    assert "on trigger: do-nothing" in output
+    assert calls == ["limits:True", "automations:True"]
 
 
-def test_automation_puts_action_on_trigger(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Automation payloads should use the trigger-action field rendered by Prefect UI."""
-    monkeypatch.delenv("PREFECT_NOTIFICATION_BLOCK_ID", raising=False)
+@pytest.mark.asyncio
+async def test_setup_prefect_controls_returns_nonzero_when_substep_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Combined setup should return the highest substep exit code."""
 
-    automation = setup_prefect_controls._automation(
-        name="dbt alert",
-        event="unique-stocks.dbt.failed",
-        description="dbt failed",
-    )
-    payload = automation.model_dump(mode="json", exclude_unset=True)
+    async def setup_limits(**_: object) -> int:
+        return 0
 
-    assert payload["actions"] == []
-    assert payload["actions_on_trigger"] == [{"type": "do-nothing"}]
+    async def setup_automations(**_: object) -> int:
+        return 2
 
+    monkeypatch.setattr(setup_prefect_controls, "setup_prefect_limits", setup_limits)
+    monkeypatch.setattr(setup_prefect_controls, "setup_prefect_automations", setup_automations)
 
-def test_automation_action_uses_notification_block_when_configured(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Operators can turn event automations into notifications with one block id."""
-    block_id = "018f0000-0000-7000-8000-000000000001"
-    monkeypatch.setenv("PREFECT_NOTIFICATION_BLOCK_ID", block_id)
-
-    action = setup_prefect_controls._automation_action(name="dbt alert")
-
-    assert action.type == "send-notification"
-    assert str(action.block_document_id) == block_id
-
-
-def test_automation_trigger_action_uses_notification_block_when_configured(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Configured notification blocks should become visible trigger actions."""
-    block_id = "018f0000-0000-7000-8000-000000000001"
-    monkeypatch.setenv("PREFECT_NOTIFICATION_BLOCK_ID", block_id)
-
-    automation = setup_prefect_controls._automation(
-        name="dbt alert",
-        event="unique-stocks.dbt.failed",
-        description="dbt failed",
-    )
-    payload = automation.model_dump(mode="json", exclude_unset=True)
-
-    assert payload["actions"] == []
-    assert payload["actions_on_trigger"][0]["type"] == "send-notification"
-    assert payload["actions_on_trigger"][0]["block_document_id"] == block_id
+    assert await setup_prefect_controls.setup_prefect_controls(dry_run=False) == 2

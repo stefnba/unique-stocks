@@ -11,6 +11,7 @@ import httpx
 import structlog
 
 from core.clients.http.base import HttpClientBase
+from core.prefect.concurrency import ProviderRateLimitPolicy
 from providers.registry import Provider
 
 from .models import (
@@ -43,6 +44,11 @@ class EODHDClient(HttpClientBase):
 
     PROVIDER = Provider.EODHD
     BASE_URL = "https://eodhd.com/api"
+
+    RATE_LIMIT_POLICY = ProviderRateLimitPolicy(
+        burst_capacity=100,
+        slot_decay_per_second=10.0,
+    )
 
     def __init__(self, api_key: str, timeout: float = 30.0) -> None:
         """Initialize with an EODHD API key and optional request timeout."""

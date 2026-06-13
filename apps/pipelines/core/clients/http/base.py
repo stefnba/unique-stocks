@@ -18,7 +18,8 @@ import httpx
 import structlog
 from pydantic import BaseModel
 
-from core.prefect_controls import wait_for_provider_api_credit
+from core.prefect.concurrency import ProviderRateLimitPolicy
+from core.prefect.controls import wait_for_provider_api_credit
 from core.utils.redaction import redact_sensitive_query_params
 
 log = structlog.get_logger(__name__)
@@ -86,6 +87,7 @@ class HttpClientBase(ABC):
 
     PROVIDER: ClassVar[str]
     BASE_URL: ClassVar[str]
+    RATE_LIMIT_POLICY: ClassVar[ProviderRateLimitPolicy | None] = None
 
     _timeout: float = 30.0
     _http: httpx.AsyncClient | None = None
@@ -174,10 +176,12 @@ class HttpClientBase(ABC):
         safe_path = redact_sensitive_query_params(path)
         log.debug(f"http.client.{self.PROVIDER}.request", method=method, path=safe_path)
         try:
-            await wait_for_provider_api_credit(
-                provider=self.PROVIDER,
-                operation=f"{method} {safe_path}",
-            )
+            if self.RATE_LIMIT_POLICY is not None:
+                await wait_for_provider_api_credit(
+                    provider=str(self.PROVIDER),
+                    operation=f"{method} {safe_path}",
+                    policy=self.RATE_LIMIT_POLICY,
+                )
             response = await self._http.request(method, path, params=params, json=json)
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:

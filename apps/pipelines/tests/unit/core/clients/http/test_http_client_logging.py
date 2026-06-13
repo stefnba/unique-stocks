@@ -10,6 +10,7 @@ from structlog.testing import capture_logs
 
 from config.settings import Settings
 from core.clients.http.base import REDACTED_QUERY_VALUE, HttpClientBase, ProviderRateLimitError
+from core.prefect.concurrency import ProviderRateLimitPolicy
 from core.utils.logging import configure_logging
 
 SECRET_TOKEN = "provider-token-123"
@@ -29,6 +30,10 @@ class _DemoClient(HttpClientBase):
 
     PROVIDER: ClassVar[str] = "demo"
     BASE_URL: ClassVar[str] = "https://provider.example"
+    RATE_LIMIT_POLICY: ClassVar[ProviderRateLimitPolicy | None] = ProviderRateLimitPolicy(
+        burst_capacity=2,
+        slot_decay_per_second=1.0,
+    )
 
     def __init__(self, transport: httpx.AsyncBaseTransport) -> None:
         """Create a client using an in-memory transport."""
@@ -66,7 +71,13 @@ async def test_http_client_waits_for_provider_api_credit(monkeypatch: pytest.Mon
     async with _DemoClient(httpx.MockTransport(handler)) as client:
         await client._request("/prices", params={"symbol": "AAPL.US"})
 
-    assert calls == [{"provider": "demo", "operation": "GET /prices"}]
+    assert calls == [
+        {
+            "provider": "demo",
+            "operation": "GET /prices",
+            "policy": _DemoClient.RATE_LIMIT_POLICY,
+        }
+    ]
 
 
 @pytest.mark.asyncio

@@ -19,13 +19,14 @@ from prefect.concurrency.asyncio import rate_limit
 from prefect.concurrency.sync import concurrency
 from prefect.events import emit_event
 
+from core.prefect.concurrency import ProviderRateLimitPolicy
+
 logger = structlog.get_logger(__name__)
 
 LAKE_WRITER_LIMIT = "unique-stocks.lake-writer"
-PROVIDER_API_CREDIT_LIMIT = "unique-stocks.provider-api-credit"
 
 _lake_writer_limit_missing = False
-_provider_api_credit_limit_missing = False
+_provider_api_credit_limits_missing: set[str] = set()
 
 DBT_FAILED_EVENT = "unique-stocks.dbt.failed"
 COVERAGE_GATE_FAILED_EVENT = "unique-stocks.coverage-gate.failed"
@@ -93,30 +94,33 @@ def lake_writer_limit(operation: str | None = None) -> Generator[None]:
 async def wait_for_provider_api_credit(
     *,
     provider: str,
+    policy: ProviderRateLimitPolicy | None,
     operation: str | None = None,
 ) -> None:
     """Apply the shared provider/API-credit rate limit before outbound calls."""
-    global _provider_api_credit_limit_missing
+    if policy is None:
+        return
 
+    limit_name = policy.limit_name(provider)
     strict_limits = _strict_limits()
-    if _provider_api_credit_limit_missing and not strict_limits:
+    if limit_name in _provider_api_credit_limits_missing and not strict_limits:
         return
 
     try:
         await rate_limit(
-            PROVIDER_API_CREDIT_LIMIT,
+            limit_name,
             occupy=1,
             strict=True,
         )
     except Exception as exc:
         if strict_limits:
             raise
-        _provider_api_credit_limit_missing = True
+        _provider_api_credit_limits_missing.add(limit_name)
         logger.warning(
             "prefect_provider_api_limit_unavailable",
             provider=provider,
             operation=operation,
-            limit_name=PROVIDER_API_CREDIT_LIMIT,
+            limit_name=limit_name,
             error=str(exc),
         )
 

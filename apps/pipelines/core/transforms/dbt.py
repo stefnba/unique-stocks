@@ -23,7 +23,7 @@ from core.clients.lake import get_lake_client, reset_lake_client
 from core.ingestion import PipelineRunTracker, RunCounters, terminal_status
 from core.ingestion.serialization import jsonable
 from core.lake.database import ensure_lake_database
-from core.prefect_controls import emit_dbt_failed_event, lake_writer_limit, materialize_dbt_assets
+from core.prefect.controls import emit_dbt_failed_event, lake_writer_limit, materialize_dbt_assets
 
 log = structlog.get_logger(__name__)
 

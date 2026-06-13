@@ -258,28 +258,30 @@ make prefect-worker        # start the worker
 deployments do not write the same local lake at the same time. Raise it only after adding Prefect
 global concurrency limits for shared lake and provider resources.
 
-`make prefect-controls` upserts two Prefect global limits: `unique-stocks.lake-writer`
-for lake/dbt/migration writes and `unique-stocks.provider-api-credit` for outbound provider calls.
-It also creates event automations for dbt failures, EOD coverage-gate gaps, stale running audit
-rows, ingestion partial/failure outcomes, and cancellations. The automations use a no-op action
-unless `PREFECT_NOTIFICATION_BLOCK_ID` is set to a Prefect notification block UUID.
+`make prefect-controls` runs both `make prefect-limits` and `make prefect-automations`.
+`make prefect-limits` upserts the shared lake writer limit and provider rate limits declared
+by provider HTTP clients, such as `unique-stocks.lake-writer` for lake/dbt/migration writes and
+`unique-stocks.provider.eodhd` for EODHD calls. `make prefect-automations` creates event automations
+for dbt failures, EOD coverage-gate gaps, stale running audit rows, ingestion partial/failure outcomes,
+and cancellations. The automations use a no-op action unless `PREFECT_NOTIFICATION_BLOCK_ID` is set
+to a Prefect notification block UUID.
 If the Prefect UI shows no useful action, set that environment variable and rerun
 `make prefect-controls` against the same `PREFECT_API_URL` used by the worker.
-If Prefect logs that `unique-stocks.provider-api-credit` does not exist, run `make prefect-controls`
+If Prefect logs that a provider limit such as `unique-stocks.provider.eodhd` does not exist, run `make prefect-controls`
 against the same `PREFECT_API_URL` used by the worker.
 
 ### Provider Call Controls
 
 Provider-call controls exist at different layers:
 
-| Control                                          | Scope                 | Purpose                                                                                                   |
-| ------------------------------------------------ | --------------------- | --------------------------------------------------------------------------------------------------------- |
-| `PREFECT_WORKER_LIMIT`                           | Worker process        | Caps concurrent flow runs on one worker. Defaults to `1`, which serializes local/dev flow execution.      |
-| Deployment `concurrency_limit` in `prefect.yaml` | One deployment        | Prevents overlapping runs of the same scheduled/manual deployment.                                        |
-| EOD backfill `batch_size`                        | One EOD backfill run  | Caps how many per-instrument EOD history requests that single run submits concurrently.                   |
-| EOD backfill `max_provider_calls`                | One EOD backfill run  | Stops that run after a fixed number of submitted provider calls, useful for daily quota or spend caps.    |
-| Provider HTTP 429 handling                       | One active flow run   | Reacts when the provider says the limit was hit, stops later batches, and leaves deferred work retryable. |
-| `unique-stocks.provider-api-credit` global limit | All flows and workers | Pre-call shared throttle for outbound provider requests across domains, runs, and scaled workers.         |
+| Control                                          | Scope                 | Purpose                                                                                                          |
+| ------------------------------------------------ | --------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `PREFECT_WORKER_LIMIT`                           | Worker process        | Caps concurrent flow runs on one worker. Defaults to `1`, which serializes local/dev flow execution.             |
+| Deployment `concurrency_limit` in `prefect.yaml` | One deployment        | Prevents overlapping runs of the same scheduled/manual deployment.                                               |
+| EOD backfill `batch_size`                        | One EOD backfill run  | Caps how many per-instrument EOD history requests that single run submits concurrently.                          |
+| EOD backfill `max_provider_calls`                | One EOD backfill run  | Stops that run after a fixed number of submitted provider calls, useful for daily quota or spend caps.           |
+| Provider HTTP 429 handling                       | One active flow run   | Reacts when the provider says the limit was hit, stops later batches, and leaves deferred work retryable.        |
+| Provider client `RATE_LIMIT_POLICY`              | All flows and workers | Pre-call provider-specific throttle, registered as Prefect global limits such as `unique-stocks.provider.eodhd`. |
 
 With a single worker and `PREFECT_WORKER_LIMIT=1`, the global provider limit is mostly a safety net.
 It becomes important when multiple provider-calling flows or workers can run at the same time.
@@ -517,8 +519,6 @@ Optional production infrastructure configuration:
 - `PREFECT_UI_URL` — optional browser-facing Prefect UI base URL used for run deep links from the dashboard.
 - `PREFECT_WORKER_LIMIT` — maximum concurrent flow runs per worker process; defaults to `1`.
 - `PREFECT_LAKE_WRITER_LIMIT` — global lake writer slots created by `make prefect-controls`; defaults to `1`.
-- `PREFECT_PROVIDER_API_CREDIT_LIMIT` — provider/API-credit bucket size; defaults to `1`.
-- `PREFECT_PROVIDER_API_CREDIT_DECAY_PER_SECOND` — provider/API-credit refill rate; defaults to `1.0`.
 - `PREFECT_GLOBAL_LIMITS_STRICT` — fail when Prefect limits are unavailable; keep false for bootstrap, set true after setup in production.
 - `PREFECT_NOTIFICATION_BLOCK_ID` — optional Prefect notification block UUID used by event automations.
 - `OPERATIONAL_HEALTH_RECENT_DOMAINS` — optional comma- or whitespace-separated domains the deployed `pipelines-operational-health` container must see recently, for example `eod_price,fundamental`.

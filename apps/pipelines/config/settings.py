@@ -15,6 +15,7 @@ type PipelineLogFormat = Literal["auto", "console", "json"]
 
 APP_ROOT: Final[Path] = Path(__file__).resolve().parents[1]
 _DEFAULT_LAKE_NAME: Final[str] = "unique_stocks"
+DEFAULT_PREFECT_LAKE_WRITER_LIMIT: Final[int] = 1
 PROD_MOTHERDUCK_ERROR: Final[str] = (
     "ENVIRONMENT=prod requires MOTHERDUCK_TOKEN; set MOTHERDUCK_TOKEN or use ENVIRONMENT=dev"
 )
@@ -51,6 +52,11 @@ class Settings(BaseSettings):
     # Prefect
     prefect_api_url: str = "http://127.0.0.1:4200/api"
     prefect_api_key: SecretStr = Field(default=SecretStr(""), description="API key for Prefect.")
+    prefect_lake_writer_limit: int = Field(
+        default=DEFAULT_PREFECT_LAKE_WRITER_LIMIT,
+        ge=1,
+        description="Prefect global concurrency slots for shared lake/dbt writes.",
+    )
 
     # Environment
     environment: Environment = "dev"

@@ -1,7 +1,7 @@
 """Provider registry.
 
-Subpackages (e.g. providers/eodhd/) import from here.
-Do NOT import from subpackages in this file — that would create a circular dependency.
+Subpackages import ``Provider`` from here; keep this module free of provider
+subpackage imports to avoid circular imports.
 """
 
 from enum import StrEnum
