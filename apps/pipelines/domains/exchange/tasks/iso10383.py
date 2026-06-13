@@ -42,7 +42,7 @@ async def write_mic_registry_to_landing_zone(
     snapshot_date: date,
 ) -> LandingWrite:
     """Write the ISO MIC registry CSV rows to the S3 landing zone."""
-    from core.clients.storage.s3 import S3StorageClient
+    from core.storage.s3 import S3StorageClient
 
     s3 = await S3StorageClient.from_block_entry(BlockRegistry.S3_BUCKET)
     ref = EXCHANGE_MIC_REGISTRY_DATASET.landings.mic_registry.save(
@@ -77,7 +77,7 @@ def write_bronze_exchange_mic_registry(
     source_uri: str | None = None,
 ) -> BronzeWrite:
     """Write validated ISO MIC registry rows to bronze.exchange_mic_registry."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     if not mic_rows:
         log.info("exchange_mic_registry.write_skipped", reason="no_data", snapshot_date=snapshot_date)

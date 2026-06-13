@@ -12,7 +12,7 @@ from prefect.tasks import TaskRunNameCallbackWithParameters, exponential_backoff
 from pydantic import ValidationError
 
 from config.blocks import BlockRegistry
-from core.clients.http.base import ProviderRateLimitError
+from core.http.base import ProviderRateLimitError
 from core.ingestion import BronzeParseResult, BronzeWrite, LandingWrite
 from core.ingestion.coverage import COVERAGE_STATUS_PROVIDER_QUOTA_DEFERRED, record_ingestion_coverage
 from core.ingestion.keys import ObjectStorageKey
@@ -151,7 +151,7 @@ def _load_fundamental_instrument_selection(
     skip_completed: bool = False,
 ) -> FundamentalInstrumentSelection:
     """Load provider instruments from Silver and report whether completion filtering ran."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     lake = get_lake_client()
     universe_q = require_silver_ingestion_model(
@@ -259,7 +259,7 @@ def write_fundamental_deferred_coverage(
     reason: str,
 ) -> BronzeWrite:
     """Record unsubmitted fundamentals units deferred by provider quota controls."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     if not instruments:
         return BronzeWrite(rows_written=0, reason="no_instruments")
@@ -301,7 +301,7 @@ def load_latest_fundamental_ingestion_batch_date() -> date | None:
     Used to continue a multi-day backfill under the same bronze partition when
     ``continue_ingestion_batch`` is enabled and no explicit batch date was passed.
     """
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     lake = get_lake_client()
     if not lake.table_exists("bronze", FUNDAMENTAL_DOCUMENT_DATASET.table_name):
@@ -356,7 +356,7 @@ def fundamental_document_already_ingested(
     snapshot_date: date,
 ) -> bool:
     """Return True when the fundamentals document already exists for this provider_instrument_code snapshot."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     lake = get_lake_client()
     return FUNDAMENTAL_DOCUMENT_DATASET.already_ingested(
@@ -377,7 +377,7 @@ def load_fundamental_document_payload_hash(
     snapshot_date: date,
 ) -> str | None:
     """Return the stored payload hash for a provider_instrument_code snapshot when one exists."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     lake = get_lake_client()
     if not lake.table_exists("bronze", FUNDAMENTAL_DOCUMENT_DATASET.table_name):
@@ -420,7 +420,7 @@ def delete_fundamental_snapshot_rows(
     landed, so the same-day snapshot can be replaced without violating Bronze
     unique constraints.
     """
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     lake = get_lake_client()
     deleted_tables = 0
@@ -518,7 +518,7 @@ async def load_fundamental_from_landing(
     If ``source_uri`` is omitted, the latest landing object for the provider_instrument_code and
     snapshot date is selected by its path-safe ``ingested_at`` partition.
     """
-    from core.clients.storage.s3 import S3StorageClient
+    from core.storage.s3 import S3StorageClient
 
     s3 = await S3StorageClient.from_block_entry(BlockRegistry.S3_BUCKET)
     resolved_uri = source_uri or _latest_fundamental_landing_uri(
@@ -561,7 +561,7 @@ async def write_fundamental_to_landing(
     ingested_at: datetime | None = None,
 ) -> LandingWrite:
     """Write one raw fundamentals document to the S3 landing zone as JSON."""
-    from core.clients.storage.s3 import S3StorageClient
+    from core.storage.s3 import S3StorageClient
 
     stamp = ingested_at or datetime.now(UTC).replace(microsecond=0)
     s3 = await S3StorageClient.from_block_entry(BlockRegistry.S3_BUCKET)
@@ -823,7 +823,7 @@ def write_bronze_fundamental_document(
     source_uri: str | None = None,
 ) -> BronzeWrite:
     """Write one document metadata row to ``bronze.fundamental_document``."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     lake = get_lake_client()
     if FUNDAMENTAL_DOCUMENT_DATASET.already_ingested(
@@ -848,7 +848,7 @@ def write_bronze_fundamental_stock_identity(
     provider_instrument_code: str | None = None,
 ) -> BronzeWrite:
     """Write one stock identity row to ``bronze.fundamental_stock_identity``."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     if source is None:
         return BronzeWrite(rows_written=0, reason="not_stock")
@@ -879,7 +879,7 @@ def write_bronze_fundamental_statement_facts(
     source_uri: str | None = None,
 ) -> BronzeWrite:
     """Write stock financial-statement facts to ``bronze.fundamental_statement_fact``."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     if not sources:
         return BronzeWrite(rows_written=0, reason="no_facts")
@@ -909,7 +909,7 @@ def write_bronze_fundamental_stock_earnings_facts(
     source_uri: str | None = None,
 ) -> BronzeWrite:
     """Write stock earnings facts to ``bronze.fundamental_stock_earnings_fact``."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     if not sources:
         return BronzeWrite(rows_written=0, reason="no_earnings_facts")
@@ -940,7 +940,7 @@ def write_bronze_fundamental_stock_shares_stats(
     provider_instrument_code: str | None = None,
 ) -> BronzeWrite:
     """Write one stock shares-statistics row to ``bronze.fundamental_stock_shares_stats``."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     if source is None:
         return BronzeWrite(rows_written=0, reason="no_shares_stats")
@@ -973,7 +973,7 @@ def write_bronze_fundamental_stock_outstanding_shares(
     source_uri: str | None = None,
 ) -> BronzeWrite:
     """Write stock outstanding-shares history to ``bronze.fundamental_stock_outstanding_shares``."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     if not sources:
         return BronzeWrite(rows_written=0, reason="no_outstanding_shares")
@@ -1005,7 +1005,7 @@ def write_bronze_fundamental_stock_holders(
     source_uri: str | None = None,
 ) -> BronzeWrite:
     """Write stock holder rows to ``bronze.fundamental_stock_holder``."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     if not sources:
         return BronzeWrite(rows_written=0, reason="no_holders")
@@ -1035,7 +1035,7 @@ def write_bronze_fundamental_stock_insider_transactions(
     source_uri: str | None = None,
 ) -> BronzeWrite:
     """Write stock insider transaction rows to ``bronze.fundamental_stock_insider_transaction``."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     if not sources:
         return BronzeWrite(rows_written=0, reason="no_insider_transactions")
@@ -1068,7 +1068,7 @@ def write_bronze_fundamental_stock_splits_dividends(
     provider_instrument_code: str | None = None,
 ) -> BronzeWrite:
     """Write one stock splits/dividends row to ``bronze.fundamental_stock_splits_dividends``."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     if source is None:
         return BronzeWrite(rows_written=0, reason="no_splits_dividends")
@@ -1101,7 +1101,7 @@ def write_bronze_fundamental_stock_dividend_counts(
     source_uri: str | None = None,
 ) -> BronzeWrite:
     """Write yearly dividend-count rows to ``bronze.fundamental_stock_dividend_count``."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     if not sources:
         return BronzeWrite(rows_written=0, reason="no_dividend_counts")
@@ -1133,7 +1133,7 @@ def write_bronze_fundamental_stock_metric_facts(
     source_uri: str | None = None,
 ) -> BronzeWrite:
     """Write compact stock numeric metrics to ``bronze.fundamental_stock_metric_fact``."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     if not sources:
         return BronzeWrite(rows_written=0, reason="no_metric_facts")
@@ -1163,7 +1163,7 @@ def write_bronze_fundamental_stock_esg_activities(
     source_uri: str | None = None,
 ) -> BronzeWrite:
     """Write ESG activity involvement rows to ``bronze.fundamental_stock_esg_activity``."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     if not sources:
         return BronzeWrite(rows_written=0, reason="no_esg_activities")
@@ -1194,7 +1194,7 @@ def write_bronze_fundamental_etf_identity(
     provider_instrument_code: str | None = None,
 ) -> BronzeWrite:
     """Write one ETF identity row to ``bronze.fundamental_etf_identity``."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     if source is None:
         return BronzeWrite(rows_written=0, reason="not_etf")
@@ -1224,7 +1224,7 @@ def write_bronze_fundamental_mutual_fund_identity(
     provider_instrument_code: str | None = None,
 ) -> BronzeWrite:
     """Write one mutual fund identity row to ``bronze.fundamental_mutual_fund_identity``."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     if source is None:
         return BronzeWrite(rows_written=0, reason="not_mutual_fund")
@@ -1256,7 +1256,7 @@ def write_bronze_fundamental_index_identity(
     provider_instrument_code: str | None = None,
 ) -> BronzeWrite:
     """Write one index identity row to ``bronze.fundamental_index_identity``."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     if source is None:
         return BronzeWrite(rows_written=0, reason="not_index")
@@ -1287,7 +1287,7 @@ def write_bronze_fundamental_etf_holdings(
     source_uri: str | None = None,
 ) -> BronzeWrite:
     """Write ETF holdings to ``bronze.fundamental_etf_holding``."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     if not sources:
         return BronzeWrite(rows_written=0, reason="no_etf_holdings")
@@ -1317,7 +1317,7 @@ def write_bronze_fundamental_mutual_fund_holdings(
     source_uri: str | None = None,
 ) -> BronzeWrite:
     """Write mutual fund holdings to ``bronze.fundamental_mutual_fund_holding``."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     if not sources:
         return BronzeWrite(rows_written=0, reason="no_mutual_fund_holdings")
@@ -1349,7 +1349,7 @@ def write_bronze_fundamental_fund_metric_facts(
     source_uri: str | None = None,
 ) -> BronzeWrite:
     """Write ETF/fund metric facts to ``bronze.fundamental_fund_metric_fact``."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     if not sources:
         return BronzeWrite(rows_written=0, reason="no_fund_metric_facts")
@@ -1379,7 +1379,7 @@ def write_bronze_fundamental_index_components(
     source_uri: str | None = None,
 ) -> BronzeWrite:
     """Write current index components to ``bronze.fundamental_index_component``."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     if not sources:
         return BronzeWrite(rows_written=0, reason="no_index_components")
@@ -1409,7 +1409,7 @@ def write_bronze_fundamental_index_historical_components(
     source_uri: str | None = None,
 ) -> BronzeWrite:
     """Write historical index components to ``bronze.fundamental_index_historical_component``."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     if not sources:
         return BronzeWrite(rows_written=0, reason="no_index_historical_components")

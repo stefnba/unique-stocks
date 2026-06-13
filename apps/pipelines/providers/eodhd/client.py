@@ -10,9 +10,9 @@ from datetime import date
 import httpx
 import structlog
 
-from core.clients.http.base import HttpClientBase
+from config.providers import Provider
+from core.http.base import HttpClientBase
 from core.prefect.limits import ProviderRateLimitPolicy
-from providers.registry import Provider
 
 from .models import (
     EODBulkPriceRaw,

@@ -9,9 +9,10 @@ window from suppressing a later wider backfill.
 
 from datetime import date
 
-from providers.registry import Provider
+from config.providers import Provider
 
 EOD_PRICE_DOMAIN = "eod_price"
+EOD_PROVIDER = str(Provider.EODHD)
 EOD_INSTRUMENT_BACKFILL_UNIT_TYPE = "instrument_backfill"
 NO_VALID_ROWS_COVERAGE_REASON = "no_valid_rows"
 PRICE_ROWS_COMPLETED_COVERAGE_REASON = "price_rows_completed"
@@ -31,8 +32,3 @@ def eod_instrument_backfill_unit_key(
         "from_date": from_date.isoformat() if from_date else None,
         "to_date": to_date.isoformat(),
     }
-
-
-def eod_provider() -> str:
-    """Return the provider id stamped on EOD coverage rows."""
-    return str(Provider.EODHD)

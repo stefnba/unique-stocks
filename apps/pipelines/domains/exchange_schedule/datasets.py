@@ -3,11 +3,12 @@
 from dataclasses import dataclass
 from datetime import date
 
-from core.ingestion import BronzeDataset, LandingDomain, LandingTarget
+from config.domains import Domain
+from config.providers import Provider
+from core.ingestion import BronzeDataset, LandingTarget
 from core.ingestion.landing import PartitionedLandingTarget
 from core.ingestion.partitioning import LandingPartitionSchema
 from domains.exchange_schedule.tables import EXCHANGE_HOLIDAY_TABLE, EXCHANGE_SCHEDULE_TABLE
-from providers.registry import Provider
 
 
 class ExchangeScheduleLandingPartition(LandingPartitionSchema):
@@ -23,7 +24,7 @@ class ExchangeScheduleLandingPartition(LandingPartitionSchema):
 
 
 EXCHANGE_SCHEDULE_LANDING = LandingTarget.partitioned(
-    domain=LandingDomain.EXCHANGE_SCHEDULE,
+    domain=Domain.EXCHANGE_SCHEDULE,
     partition_fields=ExchangeScheduleLandingPartition,
     file_format="json",
 )

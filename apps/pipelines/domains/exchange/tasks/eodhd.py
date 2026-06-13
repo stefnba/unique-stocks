@@ -33,7 +33,7 @@ async def write_exchange_catalog_to_landing_zone(
     snapshot_date: date,
 ) -> LandingWrite:
     """Write supported exchange to the S3 landing zone as JSONL."""
-    from core.clients.storage.s3 import S3StorageClient
+    from core.storage.s3 import S3StorageClient
 
     s3 = await S3StorageClient.from_block_entry(BlockRegistry.S3_BUCKET)
     ref = EXCHANGE_CATALOG_DATASET.landings.catalog.save(
@@ -56,7 +56,7 @@ def write_bronze_exchange_catalog(
     source_uri: str | None = None,
 ) -> BronzeWrite:
     """Write validated exchange catalog rows to bronze.exchange_catalog."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     if not exchange:
         log.info("exchange.write_skipped", reason="no_data", snapshot_date=snapshot_date)

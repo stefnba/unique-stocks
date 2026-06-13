@@ -10,7 +10,7 @@ from prefect.tasks import exponential_backoff
 from pydantic import ValidationError
 
 from config.blocks import BlockRegistry
-from core.clients.http.base import ProviderRateLimitError
+from core.http.base import ProviderRateLimitError
 from core.ingestion import BronzeWrite, LandingWrite
 from domains.exchange_schedule.datasets import (
     EXCHANGE_HOLIDAY_DATASET,
@@ -109,7 +109,7 @@ async def write_schedule_to_landing_zone(
     ingested_at: datetime | None = None,
 ) -> LandingWrite:
     """Write raw exchange-details JSON to the S3 landing zone."""
-    from core.clients.storage.s3 import S3StorageClient
+    from core.storage.s3 import S3StorageClient
 
     stamp = ingested_at or datetime.now(UTC).replace(microsecond=0)
     s3 = await S3StorageClient.from_block_entry(BlockRegistry.S3_BUCKET)
@@ -143,7 +143,7 @@ def write_bronze_exchange_schedule(
     source_uri: str | None = None,
 ) -> BronzeWrite:
     """Write one exchange schedule row to bronze.exchange_schedule."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     lake = get_lake_client()
     if EXCHANGE_SCHEDULE_DATASET.already_ingested(
@@ -183,7 +183,7 @@ def write_bronze_exchange_holiday(
     source_uri: str | None = None,
 ) -> BronzeWrite:
     """Write holiday rows for one exchange to bronze.exchange_holiday."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     provider_schedule_exchange_code = details.provider_schedule_exchange_code
     holiday = parse_exchange_holiday_snapshots(details, snapshot_date)
@@ -226,7 +226,7 @@ def write_bronze_exchange_holiday(
 )
 def schedule_already_ingested(provider_schedule_exchange_code: str, snapshot_date: date) -> bool:
     """Return True when schedule data for this exchange and snapshot already exists."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     lake = get_lake_client()
     return EXCHANGE_SCHEDULE_DATASET.already_ingested(

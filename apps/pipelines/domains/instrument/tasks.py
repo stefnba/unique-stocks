@@ -65,7 +65,7 @@ async def write_instrument_to_landing_zone(
     ingested_at: datetime | None = None,
 ) -> LandingWrite:
     """Write raw instrument list for one exchange to the S3 landing zone as JSONL."""
-    from core.clients.storage.s3 import S3StorageClient
+    from core.storage.s3 import S3StorageClient
 
     stamp = ingested_at or datetime.now(UTC).replace(microsecond=0)
     s3 = await S3StorageClient.from_block_entry(BlockRegistry.S3_BUCKET)
@@ -106,7 +106,7 @@ def write_bronze_instrument(
     from the model's ``provider_listing_exchange_code`` field. Idempotency is
     checked at the (provider_exchange_code, snapshot_date) level.
     """
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     if not instrument:
         log.info("instrument.write_skipped", reason="no_data", provider_exchange_code=provider_exchange_code)
@@ -158,7 +158,7 @@ def write_bronze_instrument(
 )
 def instrument_already_ingested(provider_exchange_code: str, snapshot_date: date) -> bool:
     """Return True when instrument data for this exchange and snapshot already exists."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     lake = get_lake_client()
     return INSTRUMENT_DATASET.already_ingested(

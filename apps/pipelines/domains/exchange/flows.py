@@ -6,7 +6,6 @@ from prefect import flow
 
 from core.ingestion import PipelineRunTracker, RunCounters, terminal_status
 from core.prefect.events import publish_prefect_ingestion_summary
-from core.transforms import run_dbt_build_deployment
 from domains.exchange.tasks.eodhd import (
     fetch_exchange_catalog,
     write_bronze_exchange_catalog,
@@ -19,6 +18,7 @@ from domains.exchange.tasks.iso10383 import (
     write_bronze_exchange_mic_registry,
     write_mic_registry_to_landing_zone,
 )
+from orchestration.post_ingestion import run_dbt_build_deployment
 
 from .assets import (
     record_exchange_catalog_bronze_materialization,

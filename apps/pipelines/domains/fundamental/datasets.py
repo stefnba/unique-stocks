@@ -3,7 +3,9 @@
 from dataclasses import dataclass
 from datetime import date
 
-from core.ingestion import BronzeDataset, LandingDomain, LandingTarget
+from config.domains import Domain
+from config.providers import Provider
+from core.ingestion import BronzeDataset, LandingTarget
 from core.ingestion.landing import PartitionedLandingTarget
 from core.ingestion.partitioning import LandingPartitionSchema
 from domains.fundamental.tables import (
@@ -28,7 +30,6 @@ from domains.fundamental.tables import (
     FUNDAMENTAL_STOCK_SHARES_STATS_TABLE,
     FUNDAMENTAL_STOCK_SPLITS_DIVIDENDS_TABLE,
 )
-from providers.registry import Provider
 
 
 class FundamentalDocumentPartition(LandingPartitionSchema):
@@ -40,7 +41,7 @@ class FundamentalDocumentPartition(LandingPartitionSchema):
 
 
 FUNDAMENTAL_DOCUMENT_LANDING = LandingTarget.partitioned(
-    domain=LandingDomain.FUNDAMENTAL,
+    domain=Domain.FUNDAMENTAL,
     partition_fields=FundamentalDocumentPartition,
     file_format="json",
 )

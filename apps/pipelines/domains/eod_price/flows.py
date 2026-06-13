@@ -19,8 +19,7 @@ from prefect.artifacts import create_table_artifact
 from prefect.transactions import transaction
 from pydantic import ValidationError
 
-from core.clients.http.base import ProviderRateLimitError
-from core.clients.lake import reset_lake_client
+from core.http.base import ProviderRateLimitError
 from core.ingestion import (
     BronzeParseResult,
     LandingObjectRecord,
@@ -32,8 +31,8 @@ from core.ingestion import (
     terminal_status,
 )
 from core.ingestion.parser import attach_source_uri
+from core.lake import reset_lake_client
 from core.prefect.events import emit_prefect_coverage_gate_failure_event, publish_prefect_ingestion_summary
-from core.transforms import DbtBuildDeployment, run_dbt_build_after_ingestion, run_dbt_build_deployment
 from domains.eod_price.models import EODBar
 from domains.eod_price.parsers import infer_bulk_bar_date, parse_instrument_bars
 from domains.eod_price.tasks import (
@@ -57,6 +56,7 @@ from domains.eod_price.tasks import (
     write_eod_price_to_landing,
     write_instrument_eod_history_to_landing,
 )
+from orchestration.post_ingestion import DbtBuildDeployment, run_dbt_build_after_ingestion, run_dbt_build_deployment
 from providers.eodhd.models import EODBulkPriceRaw, EODPriceBarRaw
 
 from .assets import record_eod_price_bronze_materialization

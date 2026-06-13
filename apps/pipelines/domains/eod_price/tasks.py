@@ -16,7 +16,7 @@ from prefect.tasks import exponential_backoff
 from pydantic import ValidationError
 
 from config.blocks import BlockRegistry
-from core.clients.http.base import ProviderRateLimitError
+from core.http.base import ProviderRateLimitError
 from core.ingestion import BronzeParseResult, BronzeWrite, LandingWrite
 from core.ingestion.coverage import (
     COVERAGE_STATUS_COMPLETED,
@@ -32,10 +32,10 @@ from providers.eodhd.models import EODBulkPriceRaw, EODPriceBarRaw
 from .coverage import (
     EOD_INSTRUMENT_BACKFILL_UNIT_TYPE,
     EOD_PRICE_DOMAIN,
+    EOD_PROVIDER,
     NO_VALID_ROWS_COVERAGE_REASON,
     PRICE_ROWS_COMPLETED_COVERAGE_REASON,
     eod_instrument_backfill_unit_key,
-    eod_provider,
 )
 from .datasets import EOD_PRICE_DATASET
 from .models import EODBar
@@ -146,7 +146,7 @@ async def write_eod_price_to_landing(
     ingested_at: datetime | None = None,
 ) -> LandingWrite:
     """Write raw bulk price rows for one exchange to the S3 landing zone as JSONL."""
-    from core.clients.storage.s3 import S3StorageClient
+    from core.storage.s3 import S3StorageClient
 
     stamp = ingested_at or datetime.now(UTC).replace(microsecond=0)
     s3 = await S3StorageClient.from_block_entry(BlockRegistry.S3_BUCKET)
@@ -184,7 +184,7 @@ async def write_instrument_eod_history_to_landing(
     ingested_at: datetime | None = None,
 ) -> LandingWrite:
     """Write raw per-instrument historical bars to the S3 landing zone as JSONL."""
-    from core.clients.storage.s3 import S3StorageClient
+    from core.storage.s3 import S3StorageClient
 
     stamp = ingested_at or datetime.now(UTC).replace(microsecond=0)
     s3 = await S3StorageClient.from_block_entry(BlockRegistry.S3_BUCKET)
@@ -270,7 +270,7 @@ def write_bronze_eod_price(
     attempts inserts and relies on the Bronze unique key so partial exchange/date
     repair reruns can add missing provider instruments.
     """
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     if not sources:
         log.info(
@@ -298,7 +298,7 @@ def write_bronze_eod_price(
 )
 def eod_price_already_ingested(provider_exchange_code: str, bar_date: date) -> bool:
     """Return True when daily bulk EOD data already exists for this exchange/date."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     lake = get_lake_client()
     if not _eod_daily_bulk_already_ingested(lake, provider_exchange_code=provider_exchange_code, bar_date=bar_date):
@@ -341,7 +341,7 @@ def load_backfill_pending_instruments(provider_exchange_code: str, from_date: da
     Source of truth for price holes:
     ``silver.int_eod_price_instrument_day_coverage``.
     """
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
     from domains.instrument.universe import (
         EOD_PRICE_BACKFILL_TERMINAL_COVERAGE_TABLE,
         EOD_PRICE_EXCHANGE_TRADING_DAY_TABLE,
@@ -415,7 +415,7 @@ def load_backfill_pending_instruments(provider_exchange_code: str, from_date: da
 @task(name="load-missing-eod-backfill-selection-views")
 def load_missing_eod_backfill_selection_views() -> list[str]:
     """Return required Silver backfill selector views that are missing."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
     from domains.instrument.universe import (
         EOD_PRICE_BACKFILL_TERMINAL_COVERAGE_TABLE,
         EOD_PRICE_EXCHANGE_TRADING_DAY_TABLE,
@@ -444,7 +444,7 @@ def load_eod_price_coverage_gaps(
     exchange_dates: dict[str, date] | None = None,
 ) -> list[EODPriceCoverageGap]:
     """Return exchange/day gaps from the dbt price coverage control surface."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
     from domains.instrument.universe import (
         EOD_PRICE_EXCHANGE_DAY_STATUS_TABLE,
         require_silver_ingestion_model,
@@ -497,7 +497,7 @@ def load_eod_latest_expected_exchange_dates(
     as_of_date: date,
 ) -> dict[str, date]:
     """Return latest expected EOD dates for namespaces with blocking daily coverage."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
     from domains.instrument.universe import (
         EOD_PRICE_EXCHANGE_TRADING_DAY_TABLE,
         require_silver_ingestion_model,
@@ -545,7 +545,7 @@ def write_eod_backfill_deferred_coverage(
     reason: str,
 ) -> BronzeWrite:
     """Record unsubmitted EOD backfill units deferred by provider quota controls."""
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     if not provider_instrument_codes:
         return BronzeWrite(rows_written=0, reason="no_instruments")
@@ -564,7 +564,7 @@ def write_eod_backfill_deferred_coverage(
             lake,
             run_id=run_id,
             domain=EOD_PRICE_DOMAIN,
-            provider=eod_provider(),
+            provider=EOD_PROVIDER,
             unit_type=EOD_INSTRUMENT_BACKFILL_UNIT_TYPE,
             unit_key=unit_key,
             status=COVERAGE_STATUS_PROVIDER_QUOTA_DEFERRED,
@@ -608,7 +608,7 @@ def write_eod_backfill_coverage(
     Idempotent on ``(domain, provider, unit_type, unit_key_hash, status)``.
     Links to the parent ``pipeline.runs`` row via ``run_id``.
     """
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     lake = get_lake_client()
     unit_key = eod_instrument_backfill_unit_key(
@@ -620,7 +620,7 @@ def write_eod_backfill_coverage(
     if ingestion_coverage_recorded(
         lake,
         domain=EOD_PRICE_DOMAIN,
-        provider=eod_provider(),
+        provider=EOD_PROVIDER,
         unit_type=EOD_INSTRUMENT_BACKFILL_UNIT_TYPE,
         unit_key=unit_key,
         status=COVERAGE_STATUS_NO_DATA,
@@ -638,7 +638,7 @@ def write_eod_backfill_coverage(
         lake,
         run_id=run_id,
         domain=EOD_PRICE_DOMAIN,
-        provider=eod_provider(),
+        provider=EOD_PROVIDER,
         unit_type=EOD_INSTRUMENT_BACKFILL_UNIT_TYPE,
         unit_key=unit_key,
         status=COVERAGE_STATUS_NO_DATA,
@@ -679,7 +679,7 @@ def write_eod_backfill_completed_coverage(
     orchestration metadata that lets an open-start/full-history backfill skip a
     provider instrument on re-run without mistaking a daily one-off bar for full history.
     """
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     if not outcomes:
         return BronzeWrite(rows_written=0, reason="no_outcomes")
@@ -698,7 +698,7 @@ def write_eod_backfill_completed_coverage(
             lake,
             run_id=run_id,
             domain=EOD_PRICE_DOMAIN,
-            provider=eod_provider(),
+            provider=EOD_PROVIDER,
             unit_type=EOD_INSTRUMENT_BACKFILL_UNIT_TYPE,
             unit_key=unit_key,
             status=COVERAGE_STATUS_COMPLETED,
@@ -779,7 +779,7 @@ def write_backfill_eod_batch(
     contain duplicate dates for the same instrument. The write is idempotent at the
     Bronze unique key ``(provider_exchange_code, provider_instrument_code, bar_date, data_provider)``.
     """
-    from core.clients.lake import get_lake_client
+    from core.lake import get_lake_client
 
     if not sources:
         return BronzeWrite(rows_written=0, reason="no_sources")

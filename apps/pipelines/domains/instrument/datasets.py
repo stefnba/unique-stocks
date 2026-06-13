@@ -3,11 +3,12 @@
 from dataclasses import dataclass
 from datetime import date
 
-from core.ingestion import BronzeDataset, LandingDomain, LandingTarget
+from config.domains import Domain
+from config.providers import Provider
+from core.ingestion import BronzeDataset, LandingTarget
 from core.ingestion.landing import PartitionedLandingTarget
 from core.ingestion.partitioning import LandingPartitionSchema
 from domains.instrument.tables import INSTRUMENT_TABLE
-from providers.registry import Provider
 
 
 class InstrumentLandingPartition(LandingPartitionSchema):
@@ -23,7 +24,7 @@ class InstrumentLandingPartition(LandingPartitionSchema):
 
 
 INSTRUMENT_LANDING = LandingTarget.partitioned(
-    domain=LandingDomain.INSTRUMENT,
+    domain=Domain.INSTRUMENT,
     partition_fields=InstrumentLandingPartition,
     file_format="jsonl",
 )

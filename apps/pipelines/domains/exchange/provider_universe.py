@@ -14,7 +14,7 @@ from typing import Literal
 
 import structlog
 
-from core.clients.lake import DataLakeClient, get_lake_client
+from core.lake import DataLakeClient, get_lake_client
 
 log = structlog.get_logger(__name__)
 

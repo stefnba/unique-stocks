@@ -9,7 +9,7 @@ import structlog
 from prefect import flow
 from pydantic import ValidationError
 
-from core.clients.http.base import ProviderRateLimitError
+from core.http.base import ProviderRateLimitError
 from core.ingestion import (
     LandingWrite,
     PipelineRunScope,
@@ -19,7 +19,6 @@ from core.ingestion import (
     terminal_status,
 )
 from core.prefect.events import publish_prefect_ingestion_summary
-from core.transforms import run_dbt_build_after_ingestion
 from domains.fundamental.tasks import (
     delete_fundamental_snapshot_rows,
     fetch_fundamental_instrument,
@@ -48,6 +47,7 @@ from domains.fundamental.tasks import (
     write_fundamental_deferred_coverage,
     write_fundamental_to_landing,
 )
+from orchestration.post_ingestion import run_dbt_build_after_ingestion
 from providers.eodhd.identifiers import EODHDInstrumentRef, eodhd_instrument_key
 from providers.eodhd.models import FundamentalRaw
 

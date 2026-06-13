@@ -1,7 +1,7 @@
 """ISO 10383 MIC registry HTTP client."""
 
-from core.clients.http.base import HttpClientBase
-from providers.registry import Provider
+from config.providers import Provider
+from core.http.base import HttpClientBase
 
 ISO10383_MIC_CSV_PATH = "/sites/default/files/ISO10383_MIC/ISO10383_MIC.csv"
 

@@ -2,18 +2,19 @@
 
 from dataclasses import dataclass
 
-from core.ingestion import BronzeDataset, LandingDomain, LandingTarget
+from config.domains import Domain
+from config.providers import Provider
+from core.ingestion import BronzeDataset, LandingTarget
 from core.ingestion.landing import SnapshotLandingTarget
 from domains.exchange.tables import EXCHANGE_CATALOG_TABLE, EXCHANGE_MIC_REGISTRY_TABLE
-from providers.registry import Provider
 
 EXCHANGE_CATALOG_LANDING = LandingTarget.snapshot(
-    domain=LandingDomain.EXCHANGE,
+    domain=Domain.EXCHANGE,
     file_format="jsonl",
     audit_dataset="exchange.catalog",
 )
 EXCHANGE_MIC_REGISTRY_LANDING = LandingTarget.snapshot(
-    domain=LandingDomain.EXCHANGE,
+    domain=Domain.EXCHANGE,
     file_format="csv",
     audit_dataset="exchange.mic_registry",
 )

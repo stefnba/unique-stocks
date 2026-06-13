@@ -14,7 +14,6 @@ from core.ingestion import (
     terminal_status,
 )
 from core.prefect.events import publish_prefect_ingestion_summary
-from core.transforms import run_dbt_build_after_ingestion
 from domains.exchange_schedule.tasks import (
     fetch_exchange_details,
     fetch_provider_schedule_exchange_codes,
@@ -24,6 +23,7 @@ from domains.exchange_schedule.tasks import (
     write_bronze_exchange_schedule,
     write_schedule_to_landing_zone,
 )
+from orchestration.post_ingestion import run_dbt_build_after_ingestion
 
 from .assets import (
     record_exchange_holiday_bronze_materialization,
