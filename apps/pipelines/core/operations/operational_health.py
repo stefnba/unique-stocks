@@ -10,9 +10,15 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 
 from core.clients.lake import DataLakeClient
-from core.prefect_controls import emit_stale_runs_event
+from core.operations.health_common import prefect_api_is_healthy
 from core.utils.redaction import redact_sensitive_query_params
-from scripts.health_common import prefect_api_is_healthy
+
+try:
+    from core.prefect.events import emit_prefect_stale_runs_event
+except ImportError:
+    from core.prefect.controls import emit_stale_runs_event as emit_prefect_stale_runs_event
+
+emit_stale_runs_event = emit_prefect_stale_runs_event
 
 
 class OperationalHealthLake(Protocol):
@@ -171,7 +177,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         stale_runs = stale_running_runs(lake, older_than=now - timedelta(hours=max(0.0, args.stale_running_hours)))
         if stale_runs:
             failures.append(f"{len(stale_runs)} stale running pipeline run(s)")
-            emit_stale_runs_event(
+            emit_prefect_stale_runs_event(
                 stale_runs=stale_runs,
                 older_than_minutes=int(max(0.0, args.stale_running_hours) * 60),
             )
@@ -198,7 +204,3 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     print("OK: Prefect API and lake audit health checks passed")
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

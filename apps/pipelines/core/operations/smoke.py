@@ -1,6 +1,6 @@
 """Run narrow local ingestion smoke presets.
 
-This script is a local developer convenience layer over the real Prefect flows.
+This module is a local developer convenience layer over the real Prefect flows.
 It calls live provider code and the normal landing/Bronze write path, but passes
 explicit small parameters so a quick check does not expand to the full dbt-built
 provider universe.
@@ -8,7 +8,7 @@ provider universe.
 Use it for questions like "does this flow still run end-to-end for one instrument
 or one provider namespace from my current checkout?" Scoped presets pass explicit
 flow parameters, so they do not require the dbt provider-universe view. Do not
-use this script as a production scheduler or as a replacement for Prefect
+use this module as a production scheduler or as a replacement for Prefect
 deployment parameters.
 
 Default presets:
@@ -25,12 +25,12 @@ Default presets:
   namespace, ``US``.
 
 Examples:
-    uv run python scripts/run_smoke.py fundamental
-    uv run python scripts/run_smoke.py fundamental --exchange US --instrument MSFT
-    uv run python scripts/run_smoke.py exchange
-    uv run python scripts/run_smoke.py exchange_schedule --exchange XETR
-    uv run python scripts/run_smoke.py instrument --exchange US
-    uv run python scripts/run_smoke.py eod_price --exchange US
+    uv run python scripts/smoke/run.py fundamental
+    uv run python scripts/smoke/run.py fundamental --exchange US --instrument MSFT
+    uv run python scripts/smoke/run.py exchange
+    uv run python scripts/smoke/run.py exchange_schedule --exchange XETR
+    uv run python scripts/smoke/run.py instrument --exchange US
+    uv run python scripts/smoke/run.py eod_price --exchange US
 """
 
 import argparse
@@ -58,12 +58,12 @@ DEFAULT_SCHEDULE_EXCHANGE_CODE = "US"
 log = structlog.get_logger(__name__)
 
 _EXAMPLES = """examples:
-  uv run python scripts/run_smoke.py fundamental
-  uv run python scripts/run_smoke.py fundamental --exchange US --instrument MSFT
-  uv run python scripts/run_smoke.py exchange
-  uv run python scripts/run_smoke.py exchange_schedule --exchange XETR
-  uv run python scripts/run_smoke.py instrument --exchange US
-  uv run python scripts/run_smoke.py eod_price --exchange US
+  uv run python scripts/smoke/run.py fundamental
+  uv run python scripts/smoke/run.py fundamental --exchange US --instrument MSFT
+  uv run python scripts/smoke/run.py exchange
+  uv run python scripts/smoke/run.py exchange_schedule --exchange XETR
+  uv run python scripts/smoke/run.py instrument --exchange US
+  uv run python scripts/smoke/run.py eod_price --exchange US
 
 make aliases:
   make smoke FLOW=fundamental
@@ -184,7 +184,7 @@ async def run_preset(args: argparse.Namespace) -> dict[str, object]:
     - EOD price uses ``provider_exchange_codes`` with one namespace.
 
     That separation is intentional: the flow code stays production-oriented,
-    while this script carries local smoke defaults.
+    while this module carries local smoke defaults.
     """
     _ensure_not_production()
     preset = normalize_preset(str(args.preset))
@@ -234,7 +234,7 @@ async def run_preset(args: argparse.Namespace) -> dict[str, object]:
 def _ensure_not_production() -> None:
     """Reject smoke presets in production environments."""
     if get_settings().is_production:
-        raise RuntimeError("run_smoke.py is a local/dev tool and cannot run with ENVIRONMENT=prod.")
+        raise RuntimeError("scripts/smoke/run.py is a local/dev tool and cannot run with ENVIRONMENT=prod.")
 
 
 async def main_async(argv: Sequence[str] | None = None) -> int:
@@ -245,9 +245,5 @@ async def main_async(argv: Sequence[str] | None = None) -> int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """CLI entrypoint for ``uv run python scripts/run_smoke.py ...``."""
+    """Run the smoke preset CLI."""
     return asyncio.run(main_async(argv))
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

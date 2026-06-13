@@ -2,7 +2,7 @@
 
 import pytest
 
-from scripts import setup_prefect_controls
+from core.prefect import setup
 
 
 @pytest.mark.asyncio
@@ -20,10 +20,10 @@ async def test_setup_prefect_controls_runs_limits_and_automations(
         calls.append(f"automations:{kwargs['dry_run']}")
         return 0
 
-    monkeypatch.setattr(setup_prefect_controls, "setup_prefect_limits", setup_limits)
-    monkeypatch.setattr(setup_prefect_controls, "setup_prefect_automations", setup_automations)
+    monkeypatch.setattr(setup, "setup_prefect_limits", setup_limits)
+    monkeypatch.setattr(setup, "setup_prefect_automations", setup_automations)
 
-    exit_code = await setup_prefect_controls.setup_prefect_controls(dry_run=True)
+    exit_code = await setup.setup_prefect_controls(dry_run=True)
 
     assert exit_code == 0
     assert calls == ["limits:True", "automations:True"]
@@ -41,7 +41,7 @@ async def test_setup_prefect_controls_returns_nonzero_when_substep_fails(
     async def setup_automations(**_: object) -> int:
         return 2
 
-    monkeypatch.setattr(setup_prefect_controls, "setup_prefect_limits", setup_limits)
-    monkeypatch.setattr(setup_prefect_controls, "setup_prefect_automations", setup_automations)
+    monkeypatch.setattr(setup, "setup_prefect_limits", setup_limits)
+    monkeypatch.setattr(setup, "setup_prefect_automations", setup_automations)
 
-    assert await setup_prefect_controls.setup_prefect_controls(dry_run=False) == 2
+    assert await setup.setup_prefect_controls(dry_run=False) == 2

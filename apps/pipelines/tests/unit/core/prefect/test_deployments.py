@@ -5,7 +5,7 @@ from uuid import UUID
 import pytest
 
 from config.settings import APP_ROOT
-from scripts.sync_prefect_deployments import (
+from core.prefect.deployments import (
     DEFAULT_PREFECT_YAML,
     DeploymentKey,
     expected_deployment_keys,

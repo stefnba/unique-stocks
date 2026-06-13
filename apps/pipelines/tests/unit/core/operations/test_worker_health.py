@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from scripts import check_worker_health
+from core.operations import worker_health
 
 
 def test_worker_process_is_running_detects_prefect_worker(tmp_path: Path) -> None:
@@ -11,7 +11,7 @@ def test_worker_process_is_running_detects_prefect_worker(tmp_path: Path) -> Non
     worker_proc.mkdir()
     (worker_proc / "cmdline").write_bytes(b"uv\x00run\x00prefect\x00worker\x00start\x00--pool\x00default")
 
-    assert check_worker_health.worker_process_is_running(tmp_path) is True
+    assert worker_health.worker_process_is_running(tmp_path) is True
 
 
 def test_worker_process_is_running_ignores_non_worker_processes(tmp_path: Path) -> None:
@@ -20,4 +20,4 @@ def test_worker_process_is_running_ignores_non_worker_processes(tmp_path: Path) 
     shell_proc.mkdir()
     (shell_proc / "cmdline").write_bytes(b"sh\x00-lc\x00sleep\x0030")
 
-    assert check_worker_health.worker_process_is_running(tmp_path) is False
+    assert worker_health.worker_process_is_running(tmp_path) is False

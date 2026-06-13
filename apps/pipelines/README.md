@@ -53,11 +53,11 @@ instrument-refresh and eod-price flows
 Use the smoke runner for narrow local checks instead of changing production flow defaults:
 
 ```bash
-uv run python scripts/run_smoke.py fundamental
-uv run python scripts/run_smoke.py exchange
-uv run python scripts/run_smoke.py exchange_schedule
-uv run python scripts/run_smoke.py instrument
-uv run python scripts/run_smoke.py eod-price
+uv run python scripts/smoke/run.py fundamental
+uv run python scripts/smoke/run.py exchange
+uv run python scripts/smoke/run.py exchange_schedule
+uv run python scripts/smoke/run.py instrument
+uv run python scripts/smoke/run.py eod-price
 ```
 
 The Make target passes `FLOW` through to the smoke runner, which owns preset validation:
@@ -100,7 +100,7 @@ apps/pipelines/
 ├── dbt/                dbt Core project: Bronze -> Silver -> Gold transformations
 ├── dashboard/          Streamlit operations dashboard for the pipeline audit schema
 ├── docs/               Pipeline runbooks, including AWS/S3 setup
-├── scripts/            Local operational helpers
+├── scripts/            Thin grouped command entrypoints for operations
 ├── tests/              Unit and integration tests
 ├── deploy/             Docker Compose files and Dockerfiles (worker + dashboard)
 ├── prefect.yaml        Prefect deployment definitions
@@ -171,7 +171,7 @@ Set at least the active provider API key shown in `.env.example` for live provid
 
 S3 is the landing-zone target for provider-validated raw payloads before they are parsed into typed Bronze records. Domain datasets use `LandingTarget` specs for raw object storage and `BronzeDataset` specs for lake writes. Bucket names and regions are non-secret infrastructure configuration and are defined in `config/aws_resources.py`, then wired into Prefect blocks by `config/blocks.py`. AWS access keys are secrets and must stay in local `.env` files or the production deployment platform.
 
-You do not need to create the S3 bucket and IAM user manually in the AWS Console each time. The setup is scriptable with `scripts/setup_s3_landing_zone.py`, including bucket creation, encryption, ownership controls, public-access blocking, IAM policy creation, and optional access-key generation. See [docs/aws/s3_landing_zone_guide.md](docs/aws/s3_landing_zone_guide.md) for the runbook, and [docs/aws/iam_guide.md](docs/aws/iam_guide.md) for AWS account and provisioner setup.
+You do not need to create the S3 bucket and IAM user manually in the AWS Console each time. The setup is scriptable with `scripts/s3/setup_landing_zone.py`, including bucket creation, encryption, ownership controls, public-access blocking, IAM policy creation, and optional access-key generation. See [docs/aws/s3_landing_zone_guide.md](docs/aws/s3_landing_zone_guide.md) for the runbook, and [docs/aws/iam_guide.md](docs/aws/iam_guide.md) for AWS account and provisioner setup.
 
 ## Pipeline audit
 
@@ -413,8 +413,8 @@ directory; orchestration reads `run_results.json` only from that per-run path, r
 artifact path in the dbt audit table, and publishes a Prefect Markdown artifact with the invocation
 summary. Every ingestion flow publishes a compact Prefect Markdown summary artifact, and EOD
 coverage gates publish a Prefect table artifact when they find gaps. Successful Bronze writes and
-dbt build/run invocations observe simple Prefect assets for Bronze, Silver, and Gold layer
-visibility in Prefect.
+dbt build/run invocations record simple Prefect asset materializations for Bronze, Silver, and
+Gold layer visibility in Prefect.
 If a post-ingestion dbt deployment fails after the ingestion audit has completed, the parent Prefect
 flow intentionally fails for alerting while `pipeline.runs` keeps the ingestion status and dbt audit
 tables carry the transformation failure details.

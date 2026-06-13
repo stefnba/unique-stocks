@@ -3,7 +3,7 @@ repos:
     hooks:
       - id: pipelines-ruff-check
         name: pipelines ruff check
-        entry: apps/pipelines/scripts/run_uv.sh
+        entry: apps/pipelines/scripts/tooling/run_uv.sh
         args: [ruff, check, --fix]
         language: script
         files: ^apps/pipelines/
@@ -11,7 +11,7 @@ repos:
 
       - id: pipelines-ruff-format
         name: pipelines ruff format
-        entry: apps/pipelines/scripts/run_uv.sh
+        entry: apps/pipelines/scripts/tooling/run_uv.sh
         args: [ruff, format]
         language: script
         files: ^apps/pipelines/
@@ -19,7 +19,7 @@ repos:
 
       - id: pipelines-sqlfluff-lint
         name: pipelines sqlfluff lint
-        entry: apps/pipelines/scripts/run_uv.sh
+        entry: apps/pipelines/scripts/tooling/run_uv.sh
         args: [sqlfluff, lint, --disable-progress-bar]
         language: script
         files: ^apps/pipelines/(dbt/(macros|models|tests)|lake/migrations)/.*\.sql$

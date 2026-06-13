@@ -1,6 +1,6 @@
 """Sync Prefect deployments with ``prefect.yaml``.
 
-This script makes the checked-in deployment manifest the source of truth:
+This module makes the checked-in deployment manifest the source of truth:
 
 1. Remove orphaned deployments that belong to this app (entrypoints under
    ``domains.`` or ``core.transforms.``) but are no longer declared in yaml.
@@ -15,7 +15,6 @@ import argparse
 import asyncio
 import importlib
 import subprocess
-import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -255,7 +254,3 @@ def main(argv: Sequence[str] | None = None) -> int:
     except Exception:
         log.exception("deploy.sync.failed")
         return 1
-
-
-if __name__ == "__main__":
-    sys.exit(main())

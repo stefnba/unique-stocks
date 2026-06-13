@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from scripts import check_operational_health
+from core.operations import operational_health
 
 
 class FakeOperationalLake:
@@ -48,7 +48,7 @@ def test_stale_running_runs_reports_missing_audit_table() -> None:
     """Missing audit tables should fail operational health."""
     lake = FakeOperationalLake(has_runs_table=False)
 
-    rows = check_operational_health.stale_running_runs(lake, older_than=datetime.now(UTC))
+    rows = operational_health.stale_running_runs(lake, older_than=datetime.now(UTC))
 
     assert rows == [{"flow_name": "pipeline.runs", "started_at": None, "status": "missing_table"}]
 
@@ -66,7 +66,7 @@ def test_recent_domain_runs_requires_each_configured_domain() -> None:
     }
     lake = FakeOperationalLake(recent_rows=recent)
 
-    rows = check_operational_health.recent_domain_runs(
+    rows = operational_health.recent_domain_runs(
         lake,
         domains=["eod_price", "fundamental"],
         since=datetime.now(UTC) - timedelta(hours=36),
@@ -80,7 +80,7 @@ def test_recent_domain_runs_requires_completed_status() -> None:
     """Partial and skipped runs should not satisfy production freshness."""
     lake = FakeOperationalLake(recent_rows={"eod_price": None})
 
-    check_operational_health.recent_domain_runs(
+    operational_health.recent_domain_runs(
         lake,
         domains=["eod_price"],
         since=datetime.now(UTC) - timedelta(hours=36),
@@ -95,7 +95,7 @@ def test_configured_recent_domains_uses_cli_values(monkeypatch: Any) -> None:
     """CLI domains should override monitor environment defaults."""
     monkeypatch.setenv("OPERATIONAL_HEALTH_RECENT_DOMAINS", "fundamental")
 
-    domains = check_operational_health.configured_recent_domains([" eod_price ", ""])
+    domains = operational_health.configured_recent_domains([" eod_price ", ""])
 
     assert domains == ["eod_price"]
 
@@ -104,7 +104,7 @@ def test_configured_recent_domains_uses_environment(monkeypatch: Any) -> None:
     """The deployed healthcheck can configure freshness domains through env vars."""
     monkeypatch.setenv("OPERATIONAL_HEALTH_RECENT_DOMAINS", "eod_price, fundamental exchange")
 
-    domains = check_operational_health.configured_recent_domains(None)
+    domains = operational_health.configured_recent_domains(None)
 
     assert domains == ["eod_price", "fundamental", "exchange"]
 
@@ -114,7 +114,7 @@ def test_operational_lake_read_only_defaults_to_false_for_motherduck_token(monke
     monkeypatch.setenv("MOTHERDUCK_TOKEN", "token")
     monkeypatch.delenv("OPERATIONAL_HEALTH_LAKE_READ_ONLY", raising=False)
 
-    assert check_operational_health.operational_lake_read_only() is False
+    assert operational_health.operational_lake_read_only() is False
 
 
 def test_operational_lake_read_only_can_be_forced_for_read_scaling_token(monkeypatch: Any) -> None:
@@ -122,7 +122,7 @@ def test_operational_lake_read_only_can_be_forced_for_read_scaling_token(monkeyp
     monkeypatch.setenv("MOTHERDUCK_TOKEN", "token")
     monkeypatch.setenv("OPERATIONAL_HEALTH_LAKE_READ_ONLY", "true")
 
-    assert check_operational_health.operational_lake_read_only() is True
+    assert operational_health.operational_lake_read_only() is True
 
 
 def test_main_emits_stale_runs_event(monkeypatch: Any, capsys: Any) -> None:
@@ -140,11 +140,11 @@ def test_main_emits_stale_runs_event(monkeypatch: Any, capsys: Any) -> None:
         events.append(kwargs)
 
     monkeypatch.setenv("PREFECT_API_URL", "http://prefect.example/api")
-    monkeypatch.setattr(check_operational_health, "prefect_api_is_healthy", lambda *_args, **_kwargs: True)
-    monkeypatch.setattr(check_operational_health, "DataLakeClient", StaleLake)
-    monkeypatch.setattr(check_operational_health, "emit_stale_runs_event", emit_stale)
+    monkeypatch.setattr(operational_health, "prefect_api_is_healthy", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(operational_health, "DataLakeClient", StaleLake)
+    monkeypatch.setattr(operational_health, "emit_prefect_stale_runs_event", emit_stale)
 
-    exit_code = check_operational_health.main(["--stale-running-hours", "1.5"])
+    exit_code = operational_health.main(["--stale-running-hours", "1.5"])
 
     captured = capsys.readouterr()
     assert exit_code == 1
@@ -163,10 +163,10 @@ def test_main_reports_redacted_lake_error_detail(monkeypatch: Any, capsys: Any) 
             raise RuntimeError("connect failed for md:unique_stocks?motherduck_token=secret-token")
 
     monkeypatch.setenv("PREFECT_API_URL", "http://prefect.example/api")
-    monkeypatch.setattr(check_operational_health, "prefect_api_is_healthy", lambda *_args, **_kwargs: True)
-    monkeypatch.setattr(check_operational_health, "DataLakeClient", FailingLake)
+    monkeypatch.setattr(operational_health, "prefect_api_is_healthy", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(operational_health, "DataLakeClient", FailingLake)
 
-    exit_code = check_operational_health.main([])
+    exit_code = operational_health.main([])
 
     captured = capsys.readouterr()
     assert exit_code == 1

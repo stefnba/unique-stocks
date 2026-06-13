@@ -2,7 +2,7 @@
 
 This check is intentionally narrow: it verifies that the worker container can
 reach the Prefect API and that a Prefect worker process is running in the same
-container. End-to-end ingestion health belongs in ``check_operational_health``.
+container. End-to-end ingestion health belongs in ``operational_health``.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ import os
 import sys
 from pathlib import Path
 
-from scripts.health_common import prefect_api_is_healthy
+from core.operations.health_common import prefect_api_is_healthy
 
 
 def worker_process_is_running(proc_root: Path = Path("/proc")) -> bool:
@@ -46,7 +46,3 @@ def main() -> int:
         print("Prefect worker process is not running", file=sys.stderr)
         return 1
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

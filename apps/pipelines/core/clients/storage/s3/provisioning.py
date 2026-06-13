@@ -4,11 +4,11 @@ Run from ``apps/pipelines/``.  All commands below assume that working directory.
 
 Preview the provisioning plan without calling AWS::
 
-    uv run python scripts/setup_s3_landing_zone.py --profile provisioner --dry-run
+    uv run python scripts/s3/setup_landing_zone.py --profile provisioner --dry-run
 
 Create or update the bucket, security controls, IAM user, and inline policy::
 
-    uv run python scripts/setup_s3_landing_zone.py --profile provisioner
+    uv run python scripts/s3/setup_landing_zone.py --profile provisioner
 
 Access key creation is a separate, deliberate step. Run without ``--create-access-key``
 first to provision the bucket and IAM user, verify the output, then re-run with the
@@ -16,18 +16,18 @@ flag only when you are ready to immediately store the secret — AWS shows
 ``SecretAccessKey`` only once::
 
     # Step 1 — provision everything except the access key (idempotent, safe to re-run)
-    uv run python scripts/setup_s3_landing_zone.py --profile provisioner
+    uv run python scripts/s3/setup_landing_zone.py --profile provisioner
 
     # Step 2 — create the access key only when ready to store it
-    uv run python scripts/setup_s3_landing_zone.py --profile provisioner --create-access-key
+    uv run python scripts/s3/setup_landing_zone.py --profile provisioner --create-access-key
 
 Grant ``s3:DeleteObject`` only when a cleanup workflow explicitly requires it::
 
-    uv run python scripts/setup_s3_landing_zone.py --profile provisioner --allow-delete
+    uv run python scripts/s3/setup_landing_zone.py --profile provisioner --allow-delete
 
 Target a different bucket, region, or IAM user (e.g. for the prod environment)::
 
-    uv run python scripts/setup_s3_landing_zone.py \\
+    uv run python scripts/s3/setup_landing_zone.py \\
         --profile provisioner \\
         --bucket unique-stocks-prod \\
         --region eu-central-1 \\
@@ -48,7 +48,6 @@ import json
 import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 import boto3
@@ -59,11 +58,6 @@ from botocore.exceptions import (
     ProfileNotFound,
 )
 from pydantic import BaseModel, ConfigDict, Field
-
-# Allow `from config.blocks import …` to resolve when the script is run directly.
-_PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(_PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PROJECT_ROOT))
 
 TLS_POLICY_SID = "DenyNonTLS"
 
@@ -585,7 +579,3 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
 
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
