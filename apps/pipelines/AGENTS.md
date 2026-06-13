@@ -16,19 +16,35 @@
 ## Pipeline structure
 
 - Keep a strict boundary between reusable pipeline infrastructure and this app's business vocabulary.
-- `apps/pipelines/core/` is the generic foundation. It may contain reusable clients, storage/lake primitives, ingestion helpers, orchestration utilities, audit/run-tracking helpers, and small dependency-free utility functions. It must not know concrete providers, concrete domains, app registries, Prefect block names, dbt asset groups, app settings, or business-specific table manifests.
-- `apps/pipelines/config/` is app-specific configuration only. Use it for environment-variable-backed settings, non-secret constants, app vocabulary enums, and Prefect block definitions. Avoid putting composition functions, registries, lookup helpers, or behavior in `config/`; those belong in the app layer that uses the configuration.
-- `apps/pipelines/providers/` contains app-specific provider implementations: concrete HTTP clients, provider API models, provider parsers when they are provider-owned, and provider-specific constants. Provider packages may depend on generic `core` interfaces, but `core` must not import providers.
-- `apps/pipelines/domains/` contains app-specific domain implementations: domain models, tables, datasets, parsers, tasks, and flows. Every new ingestion domain follows the same pattern: `models.py`, `tables.py`, `datasets.py`, `parsers.py`, `tasks.py`, and `flows.py`. Domain models live with the domain that owns them.
-- App-specific wiring, registries, and manifests should be explicit app-layer modules outside `core` and outside pure `config`. Prefer placing them with their owner: provider registration in `providers/`, domain registration in `domains/`, and deployment/infrastructure wiring in `infrastructure/`. They may compose `config`, `domains`, `providers`, and generic `core` surfaces, but they must not make `core` depend on app-specific concepts.
+- Use these questions to decide where pipeline code belongs:
+  - `apps/pipelines/config/` answers: "What are the app's passive settings and names?"
+    Use it for environment-backed settings, stable enums, identity keys, and static non-secret defaults. Avoid executable wiring, registries, factories, or behavior.
+  - `apps/pipelines/platform/` answers: "How is this app wired into Prefect, AWS, deployment, and runtime services?"
+    Use it for app-specific Prefect block definitions, automation setup, concurrency limits, deployment registration, AWS resource naming, and other runtime/platform wiring. Generic reusable helpers still belong in `core/`.
+  - `apps/pipelines/orchestration/` answers: "How do pipeline jobs compose and run?"
+    Use it for flow composition, post-ingestion build policy, smoke-run composition, and app-level workflows that connect domains, dbt, and runtime behavior.
+  - `apps/pipelines/core/` answers: "What reusable machinery exists without knowing this app?"
+    Use it for generic HTTP clients, storage/lake primitives, ingestion helpers, run tracking, schema/migration helpers, Prefect helper abstractions, dbt command execution, and small utilities. `core/` must not import concrete providers, domains, app registries, app settings, Prefect block names, dbt asset groups, or business-specific table manifests.
+  - `apps/pipelines/providers/` answers: "How do we talk to an external data provider?"
+    Use it for concrete provider clients, provider API models, provider identifier rules, and provider-owned parsing or normalization. Providers may depend on `core`, but `core` must not depend on providers.
+  - `apps/pipelines/domains/` answers: "What business ingestion logic does this app own?"
+    Use it for domain models, Bronze table specs, datasets, parsers, tasks, flows, and domain-specific selection logic. New ingestion domains should follow the same local shape unless there is a clear reason not to.
+  - `apps/pipelines/lakehouse/` answers: "Which concrete lake schemas, tables, and migrations does this app ship?"
+    Use it for app-level lake schema registries and migrations that compose core audit tables plus domain-owned Bronze tables. Generic lake clients and schema primitives stay in `core/lake/`.
+  - `apps/pipelines/dbt/` answers: "How does Bronze become Silver and Gold?"
+    Use it for dbt sources, staging models, intermediate models, marts, seeds, macros, snapshots, and dbt tests. Python ingestion should hand off typed Bronze records; dbt owns transformation semantics.
+  - `apps/pipelines/dashboard/` answers: "How do operators inspect pipeline health?"
+    Use it for the Streamlit operational dashboard, read models, dashboard SQL, filters, tables, routing, and presentation code.
+  - `apps/pipelines/scripts/` answers: "What command-line adapter does an operator run?"
+    Use it for thin entrypoints only: argument parsing, environment defaults, console output, and exit codes. Reusable behavior belongs in `core/`, `platform/`, `orchestration/`, domains, providers, lakehouse modules, or dashboard modules.
 - Shared ingestion surfaces belong under `apps/pipelines/core/ingestion/`: landing targets for raw object storage and Bronze datasets for lake writes.
 - S3 storage code belongs under `apps/pipelines/core/storage/s3/`.
 - Lake access code belongs under `apps/pipelines/core/lake/`.
 - Do not import `boto3` directly in domain code.
 - Do not import `duckdb` directly in domain code.
 - Do not read credentials from `SETTINGS` in tasks or flows. Load credentials from `BlockRegistry` at runtime.
-- Use `SETTINGS` only in `config/blocks.py` to construct the initial block instances at registry definition time.
-- Use `get_settings()` only in app composition modules such as `orchestration/` and scripts, in existing core client internals that still need lazy defaults, and in tests that need to override settings between cases. Do not add new `core` settings imports; prefer explicit primitive values or app-owned factories.
+- Use `SETTINGS` only when constructing initial app-specific Prefect block instances at registry definition time.
+- Use `get_settings()` only in app composition modules such as `platform/`, `orchestration/`, and scripts, in existing core client internals that still need lazy defaults, and in tests that need to override settings between cases. Do not add new `core` settings imports; prefer explicit primitive values or app-owned factories.
 
 ## Data flow guardrails
 
