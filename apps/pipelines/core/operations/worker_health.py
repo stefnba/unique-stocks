@@ -8,10 +8,12 @@ container. End-to-end ingestion health belongs in ``operational_health``.
 from __future__ import annotations
 
 import os
-import sys
+from collections.abc import Callable
 from pathlib import Path
 
 from core.operations.health_common import prefect_api_is_healthy
+
+type PrefectApiHealthCheck = Callable[[str], bool]
 
 
 def worker_process_is_running(proc_root: Path = Path("/proc")) -> bool:
@@ -33,16 +35,17 @@ def worker_process_is_running(proc_root: Path = Path("/proc")) -> bool:
     return False
 
 
-def main() -> int:
-    """Run the worker health check and return a process exit code."""
-    api_url = os.environ.get("PREFECT_API_URL", "")
+def check_worker_health(
+    *,
+    api_url: str,
+    proc_root: Path = Path("/proc"),
+    api_health_check: PrefectApiHealthCheck = prefect_api_is_healthy,
+) -> list[str]:
+    """Return worker health failures for the given runtime inputs."""
     if not api_url:
-        print("PREFECT_API_URL is not set", file=sys.stderr)
-        return 1
-    if not prefect_api_is_healthy(api_url):
-        print("Prefect API health endpoint is not reachable", file=sys.stderr)
-        return 1
-    if not worker_process_is_running():
-        print("Prefect worker process is not running", file=sys.stderr)
-        return 1
-    return 0
+        return ["PREFECT_API_URL is not set"]
+    if not api_health_check(api_url):
+        return ["Prefect API health endpoint is not reachable"]
+    if not worker_process_is_running(proc_root):
+        return ["Prefect worker process is not running"]
+    return []

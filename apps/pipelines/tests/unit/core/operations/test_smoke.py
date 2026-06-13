@@ -19,9 +19,14 @@ async def test_run_preset_rejects_production(monkeypatch: MonkeyPatch) -> None:
 
     monkeypatch.setattr(smoke, "get_settings", lambda: FakeSettings())
 
-    args = smoke.build_parser().parse_args(["fundamental"])
     with pytest.raises(RuntimeError, match="local/dev tool"):
-        await smoke.run_preset(args)
+        await smoke.run_preset(
+            smoke.SmokePresetRequest(
+                preset="fundamental",
+                exchange="US",
+                instrument="AAPL",
+            )
+        )
 
 
 @pytest.mark.asyncio
@@ -35,8 +40,13 @@ async def test_run_preset_fundamental_defaults(monkeypatch: MonkeyPatch) -> None
 
     monkeypatch.setattr(smoke, "fundamental_flow", fake_fundamental_flow)
 
-    args = smoke.build_parser().parse_args(["fundamental"])
-    summary = await smoke.run_preset(args)
+    summary = await smoke.run_preset(
+        smoke.SmokePresetRequest(
+            preset="fundamental",
+            exchange="US",
+            instrument="AAPL",
+        )
+    )
 
     assert summary == {"ok": True}
     assert calls == [
@@ -65,10 +75,14 @@ async def test_run_preset_fundamental_overrides(monkeypatch: MonkeyPatch) -> Non
 
     monkeypatch.setattr(smoke, "fundamental_flow", fake_fundamental_flow)
 
-    args = smoke.build_parser().parse_args(
-        ["fundamental", "--exchange", "US", "--instrument", "MSFT", "--snapshot-date", "2026-05-31"]
+    summary = await smoke.run_preset(
+        smoke.SmokePresetRequest(
+            preset="fundamental",
+            exchange="US",
+            instrument="MSFT",
+            snapshot_date=date(2026, 5, 31),
+        )
     )
-    summary = await smoke.run_preset(args)
 
     assert summary == {"ok": True}
     assert calls == [
@@ -97,8 +111,12 @@ async def test_run_preset_instrument_defaults(monkeypatch: MonkeyPatch) -> None:
 
     monkeypatch.setattr(smoke, "instrument_flow", fake_instrument_flow)
 
-    args = smoke.build_parser().parse_args(["instrument"])
-    summary = await smoke.run_preset(args)
+    summary = await smoke.run_preset(
+        smoke.SmokePresetRequest(
+            preset="instrument",
+            exchange="XETRA",
+        )
+    )
 
     assert summary == {"ok": True}
     assert calls == [{"provider_exchange_codes": ["XETRA"], "snapshot_date": None}]
@@ -115,8 +133,13 @@ async def test_run_preset_instrument_overrides(monkeypatch: MonkeyPatch) -> None
 
     monkeypatch.setattr(smoke, "instrument_flow", fake_instrument_flow)
 
-    args = smoke.build_parser().parse_args(["instrument", "--exchange", "US", "--snapshot-date", "2026-05-31"])
-    summary = await smoke.run_preset(args)
+    summary = await smoke.run_preset(
+        smoke.SmokePresetRequest(
+            preset="instrument",
+            exchange="US",
+            snapshot_date=date(2026, 5, 31),
+        )
+    )
 
     assert summary == {"ok": True}
     assert calls == [{"provider_exchange_codes": ["US"], "snapshot_date": date(2026, 5, 31)}]
@@ -138,8 +161,7 @@ async def test_run_preset_exchange_runs_catalog_and_mic(monkeypatch: MonkeyPatch
     monkeypatch.setattr(smoke, "exchange_catalog_flow", fake_exchange_catalog_flow)
     monkeypatch.setattr(smoke, "exchange_mic_registry_flow", fake_exchange_mic_registry_flow)
 
-    args = smoke.build_parser().parse_args(["exchange"])
-    summary = await smoke.run_preset(args)
+    summary = await smoke.run_preset(smoke.SmokePresetRequest(preset="exchange"))
 
     assert calls == ["catalog", "mic"]
     assert summary == {
@@ -159,8 +181,12 @@ async def test_run_preset_exchange_schedule_defaults(monkeypatch: MonkeyPatch) -
 
     monkeypatch.setattr(smoke, "exchange_schedule_flow", fake_exchange_schedule_flow)
 
-    args = smoke.build_parser().parse_args(["exchange_schedule"])
-    summary = await smoke.run_preset(args)
+    summary = await smoke.run_preset(
+        smoke.SmokePresetRequest(
+            preset="exchange-schedule",
+            exchange="US",
+        )
+    )
 
     assert summary == {"ok": True}
     assert calls == [{"provider_schedule_exchange_codes": ["US"], "snapshot_date": None}]
@@ -177,8 +203,13 @@ async def test_run_preset_exchange_schedule_overrides(monkeypatch: MonkeyPatch) 
 
     monkeypatch.setattr(smoke, "exchange_schedule_flow", fake_exchange_schedule_flow)
 
-    args = smoke.build_parser().parse_args(["exchange_schedule", "--exchange", "XETR", "--snapshot-date", "2026-05-31"])
-    summary = await smoke.run_preset(args)
+    summary = await smoke.run_preset(
+        smoke.SmokePresetRequest(
+            preset="exchange-schedule",
+            exchange="XETR",
+            snapshot_date=date(2026, 5, 31),
+        )
+    )
 
     assert summary == {"ok": True}
     assert calls == [{"provider_schedule_exchange_codes": ["XETR"], "snapshot_date": date(2026, 5, 31)}]
@@ -195,8 +226,12 @@ async def test_run_preset_eod_price_defaults(monkeypatch: MonkeyPatch) -> None:
 
     monkeypatch.setattr(smoke, "eod_price_flow", fake_eod_price_flow)
 
-    args = smoke.build_parser().parse_args(["eod-price"])
-    summary = await smoke.run_preset(args)
+    summary = await smoke.run_preset(
+        smoke.SmokePresetRequest(
+            preset="eod-price",
+            exchange="XETRA",
+        )
+    )
 
     assert summary == {"ok": True}
     assert calls == [{"provider_exchange_codes": ["XETRA"], "trade_date": None}]
@@ -213,8 +248,13 @@ async def test_run_preset_eod_price_overrides(monkeypatch: MonkeyPatch) -> None:
 
     monkeypatch.setattr(smoke, "eod_price_flow", fake_eod_price_flow)
 
-    args = smoke.build_parser().parse_args(["eod_price", "--exchange", "US", "--trade-date", "2026-05-31"])
-    summary = await smoke.run_preset(args)
+    summary = await smoke.run_preset(
+        smoke.SmokePresetRequest(
+            preset="eod-price",
+            exchange="US",
+            trade_date=date(2026, 5, 31),
+        )
+    )
 
     assert summary == {"ok": True}
     assert calls == [{"provider_exchange_codes": ["US"], "trade_date": date(2026, 5, 31)}]
@@ -222,13 +262,9 @@ async def test_run_preset_eod_price_overrides(monkeypatch: MonkeyPatch) -> None:
 
 def test_eod_price_accepts_domain_style_alias() -> None:
     """EOD price smoke should accept the Python domain spelling too."""
-    args = smoke.build_parser().parse_args(["eod_price"])
-
-    assert smoke.normalize_preset(str(args.preset)) == "eod-price"
+    assert smoke.normalize_preset("eod_price") == "eod-price"
 
 
 def test_exchange_schedule_accepts_domain_style_alias() -> None:
     """Exchange schedule smoke should accept the Python domain spelling too."""
-    args = smoke.build_parser().parse_args(["exchange_schedule"])
-
-    assert smoke.normalize_preset(str(args.preset)) == "exchange-schedule"
+    assert smoke.normalize_preset("exchange_schedule") == "exchange-schedule"

@@ -91,41 +91,7 @@ def test_recent_domain_runs_requires_completed_status() -> None:
     assert "skipped" not in lake.last_query
 
 
-def test_configured_recent_domains_uses_cli_values(monkeypatch: Any) -> None:
-    """CLI domains should override monitor environment defaults."""
-    monkeypatch.setenv("OPERATIONAL_HEALTH_RECENT_DOMAINS", "fundamental")
-
-    domains = operational_health.configured_recent_domains([" eod_price ", ""])
-
-    assert domains == ["eod_price"]
-
-
-def test_configured_recent_domains_uses_environment(monkeypatch: Any) -> None:
-    """The deployed healthcheck can configure freshness domains through env vars."""
-    monkeypatch.setenv("OPERATIONAL_HEALTH_RECENT_DOMAINS", "eod_price, fundamental exchange")
-
-    domains = operational_health.configured_recent_domains(None)
-
-    assert domains == ["eod_price", "fundamental", "exchange"]
-
-
-def test_operational_lake_read_only_defaults_to_false_for_motherduck_token(monkeypatch: Any) -> None:
-    """Regular MotherDuck tokens cannot be opened with DuckDB read_only=True."""
-    monkeypatch.setenv("MOTHERDUCK_TOKEN", "token")
-    monkeypatch.delenv("OPERATIONAL_HEALTH_LAKE_READ_ONLY", raising=False)
-
-    assert operational_health.operational_lake_read_only() is False
-
-
-def test_operational_lake_read_only_can_be_forced_for_read_scaling_token(monkeypatch: Any) -> None:
-    """Operators with a read-scaling token can force a read-only MotherDuck connection."""
-    monkeypatch.setenv("MOTHERDUCK_TOKEN", "token")
-    monkeypatch.setenv("OPERATIONAL_HEALTH_LAKE_READ_ONLY", "true")
-
-    assert operational_health.operational_lake_read_only() is True
-
-
-def test_main_emits_stale_runs_event(monkeypatch: Any, capsys: Any) -> None:
+def test_run_operational_health_emits_stale_runs_event() -> None:
     """Stale running rows should become a Prefect event for automations."""
     stale_rows = [{"run_id": "run-1", "flow_name": "flow", "domain": "eod_price"}]
     events: list[dict[str, object]] = []
@@ -139,20 +105,25 @@ def test_main_emits_stale_runs_event(monkeypatch: Any, capsys: Any) -> None:
     def emit_stale(**kwargs: object) -> None:
         events.append(kwargs)
 
-    monkeypatch.setenv("PREFECT_API_URL", "http://prefect.example/api")
-    monkeypatch.setattr(operational_health, "prefect_api_is_healthy", lambda *_args, **_kwargs: True)
-    monkeypatch.setattr(operational_health, "DataLakeClient", StaleLake)
-    monkeypatch.setattr(operational_health, "emit_prefect_stale_runs_event", emit_stale)
+    result = operational_health.run_operational_health(
+        operational_health.OperationalHealthConfig(
+            prefect_api_url="http://prefect.example/api",
+            stale_running_hours=1.5,
+            recent_domains=[],
+            recent_hours=36.0,
+            lake_read_only=False,
+        ),
+        lake_factory=StaleLake,
+        api_health_check=lambda *_args, **_kwargs: True,
+        stale_runs_event=emit_stale,
+        now=datetime(2026, 6, 13, 12, 0, tzinfo=UTC),
+    )
 
-    exit_code = operational_health.main(["--stale-running-hours", "1.5"])
-
-    captured = capsys.readouterr()
-    assert exit_code == 1
-    assert "1 stale running pipeline run(s)" in captured.err
+    assert result.failures == ["1 stale running pipeline run(s)"]
     assert events == [{"stale_runs": stale_rows, "older_than_minutes": 90}]
 
 
-def test_main_reports_redacted_lake_error_detail(monkeypatch: Any, capsys: Any) -> None:
+def test_run_operational_health_reports_redacted_lake_error_detail() -> None:
     """Operational alerts should include useful lake errors without leaking tokens."""
 
     class FailingLake:
@@ -162,14 +133,37 @@ def test_main_reports_redacted_lake_error_detail(monkeypatch: Any, capsys: Any) 
             """Raise a connection-style error containing a sensitive query param."""
             raise RuntimeError("connect failed for md:unique_stocks?motherduck_token=secret-token")
 
-    monkeypatch.setenv("PREFECT_API_URL", "http://prefect.example/api")
-    monkeypatch.setattr(operational_health, "prefect_api_is_healthy", lambda *_args, **_kwargs: True)
-    monkeypatch.setattr(operational_health, "DataLakeClient", FailingLake)
+        def table_exists(self, schema: str, table: str) -> bool:
+            """Return whether a table exists."""
+            _ = schema, table
+            return False
 
-    exit_code = operational_health.main([])
+        def query(self, sql: str, params: Sequence[Any] | None = None) -> list[dict[str, Any]]:
+            """Return rows."""
+            _ = sql, params
+            return []
 
-    captured = capsys.readouterr()
-    assert exit_code == 1
-    assert "RuntimeError: connect failed" in captured.err
-    assert "secret-token" not in captured.err
-    assert "motherduck_token=[redacted]" in captured.err
+        def query_one(self, sql: str, params: Sequence[Any] | None = None) -> dict[str, Any] | None:
+            """Return one row."""
+            _ = sql, params
+            return None
+
+        def close(self) -> None:
+            """Close the fake lake."""
+
+    result = operational_health.run_operational_health(
+        operational_health.OperationalHealthConfig(
+            prefect_api_url="http://prefect.example/api",
+            stale_running_hours=6.0,
+            recent_domains=[],
+            recent_hours=36.0,
+            lake_read_only=False,
+        ),
+        lake_factory=FailingLake,
+        api_health_check=lambda *_args, **_kwargs: True,
+    )
+
+    assert len(result.failures) == 1
+    assert "RuntimeError: connect failed" in result.failures[0]
+    assert "secret-token" not in result.failures[0]
+    assert "motherduck_token=[redacted]" in result.failures[0]

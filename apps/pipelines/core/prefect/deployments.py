@@ -11,8 +11,6 @@ Unrelated deployments created manually in the Prefect UI are left untouched.
 
 from __future__ import annotations
 
-import argparse
-import asyncio
 import importlib
 import subprocess
 from collections.abc import Sequence
@@ -134,28 +132,6 @@ def find_orphaned_deployments(
     return sorted(orphans, key=lambda item: item.key.slug)
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Build the CLI argument parser."""
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--prefect-yaml",
-        type=Path,
-        default=DEFAULT_PREFECT_YAML,
-        help="Path to the Prefect project manifest.",
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Print planned deletions and deployment apply without changing the server.",
-    )
-    parser.add_argument(
-        "--prune-only",
-        action="store_true",
-        help="Delete orphaned deployments but skip ``prefect deploy --all``.",
-    )
-    return parser
-
-
 async def _read_server_deployments() -> list[tuple[DeploymentKey, DeploymentResponse]]:
     """Load all deployments currently registered on the Prefect server."""
     rows: list[tuple[DeploymentKey, DeploymentResponse]] = []
@@ -235,22 +211,3 @@ async def sync_deployments(
         _run_prefect_deploy(dry_run=dry_run)
 
     return 0
-
-
-def main(argv: Sequence[str] | None = None) -> int:
-    """CLI entrypoint."""
-    args = build_parser().parse_args(list(argv) if argv is not None else None)
-    try:
-        return asyncio.run(
-            sync_deployments(
-                prefect_yaml=args.prefect_yaml,
-                dry_run=args.dry_run,
-                prune_only=args.prune_only,
-            )
-        )
-    except subprocess.CalledProcessError:
-        log.exception("deploy.sync.prefect_deploy_failed")
-        return 1
-    except Exception:
-        log.exception("deploy.sync.failed")
-        return 1

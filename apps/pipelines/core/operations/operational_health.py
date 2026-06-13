@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import argparse
-import os
-import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 
@@ -13,6 +11,10 @@ from core.clients.lake import DataLakeClient
 from core.operations.health_common import prefect_api_is_healthy
 from core.prefect.events import emit_prefect_stale_runs_event
 from core.utils.redaction import redact_sensitive_query_params
+
+type LakeFactory = Callable[..., "OperationalHealthLake"]
+type PrefectApiHealthCheck = Callable[[str], bool]
+type StaleRunsEventEmitter = Callable[..., None]
 
 
 class OperationalHealthLake(Protocol):
@@ -33,6 +35,29 @@ class OperationalHealthLake(Protocol):
     def close(self) -> None:
         """Close the lake connection."""
         ...
+
+
+@dataclass(frozen=True, slots=True)
+class OperationalHealthConfig:
+    """Configuration for one operational health evaluation."""
+
+    prefect_api_url: str
+    stale_running_hours: float
+    recent_domains: Sequence[str]
+    recent_hours: float
+    lake_read_only: bool
+
+
+@dataclass(frozen=True, slots=True)
+class OperationalHealthResult:
+    """Structured result of an operational health evaluation."""
+
+    failures: list[str]
+
+    @property
+    def passed(self) -> bool:
+        """Return whether all checks passed."""
+        return not self.failures
 
 
 def stale_running_runs(lake: OperationalHealthLake, *, older_than: datetime) -> list[dict[str, object]]:
@@ -80,106 +105,41 @@ def recent_domain_runs(
     return latest
 
 
-def configured_recent_domains(cli_domains: Sequence[str] | None) -> list[str]:
-    """Return recent-domain checks from CLI args or OPERATIONAL_HEALTH_RECENT_DOMAINS."""
-    if cli_domains is not None:
-        return [domain.strip() for domain in cli_domains if domain.strip()]
-    return _env_list("OPERATIONAL_HEALTH_RECENT_DOMAINS")
-
-
-def operational_lake_read_only() -> bool:
-    """Return whether operational health should open the lake in read-only mode."""
-    value = os.environ.get("OPERATIONAL_HEALTH_LAKE_READ_ONLY", "auto").strip().lower()
-    if value in {"1", "true", "yes", "on"}:
-        return True
-    if value in {"0", "false", "no", "off"}:
-        return False
-    if value not in {"", "auto"}:
-        raise ValueError("OPERATIONAL_HEALTH_LAKE_READ_ONLY must be true, false, or auto")
-    return not bool(os.environ.get("MOTHERDUCK_TOKEN", "").strip())
-
-
-def build_parser() -> argparse.ArgumentParser:
-    """Build the operational health CLI parser."""
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--prefect-api-url",
-        default=os.environ.get("PREFECT_API_URL", ""),
-        help="Prefect API URL. Defaults to PREFECT_API_URL.",
-    )
-    parser.add_argument(
-        "--stale-running-hours",
-        type=float,
-        default=_env_float("OPERATIONAL_HEALTH_STALE_RUNNING_HOURS", 2.0),
-        help="Fail when pipeline.runs has running rows older than this many hours.",
-    )
-    parser.add_argument(
-        "--recent-domain",
-        action="append",
-        default=None,
-        help=(
-            "Require at least one recent completed run for this domain. May be passed more than once. "
-            "Defaults to OPERATIONAL_HEALTH_RECENT_DOMAINS when omitted."
-        ),
-    )
-    parser.add_argument(
-        "--recent-hours",
-        type=float,
-        default=_env_float("OPERATIONAL_HEALTH_RECENT_HOURS", 36.0),
-        help="Freshness window for --recent-domain checks.",
-    )
-    return parser
-
-
-def _env_float(name: str, default: float) -> float:
-    """Return a float from an environment variable or a default value."""
-    value = os.environ.get(name, "").strip()
-    if not value:
-        return default
-    try:
-        return float(value)
-    except ValueError as exc:
-        raise ValueError(f"{name} must be a number, got {value!r}") from exc
-
-
-def _env_list(name: str) -> list[str]:
-    """Return comma- or whitespace-separated environment values."""
-    raw = os.environ.get(name, "")
-    return [value for item in raw.split(",") for value in item.split() if value]
-
-
-def main(argv: Sequence[str] | None = None) -> int:
-    """Run operational health checks and return a process exit code."""
-    try:
-        args = build_parser().parse_args(argv)
-        lake_read_only = operational_lake_read_only()
-    except ValueError as exc:
-        print(f"FAIL: {exc}", file=sys.stderr)
-        return 2
+def run_operational_health(
+    config: OperationalHealthConfig,
+    *,
+    lake_factory: LakeFactory = DataLakeClient,
+    api_health_check: PrefectApiHealthCheck = prefect_api_is_healthy,
+    stale_runs_event: StaleRunsEventEmitter = emit_prefect_stale_runs_event,
+    now: datetime | None = None,
+) -> OperationalHealthResult:
+    """Evaluate Prefect API and lake audit health."""
     failures: list[str] = []
-    recent_domains = configured_recent_domains(args.recent_domain)
 
-    if not args.prefect_api_url:
+    if not config.prefect_api_url:
         failures.append("PREFECT_API_URL is not set")
-    elif not prefect_api_is_healthy(str(args.prefect_api_url)):
+    elif not api_health_check(config.prefect_api_url):
         failures.append("Prefect API health endpoint is not reachable")
 
-    now = datetime.now(UTC)
+    observed_at = now or datetime.now(UTC)
     lake: OperationalHealthLake | None = None
     try:
-        lake = DataLakeClient(read_only=lake_read_only, ensure_database=False, schemas=())
-        stale_runs = stale_running_runs(lake, older_than=now - timedelta(hours=max(0.0, args.stale_running_hours)))
+        lake = lake_factory(read_only=config.lake_read_only, ensure_database=False, schemas=())
+        stale_runs = stale_running_runs(
+            lake,
+            older_than=observed_at - timedelta(hours=max(0.0, config.stale_running_hours)),
+        )
         if stale_runs:
             failures.append(f"{len(stale_runs)} stale running pipeline run(s)")
-            emit_prefect_stale_runs_event(
+            stale_runs_event(
                 stale_runs=stale_runs,
-                older_than_minutes=int(max(0.0, args.stale_running_hours) * 60),
+                older_than_minutes=int(max(0.0, config.stale_running_hours) * 60),
             )
 
         latest_by_domain = recent_domain_runs(
             lake,
-            domains=recent_domains,
-            since=now - timedelta(hours=max(0.0, args.recent_hours)),
+            domains=config.recent_domains,
+            since=observed_at - timedelta(hours=max(0.0, config.recent_hours)),
         )
         missing_domains = [domain for domain, row in latest_by_domain.items() if row is None]
         if missing_domains:
@@ -191,10 +151,4 @@ def main(argv: Sequence[str] | None = None) -> int:
         if lake is not None:
             lake.close()
 
-    if failures:
-        for failure in failures:
-            print(f"FAIL: {failure}", file=sys.stderr)
-        return 1
-
-    print("OK: Prefect API and lake audit health checks passed")
-    return 0
+    return OperationalHealthResult(failures=failures)

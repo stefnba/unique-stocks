@@ -110,6 +110,15 @@ apps/pipelines/
 
 Domain code is organized under `domains/<domain>/`. Ingestion domains usually define `models.py`, `tables.py`, `datasets.py`, `parsers.py`, task modules, and `flows.py`, plus small domain helpers when needed.
 
+### Script entrypoints
+
+Scripts under `scripts/` are grouped command-line adapters. They own argument
+parsing, environment defaults, console output, and exit codes. Reusable pipeline
+behavior stays in `core/`, domain packages, providers, or config modules.
+
+See [`scripts/README.md`](scripts/README.md) before adding or moving an
+entrypoint.
+
 ### File-backed lake SQL
 
 Prefer file-backed SQL for lake reads or writes when the query has meaningful shape:

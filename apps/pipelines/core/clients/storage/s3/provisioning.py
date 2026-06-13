@@ -1,65 +1,16 @@
-r"""Provision the AWS S3 landing zone used by the ingestion pipeline.
+r"""Provisioning primitives for the AWS S3 landing zone used by ingestion."""
 
-Run from ``apps/pipelines/``.  All commands below assume that working directory.
-
-Preview the provisioning plan without calling AWS::
-
-    uv run python scripts/s3/setup_landing_zone.py --profile provisioner --dry-run
-
-Create or update the bucket, security controls, IAM user, and inline policy::
-
-    uv run python scripts/s3/setup_landing_zone.py --profile provisioner
-
-Access key creation is a separate, deliberate step. Run without ``--create-access-key``
-first to provision the bucket and IAM user, verify the output, then re-run with the
-flag only when you are ready to immediately store the secret — AWS shows
-``SecretAccessKey`` only once::
-
-    # Step 1 — provision everything except the access key (idempotent, safe to re-run)
-    uv run python scripts/s3/setup_landing_zone.py --profile provisioner
-
-    # Step 2 — create the access key only when ready to store it
-    uv run python scripts/s3/setup_landing_zone.py --profile provisioner --create-access-key
-
-Grant ``s3:DeleteObject`` only when a cleanup workflow explicitly requires it::
-
-    uv run python scripts/s3/setup_landing_zone.py --profile provisioner --allow-delete
-
-Target a different bucket, region, or IAM user (e.g. for the prod environment)::
-
-    uv run python scripts/s3/setup_landing_zone.py \\
-        --profile provisioner \\
-        --bucket unique-stocks-prod \\
-        --region eu-central-1 \\
-        --user unique-stocks-prod-pipelines
-
-The same targets are available through Make::
-
-    make s3-landing-zone ARGS="--profile provisioner --dry-run"
-
-After a successful run, store the returned ``AccessKeyId`` and ``SecretAccessKey``
-in ``.env`` or the production secret store, then persist the Prefect blocks::
-
-    make blocks-save
-"""
-
-import argparse
 import json
-import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
 import boto3
-from botocore.exceptions import (
-    BotoCoreError,
-    ClientError,
-    NoCredentialsError,
-    ProfileNotFound,
-)
+from botocore.exceptions import ClientError
 from pydantic import BaseModel, ConfigDict, Field
 
 TLS_POLICY_SID = "DenyNonTLS"
+type Emit = Callable[["ProvisioningEvent"], None]
 
 
 class AwsCallerIdentity(BaseModel):
@@ -124,13 +75,20 @@ class AwsResourceDefaults:
     inline_policy_name: str
 
 
+@dataclass(frozen=True, slots=True)
+class ProvisioningEvent:
+    """Structured progress event from landing-zone provisioning."""
+
+    name: str
+    payload: Mapping[str, Any] | None = None
+
+
 class ProvisioningError(RuntimeError):
     """Raised when provisioning cannot safely continue."""
 
 
-def emit(message: str = "") -> None:
-    """Write CLI output."""
-    print(message)
+def _noop_emit(_event: ProvisioningEvent) -> None:
+    """Ignore provisioning progress events."""
 
 
 def selected(data: Mapping[str, Any], keys: Sequence[str]) -> dict[str, Any]:
@@ -139,11 +97,6 @@ def selected(data: Mapping[str, Any], keys: Sequence[str]) -> dict[str, Any]:
         return {key: data[key] for key in keys}
     except KeyError as exc:
         raise ProvisioningError(f"Unexpected AWS response shape, missing key: {exc}") from exc
-
-
-def bool_label(value: bool) -> str:
-    """Return a lowercase shell-style boolean label."""
-    return "true" if value else "false"
 
 
 def aws_resource_defaults() -> AwsResourceDefaults:
@@ -163,52 +116,6 @@ def aws_resource_defaults() -> AwsResourceDefaults:
     )
 
 
-def parse_args(argv: Sequence[str] | None = None) -> LandingZoneConfig:
-    """Parse command-line arguments into a provisioning config."""
-    defaults = aws_resource_defaults()
-    parser = argparse.ArgumentParser(
-        description="Set up the S3 landing-zone bucket and IAM user for the pipelines app.",
-    )
-    parser.add_argument(
-        "--bucket",
-        default=defaults.bucket_name,
-        help=f"S3 bucket name. Default: {defaults.bucket_name}",
-    )
-    parser.add_argument("--region", default=defaults.region, help=f"AWS region. Default: {defaults.region}")
-    parser.add_argument("--user", default=defaults.iam_user, help=f"IAM user name. Default: {defaults.iam_user}")
-    parser.add_argument(
-        "--policy-name",
-        default=defaults.inline_policy_name,
-        help=f"Inline IAM policy name. Default: {defaults.inline_policy_name}",
-    )
-    parser.add_argument("--profile", default=None, help="AWS profile name to use.")
-    parser.add_argument(
-        "--create-access-key",
-        action="store_true",
-        help="Create and print a new access key for the IAM user.",
-    )
-    parser.add_argument(
-        "--allow-delete",
-        action="store_true",
-        help="Grant s3:DeleteObject in the IAM policy. Off by default.",
-    )
-    parser.add_argument("--dry-run", action="store_true", help="Print planned actions without calling AWS.")
-
-    args = parser.parse_args(argv)
-    config = LandingZoneConfig(
-        bucket_name=args.bucket,
-        region=args.region,
-        iam_user=args.user,
-        policy_name=args.policy_name,
-        profile=args.profile,
-        create_access_key=args.create_access_key,
-        allow_delete=args.allow_delete,
-        dry_run=args.dry_run,
-    )
-    validate_config(config)
-    return config
-
-
 def validate_config(config: LandingZoneConfig) -> None:
     """Validate non-empty CLI values."""
     if not config.bucket_name:
@@ -226,11 +133,14 @@ def create_session(config: LandingZoneConfig) -> boto3.Session:
     return boto3.Session(profile_name=config.profile, region_name=config.region)
 
 
-def planned(config: LandingZoneConfig, action: str, payload: Mapping[str, Any] | None = None) -> None:
-    """Print a dry-run action."""
-    emit(f"DRY RUN: {action}")
-    if payload:
-        emit(json.dumps(payload, indent=2, sort_keys=True))
+def planned(
+    action: str,
+    request: Mapping[str, Any] | None = None,
+    *,
+    emit: Emit,
+) -> None:
+    """Emit a dry-run action."""
+    emit(ProvisioningEvent(name="dry_run", payload={"action": action, "request": request}))
 
 
 def landing_policy(config: LandingZoneConfig) -> dict[str, Any]:
@@ -359,25 +269,25 @@ def bucket_exists(s3_client: Any, bucket_name: str) -> bool:
     return True
 
 
-def ensure_bucket(s3_client: Any, config: LandingZoneConfig) -> None:
+def ensure_bucket(s3_client: Any, config: LandingZoneConfig, *, emit: Emit = _noop_emit) -> None:
     """Create the S3 bucket if it does not already exist."""
     payload: dict[str, Any] = {"Bucket": config.bucket_name}
     if config.region != "us-east-1":
         payload["CreateBucketConfiguration"] = {"LocationConstraint": config.region}
 
     if config.dry_run:
-        planned(config, "create bucket if missing", payload)
+        planned("create_bucket_if_missing", payload, emit=emit)
         return
 
     if bucket_exists(s3_client, config.bucket_name):
-        emit(f"Bucket already exists: {config.bucket_name}")
+        emit(ProvisioningEvent(name="bucket_exists", payload={"bucket_name": config.bucket_name}))
         return
 
     s3_client.create_bucket(**payload)
-    emit(f"Created bucket: {config.bucket_name}")
+    emit(ProvisioningEvent(name="bucket_created", payload={"bucket_name": config.bucket_name}))
 
 
-def apply_bucket_security(s3_client: Any, config: LandingZoneConfig) -> None:
+def apply_bucket_security(s3_client: Any, config: LandingZoneConfig, *, emit: Emit = _noop_emit) -> None:
     """Apply baseline S3 security controls to the landing-zone bucket."""
     public_access = {
         "BlockPublicAcls": True,
@@ -390,10 +300,10 @@ def apply_bucket_security(s3_client: Any, config: LandingZoneConfig) -> None:
     versioning = {"Status": "Enabled"}
 
     if config.dry_run:
-        planned(config, "put public access block", public_access)
-        planned(config, "put bucket ownership controls", ownership_controls)
-        planned(config, "put bucket encryption", encryption)
-        planned(config, "put bucket versioning", versioning)
+        planned("put_public_access_block", public_access, emit=emit)
+        planned("put_bucket_ownership_controls", ownership_controls, emit=emit)
+        planned("put_bucket_encryption", encryption, emit=emit)
+        planned("put_bucket_versioning", versioning, emit=emit)
         return
 
     s3_client.put_public_access_block(
@@ -412,13 +322,17 @@ def apply_bucket_security(s3_client: Any, config: LandingZoneConfig) -> None:
         Bucket=config.bucket_name,
         VersioningConfiguration=versioning,
     )
-    emit("Applied bucket security controls.")
+    emit(ProvisioningEvent(name="bucket_security_applied"))
 
 
-def apply_tls_bucket_policy(s3_client: Any, config: LandingZoneConfig) -> None:
+def apply_tls_bucket_policy(s3_client: Any, config: LandingZoneConfig, *, emit: Emit = _noop_emit) -> None:
     """Enforce HTTPS-only access by upserting a Deny-non-TLS bucket policy statement."""
     if config.dry_run:
-        planned(config, "upsert TLS-enforce bucket policy statement", tls_bucket_policy(config.bucket_name))
+        planned(
+            "upsert_tls_bucket_policy_statement",
+            tls_bucket_policy(config.bucket_name),
+            emit=emit,
+        )
         return
 
     policy = merge_tls_bucket_policy(get_bucket_policy(s3_client, config.bucket_name), config.bucket_name)
@@ -426,7 +340,7 @@ def apply_tls_bucket_policy(s3_client: Any, config: LandingZoneConfig) -> None:
         Bucket=config.bucket_name,
         Policy=json.dumps(policy, separators=(",", ":")),
     )
-    emit("Applied TLS-enforce bucket policy statement.")
+    emit(ProvisioningEvent(name="tls_bucket_policy_applied"))
 
 
 def iam_user_exists(iam_client: Any, user_name: str) -> bool:
@@ -441,23 +355,23 @@ def iam_user_exists(iam_client: Any, user_name: str) -> bool:
     return True
 
 
-def ensure_iam_user(iam_client: Any, config: LandingZoneConfig) -> None:
+def ensure_iam_user(iam_client: Any, config: LandingZoneConfig, *, emit: Emit = _noop_emit) -> None:
     """Create the IAM user if it does not already exist."""
     payload = {"UserName": config.iam_user}
 
     if config.dry_run:
-        planned(config, "create IAM user if missing", payload)
+        planned("create_iam_user_if_missing", payload, emit=emit)
         return
 
     if iam_user_exists(iam_client, config.iam_user):
-        emit(f"IAM user already exists: {config.iam_user}")
+        emit(ProvisioningEvent(name="iam_user_exists", payload={"iam_user": config.iam_user}))
         return
 
     iam_client.create_user(**payload)
-    emit(f"Created IAM user: {config.iam_user}")
+    emit(ProvisioningEvent(name="iam_user_created", payload={"iam_user": config.iam_user}))
 
 
-def put_user_policy(iam_client: Any, config: LandingZoneConfig) -> None:
+def put_user_policy(iam_client: Any, config: LandingZoneConfig, *, emit: Emit = _noop_emit) -> None:
     """Attach or replace the bucket-scoped inline IAM policy."""
     policy = landing_policy(config)
     payload = {
@@ -467,7 +381,7 @@ def put_user_policy(iam_client: Any, config: LandingZoneConfig) -> None:
     }
 
     if config.dry_run:
-        planned(config, "put inline IAM user policy", payload)
+        planned("put_inline_iam_user_policy", payload, emit=emit)
         return
 
     iam_client.put_user_policy(
@@ -475,7 +389,7 @@ def put_user_policy(iam_client: Any, config: LandingZoneConfig) -> None:
         PolicyName=config.policy_name,
         PolicyDocument=json.dumps(policy, separators=(",", ":")),
     )
-    emit(f"Attached inline IAM policy: {config.policy_name}")
+    emit(ProvisioningEvent(name="user_policy_attached", payload={"policy_name": config.policy_name}))
 
 
 def access_key_count(iam_client: Any, user_name: str) -> int:
@@ -486,15 +400,15 @@ def access_key_count(iam_client: Any, user_name: str) -> int:
     return len(validated)
 
 
-def maybe_create_access_key(iam_client: Any, config: LandingZoneConfig) -> None:
+def maybe_create_access_key(iam_client: Any, config: LandingZoneConfig, *, emit: Emit = _noop_emit) -> None:
     """Create an access key only when explicitly requested."""
     if not config.create_access_key:
-        emit(f"Access key creation skipped. Re-run with --create-access-key when ready for {config.iam_user}.")
+        emit(ProvisioningEvent(name="access_key_skipped", payload={"iam_user": config.iam_user}))
         return
 
     payload = {"UserName": config.iam_user}
     if config.dry_run:
-        planned(config, "create IAM access key", payload)
+        planned("create_iam_access_key", payload, emit=emit)
         return
 
     key_count = access_key_count(iam_client, config.iam_user)
@@ -508,36 +422,26 @@ def maybe_create_access_key(iam_client: Any, config: LandingZoneConfig) -> None:
     access_key = AccessKeySecret.model_validate(
         selected(response["AccessKey"], ["UserName", "AccessKeyId", "SecretAccessKey", "Status"])
     )
-    emit("Created access key. AWS shows SecretAccessKey only once; store it now.")
-    emit(json.dumps(access_key.model_dump(by_alias=True), indent=2))
+    emit(ProvisioningEvent(name="access_key_created", payload=access_key.model_dump(by_alias=True)))
 
 
-def print_header(config: LandingZoneConfig) -> None:
-    """Print resolved configuration before provisioning."""
-    emit("S3 landing-zone setup")
-    emit(f"  bucket:       {config.bucket_name}")
-    emit(f"  region:       {config.region}")
-    emit(f"  iam user:     {config.iam_user}")
-    emit(f"  policy name:  {config.policy_name}")
-    emit(f"  profile:      {config.profile or 'default'}")
-    emit(f"  allow delete: {bool_label(config.allow_delete)}")
-    emit(f"  dry run:      {bool_label(config.dry_run)}")
-
-
-def verify_identity(sts_client: Any, config: LandingZoneConfig) -> None:
+def verify_identity(sts_client: Any, config: LandingZoneConfig, *, emit: Emit = _noop_emit) -> None:
     """Print the AWS caller identity for non-dry-run executions."""
     if config.dry_run:
         return
 
     response = sts_client.get_caller_identity()
     identity = AwsCallerIdentity.model_validate(selected(response, ["UserId", "Account", "Arn"]))
-    emit(f"AWS caller: {identity.arn} (account {identity.account})")
+    emit(
+        ProvisioningEvent(
+            name="aws_caller_identity",
+            payload={"arn": identity.arn, "account": identity.account},
+        )
+    )
 
 
-def provision(config: LandingZoneConfig) -> None:
+def provision(config: LandingZoneConfig, *, emit: Emit = _noop_emit) -> None:
     """Provision the landing-zone bucket, IAM user, policy, and optional access key."""
-    print_header(config)
-
     if config.dry_run:
         s3_client = None
         iam_client = None
@@ -548,34 +452,10 @@ def provision(config: LandingZoneConfig) -> None:
         iam_client = session.client("iam")
         sts_client = session.client("sts")
 
-    verify_identity(sts_client, config)
-    ensure_bucket(s3_client, config)
-    apply_bucket_security(s3_client, config)
-    apply_tls_bucket_policy(s3_client, config)
-    ensure_iam_user(iam_client, config)
-    put_user_policy(iam_client, config)
-    maybe_create_access_key(iam_client, config)
-
-    emit("Done.")
-    emit("Next: put AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in .env or production secrets,")
-    emit("then run: make blocks-save")
-
-
-def main(argv: Sequence[str] | None = None) -> int:
-    """Run the CLI."""
-    try:
-        provision(parse_args(argv))
-    except (ProvisioningError, NoCredentialsError, ProfileNotFound) as exc:
-        print(f"Error: {exc}", file=sys.stderr)
-        return 1
-    except ClientError as exc:
-        error = exc.response.get("Error", {})
-        code = error.get("Code", "Unknown")
-        message = error.get("Message", str(exc))
-        print(f"AWS error ({code}): {message}", file=sys.stderr)
-        return 1
-    except BotoCoreError as exc:
-        print(f"AWS client error: {exc}", file=sys.stderr)
-        return 1
-
-    return 0
+    verify_identity(sts_client, config, emit=emit)
+    ensure_bucket(s3_client, config, emit=emit)
+    apply_bucket_security(s3_client, config, emit=emit)
+    apply_tls_bucket_policy(s3_client, config, emit=emit)
+    ensure_iam_user(iam_client, config, emit=emit)
+    put_user_policy(iam_client, config, emit=emit)
+    maybe_create_access_key(iam_client, config, emit=emit)
