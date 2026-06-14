@@ -144,7 +144,7 @@ class BlockEntry[T: Block]:
 def define_block[T: Block](name: str, block: T) -> BlockEntry[T]:
     """Create a typed ``BlockEntry`` without saving to the Prefect registry.
 
-    Call ``BlockRegistry.save_all()`` explicitly (or run ``control_plane/prefect_blocks.py``
+    Call ``BlockRegistry.save_all()`` explicitly (or run ``control_plane/prefect/blocks.py``
     directly) to persist blocks to the Prefect server.
     """
     return BlockEntry(name=name, block=block)
@@ -153,7 +153,7 @@ def define_block[T: Block](name: str, block: T) -> BlockEntry[T]:
 class BlockRegistryBase:
     """Base class for Prefect block registries.
 
-    Subclass this in ``control_plane/prefect_blocks.py`` and declare block entries as class
+    Subclass this in ``control_plane/prefect/blocks.py`` and declare block entries as class
     attributes using :func:`define_block`.  Call :meth:`save_all` once during
     environment setup to persist all entries to the Prefect server.
     """
