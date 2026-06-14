@@ -4,7 +4,7 @@ This module owns the physical schema for durable pipeline audit tables written
 by generic core helpers such as run tracking, ingestion coverage, landing-object
 recording, parser rejection recording, and dbt invocation auditing.
 
-The application-level ``lake.schema`` registry imports these table specs into
+The application-level ``lakehouse.schema`` registry imports these table specs into
 ``ALL_TABLES`` alongside domain Bronze tables. Core writers should depend on
 this module directly instead of importing the app registry, which keeps the
 dependency direction clean: app registries compose core/domain specs; core does
