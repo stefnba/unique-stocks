@@ -11,7 +11,7 @@ from prefect.client.schemas.objects import State, TaskRun
 from prefect.tasks import TaskRunNameCallbackWithParameters, exponential_backoff
 from pydantic import ValidationError
 
-from config.blocks import BlockRegistry
+from control_plane.prefect_blocks import BlockRegistry
 from core.http.base import ProviderRateLimitError
 from core.ingestion import BronzeParseResult, BronzeWrite, LandingWrite
 from core.ingestion.coverage import COVERAGE_STATUS_PROVIDER_QUOTA_DEFERRED, record_ingestion_coverage

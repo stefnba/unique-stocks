@@ -56,7 +56,8 @@ from domains.eod_price.tasks import (
     write_eod_price_to_landing,
     write_instrument_eod_history_to_landing,
 )
-from orchestration.post_ingestion import DbtBuildDeployment, run_dbt_build_after_ingestion, run_dbt_build_deployment
+from orchestration.domain_dbt import DbtBuildDeployment
+from orchestration.post_ingestion import run_dbt_build_after_ingestion, run_dbt_build_deployment
 from providers.eodhd.models import EODBulkPriceRaw, EODPriceBarRaw
 
 from .assets import record_eod_price_bronze_materialization
