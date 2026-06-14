@@ -111,17 +111,17 @@ Each `tables.py` exports both the table class and an uppercase constant pointing
 to that class. Domain datasets and the app-level registry import the uppercase
 constant, for example `EXCHANGE_CATALOG_TABLE`.
 
-The app-level registry lives in `lake/schema.py`. It imports domain table specs
+The app-level registry lives in `lakehouse/schema.py`. It imports domain table specs
 and exposes `ALL_TABLES`, which migration generation compares against the
 current lake catalog.
 
 ## Migrations
 
-Schema changes are shipped as SQL migrations under `lake/migrations/`, not by
+Schema changes are shipped as SQL migrations under `lakehouse/migrations/`, not by
 running this package directly.
 
 ```bash
-make lake-migration         # diff lake/schema.py against the connected lake
+make lake-migration         # diff lakehouse/schema.py against the connected lake
 make lake-migration-status  # list pending and applied migration files
 make lake-migrate           # apply pending migrations
 ```

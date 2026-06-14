@@ -40,7 +40,7 @@ def configure_logging(*, settings: object | None = None, force: bool = False) ->
     if _configured and not force:
         return
 
-    settings = settings or _load_settings()
+    settings = settings or object()
     level = _log_level(settings)
     log_format = _resolved_log_format(settings)
     renderer = _renderer(log_format)
@@ -112,12 +112,6 @@ def _pipeline_handler(handlers: list[logging.Handler]) -> logging.Handler | None
 
 def _is_pipeline_handler(handler: logging.Handler) -> bool:
     return handler.get_name() == _PIPELINE_HANDLER_NAME
-
-
-def _load_settings() -> object:
-    from config.settings import get_settings
-
-    return get_settings()
 
 
 def _log_level(settings: object) -> LogLevel:

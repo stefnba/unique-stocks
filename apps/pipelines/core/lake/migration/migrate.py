@@ -16,8 +16,6 @@ from core.lake.migration.validation import has_any_desired_table, validate_lake_
 from core.lake.schema.table import TableModel
 from core.prefect.limits import lake_writer_limit
 
-DEFAULT_TABLES_REF = "lake.schema:ALL_TABLES"
-
 
 def main(argv: Sequence[str] | None = None) -> None:
     """Apply pending migration SQL files to the configured lake.
@@ -63,8 +61,8 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument("--migrations-dir", required=True, help="Directory where migration SQL files are stored.")
     parser.add_argument(
         "--tables",
-        default=DEFAULT_TABLES_REF,
-        help=f"Desired table specs as module:attribute. Defaults to {DEFAULT_TABLES_REF}.",
+        required=True,
+        help="Desired table specs as module:attribute.",
     )
     parser.add_argument("--dry-run", action="store_true", help="Print pending/applied migrations without applying.")
     return parser.parse_args(argv)

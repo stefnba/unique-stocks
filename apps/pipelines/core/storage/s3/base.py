@@ -15,7 +15,7 @@ from threading import Lock
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 if TYPE_CHECKING:
-    from core.blocks import BlockEntry
+    from core.prefect.blocks import BlockEntry
 from urllib.parse import urlparse
 
 import boto3

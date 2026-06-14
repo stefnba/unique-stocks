@@ -72,8 +72,10 @@ services:
         "python",
         "-m",
         "core.lake.migration.migrate",
+        "--tables",
+        "lakehouse.schema:ALL_TABLES",
         "--migrations-dir",
-        "lake/migrations",
+        "lakehouse/migrations",
       ]
     restart: "no"
 

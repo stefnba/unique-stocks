@@ -3,7 +3,7 @@
 This package owns generic lake access: the DuckDB/MotherDuck client, SQL
 template rendering, schema primitives, and migration helpers. It deliberately
 does not register this app's concrete Bronze or pipeline tables; the pipelines
-application composes those in ``lake.schema``.
+application composes those in ``lakehouse.schema``.
 """
 
 from core.lake.client import (

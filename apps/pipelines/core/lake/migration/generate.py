@@ -65,7 +65,7 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument(
         "--tables",
         required=True,
-        help="Desired table specs as module:attribute, e.g. lake.schema:ALL_TABLES.",
+        help="Desired table specs as module:attribute.",
     )
     parser.add_argument("--migrations-dir", required=True, help="Directory where migration SQL files are stored.")
     parser.add_argument("--name", help="Optional human-readable migration name.")

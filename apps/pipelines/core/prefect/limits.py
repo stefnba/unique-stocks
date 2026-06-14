@@ -3,8 +3,8 @@
 This module is reusable Prefect infrastructure. It knows how to register global
 lake-writer limits and provider API-credit limits from already-supplied HTTP
 client classes, but it does not discover or import this app's concrete provider
-packages. App provider composition belongs in ``registry.provider_registry`` and
-``orchestration.prefect_setup``.
+packages. App provider composition belongs in ``providers.registry`` and
+``control_plane.prefect_setup``.
 """
 
 from __future__ import annotations
