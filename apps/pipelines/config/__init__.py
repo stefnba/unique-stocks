@@ -1,6 +1,5 @@
 """Configuration and stable identity keys.
 
-This package owns environment-backed settings, Prefect block definitions,
-non-secret app defaults, and identity vocabularies. Import concrete modules
-directly, such as ``config.settings`` or ``config.blocks``.
+This package owns environment-backed settings, non-secret app defaults, and
+identity vocabularies. App-specific runtime wiring belongs in ``control_plane``.
 """
