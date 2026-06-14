@@ -45,9 +45,9 @@ Boundary rules:
 - Keep registries close to the thing they register: domain catalogs in `domains/`, provider catalogs in `providers/`, dbt/build mappings in `orchestration/`, and runtime service wiring in `control_plane/`.
 - Do not import `boto3` directly in domain code.
 - Do not import `duckdb` directly in domain code.
-- Do not read credentials from `SETTINGS` in tasks or flows. Load credentials from `BlockRegistry` at runtime.
-- Use `SETTINGS` only when constructing initial app-specific Prefect block instances at registry definition time.
-- Use `get_settings()` only in app composition modules such as `control_plane/`, `orchestration/`, and scripts, in existing core client internals that still need lazy defaults, and in tests that need to override settings between cases. Do not add new `core` settings imports; prefer explicit primitive values or app-owned factories.
+- Do not read credentials from settings in tasks or flows. Load credentials from `BlockRegistry` at runtime.
+- Use `get_settings()` as the only public settings accessor. Limit it to app composition modules such as `control_plane/`, `orchestration/`, and scripts, existing core client internals that still need lazy defaults, and tests that override settings between cases.
+- Prefer function-local `get_settings()` calls; module-level calls are only for import-time declarations such as Prefect block definitions. Do not add new `core` settings imports; prefer explicit primitive values or app-owned factories.
 
 ## Data flow guardrails
 
