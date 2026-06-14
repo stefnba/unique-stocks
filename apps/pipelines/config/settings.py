@@ -168,22 +168,16 @@ class Settings(_RuntimeSettings, _PrefectSettings, _AwsSettings, _LakeSettings, 
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    """Return the cached ``Settings`` singleton.
+    """Return cached app settings.
 
-    Only use this in core client internals (lazy import to avoid circular
-    imports) and in tests that need to swap settings between cases::
+    Use this as the only public settings accessor. Prefer calling it inside
+    functions so environment-backed values are resolved lazily. Module-level
+    calls are allowed only for import-time app wiring that must define stable
+    declarations, such as Prefect block definitions.
 
-        get_settings.cache_clear()
-        monkeypatch.setenv("ENVIRONMENT", "prod")
+    Tests that change environment variables should call
+    ``get_settings.cache_clear()``.
 
     Tasks and flows must load credentials from ``BlockRegistry``, not settings.
     """
     return Settings()
-
-
-SETTINGS = get_settings()
-"""Process-wide settings singleton.
-
-Only use this in ``config/blocks.py`` to build the initial block registry.
-Tasks and flows load credentials via ``BlockRegistry`` at runtime.
-"""
