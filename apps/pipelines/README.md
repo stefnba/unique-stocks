@@ -93,12 +93,13 @@ instead of using a static offset seed or timezone API. See
 
 ```text
 apps/pipelines/
-├── config/             Runtime configuration plus provider/domain identity enums
-├── registry/           App registries for providers, domains, and dbt asset metadata
-├── orchestration/      App-level Prefect/dbt composition and operational flows
-├── core/               Reusable infrastructure: ingestion, HTTP, storage, lake, Prefect helpers
-├── domains/            Domain models, tables, datasets, parsers, tasks, and flows
+├── config/             Passive settings, non-secret defaults, and identity enums
+├── control_plane/      App-specific Prefect, AWS, deployment, and runtime wiring
+├── orchestration/      Thin flow entrypoints and app-level dbt/workflow composition
+├── core/               Reusable machinery: ingestion, HTTP, storage, lake, Prefect helpers
+├── domains/            Domain models, tables, datasets, parsers, tasks, and services
 ├── providers/          Provider-specific clients and raw response models
+├── lakehouse/          App-level lake schema registry and migrations
 ├── dbt/                dbt Core project: Bronze -> Silver -> Gold transformations
 ├── dashboard/          Streamlit operations dashboard for the pipeline audit schema
 ├── docs/               Pipeline runbooks, including AWS/S3 setup
@@ -110,16 +111,18 @@ apps/pipelines/
 └── Makefile            App-level commands
 ```
 
-`core/` stays generic and does not import concrete app providers, domains, or settings-backed composition. `config/` owns stable identity enums such as providers and domains. `registry/` connects those identities to concrete provider/domain/dbt implementation metadata. `orchestration/` is where Prefect/dbt entrypoints compose `core`, `config`, `registry`, `domains`, and `providers`.
+See [docs/pipeline_architecture.md](docs/pipeline_architecture.md) for folder placement rules, dependency direction, registry ownership, and the thin-flow/domain-service pattern.
 
-Domain code is organized under `domains/<domain>/`. Ingestion domains usually define `models.py`, `tables.py`, `datasets.py`, `parsers.py`, task modules, and `flows.py`, plus small domain helpers when needed.
+`core/` stays generic and does not import concrete app providers, domains, app settings, Prefect block names, or settings-backed composition. `config/` owns passive settings and names only, including domain identity keys. Runtime wiring lives in `control_plane/`, dbt/build mappings and thin flow entrypoints live in `orchestration/`, and provider registration lives in `providers/registry.py`.
+
+Domain code is organized under `domains/<domain>/`. Ingestion domains usually define `models.py`, `tables.py`, `datasets.py`, `parsers.py`, task modules, request/result contracts, services, plus small domain helpers when needed.
 
 ### Script entrypoints
 
 Scripts under `scripts/` are grouped command-line adapters. They own argument
 parsing, environment defaults, console output, and exit codes. Reusable pipeline
-behavior stays in `core/`, `registry/`, `orchestration/`, domain packages,
-providers, or config modules.
+behavior stays in `core/`, `orchestration/`, domain packages, providers,
+control-plane modules, or config modules.
 
 See [`scripts/README.md`](scripts/README.md) before adding or moving an
 entrypoint.
@@ -146,7 +149,7 @@ Runtime values such as dates, provider codes, instrument codes, limits, and hash
 template. `make sql-lint` and `make sql-format` let SQLFluff discover SQL files from the app root; add new SQL folders without touching the
 Makefile. Add focused tests for non-trivial SQL files that assert the rendered query keeps important joins, filters, and parameter ordering intact.
 
-`config/settings.py` holds environment-variable-backed settings. `config/blocks.py` defines the Prefect block registry, which wires secrets plus non-secret infrastructure values into named Prefect blocks at startup. `make blocks-save` is allowed to create blank Secret/AWS blocks so they exist in the Prefect UI and can be filled in or corrected there. Tasks and flows always load credentials from the block registry at runtime, not from settings directly.
+`config/settings.py` holds environment-variable-backed settings. `control_plane/prefect_blocks.py` defines the Prefect block registry, which wires secrets plus non-secret infrastructure values into named Prefect blocks at startup. `make blocks-save` is allowed to create blank Secret/AWS blocks so they exist in the Prefect UI and can be filled in or corrected there. Tasks and flows always load credentials from the block registry at runtime, not from settings directly.
 
 ## Prerequisites
 
@@ -183,7 +186,7 @@ Set at least the active provider API key shown in `.env.example` for live provid
 
 ## S3 landing zone
 
-S3 is the landing-zone target for provider-validated raw payloads before they are parsed into typed Bronze records. Domain datasets use `LandingTarget` specs for raw object storage and `BronzeDataset` specs for lake writes. Bucket names and regions are non-secret infrastructure configuration and are defined in `config/aws_resources.py`, then wired into Prefect blocks by `config/blocks.py`. AWS access keys are secrets and must stay in local `.env` files or the production deployment platform.
+S3 is the landing-zone target for provider-validated raw payloads before they are parsed into typed Bronze records. Domain datasets use `LandingTarget` specs for raw object storage and `BronzeDataset` specs for lake writes. Bucket name bases and regions are non-secret infrastructure constants in `config/aws_resources.py`; environment-specific names are derived in `control_plane/aws_resources.py` and wired into Prefect blocks by `control_plane/prefect_blocks.py`. AWS access keys are secrets and must stay in local `.env` files or the production deployment platform.
 
 You do not need to create the S3 bucket and IAM user manually in the AWS Console each time. The setup is scriptable with `scripts/s3/setup_landing_zone.py`, including bucket creation, encryption, ownership controls, public-access blocking, IAM policy creation, and optional access-key generation. See [docs/aws/s3_landing_zone_guide.md](docs/aws/s3_landing_zone_guide.md) for the runbook, and [docs/aws/iam_guide.md](docs/aws/iam_guide.md) for AWS account and provisioner setup.
 
@@ -191,7 +194,7 @@ You do not need to create the S3 bucket and IAM user manually in the AWS Console
 
 The lake `pipeline` schema stores data-plane audit facts for ingestion and transformation runs. Prefect remains the orchestration control plane for scheduling, retries, task states, and logs; the lake audit tables answer data questions such as which exchange/date was skipped, which provider-instrument backfill failed, which landing URI produced Bronze rows, and which dbt model or test failed.
 
-Current audit tables are defined in `lake/schema.py` and applied through lake schema migrations:
+Current audit tables are defined in `lakehouse/schema.py` and applied through lake schema migrations:
 
 - `pipeline.runs`
 - `pipeline.run_units`
@@ -384,7 +387,7 @@ make lake-migrate                           # local DuckDB, or MotherDuck when M
 
 For docker-dev, use `make docker-setup` instead so migrations run in the same container filesystem as the worker.
 
-Schema SQL files live in `lake/migrations/`. Applied versions are tracked in `lake.schema_migration`; changed checksums for already-applied files are refused.
+Schema SQL files live in `lakehouse/migrations/`. Applied versions are tracked in `lake.schema_migration`; changed checksums for already-applied files are refused.
 Lake migration Make targets default to `LAKE_CLI_LOG_LEVEL=WARNING` so status and generation output stays
 focused; use `LAKE_CLI_LOG_LEVEL=INFO` when debugging connection/bootstrap logs.
 
@@ -396,10 +399,10 @@ make lake-migration NAME="add foo column"   # optional readable filename slug
 make lake-migration EMPTY=1                 # manual migration skeleton
 ```
 
-`make lake-migration` compares `lake/schema.py` against the connected lake, so it needs the same local DuckDB or MotherDuck access as `make lake-migrate`. If the diff contains only warnings and no executable SQL, it prints the warnings and does not create a no-op migration file.
+`make lake-migration` compares `lakehouse/schema.py` against the connected lake, so it needs the same local DuckDB or MotherDuck access as `make lake-migrate`. If the diff contains only warnings and no executable SQL, it prints the warnings and does not create a no-op migration file.
 
 On the first run, `make lake-migrate` applies pending migrations and then validates the live Bronze
-and pipeline schemas against `lake/schema.py`. Because this app is not deployed yet, older local
+and pipeline schemas against `lakehouse/schema.py`. Because this app is not deployed yet, older local
 lakes are not upgraded in place: if validation finds drift, reset the local lake or recreate the
 MotherDuck database, then rerun migrations. `make lake-migration-status` remains non-mutating and
 only reports pending/applied migration files.

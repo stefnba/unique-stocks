@@ -42,7 +42,7 @@ Boundary rules:
 - Shared ingestion surfaces belong under `core/ingestion/`: landing targets for raw object storage and Bronze datasets for lake writes.
 - S3 storage code belongs under `core/storage/s3/`.
 - Lake access code belongs under `core/lake/`.
-- Keep registries close to the thing they register: domain catalogs in `domains/`, provider catalogs in `providers/`, dbt/build mappings in `orchestration/`, and runtime service wiring in `control_plane/`.
+- Keep registries close to the thing they register: provider catalogs in `providers/`, dbt/build mappings in `orchestration/`, and runtime service wiring in `control_plane/`. Do not add domain registries until production code consumes them; domain identity lives in `config.domains`.
 - Do not import `boto3` directly in domain code.
 - Do not import `duckdb` directly in domain code.
 - Do not read credentials from settings in tasks or flows. Load credentials from `BlockRegistry` at runtime.
