@@ -8,6 +8,7 @@ import re
 from collections.abc import Sequence
 from datetime import date, datetime
 from decimal import Decimal
+from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
@@ -17,12 +18,16 @@ from prefect.events import emit_event
 
 logger = structlog.get_logger(__name__)
 
-DBT_FAILED_EVENT = "unique-stocks.dbt.failed"
-COVERAGE_GATE_FAILED_EVENT = "unique-stocks.coverage-gate.failed"
-INGESTION_PARTIAL_EVENT = "unique-stocks.ingestion.partial"
-INGESTION_FAILED_EVENT = "unique-stocks.ingestion.failed"
-PIPELINE_STALE_RUNNING_EVENT = "unique-stocks.pipeline.stale-running"
-PIPELINE_CANCELLED_EVENT = "unique-stocks.pipeline.cancelled"
+
+class PrefectEvent(StrEnum):
+    """Canonical Prefect event names emitted and automated by this app."""
+
+    DBT_FAILED = "unique-stocks.dbt.failed"
+    COVERAGE_GATE_FAILED = "unique-stocks.coverage-gate.failed"
+    INGESTION_PARTIAL = "unique-stocks.ingestion.partial"
+    INGESTION_FAILED = "unique-stocks.ingestion.failed"
+    PIPELINE_STALE_RUNNING = "unique-stocks.pipeline.stale-running"
+    PIPELINE_CANCELLED = "unique-stocks.pipeline.cancelled"
 
 
 def emit_prefect_event(
@@ -67,7 +72,7 @@ def emit_prefect_dbt_failure_event(
 ) -> None:
     """Emit the canonical Prefect event for a failed dbt invocation."""
     emit_prefect_event(
-        event=DBT_FAILED_EVENT,
+        event=PrefectEvent.DBT_FAILED,
         resource_id=f"unique-stocks.dbt-invocation.{dbt_run_id}",
         resource_name=f"dbt {command}",
         payload={
@@ -92,7 +97,7 @@ def emit_prefect_coverage_gate_failure_event(
 ) -> None:
     """Emit the Prefect event for EOD price coverage gaps after ingestion."""
     emit_prefect_event(
-        event=COVERAGE_GATE_FAILED_EVENT,
+        event=PrefectEvent.COVERAGE_GATE_FAILED,
         resource_id=f"unique-stocks.coverage-gate.{app_run_id}",
         resource_name="EOD coverage gate",
         payload={
@@ -117,7 +122,7 @@ def emit_prefect_ingestion_status_event(
     if status not in {"partial", "failed"}:
         return
     emit_prefect_event(
-        event=INGESTION_PARTIAL_EVENT if status == "partial" else INGESTION_FAILED_EVENT,
+        event=PrefectEvent.INGESTION_PARTIAL if status == "partial" else PrefectEvent.INGESTION_FAILED,
         resource_id=f"unique-stocks.ingestion-run.{app_run_id}",
         resource_name=flow_name,
         payload={
@@ -137,7 +142,7 @@ def emit_prefect_stale_runs_event(
 ) -> None:
     """Emit the Prefect audit event for pipeline runs stuck in running state."""
     emit_prefect_event(
-        event=PIPELINE_STALE_RUNNING_EVENT,
+        event=PrefectEvent.PIPELINE_STALE_RUNNING,
         resource_id="unique-stocks.pipeline.runs",
         resource_name="Stale pipeline runs",
         payload={
@@ -157,7 +162,7 @@ def emit_prefect_pipeline_cancelled_event(
 ) -> None:
     """Emit the Prefect audit event for a pipeline run cancelled by orchestration."""
     emit_prefect_event(
-        event=PIPELINE_CANCELLED_EVENT,
+        event=PrefectEvent.PIPELINE_CANCELLED,
         resource_id=f"unique-stocks.pipeline-run.{app_run_id}",
         resource_name=flow_name,
         payload={

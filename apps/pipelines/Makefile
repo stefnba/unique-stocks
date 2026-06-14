@@ -84,8 +84,8 @@ setup: lake-env-guard prefect-api-guard ## Full one-time setup: wait for server,
 	$(MAKE) prefect-controls
 	$(MAKE) deploy
 
-blocks-save: ## Register Prefect blocks on the server defined in control_plane/prefect_blocks.py (idempotent)
-	$(PY) -c "from control_plane.prefect_blocks import BlockRegistry; BlockRegistry.save_all(if_exists='overwrite')"
+blocks-save: ## Register Prefect blocks on the server defined in control_plane/prefect/blocks.py (idempotent)
+	$(PY) -c "from control_plane.prefect import BlockRegistry; BlockRegistry.save_all(if_exists='overwrite')"
 
 s3-landing-zone: ## Create/update AWS S3 landing-zone resources (pass ARGS="--dry-run")
 	$(PY) scripts/s3/setup_landing_zone.py $(ARGS)
@@ -224,7 +224,7 @@ docker-setup: ## Run one-time setup inside the docker-dev pipelines container
 		printf "."; sleep 2; \
 	done; echo " ready."
 	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python -m core.lake.migration.migrate --tables "$(LAKE_TABLES_REF)" --migrations-dir "$(LAKE_MIGRATIONS_DIR)"
-	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python -c "from control_plane.prefect_blocks import BlockRegistry; BlockRegistry.save_all(if_exists='overwrite')"
+	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python -c "from control_plane.prefect import BlockRegistry; BlockRegistry.save_all(if_exists='overwrite')"
 	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen prefect work-pool create default-process-pool --type process --overwrite
 	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python scripts/prefect/setup_controls.py
 	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python scripts/prefect/sync_deployments.py

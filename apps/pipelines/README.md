@@ -149,7 +149,7 @@ Runtime values such as dates, provider codes, instrument codes, limits, and hash
 template. `make sql-lint` and `make sql-format` let SQLFluff discover SQL files from the app root; add new SQL folders without touching the
 Makefile. Add focused tests for non-trivial SQL files that assert the rendered query keeps important joins, filters, and parameter ordering intact.
 
-`config/settings.py` holds environment-variable-backed settings. `control_plane/prefect_blocks.py` defines the Prefect block registry, which wires secrets plus non-secret infrastructure values into named Prefect blocks at startup. `make blocks-save` is allowed to create blank Secret/AWS blocks so they exist in the Prefect UI and can be filled in or corrected there. Tasks and flows always load credentials from the block registry at runtime, not from settings directly.
+`config/settings.py` holds environment-variable-backed settings. `control_plane/prefect/blocks.py` defines the Prefect block registry, which wires secrets plus non-secret infrastructure values into named Prefect blocks at startup. `make blocks-save` is allowed to create blank Secret/AWS blocks so they exist in the Prefect UI and can be filled in or corrected there. Tasks and flows always load credentials from the block registry at runtime, not from settings directly.
 
 ## Prerequisites
 
@@ -186,7 +186,7 @@ Set at least the active provider API key shown in `.env.example` for live provid
 
 ## S3 landing zone
 
-S3 is the landing-zone target for provider-validated raw payloads before they are parsed into typed Bronze records. Domain datasets use `LandingTarget` specs for raw object storage and `BronzeDataset` specs for lake writes. Bucket name bases and regions are non-secret infrastructure constants in `config/aws_resources.py`; environment-specific names are derived in `control_plane/aws_resources.py` and wired into Prefect blocks by `control_plane/prefect_blocks.py`. AWS access keys are secrets and must stay in local `.env` files or the production deployment platform.
+S3 is the landing-zone target for provider-validated raw payloads before they are parsed into typed Bronze records. Domain datasets use `LandingTarget` specs for raw object storage and `BronzeDataset` specs for lake writes. Bucket names, IAM names, and regions are non-secret control-plane wiring values in `control_plane/aws_resources.py` and are wired into Prefect blocks by `control_plane/prefect/blocks.py`. AWS access keys are secrets and must stay in local `.env` files or the production deployment platform.
 
 You do not need to create the S3 bucket and IAM user manually in the AWS Console each time. The setup is scriptable with `scripts/s3/setup_landing_zone.py`, including bucket creation, encryption, ownership controls, public-access blocking, IAM policy creation, and optional access-key generation. See [docs/aws/s3_landing_zone_guide.md](docs/aws/s3_landing_zone_guide.md) for the runbook, and [docs/aws/iam_guide.md](docs/aws/iam_guide.md) for AWS account and provisioner setup.
 
@@ -280,8 +280,9 @@ global concurrency limits for shared lake and provider resources with `make pref
 by provider HTTP clients, such as `unique-stocks.lake-writer` for lake/dbt/migration writes and
 `unique-stocks.provider.eodhd` for EODHD calls. `make prefect-automations` creates event automations
 for dbt failures, EOD coverage-gate gaps, stale running audit rows, ingestion partial/failure outcomes,
-and cancellations. The automations use a no-op action unless `PREFECT_NOTIFICATION_BLOCK_ID` is set
-to a Prefect notification block UUID.
+and cancellations. Managed event names are defined in `core.prefect.events.PrefectEvent`, which is
+also used by the emit helpers. The automations use a no-op action unless
+`PREFECT_NOTIFICATION_BLOCK_ID` is set to a Prefect notification block UUID.
 If the Prefect UI shows no useful action, set that environment variable and rerun
 `make prefect-controls` against the same `PREFECT_API_URL` used by the worker.
 If Prefect logs that a provider limit such as `unique-stocks.provider.eodhd` does not exist, run `make prefect-controls`
