@@ -8,7 +8,8 @@
 - Use `async` / `await` throughout provider and orchestration paths.
 - Use `httpx` async clients for HTTP.
 - Keep provider fetches, landing writes, parsing, and Bronze writes in separate tasks.
-- Keep domain flows thin: schedule handling, idempotency, task orchestration, and run-state tracking only.
+- Keep Prefect flows thin: parameter normalization, domain service calls, and app-level post-ingestion orchestration only.
+- Put sequencing, decisions, counters, audit status, and summary shape in domain `service.py`; put retryable external work in `tasks.py`.
 - Log with `structlog`, not `print`.
 - Include useful structured fields in logs, especially domain identifiers such as `provider_exchange_code`, `provider_instrument_code`, `bar_date`, and `provider`.
 - Use one `@flow` per domain per schedule. Do not create mega-flows.
@@ -17,20 +18,22 @@
 
 Keep a strict boundary between reusable pipeline machinery and this app's
 business vocabulary. Use the table below to decide where pipeline code belongs.
-Paths are relative to `apps/pipelines/`.
+Paths are relative to `apps/pipelines/`. See
+`apps/pipelines/docs/pipeline_architecture.md` for the full target picture and
+domain migration pattern.
 
-| Folder           | Question it answers                                                        | Belongs here                                                                                                                                                                                                     |
-| ---------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `config/`        | What are the app's passive settings and names?                             | Environment-backed settings, stable enums, identity keys, and static non-secret defaults. Avoid executable wiring, registries, factories, or behavior.                                                           |
-| `platform/`      | How is this app wired into Prefect, AWS, deployment, and runtime services? | App-specific Prefect block definitions, automation setup, concurrency limits, deployment registration, AWS resource naming, and other runtime/platform wiring. Generic reusable helpers still belong in `core/`. |
-| `orchestration/` | How do pipeline jobs compose and run?                                      | Flow composition, post-ingestion build policy, smoke-run composition, and app-level workflows that connect domains, dbt, and runtime behavior.                                                                   |
-| `core/`          | What reusable machinery exists without knowing this app?                   | Generic HTTP clients, storage/lake primitives, ingestion helpers, run tracking, schema/migration helpers, Prefect helper abstractions, dbt command execution, and small utilities.                               |
-| `providers/`     | How do we talk to an external data provider?                               | Concrete provider clients, provider API models, provider identifier rules, and provider-owned parsing or normalization.                                                                                          |
-| `domains/`       | What business ingestion logic does this app own?                           | Domain models, Bronze table specs, datasets, parsers, tasks, flows, and domain-specific selection logic. New ingestion domains should follow the same local shape unless there is a clear reason not to.         |
-| `lakehouse/`     | Which concrete lake schemas, tables, and migrations does this app ship?    | App-level lake schema registries and migrations that compose core audit tables plus domain-owned Bronze tables. Generic lake clients and schema primitives stay in `core/lake/`.                                 |
-| `dbt/`           | How does Bronze become Silver and Gold?                                    | dbt sources, staging models, intermediate models, marts, seeds, macros, snapshots, and dbt tests. Python ingestion should hand off typed Bronze records; dbt owns transformation semantics.                      |
-| `dashboard/`     | How do operators inspect pipeline health?                                  | Streamlit operational dashboard code, read models, dashboard SQL, filters, tables, routing, and presentation code.                                                                                               |
-| `scripts/`       | What command-line adapter does an operator run?                            | Thin entrypoints only: argument parsing, environment defaults, console output, and exit codes. Reusable behavior belongs outside `scripts/`.                                                                     |
+| Folder           | Question it answers                                                        | Belongs here                                                                                                                                                                                                                          |
+| ---------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `config/`        | What are the app's passive settings and names?                             | Environment-backed settings, stable enums, identity keys, and static non-secret defaults. Avoid executable wiring, registries, factories, or behavior.                                                                                |
+| `control_plane/` | How is this app wired into Prefect, AWS, deployment, and runtime services? | App-specific Prefect block definitions, automation setup, concurrency limits, deployment registration, AWS resource naming, and other runtime/control-plane wiring. Generic reusable helpers still belong in `core/`.                 |
+| `orchestration/` | How do pipeline jobs compose and run?                                      | Thin Prefect flow entrypoints, post-ingestion build policy, smoke-run composition, dbt/build mappings, and app-level workflows that connect domains, dbt, and runtime behavior.                                                       |
+| `core/`          | What reusable machinery exists without knowing this app?                   | Generic HTTP clients, storage/lake primitives, ingestion helpers, run tracking, schema/migration helpers, Prefect helper abstractions, dbt command execution, and small utilities.                                                    |
+| `providers/`     | How do we talk to an external data provider?                               | Concrete provider clients, provider API models, provider identifier rules, and provider-owned parsing or normalization.                                                                                                               |
+| `domains/`       | What business ingestion logic does this app own?                           | Domain models, Bronze table specs, datasets, parsers, tasks, request/result contracts, services, and domain-specific selection logic. New ingestion domains should follow the same local shape unless there is a clear reason not to. |
+| `lakehouse/`     | Which concrete lake schemas, tables, and migrations does this app ship?    | App-level lake schema registries and migrations that compose core audit tables plus domain-owned Bronze tables. Generic lake clients and schema primitives stay in `core/lake/`.                                                      |
+| `dbt/`           | How does Bronze become Silver and Gold?                                    | dbt sources, staging models, intermediate models, marts, seeds, macros, snapshots, and dbt tests. Python ingestion should hand off typed Bronze records; dbt owns transformation semantics.                                           |
+| `dashboard/`     | How do operators inspect pipeline health?                                  | Streamlit operational dashboard code, read models, dashboard SQL, filters, tables, routing, and presentation code.                                                                                                                    |
+| `scripts/`       | What command-line adapter does an operator run?                            | Thin entrypoints only: argument parsing, environment defaults, console output, and exit codes. Reusable behavior belongs outside `scripts/`.                                                                                          |
 
 Boundary rules:
 
@@ -39,12 +42,12 @@ Boundary rules:
 - Shared ingestion surfaces belong under `core/ingestion/`: landing targets for raw object storage and Bronze datasets for lake writes.
 - S3 storage code belongs under `core/storage/s3/`.
 - Lake access code belongs under `core/lake/`.
-- Keep registries close to the thing they register: domain catalogs in `domains/`, provider catalogs in `providers/`, dbt/build mappings in `orchestration/`, and runtime service wiring in `platform/`.
+- Keep registries close to the thing they register: domain catalogs in `domains/`, provider catalogs in `providers/`, dbt/build mappings in `orchestration/`, and runtime service wiring in `control_plane/`.
 - Do not import `boto3` directly in domain code.
 - Do not import `duckdb` directly in domain code.
 - Do not read credentials from `SETTINGS` in tasks or flows. Load credentials from `BlockRegistry` at runtime.
 - Use `SETTINGS` only when constructing initial app-specific Prefect block instances at registry definition time.
-- Use `get_settings()` only in app composition modules such as `platform/`, `orchestration/`, and scripts, in existing core client internals that still need lazy defaults, and in tests that need to override settings between cases. Do not add new `core` settings imports; prefer explicit primitive values or app-owned factories.
+- Use `get_settings()` only in app composition modules such as `control_plane/`, `orchestration/`, and scripts, in existing core client internals that still need lazy defaults, and in tests that need to override settings between cases. Do not add new `core` settings imports; prefer explicit primitive values or app-owned factories.
 
 ## Data flow guardrails
 

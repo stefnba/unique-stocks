@@ -14,7 +14,7 @@ Scripts own command-line concerns:
 - process exit codes
 - small operator-facing examples
 
-Reusable behavior belongs in `core/`, `registry/`, `orchestration/`,
+Reusable behavior belongs in `core/`, `control_plane/`, `orchestration/`,
 `domains/`, `providers/`, or `config/`.
 If logic would be useful from a test, another script, a Prefect flow, or a
 future service process, keep it outside `scripts/` and call it from the script.
