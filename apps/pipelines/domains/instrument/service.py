@@ -1,10 +1,9 @@
-"""Instrument ingestion flow."""
+"""Domain service for instrument ingestion."""
 
 import asyncio
 from datetime import date
 
 import structlog
-from prefect import flow
 
 from core.ingestion import (
     PipelineRunTracker,
@@ -14,6 +13,7 @@ from core.ingestion import (
     terminal_status,
 )
 from core.prefect.events import publish_prefect_ingestion_summary
+from domains.instrument.contracts import InstrumentRefreshRequest, InstrumentRefreshResult
 from domains.instrument.tasks import (
     fetch_instrument,
     fetch_instrument_provider_exchange_codes,
@@ -21,32 +21,16 @@ from domains.instrument.tasks import (
     write_bronze_instrument,
     write_instrument_to_landing_zone,
 )
-from orchestration.post_ingestion import run_dbt_build_after_ingestion
 
 from .assets import record_instrument_bronze_materialization
 
 log = structlog.get_logger(__name__)
 
 
-@flow(
-    name="instrument-refresh",
-    description=(
-        "Ingest active instruments (equities, ETFs, funds, FX, crypto, etc.) per provider exchange code. "
-        "Writes S3 landing + bronze.instrument. Skips exchanges already ingested for snapshot_date."
-    ),
-)
-async def instrument_flow(
-    snapshot_date: date | None = None,
-    provider_exchange_codes: list[str] | None = None,
-    run_dbt_build: bool = False,
-) -> dict[str, object]:
-    """Ingest active instrument per exchange.
-
-    Fetches all exchange in parallel; writes to S3 and bronze sequentially
-    to avoid concurrent DuckDB write conflicts.
-    """
-    snapshot_date = snapshot_date or date.today()
-    codes = provider_exchange_codes or await fetch_instrument_provider_exchange_codes()
+async def run_instrument_refresh(request: InstrumentRefreshRequest) -> InstrumentRefreshResult:
+    """Run instrument ingestion for one snapshot."""
+    snapshot_date = request.snapshot_date or date.today()
+    codes = request.provider_exchange_codes or await fetch_instrument_provider_exchange_codes()
     tracker = PipelineRunTracker()
     run_id: str | None = None
     run_status: RunStatus | None = None
@@ -64,8 +48,8 @@ async def instrument_flow(
         provider="eodhd",
         parameters={
             "snapshot_date": snapshot_date.isoformat(),
-            "provider_exchange_codes": provider_exchange_codes,
-            "run_dbt_build": run_dbt_build,
+            "provider_exchange_codes": request.provider_exchange_codes,
+            "run_dbt_build": request.run_dbt_build,
         },
         target_window_start=snapshot_date,
         target_window_end=snapshot_date,
@@ -184,21 +168,24 @@ async def instrument_flow(
                 summary=summary,
             )
             raise
-    if run_dbt_build and run_id is not None and run_status is not None:
-        summary["dbt_build"] = await run_dbt_build_after_ingestion(
-            enabled=run_dbt_build,
-            build="instrument-build",
-            upstream_status=run_status,
-            parent_run_id=run_id,
-        )
-    return summary
+    if run_id is None or run_status is None:
+        msg = "Instrument refresh did not record a run result."
+        raise RuntimeError(msg)
+    return InstrumentRefreshResult(run_id=run_id, status=run_status, summary=summary)
 
 
 def _instrument_counters(*, tally: RunUnitTally, summary: dict) -> RunCounters:
     """Build aggregate counters for instrument flow audit rows."""
-    rows_raw = sum(row.get("raw_rows", 0) for row in summary["exchange"].values())
-    rows_written = sum(row.get("rows", 0) for row in summary["exchange"].values())
+    exchange = summary["exchange"]
+    if not isinstance(exchange, dict):
+        msg = "Expected instrument summary exchange bucket to be a dictionary."
+        raise TypeError(msg)
+    rows_raw = sum(row.get("raw_rows", 0) for row in exchange.values() if isinstance(row, dict))
+    rows_written = sum(row.get("rows", 0) for row in exchange.values() if isinstance(row, dict))
     return tally.counters(
         rows_raw=rows_raw,
         rows_written=rows_written,
     )
+
+
+__all__ = ["run_instrument_refresh"]
