@@ -13,16 +13,16 @@ from prefect.blocks.system import Secret
 from prefect_aws import AwsCredentials, S3Bucket
 
 from config.settings import get_settings
-from control_plane.aws_resources import aws_resource_defaults
+from control_plane.aws_resources import AWS_RESOURCES
 from core.prefect.blocks import BlockRegistryBase, define_block
 
 settings = get_settings()
-aws_defaults = aws_resource_defaults()
+
 
 aws_credentials = AwsCredentials(
     aws_access_key_id=settings.aws_access_key_id,
     aws_secret_access_key=settings.aws_secret_access_key,
-    region_name=aws_defaults.region,
+    region_name=AWS_RESOURCES.region,
 )
 
 
@@ -39,7 +39,7 @@ class BlockRegistry(BlockRegistryBase):
     S3_BUCKET = define_block(
         "s3-bucket",
         S3Bucket(
-            bucket_name=aws_defaults.bucket_name,
+            bucket_name=AWS_RESOURCES.bucket_name,
             credentials=aws_credentials,
         ),
     )
