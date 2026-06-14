@@ -93,6 +93,7 @@
       "**/.ruff_cache": true,
       "**/.pytest_cache": true,
       "**/.uv-cache": true,
+      "**/.pre-commit-cache": true,
     },
     "workbench.editorAssociations": {
       "*.parquet": "duckdb.dataFileViewer",
