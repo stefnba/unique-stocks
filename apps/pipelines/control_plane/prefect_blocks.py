@@ -17,7 +17,7 @@ from control_plane.aws_resources import aws_resource_defaults
 from core.prefect.blocks import BlockRegistryBase, define_block
 
 settings = get_settings()
-aws_defaults = aws_resource_defaults(is_production=settings.is_production)
+aws_defaults = aws_resource_defaults()
 
 aws_credentials = AwsCredentials(
     aws_access_key_id=settings.aws_access_key_id,
