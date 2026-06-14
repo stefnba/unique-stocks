@@ -251,7 +251,7 @@ deployments:
       Skips exchanges already ingested for snapshot_date.
       On clean ingestion completion, triggers dbt-build/instrument-build.
       Schedule: Monday 8am America/New_York.
-    entrypoint: domains.instrument.flows:instrument_flow
+    entrypoint: orchestration.flows.instrument:instrument_flow
     tags: [instrument, scheduled]
     parameters:
       run_dbt_build: true
@@ -269,7 +269,7 @@ deployments:
       On-demand instrument refresh. Use for bootstrap or a subset of exchanges.
 
       Optional: snapshot_date, provider_exchange_codes (e.g. ["US", "XETRA"]).
-    entrypoint: domains.instrument.flows:instrument_flow
+    entrypoint: orchestration.flows.instrument:instrument_flow
     tags: [instrument, manual]
     parameters:
       snapshot_date: null

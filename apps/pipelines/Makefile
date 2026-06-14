@@ -13,8 +13,8 @@
 -include .env
 export
 
-LAKE_MIGRATIONS_DIR := lake/migrations
-LAKE_TABLES_REF := lake.schema:ALL_TABLES
+LAKE_MIGRATIONS_DIR := lakehouse/migrations
+LAKE_TABLES_REF := lakehouse.schema:ALL_TABLES
 DBT_DIR := dbt
 REPO_ROOT := ../..
 
@@ -84,8 +84,8 @@ setup: lake-env-guard prefect-api-guard ## Full one-time setup: wait for server,
 	$(MAKE) prefect-controls
 	$(MAKE) deploy
 
-blocks-save: ## Register Prefect blocks on the server defined in config/blocks.py (idempotent)
-	$(PY) -c "from config.blocks import BlockRegistry; BlockRegistry.save_all(if_exists='overwrite')"
+blocks-save: ## Register Prefect blocks on the server defined in control_plane/prefect_blocks.py (idempotent)
+	$(PY) -c "from control_plane.prefect_blocks import BlockRegistry; BlockRegistry.save_all(if_exists='overwrite')"
 
 s3-landing-zone: ## Create/update AWS S3 landing-zone resources (pass ARGS="--dry-run")
 	$(PY) scripts/s3/setup_landing_zone.py $(ARGS)
@@ -223,8 +223,8 @@ docker-setup: ## Run one-time setup inside the docker-dev pipelines container
 		fi; \
 		printf "."; sleep 2; \
 	done; echo " ready."
-	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python -m core.lake.migration.migrate --migrations-dir "$(LAKE_MIGRATIONS_DIR)"
-	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python -c "from config.blocks import BlockRegistry; BlockRegistry.save_all(if_exists='overwrite')"
+	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python -m core.lake.migration.migrate --tables "$(LAKE_TABLES_REF)" --migrations-dir "$(LAKE_MIGRATIONS_DIR)"
+	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python -c "from control_plane.prefect_blocks import BlockRegistry; BlockRegistry.save_all(if_exists='overwrite')"
 	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen prefect work-pool create default-process-pool --type process --overwrite
 	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python scripts/prefect/setup_controls.py
 	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python scripts/prefect/sync_deployments.py
@@ -257,10 +257,10 @@ lake-ensure-database: lake-env-guard ## Create MotherDuck database or local Duck
 	@$(LAKE_PY) -c "from config.settings import get_settings; from core.lake.database import ensure_lake_database; ensure_lake_database(get_settings())"
 
 lake-migrate: lake-env-guard lake-ensure-database ## Apply pending lake schema migrations
-	@$(LAKE_PY) -m core.lake.migration.migrate --migrations-dir "$(LAKE_MIGRATIONS_DIR)"
+	@$(LAKE_PY) -m core.lake.migration.migrate --tables "$(LAKE_TABLES_REF)" --migrations-dir "$(LAKE_MIGRATIONS_DIR)"
 
 lake-migration-status: lake-env-guard lake-ensure-database ## Show pending/applied lake schema migrations without applying
-	@$(LAKE_PY) -m core.lake.migration.migrate --migrations-dir "$(LAKE_MIGRATIONS_DIR)" --dry-run
+	@$(LAKE_PY) -m core.lake.migration.migrate --tables "$(LAKE_TABLES_REF)" --migrations-dir "$(LAKE_MIGRATIONS_DIR)" --dry-run
 
 lake-ui: lake-env-guard lake-ensure-database ## Open DuckDB local UI (MotherDuck if MOTHERDUCK_TOKEN is set, else local lake)
 	@if [ -n "$(MOTHERDUCK_TOKEN)" ]; then \
