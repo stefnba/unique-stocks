@@ -5,21 +5,19 @@ from prefect.events.actions import DoNothing
 from prefect.events.schemas.automations import EventTrigger, Posture
 
 from core.orchestration.automations import (
-    AUTOMATIONS_REGISTRY,
+    define_automations,
 )
 from core.prefect.events import PrefectEvent
 
-AUTOMATIONS_REGISTRY.register(
+PREFECT_AUTOMATIONS = define_automations(
     [
         Automation(
             name="my-test",
             description="Runs when a dbt invocation fails or records failed dbt nodes.",
             trigger=EventTrigger(
                 expect={PrefectEvent.DBT_FAILED},
-                match={},
                 posture=Posture.Reactive,
                 threshold=1,
-                # within=timedelta(seconds=0),
             ),
             actions=[
                 DoNothing(),
@@ -28,6 +26,7 @@ AUTOMATIONS_REGISTRY.register(
     ]
 )
 
+__all__ = ["PREFECT_AUTOMATIONS"]
 
 # PREFECT_AUTOMATIONS = define_automations(
 #     tags=("unique-stocks", "pipelines"),

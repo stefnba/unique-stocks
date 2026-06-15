@@ -6,7 +6,7 @@ import argparse
 import asyncio
 from collections.abc import Sequence
 
-from core.orchestration.bootstrap import sync_automations
+from control_plane.prefect.automations import PREFECT_AUTOMATIONS
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -25,7 +25,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(list(argv) if argv is not None else None)
 
     try:
-        return asyncio.run(sync_automations(dry_run=args.dry_run))
+        return asyncio.run(PREFECT_AUTOMATIONS.sync(dry_run=args.dry_run))
     except Exception as e:
         print(f"Error syncing automations: {e}")
         return 1
