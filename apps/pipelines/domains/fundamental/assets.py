@@ -4,15 +4,25 @@ from prefect.assets import Asset, AssetProperties, materialize
 
 from core.orchestration.assets import record_prefect_materialization
 
+BRONZE_FUNDAMENTAL_ASSET = Asset(
+    key="duckdb://unique-stocks/bronze/fundamental",
+    properties=AssetProperties(
+        name="Bronze fundamental",
+        description="Aggregate materialization for bronze.fundamental_* tables.",
+    ),
+)
+SILVER_FUNDAMENTAL_ASSET = Asset(
+    key="duckdb://unique-stocks/silver/fundamental",
+    properties=AssetProperties(name="Silver fundamental"),
+)
+GOLD_FUNDAMENTAL_ASSET = Asset(
+    key="duckdb://unique-stocks/gold/fundamental",
+    properties=AssetProperties(name="Gold fundamental"),
+)
+
 
 @materialize(
-    Asset(
-        key="duckdb://unique-stocks/bronze/fundamental",
-        properties=AssetProperties(
-            name="Bronze fundamental",
-            description="Aggregate materialization for bronze.fundamental_* tables.",
-        ),
-    ),
+    BRONZE_FUNDAMENTAL_ASSET,
     by="python",
     name="record-bronze-fundamental-materialization",
 )
@@ -30,16 +40,11 @@ def record_fundamental_bronze_materialization(**metadata: object) -> None:
 
 
 @materialize(
-    Asset(
-        key="duckdb://unique-stocks/silver/fundamental",
-        properties=AssetProperties(name="Silver fundamental"),
-    ),
-    Asset(
-        key="duckdb://unique-stocks/gold/fundamental",
-        properties=AssetProperties(name="Gold fundamental"),
-    ),
+    SILVER_FUNDAMENTAL_ASSET,
+    GOLD_FUNDAMENTAL_ASSET,
     by="dbt",
     name="record-dbt-fundamental-materializations",
+    asset_deps=[BRONZE_FUNDAMENTAL_ASSET],
 )
 def _record_dbt_fundamental_materializations(**metadata: object) -> dict[str, object]:
     return metadata

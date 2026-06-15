@@ -285,7 +285,8 @@ run `make deploy-plan`, when you want to read live Prefect state and preview the
 planned changes without writing them. `make prefect-automations` creates event automations
 for dbt failures, EOD coverage-gate gaps, stale running audit rows, ingestion partial/failure outcomes,
 and cancellations. Managed event names are defined in `core.orchestration.events.PrefectEvent`, which is
-also used by the emit helpers. Automations use explicit no-op actions by default. Set
+also used by the emit helpers. Automations match the app, service, and `ENVIRONMENT` labels so shared Prefect
+workspaces do not cross-trigger dev, docker-dev, and prod alerts. Automations use explicit no-op actions by default. Set
 `SLACK_WEBHOOK_URL`, run `make blocks-save`, then rerun `make prefect-automations`
 to save `BlockRegistry.SLACK_WEBHOOK` and replace those no-ops with notification actions.
 If Prefect logs that a provider limit such as `unique-stocks.http.provider.eodhd` does not exist, run `make prefect-limits`

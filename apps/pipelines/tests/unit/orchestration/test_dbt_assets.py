@@ -20,3 +20,8 @@ def test_selected_dbt_asset_groups_matches_domain_selectors() -> None:
         "instrument",
         "price",
     ]
+
+
+def test_selected_dbt_asset_groups_ignores_unknown_specific_selectors() -> None:
+    """Specific non-domain selectors should not record every Silver/Gold asset."""
+    assert selected_dbt_asset_groups(["+tag:ingestion_control"]) == []

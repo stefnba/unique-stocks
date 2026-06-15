@@ -79,4 +79,4 @@ def selected_dbt_asset_groups(select: Sequence[str]) -> list[DbtAssetGroup]:
     for group, needles in _DBT_ASSET_SELECT_NEEDLES.items():
         if any(needle in joined for needle in needles):
             groups.append(group)
-    return groups or list(DBT_ASSET_GROUPS)
+    return groups

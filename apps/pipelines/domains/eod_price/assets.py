@@ -4,15 +4,25 @@ from prefect.assets import Asset, AssetProperties, materialize
 
 from core.orchestration.assets import record_prefect_materialization
 
+BRONZE_EOD_PRICE_ASSET = Asset(
+    key="duckdb://unique-stocks/bronze/eod_price",
+    properties=AssetProperties(
+        name="Bronze EOD price",
+        description="Provider-validated EOD price rows written by Python ingestion.",
+    ),
+)
+SILVER_PRICE_ASSET = Asset(
+    key="duckdb://unique-stocks/silver/price",
+    properties=AssetProperties(name="Silver price"),
+)
+GOLD_PRICE_ASSET = Asset(
+    key="duckdb://unique-stocks/gold/price",
+    properties=AssetProperties(name="Gold price"),
+)
+
 
 @materialize(
-    Asset(
-        key="duckdb://unique-stocks/bronze/eod_price",
-        properties=AssetProperties(
-            name="Bronze EOD price",
-            description="Provider-validated EOD price rows written by Python ingestion.",
-        ),
-    ),
+    BRONZE_EOD_PRICE_ASSET,
     by="python",
     name="record-bronze-eod-price-materialization",
 )
@@ -30,16 +40,11 @@ def record_eod_price_bronze_materialization(**metadata: object) -> None:
 
 
 @materialize(
-    Asset(
-        key="duckdb://unique-stocks/silver/price",
-        properties=AssetProperties(name="Silver price"),
-    ),
-    Asset(
-        key="duckdb://unique-stocks/gold/price",
-        properties=AssetProperties(name="Gold price"),
-    ),
+    SILVER_PRICE_ASSET,
+    GOLD_PRICE_ASSET,
     by="dbt",
     name="record-dbt-price-materializations",
+    asset_deps=[BRONZE_EOD_PRICE_ASSET],
 )
 def _record_dbt_price_materializations(**metadata: object) -> dict[str, object]:
     return metadata

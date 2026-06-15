@@ -4,12 +4,26 @@ from prefect.assets import Asset, AssetProperties, materialize
 
 from core.orchestration.assets import record_prefect_materialization
 
+BRONZE_EXCHANGE_SCHEDULE_ASSET = Asset(
+    key="duckdb://unique-stocks/bronze/exchange_schedule",
+    properties=AssetProperties(name="Bronze exchange schedule"),
+)
+BRONZE_EXCHANGE_HOLIDAY_ASSET = Asset(
+    key="duckdb://unique-stocks/bronze/exchange_holiday",
+    properties=AssetProperties(name="Bronze exchange holiday"),
+)
+SILVER_EXCHANGE_SCHEDULE_ASSET = Asset(
+    key="duckdb://unique-stocks/silver/exchange_schedule",
+    properties=AssetProperties(name="Silver exchange schedule"),
+)
+GOLD_EXCHANGE_SCHEDULE_ASSET = Asset(
+    key="duckdb://unique-stocks/gold/exchange_schedule",
+    properties=AssetProperties(name="Gold exchange schedule"),
+)
+
 
 @materialize(
-    Asset(
-        key="duckdb://unique-stocks/bronze/exchange_schedule",
-        properties=AssetProperties(name="Bronze exchange schedule"),
-    ),
+    BRONZE_EXCHANGE_SCHEDULE_ASSET,
     by="python",
     name="record-bronze-exchange-schedule-materialization",
 )
@@ -20,10 +34,7 @@ def _record_bronze_exchange_schedule_materialization(
 
 
 @materialize(
-    Asset(
-        key="duckdb://unique-stocks/bronze/exchange_holiday",
-        properties=AssetProperties(name="Bronze exchange holiday"),
-    ),
+    BRONZE_EXCHANGE_HOLIDAY_ASSET,
     by="python",
     name="record-bronze-exchange-holiday-materialization",
 )
@@ -52,16 +63,11 @@ def record_exchange_holiday_bronze_materialization(**metadata: object) -> None:
 
 
 @materialize(
-    Asset(
-        key="duckdb://unique-stocks/silver/exchange_schedule",
-        properties=AssetProperties(name="Silver exchange schedule"),
-    ),
-    Asset(
-        key="duckdb://unique-stocks/gold/exchange_schedule",
-        properties=AssetProperties(name="Gold exchange schedule"),
-    ),
+    SILVER_EXCHANGE_SCHEDULE_ASSET,
+    GOLD_EXCHANGE_SCHEDULE_ASSET,
     by="dbt",
     name="record-dbt-exchange-schedule-materializations",
+    asset_deps=[BRONZE_EXCHANGE_SCHEDULE_ASSET, BRONZE_EXCHANGE_HOLIDAY_ASSET],
 )
 def _record_dbt_exchange_schedule_materializations(**metadata: object) -> dict[str, object]:
     return metadata

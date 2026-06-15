@@ -4,12 +4,26 @@ from prefect.assets import Asset, AssetProperties, materialize
 
 from core.orchestration.assets import record_prefect_materialization
 
+BRONZE_EXCHANGE_CATALOG_ASSET = Asset(
+    key="duckdb://unique-stocks/bronze/exchange_catalog",
+    properties=AssetProperties(name="Bronze exchange catalog"),
+)
+BRONZE_EXCHANGE_MIC_REGISTRY_ASSET = Asset(
+    key="duckdb://unique-stocks/bronze/exchange_mic_registry",
+    properties=AssetProperties(name="Bronze exchange MIC registry"),
+)
+SILVER_EXCHANGE_ASSET = Asset(
+    key="duckdb://unique-stocks/silver/exchange",
+    properties=AssetProperties(name="Silver exchange"),
+)
+GOLD_EXCHANGE_ASSET = Asset(
+    key="duckdb://unique-stocks/gold/exchange",
+    properties=AssetProperties(name="Gold exchange"),
+)
+
 
 @materialize(
-    Asset(
-        key="duckdb://unique-stocks/bronze/exchange_catalog",
-        properties=AssetProperties(name="Bronze exchange catalog"),
-    ),
+    BRONZE_EXCHANGE_CATALOG_ASSET,
     by="python",
     name="record-bronze-exchange-catalog-materialization",
 )
@@ -18,10 +32,7 @@ def _record_bronze_exchange_catalog_materialization(**metadata: object) -> dict[
 
 
 @materialize(
-    Asset(
-        key="duckdb://unique-stocks/bronze/exchange_mic_registry",
-        properties=AssetProperties(name="Bronze exchange MIC registry"),
-    ),
+    BRONZE_EXCHANGE_MIC_REGISTRY_ASSET,
     by="python",
     name="record-bronze-exchange-mic-registry-materialization",
 )
@@ -50,16 +61,11 @@ def record_exchange_mic_registry_bronze_materialization(**metadata: object) -> N
 
 
 @materialize(
-    Asset(
-        key="duckdb://unique-stocks/silver/exchange",
-        properties=AssetProperties(name="Silver exchange"),
-    ),
-    Asset(
-        key="duckdb://unique-stocks/gold/exchange",
-        properties=AssetProperties(name="Gold exchange"),
-    ),
+    SILVER_EXCHANGE_ASSET,
+    GOLD_EXCHANGE_ASSET,
     by="dbt",
     name="record-dbt-exchange-materializations",
+    asset_deps=[BRONZE_EXCHANGE_CATALOG_ASSET, BRONZE_EXCHANGE_MIC_REGISTRY_ASSET],
 )
 def _record_dbt_exchange_materializations(**metadata: object) -> dict[str, object]:
     return metadata
