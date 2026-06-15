@@ -5,7 +5,7 @@ from prefect.automations import Automation
 from prefect.events.actions import DoNothing
 
 from control_plane.prefect.automations import PREFECT_AUTOMATIONS
-from core.prefect.events import PrefectEvent
+from core.orchestration.events import PrefectEvent
 
 EXPECTED_AUTOMATIONS = {
     "unique-stocks dbt failure alert": PrefectEvent.DBT_FAILED,

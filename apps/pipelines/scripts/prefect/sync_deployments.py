@@ -10,7 +10,7 @@ from pathlib import Path
 
 import structlog
 
-from core.prefect.deployments import DEFAULT_PREFECT_YAML, sync_deployments
+from control_plane.prefect.deployments import DEFAULT_PREFECT_YAML, sync_deployments
 
 log = structlog.get_logger(__name__)
 

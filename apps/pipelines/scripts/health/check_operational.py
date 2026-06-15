@@ -7,7 +7,7 @@ import os
 import sys
 from collections.abc import Sequence
 
-from core.operations.operational_health import OperationalHealthConfig, run_operational_health
+from core.infrastructure.health.operational import OperationalHealthConfig, run_operational_health
 
 
 def _env_float(name: str, default: float) -> float:

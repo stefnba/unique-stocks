@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from core.operations import operational_health
+from core.infrastructure.health import operational as operational_health
 
 
 class FakeOperationalLake:

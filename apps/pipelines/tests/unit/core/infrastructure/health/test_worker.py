@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from core.operations import worker_health
+from core.infrastructure.health import worker as worker_health
 
 
 def test_worker_process_is_running_detects_prefect_worker(tmp_path: Path) -> None:

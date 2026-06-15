@@ -14,7 +14,7 @@ from prefect_aws import AwsCredentials, S3Bucket
 
 from config.settings import get_settings
 from control_plane.aws_resources import AWS_RESOURCES
-from core.prefect.blocks import BlockRegistryBase, define_block
+from core.infrastructure.blocks import BlockRegistryBase, define_block
 
 settings = get_settings()
 

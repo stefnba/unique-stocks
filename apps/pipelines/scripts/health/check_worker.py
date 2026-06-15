@@ -8,7 +8,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from core.operations.worker_health import check_worker_health
+from core.infrastructure.health.worker import check_worker_health
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -43,7 +43,7 @@ Boundary rules:
 - S3 storage code belongs under `core/storage/s3/`.
 - Lake access code belongs under `core/lake/`.
 - Keep registries close to the thing they register: provider catalogs in `providers/`, dbt/build mappings in `orchestration/`, and runtime service wiring in `control_plane/`. Do not add domain registries until production code consumes them; domain identity lives in `config.domains`.
-- Keep Prefect-specific primitives in `core.prefect`: block registry base classes, event vocabulary, asset materialization helpers, and deployment sync helpers. Keep generic orchestration registries such as automation sync and global-limit sync in `core.orchestration`. `control_plane.prefect` only declares this app's blocks, limits, automations, and deployment defaults.
+- Keep generic runtime infrastructure helpers such as Prefect block handles and health checks in `core.infrastructure`. Keep orchestration event vocabulary, event publishing, asset materialization helpers, automation sync, and global-limit sync in `core.orchestration`. `control_plane.prefect` declares this app's blocks, limits, automations, deployment defaults, and deployment sync behavior.
 - Do not import `boto3` directly in domain code.
 - Do not import `duckdb` directly in domain code.
 - Do not read credentials from settings in tasks or flows. Load credentials from `BlockRegistry` at runtime.

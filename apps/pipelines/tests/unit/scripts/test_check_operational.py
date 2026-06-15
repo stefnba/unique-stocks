@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from core.operations.operational_health import OperationalHealthConfig, OperationalHealthResult
+from core.infrastructure.health.operational import OperationalHealthConfig, OperationalHealthResult
 from scripts.health import check_operational
 
 

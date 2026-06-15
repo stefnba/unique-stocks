@@ -1,6 +1,6 @@
 """Tests for generic Prefect asset helpers."""
 
-from core.prefect.assets import record_prefect_materialization
+from core.orchestration.assets import record_prefect_materialization
 
 
 def test_record_prefect_materialization_calls_materializer() -> None:

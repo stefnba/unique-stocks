@@ -2,7 +2,7 @@
 
 import pytest
 
-from core.prefect import events as prefect_events
+from core.orchestration import events as prefect_events
 
 
 @pytest.mark.asyncio
