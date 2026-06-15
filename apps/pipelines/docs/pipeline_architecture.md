@@ -52,8 +52,8 @@ Keep registries close to the thing they register:
 - Provider catalog: `providers/registry.py`
 - dbt asset and post-ingestion build mapping: `orchestration/domain_dbt.py`
 - Generic runtime infrastructure mechanics such as Prefect block handles and health checks: `core/infrastructure/`
-- Orchestration event vocabulary, event publishing, asset materialization helpers, automation sync, and global-limit sync: `core/orchestration/`
-- App Prefect blocks, limits, automations, deployment defaults, and deployment sync behavior: `control_plane/prefect/`
+- Orchestration event vocabulary, event publishing, asset materialization helpers, deployment sync mechanics, automation sync, and global-limit sync: `core/orchestration/`
+- App Prefect blocks, limits, automations, and deployment defaults: `control_plane/prefect/`
 - Lake table registry: `lakehouse/schema.py`
 
 Do not add a domain registry until production code consumes one. Domain identity
