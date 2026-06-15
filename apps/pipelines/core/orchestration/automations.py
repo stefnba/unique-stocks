@@ -101,6 +101,7 @@ def define_automations(automations: Sequence[AutomationDefinition]) -> Automatio
         definition if isinstance(definition, Automation) else definition.to_prefect_automation()
         for definition in automations
     )
+    _validate_unique_names(automations)
 
     return AutomationRegistry(automations=automations)
 

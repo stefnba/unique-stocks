@@ -7,7 +7,8 @@ from prefect.automations import Automation
 from prefect.events.actions import DoNothing
 from prefect.events.schemas.automations import EventTrigger, Posture
 
-from core.orchestration.automations import define_automations
+from core.orchestration import automations as orchestration_automations
+from core.orchestration.automations import CustomAutomation, define_automations
 
 
 def build_automation(name: str = "demo automation") -> Automation:
@@ -25,6 +26,46 @@ def build_automation(name: str = "demo automation") -> Automation:
     )
 
 
+class DemoCustomAutomation(CustomAutomation):
+    """Minimal custom automation for registry conversion tests."""
+
+    def to_prefect_automation(self) -> Automation:
+        """Return a native Prefect automation."""
+        return build_automation("custom automation")
+
+
+class FakeClient:
+    """Fake Prefect automation client."""
+
+    def __init__(self, existing: list[Automation] | None = None) -> None:
+        """Store existing server automations and deleted ids."""
+        self.existing = existing or []
+        self.deleted: list[object] = []
+
+    async def read_automations(self) -> list[Automation]:
+        """Return fake server automations."""
+        return self.existing
+
+    async def delete_automation(self, automation_id: object) -> None:
+        """Capture deleted automation ids."""
+        self.deleted.append(automation_id)
+
+
+class FakeClientContext:
+    """Async context manager for fake Prefect automation clients."""
+
+    def __init__(self, client: FakeClient) -> None:
+        """Store the fake client."""
+        self.client = client
+
+    async def __aenter__(self) -> FakeClient:
+        """Return the fake client."""
+        return self.client
+
+    async def __aexit__(self, *_: object) -> None:
+        """Exit without cleanup."""
+
+
 def test_define_automations_stores_definitions_immutably() -> None:
     """Automation registries should keep a stable desired definition set."""
     automation = build_automation()
@@ -32,6 +73,23 @@ def test_define_automations_stores_definitions_immutably() -> None:
     registry = define_automations([automation])
 
     assert registry.automations == (automation,)
+
+
+def test_define_automations_accepts_custom_definitions() -> None:
+    """Custom automation presets should resolve to native Prefect automations."""
+    registry = define_automations([DemoCustomAutomation()])
+    automation = registry.automations[0]
+
+    assert isinstance(automation, Automation)
+    assert automation.name == "custom automation"
+
+
+def test_define_automations_rejects_duplicate_names() -> None:
+    """Desired automation names should be unique before touching Prefect."""
+    automation = build_automation()
+
+    with pytest.raises(ValueError, match="Duplicate Prefect automation"):
+        define_automations([automation, automation])
 
 
 @pytest.mark.asyncio
@@ -44,8 +102,7 @@ async def test_automation_registry_sync_creates_when_missing(
     registry = define_automations([desired])
     created: list[Automation] = []
 
-    async def read_missing(*, name: str) -> Automation:
-        assert name == desired.name
+    async def fake_read(cls: type[Automation], id: object | None = None, name: str | None = None) -> Automation:
         raise ValueError(f"Automation with name {name!r} not found")
 
     async def fake_create(self: Automation) -> Automation:
@@ -56,7 +113,7 @@ async def test_automation_registry_sync_creates_when_missing(
     async def fail_update(self: Automation) -> None:
         raise AssertionError(f"unexpected update for {self.name}")
 
-    monkeypatch.setattr(Automation, "aread", read_missing)
+    monkeypatch.setattr(Automation, "aread", classmethod(fake_read))
     monkeypatch.setattr(Automation, "acreate", fake_create)
     monkeypatch.setattr(Automation, "aupdate", fail_update)
 
@@ -81,8 +138,7 @@ async def test_automation_registry_sync_updates_existing_by_name(
     registry = define_automations([desired])
     updated: list[Automation] = []
 
-    async def read_existing(*, name: str) -> Automation:
-        assert name == desired.name
+    async def fake_read(cls: type[Automation], id: object | None = None, name: str | None = None) -> Automation:
         return existing
 
     async def fail_create(self: Automation) -> Automation:
@@ -91,7 +147,7 @@ async def test_automation_registry_sync_updates_existing_by_name(
     async def fake_update(self: Automation) -> None:
         updated.append(self)
 
-    monkeypatch.setattr(Automation, "aread", read_existing)
+    monkeypatch.setattr(Automation, "aread", classmethod(fake_read))
     monkeypatch.setattr(Automation, "acreate", fail_create)
     monkeypatch.setattr(Automation, "aupdate", fake_update)
 
@@ -103,3 +159,26 @@ async def test_automation_registry_sync_updates_existing_by_name(
     assert updated[0].name == desired.name
     assert updated[0] is not desired
     assert desired.id is None
+
+
+@pytest.mark.asyncio
+async def test_automation_registry_deletes_all_visible_automations(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Cleanup should remove every automation visible to the configured Prefect API."""
+    desired = build_automation()
+    desired.tags = ["unique-stocks"]
+    existing = build_automation()
+    existing.tags = ["unique-stocks"]
+    existing.id = uuid4()
+    unrelated = build_automation("manual automation")
+    unrelated.id = uuid4()
+    client = FakeClient(existing=[existing, unrelated])
+    registry = define_automations([desired])
+    monkeypatch.setattr(orchestration_automations, "get_client", lambda: FakeClientContext(client))
+
+    await registry.delete_automations()
+
+    assert client.deleted == [existing.id, unrelated.id]
+    assert "Deleted automation: demo automation" in capsys.readouterr().out

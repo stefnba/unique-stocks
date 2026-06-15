@@ -24,10 +24,10 @@ async def test_app_automations_plan(
 ) -> None:
     """Plan mode should describe managed app event automations."""
 
-    async def read_missing(*, name: str) -> Automation:
+    async def fake_read(cls: type[Automation], id: object | None = None, name: str | None = None) -> Automation:
         raise ValueError(f"Automation with name {name!r} not found")
 
-    monkeypatch.setattr(Automation, "aread", read_missing)
+    monkeypatch.setattr(Automation, "aread", classmethod(fake_read))
 
     exit_code = await PREFECT_AUTOMATIONS.sync(plan=True)
 
