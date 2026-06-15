@@ -7,10 +7,8 @@ from prefect.client.orchestration import get_client
 from prefect.client.schemas.actions import GlobalConcurrencyLimitCreate, GlobalConcurrencyLimitUpdate
 from prefect.exceptions import ObjectNotFound
 
+from core.global_limits import LAKE_WRITER_LIMIT
 from core.http.registry import HttpClientRegistry
-
-LAKE_WRITER_LIMIT = "unique-stocks.lake-writer"
-PROVIDER_RATE_LIMIT_PREFIX = "unique-stocks.provider"
 
 type LimitDefinitions = Sequence[GlobalConcurrencyLimitCreate] | Callable[[], Sequence[GlobalConcurrencyLimitCreate]]
 

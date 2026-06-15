@@ -15,6 +15,20 @@ from config.settings import APP_ROOT, Settings
 from core.transforms import dbt
 
 
+def _runtime(settings: Settings | None = None) -> dbt.DbtRuntimeContext:
+    """Build a dbt runtime context from app settings for tests."""
+    settings = settings or Settings(local_lake_path="unique_stocks.duckdb", motherduck_token=SecretStr(""))
+    return dbt.DbtRuntimeContext(
+        app_root=str(APP_ROOT),
+        expected_target=settings.resolved_dbt_target(),
+        lake_backend=settings.lake_backend(),
+        env_overlay=settings.dbt_env_overlay(),
+        local_lake_path=settings.resolved_local_lake_path(),
+        motherduck_database_name=settings.motherduck_database_name,
+        motherduck_token=settings.motherduck_token.get_secret_value(),
+    )
+
+
 def test_record_dbt_asset_materializations_calls_hook() -> None:
     """Core dbt orchestration should call the injected asset materializer hook."""
     calls: list[dict[str, object]] = []
@@ -62,11 +76,11 @@ def test_run_dbt_command_uses_app_root_paths_and_env_overlay(
 
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "keep-me")
     monkeypatch.setenv("DBT_TARGET", "stale")
-    monkeypatch.setattr(dbt, "get_settings", lambda: settings)
     monkeypatch.setattr(dbt, "_dbt_base_command", lambda: ["dbt"])
     monkeypatch.setattr(dbt.subprocess, "run", fake_run)
 
     result = dbt.run_dbt_command.fn(
+        runtime=_runtime(settings),
         command="compile",
         select=["path:models/staging"],
         exclude=[],
@@ -118,11 +132,11 @@ def test_run_dbt_command_passes_indirect_selection_for_build(monkeypatch: Monkey
         captured["args"] = list(args)
         return subprocess.CompletedProcess(args=list(args), returncode=0, stdout="ok", stderr="")
 
-    monkeypatch.setattr(dbt, "get_settings", lambda: settings)
     monkeypatch.setattr(dbt, "_dbt_base_command", lambda: ["dbt"])
     monkeypatch.setattr(dbt.subprocess, "run", fake_run)
 
     dbt.run_dbt_command.fn(
+        runtime=_runtime(settings),
         command="build",
         select=["+path:models/marts/instrument"],
         exclude=[],
@@ -152,12 +166,12 @@ def test_run_dbt_command_enters_lake_writer_limit(monkeypatch: MonkeyPatch, tmp_
     def fake_run(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr(dbt, "get_settings", lambda: settings)
     monkeypatch.setattr(dbt, "_dbt_base_command", lambda: ["dbt"])
     monkeypatch.setattr(dbt, "lake_writer_limit", fake_lake_writer_limit)
     monkeypatch.setattr(dbt.subprocess, "run", fake_run)
 
     dbt.run_dbt_command.fn(
+        runtime=_runtime(settings),
         command="build",
         select=[],
         exclude=[],
@@ -176,20 +190,20 @@ def test_run_dbt_command_ensures_motherduck_database_for_prod(
 ) -> None:
     """Prod dbt runs should create the MotherDuck database before connecting."""
     settings = Settings(motherduck_token=SecretStr("test-token"))
-    ensure_calls: list[Settings] = []
+    ensure_calls: list[dict[str, str]] = []
 
-    def fake_ensure(candidate: Settings) -> None:
-        ensure_calls.append(candidate)
+    def fake_ensure(**kwargs: str) -> None:
+        ensure_calls.append(kwargs)
 
     def fake_run(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr(dbt, "get_settings", lambda: settings)
-    monkeypatch.setattr(dbt, "ensure_lake_database", fake_ensure)
+    monkeypatch.setattr(dbt, "ensure_lake_database_for_backend", fake_ensure)
     monkeypatch.setattr(dbt, "_dbt_base_command", lambda: ["dbt"])
     monkeypatch.setattr(dbt.subprocess, "run", fake_run)
 
     dbt.run_dbt_command.fn(
+        runtime=_runtime(settings),
         command="compile",
         select=[],
         exclude=[],
@@ -199,15 +213,21 @@ def test_run_dbt_command_ensures_motherduck_database_for_prod(
         target_path=str(tmp_path / "dbt-target"),
     )
 
-    assert ensure_calls == [settings]
+    assert ensure_calls == [
+        {
+            "backend": "motherduck",
+            "database_name": "unique_stocks",
+            "motherduck_token": "test-token",
+            "local_lake_path": str(APP_ROOT / "unique_stocks.duckdb"),
+        }
+    ]
 
 
 def test_run_dbt_command_rejects_explicit_target_conflict(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
     """Explicit dbt targets should not drift from the selected lake backend."""
-    monkeypatch.setattr(dbt, "get_settings", lambda: Settings(motherduck_token=SecretStr("")))
-
     with pytest.raises(ValueError, match="conflicts with lake backend"):
         dbt.run_dbt_command.fn(
+            runtime=_runtime(Settings(motherduck_token=SecretStr(""))),
             command="compile",
             select=[],
             exclude=[],
@@ -226,9 +246,8 @@ def test_release_local_lake_lock_skips_motherduck(monkeypatch: MonkeyPatch) -> N
         calls.append("reset")
 
     monkeypatch.setattr(dbt, "reset_lake_client", record_reset)
-    monkeypatch.setattr(dbt, "get_settings", lambda: Settings(motherduck_token=SecretStr("token")))
 
-    dbt._release_local_lake_lock()
+    dbt._release_local_lake_lock(_runtime(Settings(motherduck_token=SecretStr("token"))))
 
     assert calls == []
 
@@ -241,39 +260,37 @@ def test_release_local_lake_lock_resets_local_backend(monkeypatch: MonkeyPatch) 
         calls.append("reset")
 
     monkeypatch.setattr(dbt, "reset_lake_client", record_reset)
-    monkeypatch.setattr(dbt, "get_settings", lambda: Settings(motherduck_token=SecretStr("")))
 
-    dbt._release_local_lake_lock()
+    dbt._release_local_lake_lock(_runtime(Settings(motherduck_token=SecretStr(""))))
 
     assert calls == ["reset"]
 
 
 @pytest.mark.asyncio
 async def test_dbt_build_flow_releases_local_lock_before_tracker(monkeypatch: MonkeyPatch) -> None:
-    """dbt-build should not open audit tracking before dropping a stale local DuckDB handle."""
+    """Dbt build helper should not open audit tracking before dropping a stale local DuckDB handle."""
     events: list[str] = []
 
     class FailIfConstructedTracker:
         def __init__(self) -> None:
             events.append("tracker")
 
-    def stop_after_release() -> None:
+    def stop_after_release(_runtime: dbt.DbtRuntimeContext) -> None:
         events.append("release")
         raise RuntimeError("stop after release")
 
-    monkeypatch.setattr(dbt, "get_settings", lambda: Settings(motherduck_token=SecretStr("")))
     monkeypatch.setattr(dbt, "_release_local_lake_lock", stop_after_release)
     monkeypatch.setattr(dbt, "PipelineRunTracker", FailIfConstructedTracker)
 
     with pytest.raises(RuntimeError, match="stop after release"):
-        await dbt.dbt_build_flow.fn(command="compile")
+        await dbt.run_dbt_build(runtime=_runtime(), command="compile")
 
     assert events == ["release"]
 
 
 @pytest.mark.asyncio
 async def test_dbt_build_flow_releases_local_lock_before_subprocess(monkeypatch: MonkeyPatch) -> None:
-    """dbt-build should drop its own audit connection before the dbt subprocess starts."""
+    """Dbt build helper should drop its own audit connection before the dbt subprocess starts."""
     events: list[str] = []
 
     class FakeRun:
@@ -298,7 +315,7 @@ async def test_dbt_build_flow_releases_local_lock_before_subprocess(monkeypatch:
             events.append("track_run")
             yield FakeRun()
 
-    def fake_release() -> None:
+    def fake_release(_runtime: dbt.DbtRuntimeContext) -> None:
         events.append("release")
 
     def fake_run_dbt_command(**_: object) -> dbt.DbtCommandResult:
@@ -317,7 +334,6 @@ async def test_dbt_build_flow_releases_local_lock_before_subprocess(monkeypatch:
     async def fake_create_artifact(**_: object) -> None:
         events.append("artifact")
 
-    monkeypatch.setattr(dbt, "get_settings", lambda: Settings(motherduck_token=SecretStr("")))
     monkeypatch.setattr(dbt, "_release_local_lake_lock", fake_release)
     monkeypatch.setattr(dbt, "PipelineRunTracker", FakeTracker)
     monkeypatch.setattr(dbt, "run_dbt_command", fake_run_dbt_command)
@@ -327,7 +343,7 @@ async def test_dbt_build_flow_releases_local_lock_before_subprocess(monkeypatch:
     monkeypatch.setattr(dbt, "_record_dbt_node_results", lambda **_: 0)
     monkeypatch.setattr(dbt, "_create_dbt_summary_artifact", fake_create_artifact)
 
-    result = await dbt.dbt_build_flow.fn(command="compile")
+    result = await dbt.run_dbt_build(runtime=_runtime(), command="compile")
 
     assert result["return_code"] == 0
     assert events == [
@@ -368,7 +384,7 @@ def test_read_dbt_run_results_uses_per_run_target_path(tmp_path: Path) -> None:
     artifact = target_dir / "run_results.json"
     artifact.write_text('{"metadata": {"adapter_type": "duckdb"}, "results": []}')
 
-    assert dbt.read_dbt_run_results.fn(target_path=str(target_dir)) == {
+    assert dbt.read_dbt_run_results.fn(target_path=str(target_dir), app_root=str(APP_ROOT)) == {
         "metadata": {"adapter_type": "duckdb"},
         "results": [],
     }
@@ -382,7 +398,7 @@ def test_read_dbt_run_results_ignores_stale_shared_target(tmp_path: Path) -> Non
     per_run_target = tmp_path / "target" / "pipeline-runs" / "run-1"
     per_run_target.mkdir(parents=True)
 
-    assert dbt.read_dbt_run_results.fn(target_path=str(per_run_target)) is None
+    assert dbt.read_dbt_run_results.fn(target_path=str(per_run_target), app_root=str(APP_ROOT)) is None
 
 
 def test_run_dbt_command_uses_distinct_artifact_paths(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
@@ -392,11 +408,11 @@ def test_run_dbt_command_uses_distinct_artifact_paths(monkeypatch: MonkeyPatch, 
     def fake_run(*_args: object, **_kwargs: object) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(args=[], returncode=0, stdout="", stderr="")
 
-    monkeypatch.setattr(dbt, "get_settings", lambda: settings)
     monkeypatch.setattr(dbt, "_dbt_base_command", lambda: ["dbt"])
     monkeypatch.setattr(dbt.subprocess, "run", fake_run)
 
     first = dbt.run_dbt_command.fn(
+        runtime=_runtime(settings),
         command="compile",
         select=[],
         exclude=[],
@@ -406,6 +422,7 @@ def test_run_dbt_command_uses_distinct_artifact_paths(monkeypatch: MonkeyPatch, 
         target_path=str(tmp_path / "target" / "pipeline-runs" / "run-1"),
     )
     second = dbt.run_dbt_command.fn(
+        runtime=_runtime(settings),
         command="compile",
         select=[],
         exclude=[],

@@ -1,17 +1,15 @@
+"""Provider HTTP rate-limit policy and Prefect runtime guard."""
+
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 import structlog
 from prefect.concurrency.asyncio import rate_limit
 
-logger = structlog.get_logger(__name__)
-if TYPE_CHECKING:
-    pass
+from core.global_limits import prefect_global_limits_strict, provider_rate_limit_name
 
-_PROVIDER_RATE_LIMIT_PREFIX = "unique-stocks.http.provider"
+logger = structlog.get_logger(__name__)
 
 _provider_limit_credit_limits_missing: set[str] = set()
 
@@ -39,7 +37,7 @@ class ProviderRateLimitPolicy:
         ```
 
     Declared on a provider HTTP client as ``RATE_LIMIT_POLICY`` and registered cluster-wide
-    via ``make prefect-controls``. Prefect applies the limit before each outbound request starts;
+    via ``make prefect-limits``. Prefect applies the limit before each outbound request starts;
     it does not hold a slot for the full HTTP round-trip.
 
     Tuning for faster API calls:
@@ -48,7 +46,7 @@ class ProviderRateLimitPolicy:
         2. Raise ``burst_capacity`` to allow more request starts in a short burst before
            Prefect throttles. Raise ``slot_decay_per_second`` to increase sustained
            starts/second after a burst.
-        3. Re-register: ``make prefect-controls`` against the same ``PREFECT_API_URL`` as workers.
+        3. Re-register: ``make prefect-limits`` against the same ``PREFECT_API_URL`` as workers.
         4. For one flow run, also raise deployment params such as ``batch_size``.
 
     Stay below the provider's real quota; HTTP 429 handling still applies when the limit is hit.
@@ -74,8 +72,7 @@ class ProviderRateLimitPolicy:
         """Return the Prefect global concurrency limit name for this provider."""
         if self.name:
             return self.name
-        provider_key = provider.strip().lower().replace("_", "-")
-        return f"{_PROVIDER_RATE_LIMIT_PREFIX}.{provider_key}"
+        return provider_rate_limit_name(provider)
 
 
 async def wait_for_provider_limit_credit(
@@ -89,7 +86,7 @@ async def wait_for_provider_limit_credit(
         return
 
     limit_name = policy.limit_name(provider)
-    strict_limits = _strict_limits()
+    strict_limits = prefect_global_limits_strict()
     if limit_name in _provider_limit_credit_limits_missing and not strict_limits:
         return
 
@@ -110,20 +107,3 @@ async def wait_for_provider_limit_credit(
             limit_name=limit_name,
             error=str(exc),
         )
-
-
-def _strict_limits() -> bool:
-    configured = _env_bool("PREFECT_GLOBAL_LIMITS_STRICT")
-    return configured is True
-
-
-def _env_bool(name: str) -> bool | None:
-    raw = os.getenv(name)
-    if raw is None or not raw.strip():
-        return None
-    value = raw.strip().lower()
-    if value in {"1", "true", "yes", "on"}:
-        return True
-    if value in {"0", "false", "no", "off"}:
-        return False
-    raise ValueError(f"{name} must be true or false, got {raw!r}")

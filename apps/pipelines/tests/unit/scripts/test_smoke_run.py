@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from core.operations.smoke import SmokePresetRequest
+from orchestration.smoke import SmokePresetRequest
 from scripts.smoke import run as smoke_cli
 
 
@@ -20,7 +20,7 @@ def test_smoke_cli_builds_default_fundamental_request() -> None:
 
 
 def test_smoke_cli_accepts_domain_alias_and_trade_date() -> None:
-    """Domain-style aliases should map to canonical core presets."""
+    """Domain-style aliases should map to canonical app smoke presets."""
     args = smoke_cli.build_parser().parse_args(["eod_price", "--exchange", "US", "--trade-date", "2026-05-31"])
 
     request = smoke_cli.request_from_args(args)

@@ -8,8 +8,6 @@ from typing import Any
 
 import pytest
 
-from core.clients.lake import DataLakeClient
-from core.clients.lake.sql import SqlTemplateContext, render_sql_file
 from core.ingestion import BronzeParseResult
 from core.ingestion.coverage import (
     COVERAGE_STATUS_COMPLETED,
@@ -17,6 +15,8 @@ from core.ingestion.coverage import (
     COVERAGE_STATUS_PROVIDER_QUOTA_DEFERRED,
     unit_key_hash,
 )
+from core.lake import DataLakeClient
+from core.lake.sql import SqlTemplateContext, render_sql_file
 from domains.eod_price import tasks
 from domains.eod_price.coverage import (
     EOD_INSTRUMENT_BACKFILL_UNIT_TYPE,
@@ -242,7 +242,7 @@ def test_load_backfill_pending_excludes_price_and_no_data_coverage(
             },
         ],
     )
-    import core.clients.lake as lake_module
+    import core.lake as lake_module
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
@@ -298,7 +298,7 @@ def test_load_backfill_pending_keeps_partial_price_history_pending(
             {"provider_instrument_code": "MSFT", "bar_date": date(2026, 5, 15), "coverage_status": "priced"},
         ],
     )
-    import core.clients.lake as lake_module
+    import core.lake as lake_module
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
@@ -330,7 +330,7 @@ def test_load_backfill_pending_keeps_unknown_control_states_pending(
             },
         ],
     )
-    import core.clients.lake as lake_module
+    import core.lake as lake_module
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
@@ -355,7 +355,7 @@ def test_load_backfill_pending_keeps_partial_no_data_without_observed_history_pe
             },
         ],
     )
-    import core.clients.lake as lake_module
+    import core.lake as lake_module
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
@@ -387,7 +387,7 @@ def test_load_backfill_pending_full_history_requires_completed_coverage(
             },
         ],
     )
-    import core.clients.lake as lake_module
+    import core.lake as lake_module
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
@@ -425,7 +425,7 @@ def test_load_backfill_pending_ignores_provider_quota_deferred_coverage(
         instrument_rows=[{"provider_instrument_code": "MSFT"}],
         selection_coverage_rows=[],
     )
-    import core.clients.lake as lake_module
+    import core.lake as lake_module
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
@@ -444,7 +444,7 @@ def test_load_backfill_pending_requires_instrument_status_view(monkeypatch: pyte
             ("pipeline", "ingestion_coverage"),
         }
     )
-    import core.clients.lake as lake_module
+    import core.lake as lake_module
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
@@ -462,7 +462,7 @@ def test_load_backfill_pending_requires_terminal_coverage_view(monkeypatch: pyte
             ("pipeline", "ingestion_coverage"),
         }
     )
-    import core.clients.lake as lake_module
+    import core.lake as lake_module
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
@@ -475,7 +475,7 @@ def test_load_missing_eod_backfill_selection_views_reports_absent_contracts(
 ) -> None:
     """Backfill preflight should identify which Silver selector views need a build."""
     lake = FakeLake(tables={("silver", "int_latest_instrument_universe")})
-    import core.clients.lake as lake_module
+    import core.lake as lake_module
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
@@ -532,7 +532,7 @@ def test_query_exchange_day_coverage_gaps_by_codes_renders_optional_dates() -> N
 def test_write_eod_backfill_coverage_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
     """Coverage writes insert once per backfill partition."""
     lake = FakeLake(tables={("pipeline", "ingestion_coverage")})
-    import core.clients.lake as lake_module
+    import core.lake as lake_module
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
@@ -587,7 +587,7 @@ def test_write_eod_backfill_coverage_is_idempotent(monkeypatch: pytest.MonkeyPat
 def test_write_eod_completed_coverage_records_open_start_window(monkeypatch: pytest.MonkeyPatch) -> None:
     """Successful full-history backfills should write completed coverage with from_date null."""
     lake = FakeLake(tables={("pipeline", "ingestion_coverage")})
-    import core.clients.lake as lake_module
+    import core.lake as lake_module
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
@@ -621,7 +621,7 @@ def test_write_eod_completed_coverage_records_open_start_window(monkeypatch: pyt
 def test_write_eod_deferred_coverage_records_unsubmitted_instruments(monkeypatch: pytest.MonkeyPatch) -> None:
     """Provider-deferred backfill units are audited without marking them no_data."""
     lake = FakeLake(tables={("pipeline", "ingestion_coverage")})
-    import core.clients.lake as lake_module
+    import core.lake as lake_module
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
@@ -646,7 +646,7 @@ def test_write_backfill_eod_batch_ignores_existing_and_duplicate_bars(
 ) -> None:
     """Backfill batch writes should tolerate partial reruns and provider duplicate dates."""
     lake = DataLakeClient(connection_string=":memory:")
-    import core.clients.lake as lake_module
+    import core.lake as lake_module
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
@@ -689,7 +689,7 @@ def test_daily_bulk_write_ignores_historical_overlap_without_skipping(
 ) -> None:
     """Historical rows for one date should not make the daily bulk partition look complete."""
     lake = DataLakeClient(connection_string=":memory:")
-    import core.clients.lake as lake_module
+    import core.lake as lake_module
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
@@ -739,7 +739,7 @@ def test_daily_already_ingested_allows_retry_when_coverage_has_gap(
 ) -> None:
     """A partial exchange/date should be retryable after dbt coverage marks it missing."""
     lake = DataLakeClient(connection_string=":memory:")
-    import core.clients.lake as lake_module
+    import core.lake as lake_module
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
@@ -775,7 +775,7 @@ def test_daily_bulk_write_repairs_missing_symbols_when_partition_exists(
 ) -> None:
     """A partial daily partition should still insert missing provider instruments."""
     lake = DataLakeClient(connection_string=":memory:")
-    import core.clients.lake as lake_module
+    import core.lake as lake_module
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 

@@ -20,8 +20,12 @@ PROD_AWS_RESOURCES = AwsResourceDefaults(
 )
 
 
-AWS_RESOURCES = PROD_AWS_RESOURCES if get_settings().is_production else DEV_AWS_RESOURCES
-"""Return concrete AWS resource defaults for the active app environment."""
+def aws_resource_defaults() -> AwsResourceDefaults:
+    """Return concrete AWS resource defaults for the active app environment."""
+    return PROD_AWS_RESOURCES if get_settings().is_production else DEV_AWS_RESOURCES
 
 
-__all__ = ["AWS_RESOURCES"]
+AWS_RESOURCES = aws_resource_defaults()
+
+
+__all__ = ["AWS_RESOURCES", "aws_resource_defaults"]

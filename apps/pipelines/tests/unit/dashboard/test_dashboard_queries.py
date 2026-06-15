@@ -5,7 +5,7 @@ from typing import Any
 
 import duckdb
 
-from core.clients.lake import DataLakeClient
+from core.lake import DataLakeClient
 from dashboard.read_models import queries
 
 RUN_ID_COMPLETED = "018f0000-0000-7000-8000-000000000001"

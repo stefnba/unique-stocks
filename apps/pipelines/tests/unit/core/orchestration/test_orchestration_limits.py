@@ -4,26 +4,19 @@ import pytest
 from prefect.client.schemas.actions import GlobalConcurrencyLimitCreate
 from prefect.exceptions import ObjectNotFound
 
+from core.global_limits import LAKE_WRITER_LIMIT, provider_rate_limit_name
+from core.http.base import HttpClientBase
+from core.http.rate_limit import ProviderRateLimitPolicy
 from core.orchestration import limits as orchestration_limits
-from core.orchestration.limits import (
-    LAKE_WRITER_LIMIT,
-    define_limits,
-)
+from core.orchestration.limits import define_limits
 
 
-class FakeRateLimitPolicy:
-    """Minimal provider rate-limit policy double."""
-
-    burst_capacity = 100
-    slot_decay_per_second = 10.0
-    name = None
-
-
-class FakeProviderClient:
+class FakeProviderClient(HttpClientBase):
     """Minimal provider client with a declared rate-limit policy."""
 
     PROVIDER = "eodhd"
-    RATE_LIMIT_POLICY = FakeRateLimitPolicy()
+    BASE_URL = "https://example.invalid"
+    RATE_LIMIT_POLICY = ProviderRateLimitPolicy(burst_capacity=100, slot_decay_per_second=10.0)
 
 
 class FakeClient:
@@ -80,7 +73,7 @@ def test_define_limits_includes_provider_rate_limits() -> None:
     """Provider policy objects should become Prefect rate-limit definitions."""
     limits = define_limits(http_providers={"eodhd": FakeProviderClient})._resolve_limits()
 
-    assert limits[0].name == "unique-stocks.provider.eodhd"
+    assert limits[0].name == provider_rate_limit_name("eodhd")
     assert limits[0].limit == 100
     assert limits[0].slot_decay_per_second == 10.0
 
@@ -99,7 +92,7 @@ async def test_limit_registry_sync_creates_missing_limits(
 
     assert exit_code == 0
     assert client.created[0].name == LAKE_WRITER_LIMIT
-    assert "Created global limit unique-stocks.lake-writer" in capsys.readouterr().out
+    assert f"Created global limit {LAKE_WRITER_LIMIT}" in capsys.readouterr().out
 
 
 @pytest.mark.asyncio
@@ -116,4 +109,4 @@ async def test_limit_registry_sync_updates_existing_limits(
 
     assert exit_code == 0
     assert client.updated[0][0] == LAKE_WRITER_LIMIT
-    assert "Updated global limit unique-stocks.lake-writer" in capsys.readouterr().out
+    assert f"Updated global limit {LAKE_WRITER_LIMIT}" in capsys.readouterr().out

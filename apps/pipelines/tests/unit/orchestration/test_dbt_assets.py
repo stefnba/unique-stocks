@@ -1,6 +1,6 @@
-"""Tests for domain-owned dbt Prefect asset materialization mapping."""
+"""Tests for app dbt Prefect asset materialization mapping."""
 
-from domains.dbt_assets import selected_dbt_asset_groups
+from orchestration.dbt_assets import selected_dbt_asset_groups
 
 
 def test_selected_dbt_asset_groups_defaults_to_all_for_full_build() -> None:

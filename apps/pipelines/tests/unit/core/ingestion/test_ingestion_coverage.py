@@ -7,7 +7,6 @@ from typing import Any
 
 import duckdb
 
-from core.clients.lake import DataLakeClient
 from core.ingestion.coverage import (
     COVERAGE_STATUS_NO_DATA,
     ingestion_coverage_recorded,
@@ -15,6 +14,7 @@ from core.ingestion.coverage import (
     record_ingestion_coverage,
     unit_key_hash,
 )
+from core.lake import DataLakeClient
 
 
 class FakeLake:

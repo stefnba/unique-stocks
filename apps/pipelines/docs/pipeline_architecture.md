@@ -22,18 +22,18 @@ groups, or business-specific table manifests.
 
 ## Folder Placement
 
-| Folder           | Owns                                                                                                                                             | Does not own                                                                       |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
-| `config/`        | Environment-backed settings, stable enums, identity keys, and static non-secret defaults.                                                        | Prefect block construction, registries, factories, runtime behavior.               |
-| `control_plane/` | App-specific Prefect blocks, control registrations, automation definitions, deployment defaults, AWS resource naming, deployment/runtime wiring. | Generic Prefect helpers or generic S3 behavior.                                    |
-| `orchestration/` | Thin Prefect flow entrypoints, post-ingestion dbt build policy, smoke-run composition, dbt/build mappings, cross-domain workflows.               | Domain ingestion internals or provider clients.                                    |
-| `core/`          | Generic HTTP, storage, lake, ingestion, run tracking, schema/migration, Prefect helper, dbt subprocess, and utility primitives.                  | App vocabulary, concrete providers, concrete domains, settings-backed composition. |
-| `providers/`     | Concrete provider clients, provider API models, provider identifier rules, provider-owned normalization.                                         | Domain table/write policy or app orchestration.                                    |
-| `domains/`       | Domain models, Bronze table specs, datasets, parsers, tasks, request/result contracts, services, and domain-specific selection logic.            | Runtime block definitions, dbt deployment names, or cross-domain workflow wiring.  |
-| `lakehouse/`     | App-level lake schema registry and migration files.                                                                                              | Generic lake client, schema primitives, or domain row models.                      |
-| `dbt/`           | Bronze-to-Silver-to-Gold transformations, seeds, macros, snapshots, and dbt tests.                                                               | Python provider fetching or Bronze writes.                                         |
-| `dashboard/`     | Streamlit operational read surface and dashboard read models.                                                                                    | Ingestion execution or transformation logic.                                       |
-| `scripts/`       | Thin command-line adapters: args, environment defaults, console output, exit codes.                                                              | Reusable behavior.                                                                 |
+| Folder           | Owns                                                                                                                                          | Does not own                                                                       |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `config/`        | Environment-backed settings, stable enums, identity keys, and static non-secret defaults.                                                     | Prefect block construction, registries, factories, runtime behavior.               |
+| `control_plane/` | App-specific Prefect blocks, limit declarations, automation definitions, deployment defaults, AWS resource naming, deployment/runtime wiring. | Generic Prefect helpers or generic S3 behavior.                                    |
+| `orchestration/` | Thin Prefect flow entrypoints, post-ingestion dbt build policy, smoke-run composition, dbt/build mappings, cross-domain workflows.            | Domain ingestion internals or provider clients.                                    |
+| `core/`          | Generic HTTP, storage, lake, ingestion, run tracking, schema/migration, Prefect helper, dbt subprocess, and utility primitives.               | App vocabulary, concrete providers, concrete domains, settings-backed composition. |
+| `providers/`     | Concrete provider clients, provider API models, provider identifier rules, provider-owned normalization.                                      | Domain table/write policy or app orchestration.                                    |
+| `domains/`       | Domain models, Bronze table specs, datasets, parsers, tasks, request/result contracts, services, and domain-specific selection logic.         | Runtime block definitions, dbt deployment names, or cross-domain workflow wiring.  |
+| `lakehouse/`     | App-level lake schema registry and migration files.                                                                                           | Generic lake client, schema primitives, or domain row models.                      |
+| `dbt/`           | Bronze-to-Silver-to-Gold transformations, seeds, macros, snapshots, and dbt tests.                                                            | Python provider fetching or Bronze writes.                                         |
+| `dashboard/`     | Streamlit operational read surface and dashboard read models.                                                                                 | Ingestion execution or transformation logic.                                       |
+| `scripts/`       | Thin command-line adapters: args, environment defaults, console output, exit codes.                                                           | Reusable behavior.                                                                 |
 
 ## Naming Decisions
 
@@ -51,8 +51,9 @@ Keep registries close to the thing they register:
 
 - Provider catalog: `providers/registry.py`
 - dbt asset and post-ingestion build mapping: `orchestration/domain_dbt.py`
-- Prefect registry mechanics, canonical event vocabulary, automation upsert mechanics, deployment sync mechanics, and limit setup mechanics: `core/prefect/`
-- App Prefect blocks, controls, automations, and deployment defaults: `control_plane/prefect/`
+- Prefect-specific primitives such as block registry mechanics, canonical event vocabulary, asset materialization helpers, and deployment sync mechanics: `core/prefect/`
+- Generic orchestration registry mechanics such as automation sync and global-limit sync: `core/orchestration/`
+- App Prefect blocks, limits, automations, and deployment defaults: `control_plane/prefect/`
 - Lake table registry: `lakehouse/schema.py`
 
 Do not add a domain registry until production code consumes one. Domain identity

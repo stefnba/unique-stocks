@@ -10,9 +10,8 @@ import structlog
 from pydantic import SecretStr
 from pytest import CaptureFixture
 
-import core.ingestion.run_tracking as run_tracking_module
+import core.ingestion.run_tracking.writer as run_tracking_writer_module
 from config.settings import Settings
-from core.clients.lake import DataLakeClient
 from core.ingestion.landing import LandingWrite
 from core.ingestion.run_tracking import (
     LandingObjectRecord,
@@ -23,6 +22,7 @@ from core.ingestion.run_tracking import (
     RunUnitTally,
     terminal_status,
 )
+from core.lake import DataLakeClient
 from core.utils.logging import configure_logging
 
 
@@ -172,7 +172,7 @@ def test_track_run_marks_cancellation_separately(monkeypatch: pytest.MonkeyPatch
     def emit_cancelled(**kwargs: object) -> None:
         events.append(kwargs)
 
-    monkeypatch.setattr(run_tracking_module, "emit_prefect_pipeline_cancelled_event", emit_cancelled)
+    monkeypatch.setattr(run_tracking_writer_module, "emit_prefect_pipeline_cancelled_event", emit_cancelled)
 
     with (
         pytest.raises(asyncio.CancelledError, match="operator stopped"),

@@ -80,11 +80,11 @@ recomputes pending instruments from the Silver instrument-day coverage view and
 Silver exact-window terminal coverage, then continues with the remaining instruments.
 
 `batch_size` and `max_provider_calls` are local to one EOD backfill run. `EODHDClient`
-declares its Prefect `RATE_LIMIT_POLICY`, which `make prefect-controls` registers as
-`unique-stocks.provider.eodhd`; the shared HTTP client applies that pre-call throttle
+declares its Prefect `RATE_LIMIT_POLICY`, which `make prefect-limits` registers as
+`unique-stocks.http.provider.eodhd`; the shared HTTP client applies that pre-call throttle
 across domains, flow runs, and workers. To raise cluster-wide start rate, edit
 `burst_capacity` and `slot_decay_per_second` in `providers/eodhd/client.py`, then rerun
-`make prefect-controls` (see `apps/pipelines/README.md` — _Tuning provider burst_capacity_).
+`make prefect-limits` (see `apps/pipelines/README.md` — _Tuning provider burst_capacity_).
 Keep the global limit for production safety, then tune the client policy, `batch_size`,
 and `max_provider_calls` for the specific backfill workload.
 

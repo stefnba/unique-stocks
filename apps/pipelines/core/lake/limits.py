@@ -1,28 +1,16 @@
-"""Prefect global limit policies, runtime guards, and setup.
+"""Lake writer Prefect runtime guard."""
 
-This module is reusable Prefect infrastructure. It knows how to register global
-lake-writer limits and provider API-credit limits from already-supplied HTTP
-client classes, but it does not discover or import this app's concrete provider
-packages. App provider composition belongs in ``providers.registry`` and
-``control_plane.prefect_setup``.
-"""
-
-import os
 import sys
 from collections.abc import Generator
 from contextlib import contextmanager
-from typing import TYPE_CHECKING
 
 import structlog
 from prefect.concurrency.sync import concurrency
 
+from core.global_limits import LAKE_WRITER_LIMIT, prefect_global_limits_strict
+
 logger = structlog.get_logger(__name__)
 _lake_writer_limit_missing = False
-if TYPE_CHECKING:
-    pass
-
-
-LAKE_WRITER_LIMIT = "unique-stocks.lake-writer"
 
 
 @contextmanager
@@ -35,7 +23,7 @@ def lake_writer_limit(operation: str | None = None) -> Generator[None]:
     """
     global _lake_writer_limit_missing
 
-    strict_limits = _strict_limits()
+    strict_limits = prefect_global_limits_strict()
     if _lake_writer_limit_missing and not strict_limits:
         yield
         return
@@ -69,24 +57,3 @@ def lake_writer_limit(operation: str | None = None) -> Generator[None]:
         raise
     else:
         manager.__exit__(None, None, None)
-
-
-def _strict_limits() -> bool:
-    configured = _env_bool("PREFECT_GLOBAL_LIMITS_STRICT")
-    return configured is True
-
-
-def _global_limit_message(action: str, name: str, limit: int) -> str:
-    return f"{action} global limit {name}: limit={limit}"
-
-
-def _env_bool(name: str) -> bool | None:
-    raw = os.getenv(name)
-    if raw is None or not raw.strip():
-        return None
-    value = raw.strip().lower()
-    if value in {"1", "true", "yes", "on"}:
-        return True
-    if value in {"0", "false", "no", "off"}:
-        return False
-    raise ValueError(f"{name} must be true or false, got {raw!r}")

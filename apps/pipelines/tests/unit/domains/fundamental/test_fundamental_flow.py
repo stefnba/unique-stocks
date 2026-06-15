@@ -9,10 +9,10 @@ from typing import cast
 import httpx
 import pytest
 
-from core.clients.http.base import ProviderRateLimitError
-from core.clients.lake.sql import SqlTemplateContext, render_sql_file
+from core.http.base import ProviderRateLimitError
 from core.ingestion import BronzeWrite, LandingWrite, RunUnitTally
 from core.ingestion.run_tracking import UnitStatus
+from core.lake.sql import SqlTemplateContext, render_sql_file
 from domains.fundamental import flows, tasks
 from domains.fundamental.parsers import parse_fundamental_document
 from domains.instrument.universe import SilverIngestionContractError
@@ -277,7 +277,7 @@ def test_load_fundamental_instruments_uses_silver_and_qualified_anti_join(
 ) -> None:
     """Missing-only fundamentals selection uses Silver provider instruments and document completion rows."""
     lake = FundamentalSelectionLake(rows=[_instrument("US", "MSFT")])
-    import core.clients.lake as lake_module
+    import core.lake as lake_module
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
@@ -307,7 +307,7 @@ def test_load_fundamental_instruments_requires_completion_view_when_skipping_com
         rows=[_instrument()],
         tables={("silver", "int_fundamental_ingestion_universe")},
     )
-    import core.clients.lake as lake_module
+    import core.lake as lake_module
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
@@ -322,7 +322,7 @@ def test_load_fundamental_instruments_requires_completion_view_when_skipping_com
 def test_load_fundamental_instruments_requires_ingestion_universe(monkeypatch: pytest.MonkeyPatch) -> None:
     """Auto-selected fundamentals should fail clearly when the dbt ingestion universe is unavailable."""
     lake = FundamentalSelectionLake(tables={("silver", "int_fundamental_document_completion")})
-    import core.clients.lake as lake_module
+    import core.lake as lake_module
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 
@@ -664,7 +664,7 @@ def test_delete_fundamental_snapshot_rows_deletes_child_tables_before_document(
 ) -> None:
     """Refresh replacement deletes statement and identity rows before document metadata."""
     lake = FakeLake()
-    import core.clients.lake as lake_module
+    import core.lake as lake_module
 
     monkeypatch.setattr(lake_module, "get_lake_client", lambda: lake)
 

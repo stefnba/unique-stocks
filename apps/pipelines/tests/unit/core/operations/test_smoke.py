@@ -5,7 +5,7 @@ from datetime import date
 import pytest
 from pytest import MonkeyPatch
 
-from core.operations import smoke
+from orchestration import smoke
 
 
 @pytest.mark.asyncio

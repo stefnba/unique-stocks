@@ -8,7 +8,7 @@ from typing import cast
 import httpx
 import pytest
 
-from core.clients.http.base import ProviderRateLimitError
+from core.http.base import ProviderRateLimitError
 from core.ingestion import BronzeWrite, LandingWrite, RunUnitTally
 from core.ingestion.run_tracking import UnitStatus
 from domains.eod_price import flows

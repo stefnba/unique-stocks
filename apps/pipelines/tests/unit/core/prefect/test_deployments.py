@@ -74,7 +74,8 @@ def test_ingestion_deployments_enable_clean_post_ingestion_builds() -> None:
     ("entrypoint", "expected"),
     [
         ("domains.eod_price.flows:eod_price_flow", True),
-        ("domains.dbt:dbt_build_flow", True),
+        ("orchestration.flows.instrument:instrument_flow", True),
+        ("orchestration.dbt:dbt_build_flow", True),
         ("some.other.module:flow_fn", False),
         (None, False),
     ],

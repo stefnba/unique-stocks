@@ -1,20 +1,16 @@
-"""Tests for post-ingestion dbt build gating."""
+"""Tests for app post-ingestion dbt build gating."""
 
-from collections.abc import Generator
-from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date
-from typing import cast
 from uuid import UUID
 
 import pytest
 from pydantic import SecretStr
 
 from config.settings import Settings
-from core.ingestion import BronzeWrite, LandingWrite, RunUnitTally
-from core.ingestion.run_tracking import UnitStatus
-from core.transforms import post_ingestion
-from domains.instrument import flows as instrument_flows
+from domains.instrument.contracts import InstrumentRefreshRequest, InstrumentRefreshResult
+from orchestration import post_ingestion
+from orchestration.flows import instrument as instrument_flows
 
 
 @dataclass(frozen=True)
@@ -36,44 +32,6 @@ class FakeFlowRun:
 
     id: UUID
     state: FakeState | None
-
-
-class FakeRun:
-    """Minimal run scope double for flow-level post-ingestion tests."""
-
-    def __init__(self) -> None:
-        """Create a fake audit run."""
-        self.run_id = "instrument-run"
-        self.tally = RunUnitTally()
-        self.is_terminal = False
-
-    def record_unit_with_landing(self, _: LandingWrite, **kwargs: object) -> str:
-        """Capture one unit and update the tally."""
-        status = kwargs.get("status")
-        if isinstance(status, str):
-            self.tally.record(cast(UnitStatus, status))
-        return "unit-1"
-
-    def complete(self, **_: object) -> None:
-        """Mark the fake run terminal."""
-        self.is_terminal = True
-
-    def fail(self, *_: object, **__: object) -> None:
-        """Mark the fake run failed."""
-        self.is_terminal = True
-
-
-class FakeTracker:
-    """Minimal tracker double that yields one fake run."""
-
-    def __init__(self, run: FakeRun) -> None:
-        """Create the tracker."""
-        self.run = run
-
-    @contextmanager
-    def track_run(self, **_: object) -> Generator[FakeRun]:
-        """Yield the fake run."""
-        yield self.run
 
 
 @pytest.mark.asyncio
@@ -173,34 +131,23 @@ async def test_post_ingestion_build_raises_when_dbt_deployment_fails(monkeypatch
 
 @pytest.mark.asyncio
 async def test_instrument_flow_triggers_build_with_completed_audit_status(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Domain flows should pass durable audit status into the post-ingestion build gate."""
-    run = FakeRun()
+    """Instrument flow should pass durable audit status into the post-ingestion build gate."""
     build_calls: list[dict[str, object]] = []
+    service_requests: list[InstrumentRefreshRequest] = []
 
-    async def fake_landing(_: object, provider_exchange_code: str, snapshot_date: date) -> LandingWrite:
-        return LandingWrite(
-            dataset="instrument.symbols",
-            source_uri=f"s3://bucket/instrument/{provider_exchange_code}.json",
-            partition={"provider_exchange_code": provider_exchange_code, "snapshot_date": snapshot_date},
-            rows_raw=1,
+    async def fake_refresh(request: InstrumentRefreshRequest) -> InstrumentRefreshResult:
+        service_requests.append(request)
+        return InstrumentRefreshResult(
+            run_id="instrument-run",
+            status="completed",
+            summary={"snapshot_date": "2026-06-01", "exchange": {"US": {"rows": 1}}},
         )
-
-    async def fake_fetch(_: str) -> list[dict[str, str]]:
-        return [{"Code": "AAPL"}]
 
     async def fake_build(**kwargs: object) -> dict[str, object]:
         build_calls.append(kwargs)
         return {"triggered": True}
 
-    monkeypatch.setattr(instrument_flows, "PipelineRunTracker", lambda: FakeTracker(run))
-    monkeypatch.setattr(instrument_flows, "instrument_already_ingested", lambda *_: False)
-    monkeypatch.setattr(instrument_flows, "fetch_instrument", fake_fetch)
-    monkeypatch.setattr(instrument_flows, "write_instrument_to_landing_zone", fake_landing)
-    monkeypatch.setattr(
-        instrument_flows,
-        "write_bronze_instrument",
-        lambda *_args, **_kwargs: BronzeWrite(rows_written=1),
-    )
+    monkeypatch.setattr(instrument_flows, "run_instrument_refresh", fake_refresh)
     monkeypatch.setattr(instrument_flows, "run_dbt_build_after_ingestion", fake_build)
 
     summary = await instrument_flows.instrument_flow.fn(
@@ -210,6 +157,13 @@ async def test_instrument_flow_triggers_build_with_completed_audit_status(monkey
     )
 
     assert summary["dbt_build"] == {"triggered": True}
+    assert service_requests == [
+        InstrumentRefreshRequest(
+            snapshot_date=date(2026, 6, 1),
+            provider_exchange_codes=["US"],
+            run_dbt_build=True,
+        )
+    ]
     assert build_calls == [
         {
             "enabled": True,

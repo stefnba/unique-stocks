@@ -35,7 +35,7 @@ async def test_publish_prefect_ingestion_summary_creates_artifact_and_partial_ev
     assert artifacts[0]["key"] == "ingestion-instrument-refresh-run-1"
     assert events == [
         {
-            "event": prefect_events.INGESTION_PARTIAL_EVENT,
+            "event": prefect_events.PrefectEvent.INGESTION_PARTIAL,
             "resource_id": "unique-stocks.ingestion-run.run-1",
             "resource_name": "instrument-refresh",
             "payload": {

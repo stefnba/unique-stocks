@@ -4,7 +4,7 @@ from config.domains import Domain
 from config.settings import APP_ROOT
 from core.lake.migration.files import list_migration_files
 from core.lake.schema.ddl import render_greenfield_schema_sql
-from lake.schema import ALL_TABLES, BRONZE_TABLES
+from lakehouse.schema import ALL_TABLES, BRONZE_TABLES
 
 
 def test_lake_schema_tables_have_unique_names() -> None:
@@ -95,9 +95,9 @@ def test_lake_schema_uses_singular_domain_names() -> None:
 
 def test_initial_schema_migration_matches_current_table_specs() -> None:
     """The first migration should match the current greenfield table specs."""
-    migrations = list_migration_files(APP_ROOT / "lake/migrations")
+    migrations = list_migration_files(APP_ROOT / "lakehouse/migrations")
     initial_schema = next((migration for migration in migrations if migration.name == "initial_schema"), None)
-    assert initial_schema is not None, "Expected an initial_schema migration in lake/migrations"
+    assert initial_schema is not None, "Expected an initial_schema migration in lakehouse/migrations"
     migration_sql = initial_schema.path.read_text()
     assert set(_sql_statements(migration_sql)) == set(_sql_statements(render_greenfield_schema_sql(ALL_TABLES)))
 

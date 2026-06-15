@@ -4,8 +4,8 @@ import pytest
 
 from config.settings import get_settings
 from control_plane.prefect import limits as app_limits
+from core.global_limits import LAKE_WRITER_LIMIT, provider_rate_limit_name
 from core.orchestration import limits as orchestration_limits
-from core.orchestration.limits import LAKE_WRITER_LIMIT
 
 
 class FakeClient:
@@ -42,9 +42,9 @@ def test_app_limits_define_lake_writer_and_provider_policies() -> None:
     lake_writer_slots = app_limits.LAKE_WRITER_SLOTS_BY_ENVIRONMENT[get_settings().environment]
 
     assert limits[LAKE_WRITER_LIMIT].limit == lake_writer_slots
-    assert limits["unique-stocks.provider.eodhd"].limit == 100
-    assert limits["unique-stocks.provider.eodhd"].slot_decay_per_second == 10.0
-    assert "unique-stocks.provider.iso10383" not in limits
+    assert limits[provider_rate_limit_name("eodhd")].limit == 100
+    assert limits[provider_rate_limit_name("eodhd")].slot_decay_per_second == 10.0
+    assert provider_rate_limit_name("iso10383") not in limits
 
 
 @pytest.mark.asyncio
@@ -59,5 +59,5 @@ async def test_app_limits_dry_run(
 
     output = capsys.readouterr().out
     assert exit_code == 0
-    assert "Would create global limit unique-stocks.lake-writer" in output
-    assert "Would create global limit unique-stocks.provider.eodhd" in output
+    assert f"Would create global limit {LAKE_WRITER_LIMIT}" in output
+    assert f"Would create global limit {provider_rate_limit_name('eodhd')}" in output

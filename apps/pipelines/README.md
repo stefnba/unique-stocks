@@ -267,39 +267,40 @@ In a second terminal:
 
 ```bash
 cd apps/pipelines
-make setup                 # migrate lake, save blocks, create work pool, upsert controls, register deployments
+make setup                 # migrate lake, save blocks, create work pool, upsert limits/automations, register deployments
 make prefect-worker        # start the worker
 ```
 
 `make prefect-worker` defaults to one concurrent flow run (`PREFECT_WORKER_LIMIT=1`) so separate
 deployments do not write the same local lake at the same time. Raise it only after adding Prefect
-global concurrency limits for shared lake and provider resources with `make prefect-controls`.
+global concurrency limits for shared lake and provider resources with `make prefect-limits`.
 
-`make prefect-controls` runs both `make prefect-limits` and `make prefect-automations`.
 `make prefect-limits` upserts the shared lake writer limit and provider rate limits declared
 by provider HTTP clients, such as `unique-stocks.lake-writer` for lake/dbt/migration writes and
-`unique-stocks.provider.eodhd` for EODHD calls. `make prefect-automations` creates event automations
+`unique-stocks.http.provider.eodhd` for EODHD calls. The app-level limit registry is
+`control_plane.prefect.limits.PREFECT_LIMITS`; provider policies still live on provider clients.
+`make prefect-automations` creates event automations
 for dbt failures, EOD coverage-gate gaps, stale running audit rows, ingestion partial/failure outcomes,
 and cancellations. Managed event names are defined in `core.prefect.events.PrefectEvent`, which is
 also used by the emit helpers. The automations use a no-op action unless
 `PREFECT_NOTIFICATION_BLOCK_ID` is set to a Prefect notification block UUID.
 If the Prefect UI shows no useful action, set that environment variable and rerun
-`make prefect-controls` against the same `PREFECT_API_URL` used by the worker.
-If Prefect logs that a provider limit such as `unique-stocks.provider.eodhd` does not exist, run `make prefect-controls`
+`make prefect-automations` against the same `PREFECT_API_URL` used by the worker.
+If Prefect logs that a provider limit such as `unique-stocks.http.provider.eodhd` does not exist, run `make prefect-limits`
 against the same `PREFECT_API_URL` used by the worker.
 
 ### Provider Call Controls
 
 Provider-call controls exist at different layers:
 
-| Control                                          | Scope                 | Purpose                                                                                                                     |
-| ------------------------------------------------ | --------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `PREFECT_WORKER_LIMIT`                           | Worker process        | Caps concurrent flow runs on one worker. Defaults to `1`, which serializes local/dev flow execution.                        |
-| Deployment `concurrency_limit` in `prefect.yaml` | One deployment        | Prevents overlapping runs of the same scheduled/manual deployment.                                                          |
-| EOD backfill `batch_size`                        | One EOD backfill run  | Caps how many per-instrument EOD history requests that single run submits concurrently.                                     |
-| EOD backfill `max_provider_calls`                | One EOD backfill run  | Stops that run after a fixed number of submitted provider calls, useful for daily quota or spend caps.                      |
-| Provider HTTP 429 handling                       | One active flow run   | Reacts when the provider says the limit was hit, stops later batches, and leaves deferred work retryable.                   |
-| Provider client `RATE_LIMIT_POLICY`              | All flows and workers | Pre-call provider-specific start-rate throttle, registered as Prefect global limits such as `unique-stocks.provider.eodhd`. |
+| Control                                          | Scope                 | Purpose                                                                                                                          |
+| ------------------------------------------------ | --------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `PREFECT_WORKER_LIMIT`                           | Worker process        | Caps concurrent flow runs on one worker. Defaults to `1`, which serializes local/dev flow execution.                             |
+| Deployment `concurrency_limit` in `prefect.yaml` | One deployment        | Prevents overlapping runs of the same scheduled/manual deployment.                                                               |
+| EOD backfill `batch_size`                        | One EOD backfill run  | Caps how many per-instrument EOD history requests that single run submits concurrently.                                          |
+| EOD backfill `max_provider_calls`                | One EOD backfill run  | Stops that run after a fixed number of submitted provider calls, useful for daily quota or spend caps.                           |
+| Provider HTTP 429 handling                       | One active flow run   | Reacts when the provider says the limit was hit, stops later batches, and leaves deferred work retryable.                        |
+| Provider client `RATE_LIMIT_POLICY`              | All flows and workers | Pre-call provider-specific start-rate throttle, registered as Prefect global limits such as `unique-stocks.http.provider.eodhd`. |
 
 With a single worker and `PREFECT_WORKER_LIMIT=1`, the global provider limit is mostly a safety net.
 It becomes important when multiple provider-calling flows or workers can run at the same time.
@@ -330,7 +331,7 @@ RATE_LIMIT_POLICY = ProviderRateLimitPolicy(
 After changing the policy, re-upsert Prefect global limits so workers see the new values:
 
 ```bash
-make prefect-controls    # or: make prefect-limits
+make prefect-limits
 ```
 
 The policy applies across all flows and workers that share the same `PREFECT_API_URL`. It does not
@@ -356,7 +357,7 @@ Docker Compose sets `ENVIRONMENT=docker_dev` for `pipelines-worker`. Set it in `
 cp .env.example .env
 # edit .env: set ENVIRONMENT=docker_dev and any provider keys
 make docker-up             # start pipelines-server, pipelines-db, worker, and dashboard
-make docker-setup          # migrate container lake, save blocks, create work pool, upsert controls, register deployments
+make docker-setup          # migrate container lake, save blocks, create work pool, upsert limits/automations, register deployments
 ```
 
 The default docker-dev lake is isolated from the host and shared only between the `pipelines-worker` and `pipelines-dashboard` containers at `/app/lake-data/unique_stocks.duckdb`. This avoids host file-lock and path drift while still letting the dashboard inspect the worker's local audit rows. If `MOTHERDUCK_TOKEN` is set in `.env`, docker-dev intentionally targets MotherDuck instead for integration testing.
@@ -586,14 +587,15 @@ migrations when the worker service is scaled out. `pipelines-migrator` is expect
 migrations; `make setup` still runs migrations idempotently as part of first-time bootstrap.
 
 Workers are serialized by default with `PREFECT_WORKER_LIMIT=1`. Keep deployment-level concurrency
-limits in place, and keep the `make prefect-controls` global limits in sync before scaling worker
+limits in place, and keep the `make prefect-limits` global limits in sync before scaling worker
 concurrency for shared lake files, MotherDuck writes, or provider quotas. Local DuckDB should keep
-one lake writer slot; MotherDuck can usually use more slots, so setup defaults to four unless
-`PREFECT_LAKE_WRITER_LIMIT` overrides it.
+one lake writer slot. The lake writer slot policy is declared in
+`control_plane/prefect/limits.py`; raise it only after validating concurrent lake, dbt, migration,
+and audit writes in the target environment.
 
-Advanced Prefect limit overrides are intentionally not part of `.env.example`. `PREFECT_LAKE_WRITER_LIMIT`
-can override the backend-aware lake writer default, and `PREFECT_GLOBAL_LIMITS_STRICT=true` can make missing
-Prefect limits fail closed after the environment has been bootstrapped with `make prefect-controls`.
+Advanced Prefect limit overrides are intentionally not part of `.env.example`.
+`PREFECT_GLOBAL_LIMITS_STRICT=true` can make missing Prefect limits fail closed after the environment
+has been bootstrapped with `make prefect-limits`.
 
 Docker healthchecks are intentionally container-local. The worker healthcheck verifies that the container can reach the
 Prefect API and that a Prefect worker process is running; it does not prove that scheduled ingestion is fresh or that a
@@ -636,6 +638,6 @@ make setup
 ```
 
 This assumes `MOTHERDUCK_TOKEN` and `LAKE_NAME` are already present in the deployment environment. The setup command
-saves Prefect blocks, creates/updates the work pool, upserts global controls, and registers deployments.
+saves Prefect blocks, creates/updates the work pool, upserts limits and automations, and registers deployments.
 
 Re-run `make deploy` (not `make setup`) after changing deployment definitions — `setup` is only needed once per new environment.
