@@ -12,7 +12,7 @@ import structlog
 
 from config.providers import Provider
 from core.http.base import HttpClientBase
-from core.prefect.limits import ProviderRateLimitPolicy
+from core.http.rate_limit import ProviderRateLimitPolicy
 
 from .models import (
     EODBulkPriceRaw,

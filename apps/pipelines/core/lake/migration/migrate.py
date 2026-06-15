@@ -9,12 +9,12 @@ from pathlib import Path
 import duckdb
 
 from core.lake import DataLakeClient
+from core.lake.limits import lake_writer_limit
 from core.lake.migration.files import MigrationFile
 from core.lake.migration.refs import load_table_specs
 from core.lake.migration.runner import apply_pending_migrations, plan_migrations
 from core.lake.migration.validation import has_any_desired_table, validate_lake_schema
 from core.lake.schema.table import TableModel
-from core.prefect.limits import lake_writer_limit
 
 
 def main(argv: Sequence[str] | None = None) -> None:

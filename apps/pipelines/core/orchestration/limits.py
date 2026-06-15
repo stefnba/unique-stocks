@@ -137,12 +137,13 @@ def _define_provider_rate_limits(
 
     limits: list[GlobalConcurrencyLimitCreate] = []
     for client_cls in provider_clients.values():
-        policy = getattr(client_cls, "RATE_LIMIT_POLICY", None)
+        policy = client_cls.RATE_LIMIT_POLICY
         if policy is None:
             continue
 
         provider = str(client_cls.PROVIDER)
-        name = getattr(policy, "name", None) or _provider_rate_limit_name(provider)
+        name = policy.limit_name(provider)
+
         limits.append(
             GlobalConcurrencyLimitCreate(
                 name=name,
@@ -151,12 +152,6 @@ def _define_provider_rate_limits(
             )
         )
     return tuple(limits)
-
-
-def _provider_rate_limit_name(provider: str) -> str:
-    """Return the default Prefect global limit name for a provider."""
-    provider_key = provider.strip().lower().replace("_", "-")
-    return f"{PROVIDER_RATE_LIMIT_PREFIX}.{provider_key}"
 
 
 def _limit_summary(limit: GlobalConcurrencyLimitCreate) -> str:

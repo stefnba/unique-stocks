@@ -18,7 +18,7 @@ import httpx
 import structlog
 from pydantic import BaseModel
 
-from core.prefect.limits import ProviderRateLimitPolicy, wait_for_provider_api_credit
+from core.http.rate_limit import ProviderRateLimitPolicy, wait_for_provider_limit_credit
 from core.utils.redaction import redact_sensitive_query_params
 
 log = structlog.get_logger(__name__)
@@ -176,7 +176,7 @@ class HttpClientBase(ABC):
         log.debug(f"http.client.{self.PROVIDER}.request", method=method, path=safe_path)
         try:
             if self.RATE_LIMIT_POLICY is not None:
-                await wait_for_provider_api_credit(
+                await wait_for_provider_limit_credit(
                     provider=str(self.PROVIDER),
                     operation=f"{method} {safe_path}",
                     policy=self.RATE_LIMIT_POLICY,

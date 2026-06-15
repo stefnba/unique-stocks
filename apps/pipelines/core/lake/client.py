@@ -21,9 +21,9 @@ import duckdb
 import structlog
 
 from core.lake.database import ensure_lake_database, motherduck_connection_string
+from core.lake.limits import lake_writer_limit
 from core.lake.sql import SqlTemplateContext
 from core.lake.sql import render_sql_file as render_lake_sql_file
-from core.prefect.limits import lake_writer_limit
 
 log = structlog.get_logger(__name__)
 
