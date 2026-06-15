@@ -83,8 +83,8 @@ class LimitRegistry:
 
 
 def define_limits(
-    http_providers: HttpClientRegistry,
-    lake_writer_limit: int,
+    http_providers: HttpClientRegistry | None = None,
+    lake_writer_limit: int | None = None,
     additional_limits: list[GlobalConcurrencyLimitCreate] | None = None,
 ) -> LimitRegistry:
     """Create a Prefect global limit registry without touching the Prefect API.
@@ -98,29 +98,33 @@ def define_limits(
         Registry that can sync those definitions to the configured Prefect API.
     """
     provider_rate_limits = _define_provider_rate_limits(http_providers)
+    lake_writer_limit_def = _define_lake_writer_limit(lake_writer_limit)
 
-    return LimitRegistry(limits=[*provider_rate_limits, *(additional_limits or [])])
+    return LimitRegistry(limits=[*provider_rate_limits, *lake_writer_limit_def, *(additional_limits or [])])
 
 
-# def define_lake_writer_limit(limit: int) -> GlobalConcurrencyLimitCreate:
-#     """Build the shared lake/dbt writer concurrency limit definition.
+def _define_lake_writer_limit(limit: int | None) -> tuple[GlobalConcurrencyLimitCreate, ...]:
+    """Build the shared lake/dbt writer concurrency limit definition.
 
-#     Args:
-#         limit: Maximum number of concurrent lake/dbt writer slots.
+    Args:
+        limit: Maximum number of concurrent lake/dbt writer slots.
 
-#     Returns:
-#         Prefect global concurrency limit definition for shared lake writes.
+    Returns:
+        Prefect global concurrency limit definition for shared lake writes.
 
-#     Raises:
-#         ValueError: If the supplied limit is less than one.
-#     """
-#     if limit < 1:
-#         raise ValueError("Prefect lake writer limit must be at least 1.")
-#     return GlobalConcurrencyLimitCreate(name=LAKE_WRITER_LIMIT, limit=limit)
+    Raises:
+        ValueError: If the supplied limit is less than one.
+    """
+    if limit is None:
+        return ()
+
+    if limit < 1:
+        raise ValueError("Prefect lake writer limit must be at least 1.")
+    return (GlobalConcurrencyLimitCreate(name=LAKE_WRITER_LIMIT, limit=limit),)
 
 
 def _define_provider_rate_limits(
-    provider_clients: HttpClientRegistry,
+    provider_clients: HttpClientRegistry | None,
 ) -> tuple[GlobalConcurrencyLimitCreate, ...]:
     """Build provider API rate-limit definitions from client policies.
 
@@ -128,6 +132,9 @@ def _define_provider_rate_limits(
     rate limit uses Prefect's ``slot_decay_per_second`` field, which Prefect
     requires for ``rate_limit`` usage.
     """
+    if provider_clients is None:
+        return ()
+
     limits: list[GlobalConcurrencyLimitCreate] = []
     for client_cls in provider_clients.values():
         policy = getattr(client_cls, "RATE_LIMIT_POLICY", None)
