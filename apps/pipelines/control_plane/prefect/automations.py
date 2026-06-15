@@ -7,7 +7,7 @@ from prefect.events.schemas.automations import EventTrigger, Posture
 from core.orchestration.automations import (
     define_automations,
 )
-from core.prefect.events import PrefectEvent
+from core.orchestration.events import PrefectEvent
 
 AUTOMATION_TAGS = ["unique-stocks", "pipelines"]
 

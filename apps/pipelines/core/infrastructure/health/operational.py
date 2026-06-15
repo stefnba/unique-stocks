@@ -7,9 +7,9 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 
+from core.infrastructure.health.common import prefect_api_is_healthy
 from core.lake import DataLakeClient
-from core.operations.health_common import prefect_api_is_healthy
-from core.prefect.events import emit_prefect_stale_runs_event
+from core.orchestration.events import emit_prefect_stale_runs_event
 from core.utils.redaction import redact_sensitive_query_params
 
 type LakeFactory = Callable[..., "OperationalHealthLake"]

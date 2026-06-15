@@ -2,7 +2,7 @@
 
 This check is intentionally narrow: it verifies that the worker container can
 reach the Prefect API and that a Prefect worker process is running in the same
-container. End-to-end ingestion health belongs in ``operational_health``.
+container. End-to-end ingestion health belongs in ``operational``.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ import os
 from collections.abc import Callable
 from pathlib import Path
 
-from core.operations.health_common import prefect_api_is_healthy
+from core.infrastructure.health.common import prefect_api_is_healthy
 
 type PrefectApiHealthCheck = Callable[[str], bool]
 

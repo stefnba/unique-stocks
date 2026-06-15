@@ -96,7 +96,7 @@ apps/pipelines/
 ├── config/             Passive settings, non-secret defaults, and identity enums
 ├── control_plane/      App-specific Prefect, AWS, deployment, and runtime wiring
 ├── orchestration/      Thin flow entrypoints and app-level dbt/workflow composition
-├── core/               Reusable machinery: ingestion, HTTP, storage, lake, Prefect helpers
+├── core/               Reusable machinery: ingestion, HTTP, storage, lake, infrastructure/orchestration helpers
 ├── domains/            Domain models, tables, datasets, parsers, tasks, and services
 ├── providers/          Provider-specific clients and raw response models
 ├── lakehouse/          App-level lake schema registry and migrations
@@ -284,7 +284,7 @@ Use `ARGS="--plan"` with `make prefect-limits` and `make prefect-automations`, o
 run `make deploy-plan`, when you want to read live Prefect state and preview the
 planned changes without writing them. `make prefect-automations` creates event automations
 for dbt failures, EOD coverage-gate gaps, stale running audit rows, ingestion partial/failure outcomes,
-and cancellations. Managed event names are defined in `core.prefect.events.PrefectEvent`, which is
+and cancellations. Managed event names are defined in `core.orchestration.events.PrefectEvent`, which is
 also used by the emit helpers. Automations currently use no-op actions; notification-block support is
 tracked in `ToDo.md`.
 If Prefect logs that a provider limit such as `unique-stocks.http.provider.eodhd` does not exist, run `make prefect-limits`
