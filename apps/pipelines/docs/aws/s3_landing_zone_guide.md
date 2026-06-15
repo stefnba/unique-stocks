@@ -61,23 +61,23 @@ aws sso login --profile provisioner
 From `apps/pipelines/`, preview the provisioning plan first:
 
 ```bash
-uv run python scripts/s3/setup_landing_zone.py --profile provisioner --dry-run
+uv run pipelines-s3-landing-zone --profile provisioner --dry-run
 ```
 
 Create or update the bucket, bucket controls, IAM user, and inline policy:
 
 ```bash
-uv run python scripts/s3/setup_landing_zone.py --profile provisioner
+uv run pipelines-s3-landing-zone --profile provisioner
 ```
 
 Access key creation is a separate, deliberate step. Run without `--create-access-key` first to provision the bucket and IAM user, verify the output, then re-run with the flag only when you are ready to immediately store the secret — AWS shows `SecretAccessKey` only once:
 
 ```bash
 # Step 1 — provision everything except the access key (idempotent, safe to re-run)
-uv run python scripts/s3/setup_landing_zone.py --profile provisioner
+uv run pipelines-s3-landing-zone --profile provisioner
 
 # Step 2 — create the access key only when ready to store it
-uv run python scripts/s3/setup_landing_zone.py --profile provisioner --create-access-key
+uv run pipelines-s3-landing-zone --profile provisioner --create-access-key
 ```
 
 AWS shows the secret access key only once. Store the returned values in local `.env` or production secrets:
@@ -95,7 +95,7 @@ make blocks-save
 
 ## Script Details
 
-Use `scripts/s3/setup_landing_zone.py` from `apps/pipelines/`. The script is idempotent for bucket creation, bucket settings, IAM user creation, and inline IAM policy updates.
+Use `uv run pipelines-s3-landing-zone` from `apps/pipelines/`. The command is idempotent for bucket creation, bucket settings, IAM user creation, and inline IAM policy updates.
 
 By default, it resolves the bucket and region from `control_plane/aws_resources.py` and applies these controls:
 
@@ -116,7 +116,7 @@ make s3-landing-zone ARGS="--profile provisioner --dry-run"
 Create a different bucket or IAM user:
 
 ```bash
-uv run python scripts/s3/setup_landing_zone.py \
+uv run pipelines-s3-landing-zone \
   --profile provisioner \
   --bucket unique-stocks-prod \
   --region eu-central-1 \
@@ -126,7 +126,7 @@ uv run python scripts/s3/setup_landing_zone.py \
 Grant object delete only if a real cleanup workflow needs it:
 
 ```bash
-uv run python scripts/s3/setup_landing_zone.py --profile provisioner --allow-delete
+uv run pipelines-s3-landing-zone --profile provisioner --allow-delete
 ```
 
 The Python script reads the project defaults from `control_plane/aws_resources.py`.
@@ -168,7 +168,7 @@ Consider adding these controls if the project grows or compliance requirements i
 
 AWS allows only two access keys per IAM user. To rotate credentials:
 
-1. Create a second access key with `uv run python scripts/s3/setup_landing_zone.py --profile provisioner --create-access-key`.
+1. Create a second access key with `uv run pipelines-s3-landing-zone --profile provisioner --create-access-key`.
 2. Update local `.env` or production secrets.
 3. Re-save Prefect blocks with `make blocks-save`.
 4. Run a small pipeline check that writes to S3.

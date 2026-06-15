@@ -95,7 +95,7 @@ services:
         "uv run --no-dev --frozen prefect worker start --pool default-process-pool --limit $${PREFECT_WORKER_LIMIT:-1}",
       ]
     healthcheck:
-      test: ["CMD", "uv", "run", "--no-dev", "--frozen", "python", "scripts/health/check_worker.py"]
+      test: ["CMD", "uv", "run", "--no-dev", "--frozen", "pipelines-worker-health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -117,7 +117,7 @@ services:
         condition: service_completed_successfully
     command: ["tail", "-f", "/dev/null"]
     healthcheck:
-      test: ["CMD", "uv", "run", "--no-dev", "--frozen", "python", "scripts/health/check_operational.py"]
+      test: ["CMD", "uv", "run", "--no-dev", "--frozen", "pipelines-operational-health"]
       interval: 300s
       timeout: 30s
       retries: 2

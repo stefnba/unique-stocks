@@ -1,8 +1,8 @@
 # Pipeline Scripts
 
 This folder contains command-line entrypoints for the pipelines app. Scripts are
-grouped by operational area so Make targets, Docker healthchecks, and local
-runbooks can point at stable, readable paths.
+grouped by operational area so `pyproject.toml`, Make targets, Docker
+healthchecks, and local runbooks can point at stable, readable commands.
 
 ## Boundary
 
@@ -33,3 +33,6 @@ process outcome.
 
 Legacy flat script paths are intentionally unsupported. Prefer adding new
 entrypoints to the relevant folder with a small test under `tests/unit/scripts/`.
+Once an operator command is stable, expose it under `[project.scripts]` with a
+`pipelines-*` name and have Make or Docker call that entry point instead of the
+file path.

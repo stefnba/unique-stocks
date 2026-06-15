@@ -1,0 +1,1 @@
+"""Healthcheck command-line adapters."""

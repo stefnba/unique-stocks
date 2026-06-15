@@ -21,12 +21,12 @@ DEFAULT_PROVIDER_EXCHANGE_CODE = "XETRA"
 DEFAULT_SCHEDULE_EXCHANGE_CODE = "US"
 
 _EXAMPLES = """examples:
-  uv run python scripts/smoke/run.py fundamental
-  uv run python scripts/smoke/run.py fundamental --exchange US --instrument MSFT
-  uv run python scripts/smoke/run.py exchange
-  uv run python scripts/smoke/run.py exchange_schedule --exchange XETR
-  uv run python scripts/smoke/run.py instrument --exchange US
-  uv run python scripts/smoke/run.py eod_price --exchange US
+  uv run pipelines-smoke fundamental
+  uv run pipelines-smoke fundamental --exchange US --instrument MSFT
+  uv run pipelines-smoke exchange
+  uv run pipelines-smoke exchange_schedule --exchange XETR
+  uv run pipelines-smoke instrument --exchange US
+  uv run pipelines-smoke eod_price --exchange US
 
 make aliases:
   make smoke FLOW=fundamental

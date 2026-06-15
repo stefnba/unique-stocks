@@ -89,7 +89,7 @@ blocks-save: ## Register Prefect blocks on the server defined in control_plane/p
 	$(PY) -c "from control_plane.prefect import BlockRegistry; BlockRegistry.save_all(if_exists='overwrite')"
 
 s3-landing-zone: ## Create/update AWS S3 landing-zone resources (pass ARGS="--dry-run")
-	$(PY) scripts/s3/setup_landing_zone.py $(ARGS)
+	$(UV) run pipelines-s3-landing-zone $(ARGS)
 
 ##@ Quality
 ci-local: ## Run the same quality checks as GitHub CI
@@ -151,23 +151,23 @@ test-integration: ## Run integration tests only
 ##@ Smoke
 smoke: ## Run local smoke preset (FLOW=<preset>, pass ARGS="...")
 	@if [ -z "$(FLOW)" ]; then \
-		$(UV) run python scripts/smoke/run.py --help; \
+		$(UV) run pipelines-smoke --help; \
 		exit 2; \
 	fi
-	$(UV) run python scripts/smoke/run.py $(FLOW) $(ARGS)
+	$(UV) run pipelines-smoke $(FLOW) $(ARGS)
 
 ##@ Operations
 operational-health: ## Check Prefect API and lake audit health (pass ARGS="...")
-	$(UV) run python scripts/health/check_operational.py $(ARGS)
+	$(UV) run pipelines-operational-health $(ARGS)
 
 dashboard: ## Start the Streamlit pipeline audit dashboard
 	$(UV) run --extra dashboard streamlit run dashboard/app.py --server.address 0.0.0.0 --server.port $(STREAMLIT_SERVER_PORT) --server.headless true
 
 prefect-limits: ## Upsert Prefect global limits and provider rate limits (pass ARGS="--dry-run")
-	$(UV) run python scripts/prefect/setup_limits.py $(ARGS)
+	$(UV) run pipelines-prefect-limits $(ARGS)
 
 prefect-automations: ## Upsert Prefect event automations (pass ARGS="--dry-run")
-	$(UV) run python scripts/prefect/setup_automations.py $(ARGS)
+	$(UV) run pipelines-prefect-automations $(ARGS)
 
 ##@ Local Services
 prefect-server: ## Start a local Prefect server (no Docker)
@@ -224,9 +224,9 @@ docker-setup: ## Run one-time setup inside the docker-dev pipelines container
 	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python -m core.lake.migration.migrate --tables "$(LAKE_TABLES_REF)" --migrations-dir "$(LAKE_MIGRATIONS_DIR)"
 	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python -c "from control_plane.prefect import BlockRegistry; BlockRegistry.save_all(if_exists='overwrite')"
 	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen prefect work-pool create default-process-pool --type process --overwrite
-	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python scripts/prefect/setup_limits.py
-	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python scripts/prefect/setup_automations.py
-	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python scripts/prefect/sync_deployments.py
+	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen pipelines-prefect-limits
+	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen pipelines-prefect-automations
+	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen pipelines-prefect-deployments
 
 docker-prod-config: ## Render production Docker Compose config with test secrets
 	POSTGRES_PASSWORD=test-postgres-password MOTHERDUCK_TOKEN=test-motherduck-token PREFECT_UI_API_URL=https://prefect.example.com/api $(COMPOSE_PROD) config >/dev/null
@@ -271,10 +271,10 @@ lake-ui: lake-env-guard lake-ensure-database ## Open DuckDB local UI (MotherDuck
 
 ##@ Deployments
 deploy: ## Sync deployments: prune app orphans, then apply prefect.yaml
-	$(UV) run python scripts/prefect/sync_deployments.py
+	$(UV) run pipelines-prefect-deployments
 
 deploy-dry: ## Preview manifest entries and orphaned deployments to remove
-	$(UV) run python scripts/prefect/sync_deployments.py --dry-run
+	$(UV) run pipelines-prefect-deployments --dry-run
 
 deploy-upsert: ## Apply prefect.yaml without removing orphaned deployments
 	$(UV) run prefect --no-prompt deploy --all

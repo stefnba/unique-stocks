@@ -4,15 +4,15 @@ Run from ``apps/pipelines/``. All commands below assume that working directory.
 
 Preview the provisioning plan without calling AWS::
 
-    uv run python scripts/s3/setup_landing_zone.py --profile provisioner --dry-run
+    uv run pipelines-s3-landing-zone --profile provisioner --dry-run
 
 Create or update the bucket, security controls, IAM user, and inline policy::
 
-    uv run python scripts/s3/setup_landing_zone.py --profile provisioner
+    uv run pipelines-s3-landing-zone --profile provisioner
 
 Create an access key only when you are ready to store the secret immediately::
 
-    uv run python scripts/s3/setup_landing_zone.py --profile provisioner --create-access-key
+    uv run pipelines-s3-landing-zone --profile provisioner --create-access-key
 
 The same target is available through Make::
 

@@ -144,7 +144,7 @@ reported, but they do not downgrade the run.
 ## Local smoke
 
 ```bash
-uv run python scripts/smoke/run.py eod-price
+uv run pipelines-smoke eod-price
 ```
 
 Per-instrument backfill is started via Prefect (`eod-price-backfill/eod-price-historical-backfill`), not the smoke preset.

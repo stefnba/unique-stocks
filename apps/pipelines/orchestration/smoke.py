@@ -116,4 +116,4 @@ async def run_preset(request: SmokePresetRequest) -> dict[str, object]:
 def _ensure_not_production() -> None:
     """Reject smoke presets in production environments."""
     if get_settings().is_production:
-        raise RuntimeError("scripts/smoke/run.py is a local/dev tool and cannot run with ENVIRONMENT=prod.")
+        raise RuntimeError("pipelines-smoke is a local/dev tool and cannot run with ENVIRONMENT=prod.")

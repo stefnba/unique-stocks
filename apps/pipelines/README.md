@@ -53,11 +53,11 @@ instrument-refresh and eod-price flows
 Use the smoke runner for narrow local checks instead of changing production flow defaults:
 
 ```bash
-uv run python scripts/smoke/run.py fundamental
-uv run python scripts/smoke/run.py exchange
-uv run python scripts/smoke/run.py exchange_schedule
-uv run python scripts/smoke/run.py instrument
-uv run python scripts/smoke/run.py eod-price
+uv run pipelines-smoke fundamental
+uv run pipelines-smoke exchange
+uv run pipelines-smoke exchange_schedule
+uv run pipelines-smoke instrument
+uv run pipelines-smoke eod-price
 ```
 
 The Make target passes `FLOW` through to the smoke runner, which owns preset validation:
@@ -115,7 +115,7 @@ See [docs/pipeline_architecture.md](docs/pipeline_architecture.md) for folder pl
 
 `core/` stays generic and does not import concrete app providers, domains, app settings, Prefect block names, or settings-backed composition. `config/` owns passive settings and names only, including domain identity keys. Runtime wiring lives in `control_plane/`, dbt/build mappings and thin flow entrypoints live in `orchestration/`, and provider registration lives in `providers/registry.py`.
 
-Domain code is organized under `domains/<domain>/`. Ingestion domains usually define `models.py`, `tables.py`, `datasets.py`, `parsers.py`, task modules, request/result contracts, services, plus small domain helpers when needed.
+Domain code is organized under `domains/<domain>/`. Ingestion domains usually define `models.py`, `tables.py`, `datasets.py`, `parsers.py`, task modules, request/result contracts, services, plus small domain helpers when needed. See [`domains/README.md`](domains/README.md) for the domain package shape and migration convention.
 
 ### Script entrypoints
 
@@ -124,8 +124,9 @@ parsing, environment defaults, console output, and exit codes. Reusable pipeline
 behavior stays in `core/`, `orchestration/`, domain packages, providers,
 control-plane modules, or config modules.
 
-See [`scripts/README.md`](scripts/README.md) before adding or moving an
-entrypoint.
+Stable operator commands are exposed in `pyproject.toml` as `pipelines-*`
+entry points. See [`scripts/README.md`](scripts/README.md) before adding or
+moving an entrypoint.
 
 ### File-backed lake SQL
 
@@ -188,7 +189,7 @@ Set at least the active provider API key shown in `.env.example` for live provid
 
 S3 is the landing-zone target for provider-validated raw payloads before they are parsed into typed Bronze records. Domain datasets use `LandingTarget` specs for raw object storage and `BronzeDataset` specs for lake writes. Bucket names, IAM names, and regions are non-secret control-plane wiring values in `control_plane/aws_resources.py` and are wired into Prefect blocks by `control_plane/prefect/blocks.py`. AWS access keys are secrets and must stay in local `.env` files or the production deployment platform.
 
-You do not need to create the S3 bucket and IAM user manually in the AWS Console each time. The setup is scriptable with `scripts/s3/setup_landing_zone.py`, including bucket creation, encryption, ownership controls, public-access blocking, IAM policy creation, and optional access-key generation. See [docs/aws/s3_landing_zone_guide.md](docs/aws/s3_landing_zone_guide.md) for the runbook, and [docs/aws/iam_guide.md](docs/aws/iam_guide.md) for AWS account and provisioner setup.
+You do not need to create the S3 bucket and IAM user manually in the AWS Console each time. The setup is scriptable with `uv run pipelines-s3-landing-zone`, including bucket creation, encryption, ownership controls, public-access blocking, IAM policy creation, and optional access-key generation. See [docs/aws/s3_landing_zone_guide.md](docs/aws/s3_landing_zone_guide.md) for the runbook, and [docs/aws/iam_guide.md](docs/aws/iam_guide.md) for AWS account and provisioner setup.
 
 ## Pipeline audit
 

@@ -25,6 +25,15 @@ dependencies = [
 # deploy/Dockerfile.dashboard, CI, and local dashboard commands with --extra dashboard.
 dashboard = ["pandas>=2.2,<3", "streamlit>=1.56,<2"]
 
+[project.scripts]
+pipelines-operational-health = "scripts.health.check_operational:main"
+pipelines-prefect-automations = "scripts.prefect.setup_automations:main"
+pipelines-prefect-deployments = "scripts.prefect.sync_deployments:main"
+pipelines-prefect-limits = "scripts.prefect.setup_limits:main"
+pipelines-s3-landing-zone = "scripts.s3.setup_landing_zone:main"
+pipelines-smoke = "scripts.smoke.run:main"
+pipelines-worker-health = "scripts.health.check_worker:main"
+
 [dependency-groups]
 dev = [
     "pytest>=8.2",
@@ -51,6 +60,7 @@ packages = [
     "lakehouse",
     "dashboard",
     "orchestration",
+    "scripts",
 ]
 
 [tool.ruff]
