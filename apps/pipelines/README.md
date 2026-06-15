@@ -594,7 +594,7 @@ one lake writer slot. The lake writer slot policy is declared in
 and audit writes in the target environment.
 
 Advanced Prefect limit overrides are intentionally not part of `.env.example`.
-`PREFECT_GLOBAL_LIMITS_STRICT=true` can make missing Prefect limits fail closed after the environment
+`PREFECT_GLOBAL_LIMITS_FAIL_CLOSED=true` can make missing Prefect limits fail closed after the environment
 has been bootstrapped with `make prefect-limits`.
 
 Docker healthchecks are intentionally container-local. The worker healthcheck verifies that the container can reach the

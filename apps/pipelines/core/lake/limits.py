@@ -7,7 +7,7 @@ from contextlib import contextmanager
 import structlog
 from prefect.concurrency.sync import concurrency
 
-from core.global_limits import LAKE_WRITER_LIMIT, prefect_global_limits_strict
+from core.global_limits import LAKE_WRITER_LIMIT, prefect_global_limits_fail_closed
 
 logger = structlog.get_logger(__name__)
 _lake_writer_limit_missing = False
@@ -19,12 +19,12 @@ def lake_writer_limit(operation: str | None = None) -> Generator[None]:
 
     The default is fail-open so local development and first-run bootstrap do not
     break if the Prefect server has not had limits created yet. Set
-    PREFECT_GLOBAL_LIMITS_STRICT=true only after limits are managed.
+    PREFECT_GLOBAL_LIMITS_FAIL_CLOSED=true only after limits are managed.
     """
     global _lake_writer_limit_missing
 
-    strict_limits = prefect_global_limits_strict()
-    if _lake_writer_limit_missing and not strict_limits:
+    fail_closed = prefect_global_limits_fail_closed()
+    if _lake_writer_limit_missing and not fail_closed:
         yield
         return
 
@@ -37,7 +37,7 @@ def lake_writer_limit(operation: str | None = None) -> Generator[None]:
     try:
         manager.__enter__()
     except Exception as exc:
-        if strict_limits:
+        if fail_closed:
             raise
         _lake_writer_limit_missing = True
         logger.warning(

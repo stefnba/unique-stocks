@@ -2,7 +2,7 @@
 
 import pytest
 
-from core.global_limits import PREFECT_GLOBAL_LIMITS_STRICT_ENV_VAR, provider_rate_limit_name
+from core.global_limits import PREFECT_GLOBAL_LIMITS_FAIL_CLOSED_ENV_VAR, provider_rate_limit_name
 from core.http import rate_limit as http_rate_limit
 from core.http.rate_limit import ProviderRateLimitPolicy
 
@@ -35,7 +35,7 @@ def test_provider_rate_limit_policy_rejects_invalid_values() -> None:
 
 
 @pytest.mark.asyncio
-async def test_wait_for_provider_limit_credit_fails_open_when_not_strict(
+async def test_wait_for_provider_limit_credit_fails_open_when_fail_closed_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Provider calls should continue locally if the Prefect limit is absent."""
@@ -46,7 +46,7 @@ async def test_wait_for_provider_limit_credit_fails_open_when_not_strict(
         calls.append({"args": args, "kwargs": kwargs})
         raise RuntimeError("limit missing")
 
-    monkeypatch.delenv(PREFECT_GLOBAL_LIMITS_STRICT_ENV_VAR, raising=False)
+    monkeypatch.delenv(PREFECT_GLOBAL_LIMITS_FAIL_CLOSED_ENV_VAR, raising=False)
     monkeypatch.setattr(http_rate_limit, "_provider_limit_credit_limits_missing", set())
     monkeypatch.setattr(http_rate_limit, "rate_limit", unavailable_rate_limit)
 

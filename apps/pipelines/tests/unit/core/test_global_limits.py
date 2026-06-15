@@ -4,8 +4,8 @@ import pytest
 
 from core.global_limits import (
     LAKE_WRITER_LIMIT,
-    PREFECT_GLOBAL_LIMITS_STRICT_ENV_VAR,
-    prefect_global_limits_strict,
+    PREFECT_GLOBAL_LIMITS_FAIL_CLOSED_ENV_VAR,
+    prefect_global_limits_fail_closed,
     provider_rate_limit_name,
 )
 
@@ -20,16 +20,16 @@ def test_lake_writer_limit_name_is_canonical() -> None:
     assert LAKE_WRITER_LIMIT == "unique-stocks.lake-writer"
 
 
-def test_prefect_global_limits_strict_defaults_to_false(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Missing strict flag should keep local/bootstrap flows fail-open."""
-    monkeypatch.delenv(PREFECT_GLOBAL_LIMITS_STRICT_ENV_VAR, raising=False)
+def test_prefect_global_limits_fail_closed_defaults_to_false(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Missing fail-closed flag should keep local/bootstrap flows fail-open."""
+    monkeypatch.delenv(PREFECT_GLOBAL_LIMITS_FAIL_CLOSED_ENV_VAR, raising=False)
 
-    assert prefect_global_limits_strict() is False
+    assert prefect_global_limits_fail_closed() is False
 
 
-def test_prefect_global_limits_strict_rejects_invalid_values(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Invalid strict flag values should fail early instead of silently changing behavior."""
-    monkeypatch.setenv(PREFECT_GLOBAL_LIMITS_STRICT_ENV_VAR, "maybe")
+def test_prefect_global_limits_fail_closed_rejects_invalid_values(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Invalid fail-closed flag values should fail early instead of silently changing behavior."""
+    monkeypatch.setenv(PREFECT_GLOBAL_LIMITS_FAIL_CLOSED_ENV_VAR, "maybe")
 
-    with pytest.raises(ValueError, match="PREFECT_GLOBAL_LIMITS_STRICT"):
-        prefect_global_limits_strict()
+    with pytest.raises(ValueError, match="PREFECT_GLOBAL_LIMITS_FAIL_CLOSED"):
+        prefect_global_limits_fail_closed()

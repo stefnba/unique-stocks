@@ -7,7 +7,7 @@ from typing import Final
 
 LAKE_WRITER_LIMIT: Final = "unique-stocks.lake-writer"
 HTTP_PROVIDER_LIMIT_PREFIX: Final = "unique-stocks.http.provider"
-PREFECT_GLOBAL_LIMITS_STRICT_ENV_VAR: Final = "PREFECT_GLOBAL_LIMITS_STRICT"
+PREFECT_GLOBAL_LIMITS_FAIL_CLOSED_ENV_VAR: Final = "PREFECT_GLOBAL_LIMITS_FAIL_CLOSED"
 
 
 def provider_rate_limit_name(provider: str) -> str:
@@ -16,9 +16,9 @@ def provider_rate_limit_name(provider: str) -> str:
     return f"{HTTP_PROVIDER_LIMIT_PREFIX}.{provider_key}"
 
 
-def prefect_global_limits_strict() -> bool:
+def prefect_global_limits_fail_closed() -> bool:
     """Return whether missing Prefect global limits should fail closed."""
-    configured = _env_bool(PREFECT_GLOBAL_LIMITS_STRICT_ENV_VAR)
+    configured = _env_bool(PREFECT_GLOBAL_LIMITS_FAIL_CLOSED_ENV_VAR)
     return configured is True
 
 

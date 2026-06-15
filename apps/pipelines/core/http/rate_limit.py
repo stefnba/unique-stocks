@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import structlog
 from prefect.concurrency.asyncio import rate_limit
 
-from core.global_limits import prefect_global_limits_strict, provider_rate_limit_name
+from core.global_limits import prefect_global_limits_fail_closed, provider_rate_limit_name
 
 logger = structlog.get_logger(__name__)
 
@@ -86,8 +86,8 @@ async def wait_for_provider_limit_credit(
         return
 
     limit_name = policy.limit_name(provider)
-    strict_limits = prefect_global_limits_strict()
-    if limit_name in _provider_limit_credit_limits_missing and not strict_limits:
+    fail_closed = prefect_global_limits_fail_closed()
+    if limit_name in _provider_limit_credit_limits_missing and not fail_closed:
         return
 
     try:
@@ -97,7 +97,7 @@ async def wait_for_provider_limit_credit(
             strict=True,
         )
     except Exception as exc:
-        if strict_limits:
+        if fail_closed:
             raise
         _provider_limit_credit_limits_missing.add(limit_name)
         logger.warning(
