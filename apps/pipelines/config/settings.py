@@ -107,6 +107,10 @@ class _PrefectSettings(_SettingsSection):
 
     prefect_api_url: str = "http://127.0.0.1:4200/api"
     prefect_api_key: SecretStr = Field(default=SecretStr(""), description="API key for Prefect.")
+    slack_webhook_url: SecretStr = Field(
+        default=SecretStr(""),
+        description="Optional Slack incoming webhook URL saved as a Prefect notification block.",
+    )
 
 
 class _RuntimeSettings(_SettingsSection):

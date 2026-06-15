@@ -15,7 +15,7 @@ x-pipelines-runtime-environment: &pipelines-runtime-environment
   PREFECT_API_URL: http://pipelines-server:4200/api
   PREFECT_WORK_DIR: /app
   PREFECT_WORKER_LIMIT: ${PREFECT_WORKER_LIMIT:-1}
-  PREFECT_NOTIFICATION_BLOCK_ID: ${PREFECT_NOTIFICATION_BLOCK_ID:-}
+  SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
   PREFECT_LOGGING_EXTRA_LOGGERS: core,domains,providers,config,scripts
   PREFECT_LOGGING_LOG_PRINTS: "False"
   GIT_SHA: ${GIT_SHA:-}

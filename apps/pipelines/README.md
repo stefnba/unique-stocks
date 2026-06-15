@@ -285,8 +285,9 @@ run `make deploy-plan`, when you want to read live Prefect state and preview the
 planned changes without writing them. `make prefect-automations` creates event automations
 for dbt failures, EOD coverage-gate gaps, stale running audit rows, ingestion partial/failure outcomes,
 and cancellations. Managed event names are defined in `core.orchestration.events.PrefectEvent`, which is
-also used by the emit helpers. Automations currently use no-op actions; notification-block support is
-tracked in `ToDo.md`.
+also used by the emit helpers. Automations use explicit no-op actions by default. Set
+`SLACK_WEBHOOK_URL`, run `make blocks-save`, then rerun `make prefect-automations`
+to save `BlockRegistry.SLACK_WEBHOOK` and replace those no-ops with notification actions.
 If Prefect logs that a provider limit such as `unique-stocks.http.provider.eodhd` does not exist, run `make prefect-limits`
 against the same `PREFECT_API_URL` used by the worker.
 
@@ -573,7 +574,7 @@ Optional production infrastructure configuration:
 - `DASHBOARD_MOTHERDUCK_TOKEN` — optional dashboard-specific MotherDuck token. Prefer a read-only token here; when omitted, the dashboard falls back to `MOTHERDUCK_TOKEN`.
 - `PREFECT_UI_URL` — optional browser-facing Prefect UI base URL used for run deep links from the dashboard.
 - `PREFECT_WORKER_LIMIT` — maximum concurrent flow runs per worker process; defaults to `1`.
-- `PREFECT_NOTIFICATION_BLOCK_ID` — reserved for planned Prefect notification support. Current automations use no-op actions.
+- `SLACK_WEBHOOK_URL` — optional Slack incoming webhook URL saved by `make blocks-save` as `BlockRegistry.SLACK_WEBHOOK`. When set, event automations send Slack notifications; when blank, they use explicit no-op actions.
 - `OPERATIONAL_HEALTH_RECENT_DOMAINS` — optional comma- or whitespace-separated domains the deployed `pipelines-operational-health` container must see recently, for example `eod_price,fundamental`.
 - `OPERATIONAL_HEALTH_RECENT_HOURS` — freshness window for configured recent domains; defaults to `36`.
 - `OPERATIONAL_HEALTH_STALE_RUNNING_HOURS` — stale-running threshold; defaults to `2`.

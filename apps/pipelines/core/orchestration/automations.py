@@ -1,10 +1,26 @@
 """Generic Prefect automation registry helpers."""
 
+from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from prefect.automations import Automation
 from prefect.client.orchestration import get_client
+
+
+class CustomAutomation(ABC):
+    """Base class for app-owned automation presets.
+
+    Subclasses can centralize local defaults such as tags, trigger posture, and
+    shared actions while still compiling to Prefect's native ``Automation``.
+    """
+
+    @abstractmethod
+    def to_prefect_automation(self) -> Automation:
+        """Return the native Prefect automation represented by this preset."""
+
+
+type AutomationDefinition = Automation | CustomAutomation
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,7 +87,7 @@ class AutomationRegistry:
                 print(f"Deleted automation: {automation.name}")
 
 
-def define_automations(automations: Sequence[Automation]) -> AutomationRegistry:
+def define_automations(automations: Sequence[AutomationDefinition]) -> AutomationRegistry:
     """Create an immutable automation registry from desired Prefect definitions.
 
     Args:
@@ -80,4 +96,23 @@ def define_automations(automations: Sequence[Automation]) -> AutomationRegistry:
     Returns:
         Registry that can sync those definitions to the configured Prefect API.
     """
-    return AutomationRegistry(automations=tuple(automations))
+    # convert custom automations to native automations
+    automations = tuple(
+        definition if isinstance(definition, Automation) else definition.to_prefect_automation()
+        for definition in automations
+    )
+
+    return AutomationRegistry(automations=automations)
+
+
+def _validate_unique_names(automations: Sequence[Automation]) -> None:
+    """Reject duplicate desired automation names before touching Prefect."""
+    seen: set[str] = set()
+    duplicates: list[str] = []
+    for automation in automations:
+        if automation.name in seen:
+            duplicates.append(automation.name)
+        seen.add(automation.name)
+    if duplicates:
+        names = ", ".join(sorted(set(duplicates)))
+        raise ValueError(f"Duplicate Prefect automation name(s): {names}")
