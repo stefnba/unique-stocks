@@ -26,13 +26,14 @@ dependencies = [
 dashboard = ["pandas>=2.2,<3", "streamlit>=1.56,<2"]
 
 [project.scripts]
-pipelines-operational-health = "scripts.health.check_operational:main"
-pipelines-prefect-automations = "scripts.prefect.setup_automations:main"
+pipelines-operational-health = "scripts.infrastructure.health.check_operational:main"
+pipelines-prefect-automations = "scripts.orchestration.setup_automations:main"
+pipelines-prefect-blocks = "scripts.infrastructure.save_blocks:main"
 pipelines-prefect-deployments = "scripts.orchestration.setup_deployments:main"
-pipelines-prefect-limits = "scripts.prefect.setup_limits:main"
-pipelines-s3-landing-zone = "scripts.s3.setup_landing_zone:main"
-pipelines-smoke = "scripts.smoke.run:main"
-pipelines-worker-health = "scripts.health.check_worker:main"
+pipelines-prefect-limits = "scripts.orchestration.setup_limits:main"
+pipelines-s3-landing-zone = "scripts.infrastructure.setup_landing_zone:main"
+pipelines-flow-check = "scripts.orchestration.run_flow_check:main"
+pipelines-worker-health = "scripts.infrastructure.health.check_worker:main"
 
 [dependency-groups]
 dev = [

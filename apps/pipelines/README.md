@@ -48,29 +48,29 @@ exchange-reference-refresh
 instrument-refresh and eod-price flows
 ```
 
-## Local Smoke Runs
+## Local Flow Checks
 
-Use the smoke runner for narrow local checks instead of changing production flow defaults:
-
-```bash
-uv run pipelines-smoke fundamental
-uv run pipelines-smoke exchange
-uv run pipelines-smoke exchange_schedule
-uv run pipelines-smoke instrument
-uv run pipelines-smoke eod-price
-```
-
-The Make target passes `FLOW` through to the smoke runner, which owns preset validation:
+Use the flow-check runner for narrow local checks instead of changing production flow defaults:
 
 ```bash
-make smoke FLOW=fundamental
-make smoke FLOW=exchange
-make smoke FLOW=exchange_schedule
-make smoke FLOW=instrument
-make smoke FLOW=eod_price
+uv run pipelines-flow-check fundamental
+uv run pipelines-flow-check exchange
+uv run pipelines-flow-check exchange_schedule
+uv run pipelines-flow-check instrument
+uv run pipelines-flow-check eod-price
 ```
 
-The scoped smoke presets (`fundamental`, `exchange_schedule`, `instrument`, and `eod_price`) pass explicit flow parameters and do not need the Silver provider universe. The `exchange` preset is broader: it refreshes the full exchange catalog and MIC registry because those reference snapshots bootstrap the exchange Silver models.
+The Make target passes `FLOW` through to the flow-check runner, which owns preset validation:
+
+```bash
+make flow-check FLOW=fundamental
+make flow-check FLOW=exchange
+make flow-check FLOW=exchange_schedule
+make flow-check FLOW=instrument
+make flow-check FLOW=eod_price
+```
+
+The scoped flow-check presets (`fundamental`, `exchange_schedule`, `instrument`, and `eod_price`) pass explicit flow parameters and do not need the Silver provider universe. The `exchange` preset is broader: it refreshes the full exchange catalog and MIC registry because those reference snapshots bootstrap the exchange Silver models.
 
 ## Exchange identifiers
 

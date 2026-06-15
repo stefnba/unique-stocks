@@ -1,27 +1,29 @@
-"""Tests for local smoke preset runner."""
+"""Tests for local flow-check preset runner."""
 
 from datetime import date
 
 import pytest
 from pytest import MonkeyPatch
 
-from orchestration import smoke
+from config.domains import Domain
+from core.orchestration.flow_check import FlowCheckRequest
+from orchestration import flow_check
 
 
 @pytest.mark.asyncio
-async def test_run_preset_rejects_production(monkeypatch: MonkeyPatch) -> None:
-    """Smoke presets should not run in production environments."""
+async def test_run_flow_check_rejects_production(monkeypatch: MonkeyPatch) -> None:
+    """Flow-check presets should not run in production environments."""
 
     class FakeSettings:
         @property
         def is_production(self) -> bool:
             return True
 
-    monkeypatch.setattr(smoke, "get_settings", lambda: FakeSettings())
+    monkeypatch.setattr(flow_check, "get_settings", lambda: FakeSettings())
 
     with pytest.raises(RuntimeError, match="local/dev tool"):
-        await smoke.run_preset(
-            smoke.SmokePresetRequest(
+        await flow_check.run_flow_check(
+            FlowCheckRequest(
                 preset="fundamental",
                 exchange="US",
                 instrument="AAPL",
@@ -30,18 +32,18 @@ async def test_run_preset_rejects_production(monkeypatch: MonkeyPatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_run_preset_fundamental_defaults(monkeypatch: MonkeyPatch) -> None:
-    """Fundamental smoke should run one explicit instrument with a one-call credit cap."""
+async def test_run_flow_check_fundamental_defaults(monkeypatch: MonkeyPatch) -> None:
+    """Fundamental flow-check should run one explicit instrument with a one-call credit cap."""
     calls: list[dict[str, object]] = []
 
     async def fake_fundamental_flow(**kwargs: object) -> dict[str, object]:
         calls.append(kwargs)
         return {"ok": True}
 
-    monkeypatch.setattr(smoke, "fundamental_flow", fake_fundamental_flow)
+    monkeypatch.setattr(flow_check, "fundamental_flow", fake_fundamental_flow)
 
-    summary = await smoke.run_preset(
-        smoke.SmokePresetRequest(
+    summary = await flow_check.run_flow_check(
+        FlowCheckRequest(
             preset="fundamental",
             exchange="US",
             instrument="AAPL",
@@ -65,18 +67,18 @@ async def test_run_preset_fundamental_defaults(monkeypatch: MonkeyPatch) -> None
 
 
 @pytest.mark.asyncio
-async def test_run_preset_fundamental_overrides(monkeypatch: MonkeyPatch) -> None:
-    """Fundamental smoke should pass explicit instrument and snapshot date overrides."""
+async def test_run_flow_check_fundamental_overrides(monkeypatch: MonkeyPatch) -> None:
+    """Fundamental flow-check should pass explicit instrument and snapshot date overrides."""
     calls: list[dict[str, object]] = []
 
     async def fake_fundamental_flow(**kwargs: object) -> dict[str, object]:
         calls.append(kwargs)
         return {"ok": True}
 
-    monkeypatch.setattr(smoke, "fundamental_flow", fake_fundamental_flow)
+    monkeypatch.setattr(flow_check, "fundamental_flow", fake_fundamental_flow)
 
-    summary = await smoke.run_preset(
-        smoke.SmokePresetRequest(
+    summary = await flow_check.run_flow_check(
+        FlowCheckRequest(
             preset="fundamental",
             exchange="US",
             instrument="MSFT",
@@ -101,18 +103,18 @@ async def test_run_preset_fundamental_overrides(monkeypatch: MonkeyPatch) -> Non
 
 
 @pytest.mark.asyncio
-async def test_run_preset_instrument_defaults(monkeypatch: MonkeyPatch) -> None:
-    """Instrument smoke should run one provider namespace."""
+async def test_run_flow_check_instrument_defaults(monkeypatch: MonkeyPatch) -> None:
+    """Instrument flow-check should run one provider namespace."""
     calls: list[dict[str, object]] = []
 
     async def fake_instrument_flow(**kwargs: object) -> dict[str, object]:
         calls.append(kwargs)
         return {"ok": True}
 
-    monkeypatch.setattr(smoke, "instrument_flow", fake_instrument_flow)
+    monkeypatch.setattr(flow_check, "instrument_flow", fake_instrument_flow)
 
-    summary = await smoke.run_preset(
-        smoke.SmokePresetRequest(
+    summary = await flow_check.run_flow_check(
+        FlowCheckRequest(
             preset="instrument",
             exchange="XETRA",
         )
@@ -123,18 +125,18 @@ async def test_run_preset_instrument_defaults(monkeypatch: MonkeyPatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_run_preset_instrument_overrides(monkeypatch: MonkeyPatch) -> None:
-    """Instrument smoke should pass exchange and snapshot date overrides."""
+async def test_run_flow_check_instrument_overrides(monkeypatch: MonkeyPatch) -> None:
+    """Instrument flow-check should pass exchange and snapshot date overrides."""
     calls: list[dict[str, object]] = []
 
     async def fake_instrument_flow(**kwargs: object) -> dict[str, object]:
         calls.append(kwargs)
         return {"ok": True}
 
-    monkeypatch.setattr(smoke, "instrument_flow", fake_instrument_flow)
+    monkeypatch.setattr(flow_check, "instrument_flow", fake_instrument_flow)
 
-    summary = await smoke.run_preset(
-        smoke.SmokePresetRequest(
+    summary = await flow_check.run_flow_check(
+        FlowCheckRequest(
             preset="instrument",
             exchange="US",
             snapshot_date=date(2026, 5, 31),
@@ -146,8 +148,8 @@ async def test_run_preset_instrument_overrides(monkeypatch: MonkeyPatch) -> None
 
 
 @pytest.mark.asyncio
-async def test_run_preset_exchange_runs_catalog_and_mic(monkeypatch: MonkeyPatch) -> None:
-    """Exchange smoke should run both exchange reference refreshes."""
+async def test_run_flow_check_exchange_runs_catalog_and_mic(monkeypatch: MonkeyPatch) -> None:
+    """Exchange flow-check should run both exchange reference refreshes."""
     calls: list[str] = []
 
     async def fake_exchange_catalog_flow() -> int:
@@ -158,10 +160,10 @@ async def test_run_preset_exchange_runs_catalog_and_mic(monkeypatch: MonkeyPatch
         calls.append("mic")
         return {"rows_written": 34}
 
-    monkeypatch.setattr(smoke, "exchange_catalog_flow", fake_exchange_catalog_flow)
-    monkeypatch.setattr(smoke, "exchange_mic_registry_flow", fake_exchange_mic_registry_flow)
+    monkeypatch.setattr(flow_check, "exchange_catalog_flow", fake_exchange_catalog_flow)
+    monkeypatch.setattr(flow_check, "exchange_mic_registry_flow", fake_exchange_mic_registry_flow)
 
-    summary = await smoke.run_preset(smoke.SmokePresetRequest(preset="exchange"))
+    summary = await flow_check.run_flow_check(FlowCheckRequest(preset="exchange"))
 
     assert calls == ["catalog", "mic"]
     assert summary == {
@@ -171,18 +173,18 @@ async def test_run_preset_exchange_runs_catalog_and_mic(monkeypatch: MonkeyPatch
 
 
 @pytest.mark.asyncio
-async def test_run_preset_exchange_schedule_defaults(monkeypatch: MonkeyPatch) -> None:
-    """Exchange schedule smoke should run one provider schedule namespace."""
+async def test_run_flow_check_exchange_schedule_defaults(monkeypatch: MonkeyPatch) -> None:
+    """Exchange schedule flow-check should run one provider schedule namespace."""
     calls: list[dict[str, object]] = []
 
     async def fake_exchange_schedule_flow(**kwargs: object) -> dict[str, object]:
         calls.append(kwargs)
         return {"ok": True}
 
-    monkeypatch.setattr(smoke, "exchange_schedule_flow", fake_exchange_schedule_flow)
+    monkeypatch.setattr(flow_check, "exchange_schedule_flow", fake_exchange_schedule_flow)
 
-    summary = await smoke.run_preset(
-        smoke.SmokePresetRequest(
+    summary = await flow_check.run_flow_check(
+        FlowCheckRequest(
             preset="exchange-schedule",
             exchange="US",
         )
@@ -193,18 +195,18 @@ async def test_run_preset_exchange_schedule_defaults(monkeypatch: MonkeyPatch) -
 
 
 @pytest.mark.asyncio
-async def test_run_preset_exchange_schedule_overrides(monkeypatch: MonkeyPatch) -> None:
-    """Exchange schedule smoke should pass exchange and snapshot date overrides."""
+async def test_run_flow_check_exchange_schedule_overrides(monkeypatch: MonkeyPatch) -> None:
+    """Exchange schedule flow-check should pass exchange and snapshot date overrides."""
     calls: list[dict[str, object]] = []
 
     async def fake_exchange_schedule_flow(**kwargs: object) -> dict[str, object]:
         calls.append(kwargs)
         return {"ok": True}
 
-    monkeypatch.setattr(smoke, "exchange_schedule_flow", fake_exchange_schedule_flow)
+    monkeypatch.setattr(flow_check, "exchange_schedule_flow", fake_exchange_schedule_flow)
 
-    summary = await smoke.run_preset(
-        smoke.SmokePresetRequest(
+    summary = await flow_check.run_flow_check(
+        FlowCheckRequest(
             preset="exchange-schedule",
             exchange="XETR",
             snapshot_date=date(2026, 5, 31),
@@ -216,18 +218,18 @@ async def test_run_preset_exchange_schedule_overrides(monkeypatch: MonkeyPatch) 
 
 
 @pytest.mark.asyncio
-async def test_run_preset_eod_price_defaults(monkeypatch: MonkeyPatch) -> None:
-    """EOD price smoke should run one provider namespace."""
+async def test_run_flow_check_eod_price_defaults(monkeypatch: MonkeyPatch) -> None:
+    """EOD price flow-check should run one provider namespace."""
     calls: list[dict[str, object]] = []
 
     async def fake_eod_price_flow(**kwargs: object) -> dict[str, object]:
         calls.append(kwargs)
         return {"ok": True}
 
-    monkeypatch.setattr(smoke, "eod_price_flow", fake_eod_price_flow)
+    monkeypatch.setattr(flow_check, "eod_price_flow", fake_eod_price_flow)
 
-    summary = await smoke.run_preset(
-        smoke.SmokePresetRequest(
+    summary = await flow_check.run_flow_check(
+        FlowCheckRequest(
             preset="eod-price",
             exchange="XETRA",
         )
@@ -238,18 +240,18 @@ async def test_run_preset_eod_price_defaults(monkeypatch: MonkeyPatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_run_preset_eod_price_overrides(monkeypatch: MonkeyPatch) -> None:
-    """EOD price smoke should pass exchange and trade date overrides."""
+async def test_run_flow_check_eod_price_overrides(monkeypatch: MonkeyPatch) -> None:
+    """EOD price flow-check should pass exchange and trade date overrides."""
     calls: list[dict[str, object]] = []
 
     async def fake_eod_price_flow(**kwargs: object) -> dict[str, object]:
         calls.append(kwargs)
         return {"ok": True}
 
-    monkeypatch.setattr(smoke, "eod_price_flow", fake_eod_price_flow)
+    monkeypatch.setattr(flow_check, "eod_price_flow", fake_eod_price_flow)
 
-    summary = await smoke.run_preset(
-        smoke.SmokePresetRequest(
+    summary = await flow_check.run_flow_check(
+        FlowCheckRequest(
             preset="eod-price",
             exchange="US",
             trade_date=date(2026, 5, 31),
@@ -261,15 +263,26 @@ async def test_run_preset_eod_price_overrides(monkeypatch: MonkeyPatch) -> None:
 
 
 def test_eod_price_accepts_domain_style_alias() -> None:
-    """EOD price smoke should accept the Python domain spelling too."""
-    assert smoke.normalize_preset("eod_price") == "eod-price"
+    """EOD price flow-check should accept the Python domain spelling too."""
+    assert flow_check.normalize_preset("eod_price") == "eod-price"
 
 
 def test_exchange_schedule_accepts_domain_style_alias() -> None:
-    """Exchange schedule smoke should accept the Python domain spelling too."""
-    assert smoke.normalize_preset("exchange_schedule") == "exchange-schedule"
+    """Exchange schedule flow-check should accept the Python domain spelling too."""
+    assert flow_check.normalize_preset("exchange_schedule") == "exchange-schedule"
+
+
+def test_flow_check_presets_accept_domain_values() -> None:
+    """Flow-check aliases should come from the shared domain identities."""
+    assert {domain.value: flow_check.normalize_preset(domain.value) for domain in flow_check.FLOW_CHECK_DOMAINS} == {
+        Domain.FUNDAMENTAL.value: "fundamental",
+        Domain.EXCHANGE.value: "exchange",
+        Domain.EXCHANGE_SCHEDULE.value: "exchange-schedule",
+        Domain.INSTRUMENT.value: "instrument",
+        Domain.EOD_PRICE.value: "eod-price",
+    }
 
 
 def test_normalize_preset_is_case_and_whitespace_tolerant() -> None:
-    """Smoke preset normalization should be forgiving at CLI boundaries."""
-    assert smoke.normalize_preset(" EOD_PRICE ") == "eod-price"
+    """Flow-check preset normalization should be forgiving at CLI boundaries."""
+    assert flow_check.normalize_preset(" EOD_PRICE ") == "eod-price"

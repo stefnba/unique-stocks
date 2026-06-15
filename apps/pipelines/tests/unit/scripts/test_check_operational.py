@@ -3,7 +3,7 @@
 from typing import Any
 
 from core.infrastructure.health.operational import OperationalHealthConfig, OperationalHealthResult
-from scripts.health import check_operational
+from scripts.infrastructure.health import check_operational
 
 
 def test_configured_recent_domains_uses_cli_values(monkeypatch: Any) -> None:

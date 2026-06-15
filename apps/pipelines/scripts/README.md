@@ -20,15 +20,13 @@ If logic would be useful from a test, another script, a Prefect flow, or a
 future service process, keep it outside `scripts/` and call it from the script.
 
 As a rule of thumb: scripts translate "what the operator typed" into explicit
-Python inputs, call one core function, then translate the result back into a
-process outcome.
+Python inputs, call one reusable function outside `scripts/`, then translate the
+result back into a process outcome.
 
 ## Folders
 
-- `health/`: Docker and production-facing healthcheck commands.
-- `prefect/`: Prefect server setup and deployment-sync commands.
-- `s3/`: S3 landing-zone provisioning command.
-- `smoke/`: narrow local smoke-run command for live provider checks.
+- `orchestration/`: deployment, automation, limit, and local flow-check commands.
+- `infrastructure/`: S3 provisioning, Prefect block registration, and healthcheck commands.
 - `tooling/`: shell glue used by Make or the local developer toolchain.
 
 Legacy flat script paths are intentionally unsupported. Prefer adding new

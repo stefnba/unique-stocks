@@ -3,7 +3,7 @@
 import pytest
 
 from config.settings import get_settings
-from scripts.s3 import setup_landing_zone
+from scripts.infrastructure import setup_landing_zone
 
 
 def test_parse_args_uses_dev_defaults(monkeypatch: pytest.MonkeyPatch) -> None:

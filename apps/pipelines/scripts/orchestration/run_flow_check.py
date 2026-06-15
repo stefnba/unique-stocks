@@ -1,6 +1,6 @@
-"""CLI entrypoint for local smoke presets.
+"""CLI entrypoint for local flow-check presets.
 
-The smoke runner is a local developer convenience layer over the real Prefect
+The flow-check runner is a local developer convenience layer over the real Prefect
 flows. It calls live provider code and the normal landing/Bronze write path,
 but passes explicit small parameters so a quick check does not expand to the
 full dbt-built provider universe.
@@ -13,7 +13,8 @@ import asyncio
 from collections.abc import Sequence
 from datetime import date
 
-from orchestration.smoke import SmokePresetRequest, normalize_preset, run_preset
+from core.orchestration.flow_check import FlowCheckRequest
+from orchestration.flow_check import normalize_preset, run_flow_check
 
 DEFAULT_FUNDAMENTAL_PROVIDER_EXCHANGE_CODE = "US"
 DEFAULT_FUNDAMENTAL_PROVIDER_INSTRUMENT_CODE = "AAPL"
@@ -21,19 +22,19 @@ DEFAULT_PROVIDER_EXCHANGE_CODE = "XETRA"
 DEFAULT_SCHEDULE_EXCHANGE_CODE = "US"
 
 _EXAMPLES = """examples:
-  uv run pipelines-smoke fundamental
-  uv run pipelines-smoke fundamental --exchange US --instrument MSFT
-  uv run pipelines-smoke exchange
-  uv run pipelines-smoke exchange_schedule --exchange XETR
-  uv run pipelines-smoke instrument --exchange US
-  uv run pipelines-smoke eod_price --exchange US
+  uv run pipelines-flow-check fundamental
+  uv run pipelines-flow-check fundamental --exchange US --instrument MSFT
+  uv run pipelines-flow-check exchange
+  uv run pipelines-flow-check exchange_schedule --exchange XETR
+  uv run pipelines-flow-check instrument --exchange US
+  uv run pipelines-flow-check eod_price --exchange US
 
 make aliases:
-  make smoke FLOW=fundamental
-  make smoke FLOW=exchange
-  make smoke FLOW=exchange_schedule ARGS="--exchange XETR"
-  make smoke FLOW=instrument ARGS="--exchange US"
-  make smoke FLOW=eod_price ARGS="--exchange US"
+  make flow-check FLOW=fundamental
+  make flow-check FLOW=exchange
+  make flow-check FLOW=exchange_schedule ARGS="--exchange XETR"
+  make flow-check FLOW=instrument ARGS="--exchange US"
+  make flow-check FLOW=eod_price ARGS="--exchange US"
 """
 
 
@@ -46,9 +47,9 @@ def parse_iso_date(value: str) -> date:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Build the smoke preset CLI parser."""
+    """Build the flow-check preset CLI parser."""
     parser = argparse.ArgumentParser(
-        description="Run a narrow local ingestion smoke preset.",
+        description="Run a narrow local ingestion flow-check preset.",
         epilog=_EXAMPLES,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -101,9 +102,9 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def request_from_args(args: argparse.Namespace) -> SmokePresetRequest:
-    """Build an explicit smoke request from parsed CLI arguments."""
-    return SmokePresetRequest(
+def request_from_args(args: argparse.Namespace) -> FlowCheckRequest:
+    """Build an explicit flow-check request from parsed CLI arguments."""
+    return FlowCheckRequest(
         preset=normalize_preset(str(args.preset)),
         exchange=getattr(args, "exchange", None),
         instrument=getattr(args, "instrument", None),
@@ -113,14 +114,14 @@ def request_from_args(args: argparse.Namespace) -> SmokePresetRequest:
 
 
 async def main_async(argv: Sequence[str] | None = None) -> int:
-    """Parse CLI arguments and run the selected smoke preset."""
+    """Parse CLI arguments and run the selected flow-check preset."""
     args = build_parser().parse_args(list(argv) if argv is not None else None)
-    await run_preset(request_from_args(args))
+    await run_flow_check(request_from_args(args))
     return 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run the smoke preset CLI."""
+    """Run the flow-check preset CLI."""
     return asyncio.run(main_async(argv))
 
 

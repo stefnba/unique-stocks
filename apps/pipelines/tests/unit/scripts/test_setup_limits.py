@@ -2,7 +2,7 @@
 
 import pytest
 
-from scripts.prefect import setup_limits
+from scripts.orchestration import setup_limits
 
 
 def test_setup_limits_main_uses_app_limit_registry(monkeypatch: pytest.MonkeyPatch) -> None:

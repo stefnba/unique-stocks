@@ -26,7 +26,7 @@ groups, or business-specific table manifests.
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | `config/`        | Environment-backed settings, stable enums, identity keys, and static non-secret defaults.                                                             | Prefect block construction, registries, factories, runtime behavior.               |
 | `control_plane/` | App-specific Prefect blocks, limit declarations, automation definitions, deployment defaults, AWS resource naming, deployment/runtime wiring.         | Generic Prefect helpers or generic S3 behavior.                                    |
-| `orchestration/` | Thin Prefect flow entrypoints, post-ingestion dbt build policy, smoke-run composition, dbt/build mappings, cross-domain workflows.                    | Domain ingestion internals or provider clients.                                    |
+| `orchestration/` | Thin Prefect flow entrypoints, post-ingestion dbt build policy, flow-check composition, dbt/build mappings, cross-domain workflows.                   | Domain ingestion internals or provider clients.                                    |
 | `core/`          | Generic HTTP, storage, lake, ingestion, run tracking, schema/migration, infrastructure/orchestration helpers, dbt subprocess, and utility primitives. | App vocabulary, concrete providers, concrete domains, settings-backed composition. |
 | `providers/`     | Concrete provider clients, provider API models, provider identifier rules, provider-owned normalization.                                              | Domain table/write policy or app orchestration.                                    |
 | `domains/`       | Domain models, Bronze table specs, datasets, parsers, tasks, request/result contracts, services, and domain-specific selection logic.                 | Runtime block definitions, dbt deployment names, or cross-domain workflow wiring.  |
@@ -136,6 +136,6 @@ New domains should start in this shape. Do not add new
 3. Keep provider fetches, landing writes, parsing, and Bronze writes as separate
    task/helper surfaces.
 4. Add `orchestration/flows/<domain>.py` as the thin `@flow` entrypoint.
-5. Update `prefect.yaml`, smoke composition, and tests to import the new flow.
+5. Update `prefect.yaml`, flow-check composition, and tests to import the new flow.
 6. Delete any old `domains/<domain>/flows.py`; do not add compatibility shims.
 7. Run focused domain, orchestration, and deployment-entrypoint tests.

@@ -143,10 +143,10 @@ for blocking daily namespaces; a mismatch is audited as `partial`, and the cover
 gate checks the expected date. Monitor-only namespaces can still be ingested and
 reported, but they do not downgrade the run.
 
-## Local smoke
+## Local flow check
 
 ```bash
-uv run pipelines-smoke eod-price
+uv run pipelines-flow-check eod-price
 ```
 
-Per-instrument backfill is started via Prefect (`eod-price-backfill/eod-price-historical-backfill`), not the smoke preset.
+Per-instrument backfill is started via Prefect (`eod-price-backfill/eod-price-historical-backfill`), not the flow-check preset.

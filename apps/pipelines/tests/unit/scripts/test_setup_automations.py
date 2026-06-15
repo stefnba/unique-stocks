@@ -2,7 +2,7 @@
 
 import pytest
 
-from scripts.prefect import setup_automations
+from scripts.orchestration import setup_automations
 
 
 def test_setup_automations_main_uses_plan_flag(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -1,4 +1,4 @@
-"""Live smoke tests for curated EODHD provider namespaces."""
+"""Live provider checks for curated EODHD provider namespaces."""
 
 from datetime import date
 from os import getenv

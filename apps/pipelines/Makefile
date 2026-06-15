@@ -2,7 +2,7 @@
 .PHONY: help install setup blocks-save s3-landing-zone lake-env-guard prefect-api-guard confirm-destructive
 .PHONY: ci-local check test test-unit test-integration lint lint-fix format format-check typecheck
 .PHONY: python-lint python-lint-fix python-format python-format-check sql-lint sql-format text-format text-format-check
-.PHONY: smoke operational-health dashboard prefect-limits prefect-automations prefect-server prefect-worker
+.PHONY: flow-check operational-health dashboard prefect-limits prefect-automations prefect-server prefect-worker
 .PHONY: docker-up docker-down docker-down-volumes docker-logs docker-logs-worker docker-logs-dashboard docker-ps docker-setup docker-prod-config
 .PHONY: lake-reset-local lake-migration lake-migration-status lake-ensure-database lake-migrate lake-ui
 .PHONY: deploy deploy-plan deploy-dry deploy-upsert deploy-dry-manifest
@@ -86,7 +86,7 @@ setup: lake-env-guard prefect-api-guard ## Full one-time setup: wait for server,
 	$(MAKE) deploy
 
 blocks-save: ## Register Prefect blocks on the server defined in control_plane/prefect/blocks.py (idempotent)
-	$(PY) -c "from control_plane.prefect import BlockRegistry; BlockRegistry.save_all(if_exists='overwrite')"
+	$(UV) run pipelines-prefect-blocks
 
 s3-landing-zone: ## Create/update AWS S3 landing-zone resources (pass ARGS="--dry-run")
 	$(UV) run pipelines-s3-landing-zone $(ARGS)
@@ -148,13 +148,13 @@ typecheck: ## Run static type checks (basedpyright)
 test-integration: ## Run integration tests only
 	$(UV) run --extra dashboard pytest tests/integration/ -v
 
-##@ Smoke
-smoke: ## Run local smoke preset (FLOW=<preset>, pass ARGS="...")
+##@ Flow Checks
+flow-check: ## Run local flow-check preset (FLOW=<preset>, pass ARGS="...")
 	@if [ -z "$(FLOW)" ]; then \
-		$(UV) run pipelines-smoke --help; \
+		$(UV) run pipelines-flow-check --help; \
 		exit 2; \
 	fi
-	$(UV) run pipelines-smoke $(FLOW) $(ARGS)
+	$(UV) run pipelines-flow-check $(FLOW) $(ARGS)
 
 ##@ Operations
 operational-health: ## Check Prefect API and lake audit health (pass ARGS="...")
@@ -222,7 +222,7 @@ docker-setup: ## Run one-time setup inside the docker-dev pipelines container
 		printf "."; sleep 2; \
 	done; echo " ready."
 	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python -m core.lake.migration.migrate --tables "$(LAKE_TABLES_REF)" --migrations-dir "$(LAKE_MIGRATIONS_DIR)"
-	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python -c "from control_plane.prefect import BlockRegistry; BlockRegistry.save_all(if_exists='overwrite')"
+	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen pipelines-prefect-blocks
 	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen prefect work-pool create default-process-pool --type process --overwrite
 	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen pipelines-prefect-limits
 	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen pipelines-prefect-automations
