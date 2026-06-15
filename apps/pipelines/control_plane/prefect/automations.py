@@ -1,6 +1,5 @@
 """Application Prefect event automation definitions."""
 
-from collections.abc import Sequence
 from dataclasses import dataclass
 
 from prefect.automations import Automation
@@ -22,7 +21,6 @@ class PipelineAlertAutomation(CustomAutomation):
     name: str
     description: str
     event: PrefectEvent
-    actions: Sequence[ActionTypes]
 
     def to_prefect_automation(self) -> Automation:
         """Build the native Prefect automation for this alert."""
@@ -35,7 +33,7 @@ class PipelineAlertAutomation(CustomAutomation):
                 posture=Posture.Reactive,
                 threshold=1,
             ),
-            actions=list(self.actions),
+            actions=alert_actions(),
         )
 
 
@@ -61,37 +59,31 @@ PREFECT_AUTOMATIONS = define_automations(
             name="unique-stocks dbt failure alert",
             description="Runs when a dbt invocation fails or records failed dbt nodes.",
             event=PrefectEvent.DBT_FAILED,
-            actions=alert_actions(),
         ),
         PipelineAlertAutomation(
             name="unique-stocks coverage gate alert",
             description="Runs when the EOD price coverage gate finds gaps.",
             event=PrefectEvent.COVERAGE_GATE_FAILED,
-            actions=alert_actions(),
         ),
         PipelineAlertAutomation(
             name="unique-stocks ingestion partial alert",
             description="Runs when an ingestion flow completes with partial data.",
             event=PrefectEvent.INGESTION_PARTIAL,
-            actions=alert_actions(),
         ),
         PipelineAlertAutomation(
             name="unique-stocks ingestion failure alert",
             description="Runs when an ingestion flow fails before completing cleanly.",
             event=PrefectEvent.INGESTION_FAILED,
-            actions=alert_actions(),
         ),
         PipelineAlertAutomation(
             name="unique-stocks stale running audit alert",
             description="Runs when operational health detects stale running pipeline rows.",
             event=PrefectEvent.PIPELINE_STALE_RUNNING,
-            actions=alert_actions(),
         ),
         PipelineAlertAutomation(
             name="unique-stocks cancellation audit alert",
             description="Runs when a pipeline run is cancelled by orchestration.",
             event=PrefectEvent.PIPELINE_CANCELLED,
-            actions=alert_actions(),
         ),
     ]
 )

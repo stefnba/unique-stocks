@@ -9,14 +9,17 @@ Run via make to register (or overwrite) all blocks on the Prefect server::
     make blocks-save
 """
 
+from prefect.blocks.notifications import SlackWebhook
 from prefect.blocks.system import Secret
 from prefect_aws import AwsCredentials, S3Bucket
+from pydantic import SecretStr
 
 from config.settings import get_settings
 from control_plane.aws_resources import AWS_RESOURCES
 from core.infrastructure.blocks import BlockRegistryBase, define_block
 
 settings = get_settings()
+slack_webhook_url = settings.slack_webhook_url.get_secret_value().strip()
 
 
 aws_credentials = AwsCredentials(
@@ -42,6 +45,12 @@ class BlockRegistry(BlockRegistryBase):
             bucket_name=AWS_RESOURCES.bucket_name,
             credentials=aws_credentials,
         ),
+    )
+
+    SLACK_WEBHOOK = define_block(
+        "slack-webhook",
+        SlackWebhook(url=SecretStr(slack_webhook_url)),
+        enabled=bool(slack_webhook_url),
     )
 
 

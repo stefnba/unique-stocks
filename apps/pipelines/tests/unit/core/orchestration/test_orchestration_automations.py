@@ -29,9 +29,21 @@ def build_automation(name: str = "demo automation") -> Automation:
 class DemoCustomAutomation(CustomAutomation):
     """Minimal custom automation for registry conversion tests."""
 
+    name = "custom automation"
+
     def to_prefect_automation(self) -> Automation:
         """Return a native Prefect automation."""
-        return build_automation("custom automation")
+        return build_automation(self.name)
+
+
+class DeferredCustomAutomation(CustomAutomation):
+    """Custom automation that fails if materialized too early."""
+
+    name = "deferred automation"
+
+    def to_prefect_automation(self) -> Automation:
+        """Fail if this definition is materialized."""
+        raise AssertionError("custom automations should be materialized at sync time")
 
 
 class FakeClient:
@@ -72,16 +84,29 @@ def test_define_automations_stores_definitions_immutably() -> None:
 
     registry = define_automations([automation])
 
+    assert registry.definitions == (automation,)
     assert registry.automations == (automation,)
 
 
 def test_define_automations_accepts_custom_definitions() -> None:
     """Custom automation presets should resolve to native Prefect automations."""
-    registry = define_automations([DemoCustomAutomation()])
+    definition = DemoCustomAutomation()
+
+    registry = define_automations([definition])
     automation = registry.automations[0]
 
+    assert registry.definitions == (definition,)
     assert isinstance(automation, Automation)
     assert automation.name == "custom automation"
+
+
+def test_define_automations_defers_custom_materialization() -> None:
+    """Custom automations should not resolve external state during declaration."""
+    definition = DeferredCustomAutomation()
+
+    registry = define_automations([definition])
+
+    assert registry.definitions == (definition,)
 
 
 def test_define_automations_rejects_duplicate_names() -> None:

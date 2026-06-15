@@ -15,6 +15,9 @@ class CustomAutomation(ABC):
     shared actions while still compiling to Prefect's native ``Automation``.
     """
 
+    name: str
+    """Stable desired Prefect automation name."""
+
     @abstractmethod
     def to_prefect_automation(self) -> Automation:
         """Return the native Prefect automation represented by this preset."""
@@ -33,7 +36,18 @@ class AutomationRegistry:
     definition.
     """
 
-    automations: tuple[Automation, ...] = field(default_factory=tuple)
+    definitions: tuple[AutomationDefinition, ...] = field(default_factory=tuple)
+    """Desired automation definitions managed by this registry."""
+
+    @property
+    def automations(self) -> tuple[Automation, ...]:
+        """Materialize definitions into native Prefect automations."""
+        automations = tuple(
+            definition if isinstance(definition, Automation) else definition.to_prefect_automation()
+            for definition in self.definitions
+        )
+        _validate_unique_names(automations)
+        return automations
 
     async def sync(self, *, plan: bool) -> int:
         """Create or update every automation in this registry.
@@ -96,17 +110,13 @@ def define_automations(automations: Sequence[AutomationDefinition]) -> Automatio
     Returns:
         Registry that can sync those definitions to the configured Prefect API.
     """
-    # convert custom automations to native automations
-    automations = tuple(
-        definition if isinstance(definition, Automation) else definition.to_prefect_automation()
-        for definition in automations
-    )
+    automations = tuple(automations)
     _validate_unique_names(automations)
 
-    return AutomationRegistry(automations=automations)
+    return AutomationRegistry(definitions=automations)
 
 
-def _validate_unique_names(automations: Sequence[Automation]) -> None:
+def _validate_unique_names(automations: Sequence[AutomationDefinition]) -> None:
     """Reject duplicate desired automation names before touching Prefect."""
     seen: set[str] = set()
     duplicates: list[str] = []

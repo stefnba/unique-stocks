@@ -2,8 +2,10 @@
 
 from dataclasses import dataclass
 from typing import Literal, cast
+from uuid import UUID
 
 from prefect.blocks.core import Block
+from prefect.client.orchestration import get_client
 
 type ExistsMode = Literal["skip", "throw", "overwrite"]
 """
@@ -33,6 +35,9 @@ class BlockEntry[T: Block]:
     block: T
     """The concrete block instance (e.g. ``Secret``, ``AwsCredentials``)."""
 
+    enabled: bool = True
+    """Whether this entry should be managed in the current environment."""
+
     def __repr__(self) -> str:
         """Return the registry name (same as :meth:`__str__`)."""
         return self.name
@@ -53,6 +58,8 @@ class BlockEntry[T: Block]:
 
     def exists(self) -> bool:
         """Return ``True`` if a block named ``self.name`` exists in the registry."""
+        if not self.enabled:
+            return False
         try:
             type(self.block).load(name=self.name)
             return True
@@ -61,6 +68,8 @@ class BlockEntry[T: Block]:
 
     async def exists_async(self) -> bool:
         """Async variant of :meth:`exists`."""
+        if not self.enabled:
+            return False
         try:
             await self.block.aload(name=self.name)
             return True
@@ -69,11 +78,39 @@ class BlockEntry[T: Block]:
 
     def load(self) -> T:
         """Load and return the block from the Prefect registry."""
+        if not self.enabled:
+            raise ValueError(f"Block '{self.name}' is not configured")
         return cast(T, type(self.block).load(name=self.name))
 
     async def load_async(self) -> T:
         """Load and return the block from the Prefect registry asynchronously."""
+        if not self.enabled:
+            raise ValueError(f"Block '{self.name}' is not configured")
         return await self.block.aload(name=self.name)
+
+    def document_id(self) -> UUID:
+        """Return this saved block document's Prefect UUID."""
+        if not self.enabled:
+            raise ValueError(f"Block '{self.name}' is not configured")
+        with get_client(sync_client=True) as client:
+            block_document = client.read_block_document_by_name(
+                name=self.name,
+                block_type_slug=type(self.block).get_block_type_slug(),
+                include_secrets=False,
+            )
+        return block_document.id
+
+    async def document_id_async(self) -> UUID:
+        """Async variant of :meth:`document_id`."""
+        if not self.enabled:
+            raise ValueError(f"Block '{self.name}' is not configured")
+        async with get_client() as client:
+            block_document = await client.read_block_document_by_name(
+                name=self.name,
+                block_type_slug=type(self.block).get_block_type_slug(),
+                include_secrets=False,
+            )
+        return block_document.id
 
     def _handle_exists(self, if_exists: ExistsMode) -> bool:
         """Evaluate the ``if_exists`` policy synchronously."""
@@ -95,6 +132,8 @@ class BlockEntry[T: Block]:
 
     def save(self, if_exists: ExistsMode = "skip") -> None:
         """Persist the block to the Prefect registry."""
+        if not self.enabled:
+            return
         if self._handle_exists(if_exists):
             return
         self.block.save(name=self.name, overwrite=(if_exists == "overwrite"))
@@ -102,15 +141,17 @@ class BlockEntry[T: Block]:
 
     async def save_async(self, if_exists: ExistsMode = "skip") -> None:
         """Persist the block to the Prefect registry asynchronously."""
+        if not self.enabled:
+            return
         if await self._handle_exists_async(if_exists):
             return
         self.block.save(name=self.name, overwrite=(if_exists == "overwrite"))
         print(f"Block '{self.name}' of type '{type(self.block).__name__}' saved successfully")
 
 
-def define_block[T: Block](name: str, block: T) -> BlockEntry[T]:
+def define_block[T: Block](name: str, block: T, *, enabled: bool = True) -> BlockEntry[T]:
     """Create a typed ``BlockEntry`` without saving to the Prefect registry."""
-    return BlockEntry(name=name, block=block)
+    return BlockEntry(name=name, block=block, enabled=enabled)
 
 
 class BlockRegistryBase:
