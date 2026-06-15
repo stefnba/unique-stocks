@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import pytest
 from prefect.blocks.system import Secret
+from prefect.exceptions import ObjectNotFound
 from pydantic import SecretStr
 
 from core.infrastructure import blocks as infrastructure_blocks
@@ -20,6 +21,62 @@ def test_disabled_block_entry_guards_runtime_operations() -> None:
         entry.load()
     with pytest.raises(ValueError, match="not configured"):
         entry.document_id()
+
+
+def test_block_entry_exists_returns_false_for_missing_block_document(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Exists should return false only for Prefect's missing-block error."""
+    entry = define_block("missing-secret", Secret(value=SecretStr("secret")))
+
+    def missing_load(cls: type[Secret], name: str) -> Secret:
+        raise ValueError("Unable to find block document named missing-secret") from ObjectNotFound(Exception(name))
+
+    monkeypatch.setattr(Secret, "load", classmethod(missing_load))
+
+    assert not entry.exists()
+
+
+def test_block_entry_exists_reraises_unexpected_value_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Exists should not hide validation or configuration errors."""
+    entry = define_block("broken-secret", Secret(value=SecretStr("secret")))
+
+    def broken_load(cls: type[Secret], name: str) -> Secret:
+        raise ValueError(f"{name} has invalid schema")
+
+    monkeypatch.setattr(Secret, "load", classmethod(broken_load))
+
+    with pytest.raises(ValueError, match="invalid schema"):
+        entry.exists()
+
+
+@pytest.mark.asyncio
+async def test_block_entry_exists_async_returns_false_for_missing_block_document(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """exists_async should return false only for Prefect's missing-block error."""
+    entry = define_block("missing-secret", Secret(value=SecretStr("secret")))
+
+    async def missing_load(cls: type[Secret], name: str) -> Secret:
+        raise ValueError("Unable to find block document named missing-secret") from ObjectNotFound(Exception(name))
+
+    monkeypatch.setattr(Secret, "aload", classmethod(missing_load))
+
+    assert not await entry.exists_async()
+
+
+@pytest.mark.asyncio
+async def test_block_entry_exists_async_reraises_unexpected_value_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """exists_async should not hide validation or configuration errors."""
+    entry = define_block("broken-secret", Secret(value=SecretStr("secret")))
+
+    async def broken_load(cls: type[Secret], name: str) -> Secret:
+        raise ValueError(f"{name} has invalid schema")
+
+    monkeypatch.setattr(Secret, "aload", classmethod(broken_load))
+
+    with pytest.raises(ValueError, match="invalid schema"):
+        await entry.exists_async()
 
 
 def test_block_entry_document_id_reads_prefect_block_document(monkeypatch: pytest.MonkeyPatch) -> None:

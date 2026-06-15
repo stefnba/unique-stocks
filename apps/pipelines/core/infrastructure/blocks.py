@@ -6,6 +6,7 @@ from uuid import UUID
 
 from prefect.blocks.core import Block
 from prefect.client.orchestration import get_client
+from prefect.exceptions import ObjectNotFound
 
 type ExistsMode = Literal["skip", "throw", "overwrite"]
 """
@@ -63,7 +64,9 @@ class BlockEntry[T: Block]:
         try:
             type(self.block).load(name=self.name)
             return True
-        except Exception:
+        except ValueError as exc:
+            if not _is_missing_block_document_error(exc):
+                raise
             return False
 
     async def exists_async(self) -> bool:
@@ -73,7 +76,9 @@ class BlockEntry[T: Block]:
         try:
             await self.block.aload(name=self.name)
             return True
-        except Exception:
+        except ValueError as exc:
+            if not _is_missing_block_document_error(exc):
+                raise
             return False
 
     def load(self) -> T:
@@ -152,6 +157,11 @@ class BlockEntry[T: Block]:
 def define_block[T: Block](name: str, block: T, *, enabled: bool = True) -> BlockEntry[T]:
     """Create a typed ``BlockEntry`` without saving to the Prefect registry."""
     return BlockEntry(name=name, block=block, enabled=enabled)
+
+
+def _is_missing_block_document_error(exc: ValueError) -> bool:
+    """Return true when Prefect wrapped a missing block document as ``ValueError``."""
+    return isinstance(exc.__cause__, ObjectNotFound)
 
 
 class BlockRegistryBase:
