@@ -6,7 +6,7 @@ import argparse
 import asyncio
 from collections.abc import Sequence
 
-from core.prefect.automations import setup_prefect_automations
+from core.orchestration.bootstrap import sync_automations
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -23,7 +23,12 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     """CLI entrypoint."""
     args = build_parser().parse_args(list(argv) if argv is not None else None)
-    return asyncio.run(setup_prefect_automations(dry_run=args.dry_run))
+
+    try:
+        return asyncio.run(sync_automations(dry_run=args.dry_run))
+    except Exception as e:
+        print(f"Error syncing automations: {e}")
+        return 1
 
 
 if __name__ == "__main__":
