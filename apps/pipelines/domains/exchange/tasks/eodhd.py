@@ -4,9 +4,11 @@ from datetime import date
 
 import structlog
 from prefect import task
+from prefect.assets import materialize
 
 from control_plane.prefect import BlockRegistry
 from core.ingestion import BronzeWrite, LandingWrite
+from domains.exchange.assets import BRONZE_EXCHANGE_CATALOG_ASSET, attach_exchange_catalog_bronze_metadata
 from domains.exchange.datasets import EXCHANGE_CATALOG_DATASET
 from domains.exchange.parsers import parse_exchange_catalog_snapshots
 from providers.eodhd.models import SupportedExchange
@@ -49,7 +51,7 @@ async def write_exchange_catalog_to_landing_zone(
     )
 
 
-@task(name="write-bronze-exchange-catalog")
+@materialize(BRONZE_EXCHANGE_CATALOG_ASSET, by="python", name="write-bronze-exchange-catalog")
 def write_bronze_exchange_catalog(
     exchange: list[SupportedExchange],
     snapshot_date: date,
@@ -60,7 +62,16 @@ def write_bronze_exchange_catalog(
 
     if not exchange:
         log.info("exchange.write_skipped", reason="no_data", snapshot_date=snapshot_date)
-        return BronzeWrite(rows_written=0, reason="no_data")
+        write = BronzeWrite(rows_written=0, reason="no_data")
+        attach_exchange_catalog_bronze_metadata(
+            provider="eodhd",
+            snapshot_date=snapshot_date,
+            rows_written=write.rows_written,
+            reason=write.reason,
+            source_uri=source_uri,
+            rows_raw=0,
+        )
+        return write
 
     lake = get_lake_client()
     if EXCHANGE_CATALOG_DATASET.already_ingested(lake, snapshot_date=snapshot_date):
@@ -69,7 +80,16 @@ def write_bronze_exchange_catalog(
             reason="already_ingested",
             snapshot_date=snapshot_date,
         )
-        return BronzeWrite(rows_written=0, reason="already_ingested")
+        write = BronzeWrite(rows_written=0, reason="already_ingested")
+        attach_exchange_catalog_bronze_metadata(
+            provider="eodhd",
+            snapshot_date=snapshot_date,
+            rows_written=write.rows_written,
+            reason=write.reason,
+            source_uri=source_uri,
+            rows_raw=len(exchange),
+        )
+        return write
 
     sources = parse_exchange_catalog_snapshots(exchange, snapshot_date)
     written = EXCHANGE_CATALOG_DATASET.write_bronze(lake, sources, source_uri=source_uri)
@@ -78,4 +98,13 @@ def write_bronze_exchange_catalog(
         snapshot_date=snapshot_date,
         rows=written,
     )
-    return BronzeWrite(rows_written=written)
+    write = BronzeWrite(rows_written=written)
+    attach_exchange_catalog_bronze_metadata(
+        provider="eodhd",
+        snapshot_date=snapshot_date,
+        rows_written=write.rows_written,
+        reason=write.reason,
+        source_uri=source_uri,
+        rows_raw=len(exchange),
+    )
+    return write

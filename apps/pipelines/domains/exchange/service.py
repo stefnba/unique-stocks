@@ -23,11 +23,6 @@ from domains.exchange.tasks.iso10383 import (
     write_mic_registry_to_landing_zone,
 )
 
-from .assets import (
-    record_exchange_catalog_bronze_materialization,
-    record_exchange_mic_registry_bronze_materialization,
-)
-
 
 async def run_exchange_catalog_refresh(
     request: ExchangeCatalogRefreshRequest,
@@ -80,14 +75,6 @@ async def run_exchange_catalog_refresh(
                 rows_written=rows_written,
                 summary=summary,
             )
-            if rows_written:
-                record_exchange_catalog_bronze_materialization(
-                    app_run_id=run.run_id,
-                    snapshot_date=snapshot_date.isoformat(),
-                    provider="eodhd",
-                    rows_written=rows_written,
-                    source_uri=landing.source_uri,
-                )
             await publish_prefect_ingestion_summary(
                 flow_name="exchange-catalog-refresh",
                 domain="exchange",
@@ -202,13 +189,6 @@ async def run_exchange_mic_registry_refresh(
                 ),
                 summary=summary,
             )
-            if rows_written:
-                record_exchange_mic_registry_bronze_materialization(
-                    app_run_id=run.run_id,
-                    snapshot_date=snapshot_date.isoformat(),
-                    provider="iso10383",
-                    rows_written=rows_written,
-                )
             await publish_prefect_ingestion_summary(
                 flow_name="exchange-mic-registry-refresh",
                 domain="exchange",

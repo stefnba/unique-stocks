@@ -2,7 +2,7 @@
 
 from prefect.assets import Asset, AssetProperties, materialize
 
-from core.orchestration.assets import record_prefect_materialization
+from core.orchestration.assets import attach_materialization_metadata, record_prefect_materialization
 
 BRONZE_FUNDAMENTAL_ASSET = Asset(
     key="duckdb://unique-stocks/bronze/fundamental",
@@ -21,13 +21,21 @@ GOLD_FUNDAMENTAL_ASSET = Asset(
 )
 
 
+def attach_fundamental_bronze_metadata(**metadata: object) -> dict[str, object]:
+    """Attach metadata to the aggregate Bronze fundamental materialization event."""
+    return attach_materialization_metadata(
+        BRONZE_FUNDAMENTAL_ASSET,
+        {"asset_layer": "bronze", "asset_domain": "fundamental", "asset_grain": "table_group", **metadata},
+    )
+
+
 @materialize(
     BRONZE_FUNDAMENTAL_ASSET,
     by="python",
     name="record-bronze-fundamental-materialization",
 )
 def _record_bronze_fundamental_materialization(**metadata: object) -> dict[str, object]:
-    return metadata
+    return attach_fundamental_bronze_metadata(**metadata)
 
 
 def record_fundamental_bronze_materialization(**metadata: object) -> None:
@@ -41,19 +49,41 @@ def record_fundamental_bronze_materialization(**metadata: object) -> None:
 
 @materialize(
     SILVER_FUNDAMENTAL_ASSET,
+    by="dbt",
+    asset_deps=[BRONZE_FUNDAMENTAL_ASSET],
+    name="record-dbt-silver-fundamental-materialization",
+)
+def _record_silver_fundamental_materialization(**metadata: object) -> dict[str, object]:
+    return attach_materialization_metadata(
+        SILVER_FUNDAMENTAL_ASSET,
+        {"asset_layer": "silver", "asset_domain": "fundamental", "asset_grain": "model_group", **metadata},
+    )
+
+
+@materialize(
     GOLD_FUNDAMENTAL_ASSET,
     by="dbt",
-    name="record-dbt-fundamental-materializations",
-    asset_deps=[BRONZE_FUNDAMENTAL_ASSET],
+    asset_deps=[SILVER_FUNDAMENTAL_ASSET],
+    name="record-dbt-gold-fundamental-materialization",
 )
-def _record_dbt_fundamental_materializations(**metadata: object) -> dict[str, object]:
-    return metadata
-
-
-def record_fundamental_dbt_materialization(**metadata: object) -> None:
-    """Record Prefect materializations for dbt-built fundamental assets."""
-    record_prefect_materialization(
-        materialization_name="dbt.fundamental",
-        materializer=_record_dbt_fundamental_materializations,
-        metadata=metadata,
+def _record_gold_fundamental_materialization(**metadata: object) -> dict[str, object]:
+    return attach_materialization_metadata(
+        GOLD_FUNDAMENTAL_ASSET,
+        {"asset_layer": "gold", "asset_domain": "fundamental", "asset_grain": "model_group", **metadata},
     )
+
+
+def record_fundamental_dbt_materialization(*, layers: tuple[str, ...] = ("silver", "gold"), **metadata: object) -> None:
+    """Record Prefect materializations for dbt-built fundamental assets."""
+    if "silver" in layers:
+        record_prefect_materialization(
+            materialization_name="dbt.fundamental.silver",
+            materializer=_record_silver_fundamental_materialization,
+            metadata=metadata,
+        )
+    if "gold" in layers:
+        record_prefect_materialization(
+            materialization_name="dbt.fundamental.gold",
+            materializer=_record_gold_fundamental_materialization,
+            metadata=metadata,
+        )

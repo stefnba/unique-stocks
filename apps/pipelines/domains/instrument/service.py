@@ -22,8 +22,6 @@ from domains.instrument.tasks import (
     write_instrument_to_landing_zone,
 )
 
-from .assets import record_instrument_bronze_materialization
-
 log = structlog.get_logger(__name__)
 
 
@@ -141,14 +139,6 @@ async def run_instrument_refresh(request: InstrumentRefreshRequest) -> Instrumen
                 counters=_instrument_counters(tally=run.tally, summary=summary),
                 summary=summary,
             )
-            rows_written = sum(row.get("rows", 0) for row in summary["exchange"].values())
-            if rows_written:
-                record_instrument_bronze_materialization(
-                    app_run_id=run.run_id,
-                    snapshot_date=snapshot_date.isoformat(),
-                    provider="eodhd",
-                    rows_written=rows_written,
-                )
             await publish_prefect_ingestion_summary(
                 flow_name="instrument-refresh",
                 domain="instrument",

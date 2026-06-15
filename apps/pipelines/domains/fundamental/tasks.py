@@ -7,6 +7,7 @@ from typing import Any, Protocol, cast
 
 import structlog
 from prefect import task
+from prefect.assets import materialize
 from prefect.client.schemas.objects import State, TaskRun
 from prefect.tasks import TaskRunNameCallbackWithParameters, exponential_backoff
 from pydantic import ValidationError
@@ -16,6 +17,7 @@ from core.http.base import ProviderRateLimitError
 from core.ingestion import BronzeParseResult, BronzeWrite, LandingWrite
 from core.ingestion.coverage import COVERAGE_STATUS_PROVIDER_QUOTA_DEFERRED, record_ingestion_coverage
 from core.ingestion.keys import ObjectStorageKey
+from domains.fundamental.assets import BRONZE_FUNDAMENTAL_ASSET, attach_fundamental_bronze_metadata
 from domains.fundamental.batch import resolve_fundamental_snapshot_date
 from domains.fundamental.datasets import (
     FUNDAMENTAL_DOCUMENT_DATASET,
@@ -131,6 +133,35 @@ def _instrument_task_run_name(task_name: str) -> TaskRunNameCallbackWithParamete
         return f"{task_name}-{provider_exchange_code or 'unknown'}-{provider_instrument_code or 'unknown'}"
 
     return cast(TaskRunNameCallbackWithParameters, name)
+
+
+def _fundamental_bronze_write(
+    *,
+    bronze_table: str,
+    rows_written: int,
+    reason: str | None = None,
+    source_uri: str | None = None,
+    source: BronzeParseResult[Any] | None = None,
+    sources: list[BronzeParseResult[Any]] | None = None,
+    provider_instrument_code: str | None = None,
+    snapshot_date: date | None = None,
+) -> BronzeWrite:
+    """Return a Bronze write result and attach table-slice asset metadata."""
+    row = source.row if source is not None else sources[0].row if sources else None
+    source_count = 1 if source is not None else len(sources or [])
+    write = BronzeWrite(rows_written=rows_written, reason=reason)
+    attach_fundamental_bronze_metadata(
+        provider=FUNDAMENTAL_PROVIDER,
+        bronze_table=bronze_table,
+        provider_exchange_code=getattr(row, "provider_exchange_code", None),
+        provider_instrument_code=getattr(row, "provider_instrument_code", provider_instrument_code),
+        snapshot_date=getattr(row, "snapshot_date", snapshot_date),
+        rows_written=write.rows_written,
+        reason=write.reason,
+        source_uri=source_uri,
+        source_count=source_count,
+    )
+    return write
 
 
 @task(name="fetch-fundamental-provider-exchange-codes")
@@ -814,7 +845,9 @@ def parse_fundamental_stock(
     )
 
 
-@task(
+@materialize(
+    BRONZE_FUNDAMENTAL_ASSET,
+    by="python",
     name="write-bronze-fundamental-document",
     task_run_name=_instrument_task_run_name("write-bronze-fundamental-document"),
 )
@@ -832,13 +865,26 @@ def write_bronze_fundamental_document(
         provider_exchange_code=source.row.provider_exchange_code,
         provider_instrument_code=source.row.provider_instrument_code,
     ):
-        return BronzeWrite(rows_written=0, reason="already_ingested")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_document",
+            rows_written=0,
+            reason="already_ingested",
+            source=source,
+            source_uri=source_uri,
+        )
     written = FUNDAMENTAL_DOCUMENT_DATASET.write_bronze(lake, [source], source_uri=source_uri)
     log.info("fundamental.document_written", provider_instrument_code=source.row.provider_instrument_code, rows=written)
-    return BronzeWrite(rows_written=written)
+    return _fundamental_bronze_write(
+        bronze_table="fundamental_document",
+        rows_written=written,
+        source=source,
+        source_uri=source_uri,
+    )
 
 
-@task(
+@materialize(
+    BRONZE_FUNDAMENTAL_ASSET,
+    by="python",
     name="write-bronze-fundamental-stock-identity",
     task_run_name=_instrument_task_run_name("write-bronze-fundamental-stock-identity"),
 )
@@ -851,7 +897,13 @@ def write_bronze_fundamental_stock_identity(
     from core.lake import get_lake_client
 
     if source is None:
-        return BronzeWrite(rows_written=0, reason="not_stock")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_stock_identity",
+            rows_written=0,
+            reason="not_stock",
+            provider_instrument_code=provider_instrument_code,
+            source_uri=source_uri,
+        )
 
     lake = get_lake_client()
     if FUNDAMENTAL_STOCK_IDENTITY_DATASET.already_ingested(
@@ -860,15 +912,28 @@ def write_bronze_fundamental_stock_identity(
         provider_exchange_code=source.row.provider_exchange_code,
         provider_instrument_code=source.row.provider_instrument_code,
     ):
-        return BronzeWrite(rows_written=0, reason="already_ingested")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_stock_identity",
+            rows_written=0,
+            reason="already_ingested",
+            source=source,
+            source_uri=source_uri,
+        )
     written = FUNDAMENTAL_STOCK_IDENTITY_DATASET.write_bronze(lake, [source], source_uri=source_uri)
     log.info(
         "fundamental.stock_identity_written", provider_instrument_code=source.row.provider_instrument_code, rows=written
     )
-    return BronzeWrite(rows_written=written)
+    return _fundamental_bronze_write(
+        bronze_table="fundamental_stock_identity",
+        rows_written=written,
+        source=source,
+        source_uri=source_uri,
+    )
 
 
-@task(
+@materialize(
+    BRONZE_FUNDAMENTAL_ASSET,
+    by="python",
     name="write-bronze-fundamental-statement-facts",
     task_run_name="write-bronze-fundamental-statement-facts-{provider_instrument_code}",
 )
@@ -882,7 +947,14 @@ def write_bronze_fundamental_statement_facts(
     from core.lake import get_lake_client
 
     if not sources:
-        return BronzeWrite(rows_written=0, reason="no_facts")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_statement_fact",
+            rows_written=0,
+            reason="no_facts",
+            provider_instrument_code=provider_instrument_code,
+            snapshot_date=snapshot_date,
+            source_uri=source_uri,
+        )
 
     provider_exchange_code = sources[0].row.provider_exchange_code
     lake = get_lake_client()
@@ -892,13 +964,26 @@ def write_bronze_fundamental_statement_facts(
         provider_exchange_code=provider_exchange_code,
         provider_instrument_code=provider_instrument_code,
     ):
-        return BronzeWrite(rows_written=0, reason="already_ingested")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_statement_fact",
+            rows_written=0,
+            reason="already_ingested",
+            sources=sources,
+            source_uri=source_uri,
+        )
     written = FUNDAMENTAL_STATEMENT_FACT_DATASET.write_bronze(lake, sources, source_uri=source_uri)
     log.info("fundamental.statement_facts_written", provider_instrument_code=provider_instrument_code, rows=written)
-    return BronzeWrite(rows_written=written)
+    return _fundamental_bronze_write(
+        bronze_table="fundamental_statement_fact",
+        rows_written=written,
+        sources=sources,
+        source_uri=source_uri,
+    )
 
 
-@task(
+@materialize(
+    BRONZE_FUNDAMENTAL_ASSET,
+    by="python",
     name="write-bronze-fundamental-stock-earnings-facts",
     task_run_name="write-bronze-fundamental-stock-earnings-facts-{provider_instrument_code}",
 )
@@ -912,7 +997,14 @@ def write_bronze_fundamental_stock_earnings_facts(
     from core.lake import get_lake_client
 
     if not sources:
-        return BronzeWrite(rows_written=0, reason="no_earnings_facts")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_stock_earnings_fact",
+            rows_written=0,
+            reason="no_earnings_facts",
+            provider_instrument_code=provider_instrument_code,
+            snapshot_date=snapshot_date,
+            source_uri=source_uri,
+        )
 
     provider_exchange_code = sources[0].row.provider_exchange_code
     lake = get_lake_client()
@@ -922,15 +1014,28 @@ def write_bronze_fundamental_stock_earnings_facts(
         provider_exchange_code=provider_exchange_code,
         provider_instrument_code=provider_instrument_code,
     ):
-        return BronzeWrite(rows_written=0, reason="already_ingested")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_stock_earnings_fact",
+            rows_written=0,
+            reason="already_ingested",
+            sources=sources,
+            source_uri=source_uri,
+        )
     written = FUNDAMENTAL_STOCK_EARNINGS_FACT_DATASET.write_bronze(lake, sources, source_uri=source_uri)
     log.info(
         "fundamental.stock_earnings_facts_written", provider_instrument_code=provider_instrument_code, rows=written
     )
-    return BronzeWrite(rows_written=written)
+    return _fundamental_bronze_write(
+        bronze_table="fundamental_stock_earnings_fact",
+        rows_written=written,
+        sources=sources,
+        source_uri=source_uri,
+    )
 
 
-@task(
+@materialize(
+    BRONZE_FUNDAMENTAL_ASSET,
+    by="python",
     name="write-bronze-fundamental-stock-shares-stats",
     task_run_name=_instrument_task_run_name("write-bronze-fundamental-stock-shares-stats"),
 )
@@ -943,7 +1048,13 @@ def write_bronze_fundamental_stock_shares_stats(
     from core.lake import get_lake_client
 
     if source is None:
-        return BronzeWrite(rows_written=0, reason="no_shares_stats")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_stock_shares_stats",
+            rows_written=0,
+            reason="no_shares_stats",
+            provider_instrument_code=provider_instrument_code,
+            source_uri=source_uri,
+        )
 
     lake = get_lake_client()
     if FUNDAMENTAL_STOCK_SHARES_STATS_DATASET.already_ingested(
@@ -952,17 +1063,30 @@ def write_bronze_fundamental_stock_shares_stats(
         provider_exchange_code=source.row.provider_exchange_code,
         provider_instrument_code=source.row.provider_instrument_code,
     ):
-        return BronzeWrite(rows_written=0, reason="already_ingested")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_stock_shares_stats",
+            rows_written=0,
+            reason="already_ingested",
+            source=source,
+            source_uri=source_uri,
+        )
     written = FUNDAMENTAL_STOCK_SHARES_STATS_DATASET.write_bronze(lake, [source], source_uri=source_uri)
     log.info(
         "fundamental.stock_shares_stats_written",
         provider_instrument_code=source.row.provider_instrument_code,
         rows=written,
     )
-    return BronzeWrite(rows_written=written)
+    return _fundamental_bronze_write(
+        bronze_table="fundamental_stock_shares_stats",
+        rows_written=written,
+        source=source,
+        source_uri=source_uri,
+    )
 
 
-@task(
+@materialize(
+    BRONZE_FUNDAMENTAL_ASSET,
+    by="python",
     name="write-bronze-fundamental-stock-outstanding-shares",
     task_run_name="write-bronze-fundamental-stock-outstanding-shares-{provider_instrument_code}",
 )
@@ -976,7 +1100,14 @@ def write_bronze_fundamental_stock_outstanding_shares(
     from core.lake import get_lake_client
 
     if not sources:
-        return BronzeWrite(rows_written=0, reason="no_outstanding_shares")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_stock_outstanding_shares",
+            rows_written=0,
+            reason="no_outstanding_shares",
+            provider_instrument_code=provider_instrument_code,
+            snapshot_date=snapshot_date,
+            source_uri=source_uri,
+        )
 
     provider_exchange_code = sources[0].row.provider_exchange_code
     lake = get_lake_client()
@@ -986,15 +1117,28 @@ def write_bronze_fundamental_stock_outstanding_shares(
         provider_exchange_code=provider_exchange_code,
         provider_instrument_code=provider_instrument_code,
     ):
-        return BronzeWrite(rows_written=0, reason="already_ingested")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_stock_outstanding_shares",
+            rows_written=0,
+            reason="already_ingested",
+            sources=sources,
+            source_uri=source_uri,
+        )
     written = FUNDAMENTAL_STOCK_OUTSTANDING_SHARES_DATASET.write_bronze(lake, sources, source_uri=source_uri)
     log.info(
         "fundamental.stock_outstanding_shares_written", provider_instrument_code=provider_instrument_code, rows=written
     )
-    return BronzeWrite(rows_written=written)
+    return _fundamental_bronze_write(
+        bronze_table="fundamental_stock_outstanding_shares",
+        rows_written=written,
+        sources=sources,
+        source_uri=source_uri,
+    )
 
 
-@task(
+@materialize(
+    BRONZE_FUNDAMENTAL_ASSET,
+    by="python",
     name="write-bronze-fundamental-stock-holders",
     task_run_name="write-bronze-fundamental-stock-holders-{provider_instrument_code}",
 )
@@ -1008,7 +1152,14 @@ def write_bronze_fundamental_stock_holders(
     from core.lake import get_lake_client
 
     if not sources:
-        return BronzeWrite(rows_written=0, reason="no_holders")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_stock_holder",
+            rows_written=0,
+            reason="no_holders",
+            provider_instrument_code=provider_instrument_code,
+            snapshot_date=snapshot_date,
+            source_uri=source_uri,
+        )
 
     provider_exchange_code = sources[0].row.provider_exchange_code
     lake = get_lake_client()
@@ -1018,13 +1169,26 @@ def write_bronze_fundamental_stock_holders(
         provider_exchange_code=provider_exchange_code,
         provider_instrument_code=provider_instrument_code,
     ):
-        return BronzeWrite(rows_written=0, reason="already_ingested")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_stock_holder",
+            rows_written=0,
+            reason="already_ingested",
+            sources=sources,
+            source_uri=source_uri,
+        )
     written = FUNDAMENTAL_STOCK_HOLDER_DATASET.write_bronze(lake, sources, source_uri=source_uri)
     log.info("fundamental.stock_holders_written", provider_instrument_code=provider_instrument_code, rows=written)
-    return BronzeWrite(rows_written=written)
+    return _fundamental_bronze_write(
+        bronze_table="fundamental_stock_holder",
+        rows_written=written,
+        sources=sources,
+        source_uri=source_uri,
+    )
 
 
-@task(
+@materialize(
+    BRONZE_FUNDAMENTAL_ASSET,
+    by="python",
     name="write-bronze-fundamental-stock-insider-transactions",
     task_run_name="write-bronze-fundamental-stock-insider-transactions-{provider_instrument_code}",
 )
@@ -1038,7 +1202,14 @@ def write_bronze_fundamental_stock_insider_transactions(
     from core.lake import get_lake_client
 
     if not sources:
-        return BronzeWrite(rows_written=0, reason="no_insider_transactions")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_stock_insider_transaction",
+            rows_written=0,
+            reason="no_insider_transactions",
+            provider_instrument_code=provider_instrument_code,
+            snapshot_date=snapshot_date,
+            source_uri=source_uri,
+        )
 
     provider_exchange_code = sources[0].row.provider_exchange_code
     lake = get_lake_client()
@@ -1048,17 +1219,30 @@ def write_bronze_fundamental_stock_insider_transactions(
         provider_exchange_code=provider_exchange_code,
         provider_instrument_code=provider_instrument_code,
     ):
-        return BronzeWrite(rows_written=0, reason="already_ingested")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_stock_insider_transaction",
+            rows_written=0,
+            reason="already_ingested",
+            sources=sources,
+            source_uri=source_uri,
+        )
     written = FUNDAMENTAL_STOCK_INSIDER_TRANSACTION_DATASET.write_bronze(lake, sources, source_uri=source_uri)
     log.info(
         "fundamental.stock_insider_transactions_written",
         provider_instrument_code=provider_instrument_code,
         rows=written,
     )
-    return BronzeWrite(rows_written=written)
+    return _fundamental_bronze_write(
+        bronze_table="fundamental_stock_insider_transaction",
+        rows_written=written,
+        sources=sources,
+        source_uri=source_uri,
+    )
 
 
-@task(
+@materialize(
+    BRONZE_FUNDAMENTAL_ASSET,
+    by="python",
     name="write-bronze-fundamental-stock-splits-dividends",
     task_run_name=_instrument_task_run_name("write-bronze-fundamental-stock-splits-dividends"),
 )
@@ -1071,7 +1255,13 @@ def write_bronze_fundamental_stock_splits_dividends(
     from core.lake import get_lake_client
 
     if source is None:
-        return BronzeWrite(rows_written=0, reason="no_splits_dividends")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_stock_splits_dividends",
+            rows_written=0,
+            reason="no_splits_dividends",
+            provider_instrument_code=provider_instrument_code,
+            source_uri=source_uri,
+        )
 
     lake = get_lake_client()
     if FUNDAMENTAL_STOCK_SPLITS_DIVIDENDS_DATASET.already_ingested(
@@ -1080,17 +1270,30 @@ def write_bronze_fundamental_stock_splits_dividends(
         provider_exchange_code=source.row.provider_exchange_code,
         provider_instrument_code=source.row.provider_instrument_code,
     ):
-        return BronzeWrite(rows_written=0, reason="already_ingested")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_stock_splits_dividends",
+            rows_written=0,
+            reason="already_ingested",
+            source=source,
+            source_uri=source_uri,
+        )
     written = FUNDAMENTAL_STOCK_SPLITS_DIVIDENDS_DATASET.write_bronze(lake, [source], source_uri=source_uri)
     log.info(
         "fundamental.stock_splits_dividends_written",
         provider_instrument_code=source.row.provider_instrument_code,
         rows=written,
     )
-    return BronzeWrite(rows_written=written)
+    return _fundamental_bronze_write(
+        bronze_table="fundamental_stock_splits_dividends",
+        rows_written=written,
+        source=source,
+        source_uri=source_uri,
+    )
 
 
-@task(
+@materialize(
+    BRONZE_FUNDAMENTAL_ASSET,
+    by="python",
     name="write-bronze-fundamental-stock-dividend-counts",
     task_run_name="write-bronze-fundamental-stock-dividend-counts-{provider_instrument_code}",
 )
@@ -1104,7 +1307,14 @@ def write_bronze_fundamental_stock_dividend_counts(
     from core.lake import get_lake_client
 
     if not sources:
-        return BronzeWrite(rows_written=0, reason="no_dividend_counts")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_stock_dividend_count",
+            rows_written=0,
+            reason="no_dividend_counts",
+            provider_instrument_code=provider_instrument_code,
+            snapshot_date=snapshot_date,
+            source_uri=source_uri,
+        )
 
     provider_exchange_code = sources[0].row.provider_exchange_code
     lake = get_lake_client()
@@ -1114,15 +1324,28 @@ def write_bronze_fundamental_stock_dividend_counts(
         provider_exchange_code=provider_exchange_code,
         provider_instrument_code=provider_instrument_code,
     ):
-        return BronzeWrite(rows_written=0, reason="already_ingested")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_stock_dividend_count",
+            rows_written=0,
+            reason="already_ingested",
+            sources=sources,
+            source_uri=source_uri,
+        )
     written = FUNDAMENTAL_STOCK_DIVIDEND_COUNT_DATASET.write_bronze(lake, sources, source_uri=source_uri)
     log.info(
         "fundamental.stock_dividend_counts_written", provider_instrument_code=provider_instrument_code, rows=written
     )
-    return BronzeWrite(rows_written=written)
+    return _fundamental_bronze_write(
+        bronze_table="fundamental_stock_dividend_count",
+        rows_written=written,
+        sources=sources,
+        source_uri=source_uri,
+    )
 
 
-@task(
+@materialize(
+    BRONZE_FUNDAMENTAL_ASSET,
+    by="python",
     name="write-bronze-fundamental-stock-metric-facts",
     task_run_name="write-bronze-fundamental-stock-metric-facts-{provider_instrument_code}",
 )
@@ -1136,7 +1359,14 @@ def write_bronze_fundamental_stock_metric_facts(
     from core.lake import get_lake_client
 
     if not sources:
-        return BronzeWrite(rows_written=0, reason="no_metric_facts")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_stock_metric_fact",
+            rows_written=0,
+            reason="no_metric_facts",
+            provider_instrument_code=provider_instrument_code,
+            snapshot_date=snapshot_date,
+            source_uri=source_uri,
+        )
 
     provider_exchange_code = sources[0].row.provider_exchange_code
     lake = get_lake_client()
@@ -1146,13 +1376,26 @@ def write_bronze_fundamental_stock_metric_facts(
         provider_exchange_code=provider_exchange_code,
         provider_instrument_code=provider_instrument_code,
     ):
-        return BronzeWrite(rows_written=0, reason="already_ingested")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_stock_metric_fact",
+            rows_written=0,
+            reason="already_ingested",
+            sources=sources,
+            source_uri=source_uri,
+        )
     written = FUNDAMENTAL_STOCK_METRIC_FACT_DATASET.write_bronze(lake, sources, source_uri=source_uri)
     log.info("fundamental.stock_metric_facts_written", provider_instrument_code=provider_instrument_code, rows=written)
-    return BronzeWrite(rows_written=written)
+    return _fundamental_bronze_write(
+        bronze_table="fundamental_stock_metric_fact",
+        rows_written=written,
+        sources=sources,
+        source_uri=source_uri,
+    )
 
 
-@task(
+@materialize(
+    BRONZE_FUNDAMENTAL_ASSET,
+    by="python",
     name="write-bronze-fundamental-stock-esg-activities",
     task_run_name="write-bronze-fundamental-stock-esg-activities-{provider_instrument_code}",
 )
@@ -1166,7 +1409,14 @@ def write_bronze_fundamental_stock_esg_activities(
     from core.lake import get_lake_client
 
     if not sources:
-        return BronzeWrite(rows_written=0, reason="no_esg_activities")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_stock_esg_activity",
+            rows_written=0,
+            reason="no_esg_activities",
+            provider_instrument_code=provider_instrument_code,
+            snapshot_date=snapshot_date,
+            source_uri=source_uri,
+        )
 
     provider_exchange_code = sources[0].row.provider_exchange_code
     lake = get_lake_client()
@@ -1176,15 +1426,28 @@ def write_bronze_fundamental_stock_esg_activities(
         provider_exchange_code=provider_exchange_code,
         provider_instrument_code=provider_instrument_code,
     ):
-        return BronzeWrite(rows_written=0, reason="already_ingested")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_stock_esg_activity",
+            rows_written=0,
+            reason="already_ingested",
+            sources=sources,
+            source_uri=source_uri,
+        )
     written = FUNDAMENTAL_STOCK_ESG_ACTIVITY_DATASET.write_bronze(lake, sources, source_uri=source_uri)
     log.info(
         "fundamental.stock_esg_activities_written", provider_instrument_code=provider_instrument_code, rows=written
     )
-    return BronzeWrite(rows_written=written)
+    return _fundamental_bronze_write(
+        bronze_table="fundamental_stock_esg_activity",
+        rows_written=written,
+        sources=sources,
+        source_uri=source_uri,
+    )
 
 
-@task(
+@materialize(
+    BRONZE_FUNDAMENTAL_ASSET,
+    by="python",
     name="write-bronze-fundamental-etf-identity",
     task_run_name=_instrument_task_run_name("write-bronze-fundamental-etf-identity"),
 )
@@ -1197,7 +1460,13 @@ def write_bronze_fundamental_etf_identity(
     from core.lake import get_lake_client
 
     if source is None:
-        return BronzeWrite(rows_written=0, reason="not_etf")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_etf_identity",
+            rows_written=0,
+            reason="not_etf",
+            provider_instrument_code=provider_instrument_code,
+            source_uri=source_uri,
+        )
 
     lake = get_lake_client()
     if FUNDAMENTAL_ETF_IDENTITY_DATASET.already_ingested(
@@ -1206,15 +1475,28 @@ def write_bronze_fundamental_etf_identity(
         provider_exchange_code=source.row.provider_exchange_code,
         provider_instrument_code=source.row.provider_instrument_code,
     ):
-        return BronzeWrite(rows_written=0, reason="already_ingested")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_etf_identity",
+            rows_written=0,
+            reason="already_ingested",
+            source=source,
+            source_uri=source_uri,
+        )
     written = FUNDAMENTAL_ETF_IDENTITY_DATASET.write_bronze(lake, [source], source_uri=source_uri)
     log.info(
         "fundamental.etf_identity_written", provider_instrument_code=source.row.provider_instrument_code, rows=written
     )
-    return BronzeWrite(rows_written=written)
+    return _fundamental_bronze_write(
+        bronze_table="fundamental_etf_identity",
+        rows_written=written,
+        source=source,
+        source_uri=source_uri,
+    )
 
 
-@task(
+@materialize(
+    BRONZE_FUNDAMENTAL_ASSET,
+    by="python",
     name="write-bronze-fundamental-mutual-fund-identity",
     task_run_name=_instrument_task_run_name("write-bronze-fundamental-mutual-fund-identity"),
 )
@@ -1227,7 +1509,13 @@ def write_bronze_fundamental_mutual_fund_identity(
     from core.lake import get_lake_client
 
     if source is None:
-        return BronzeWrite(rows_written=0, reason="not_mutual_fund")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_mutual_fund_identity",
+            rows_written=0,
+            reason="not_mutual_fund",
+            provider_instrument_code=provider_instrument_code,
+            source_uri=source_uri,
+        )
 
     lake = get_lake_client()
     if FUNDAMENTAL_MUTUAL_FUND_IDENTITY_DATASET.already_ingested(
@@ -1236,17 +1524,30 @@ def write_bronze_fundamental_mutual_fund_identity(
         provider_exchange_code=source.row.provider_exchange_code,
         provider_instrument_code=source.row.provider_instrument_code,
     ):
-        return BronzeWrite(rows_written=0, reason="already_ingested")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_mutual_fund_identity",
+            rows_written=0,
+            reason="already_ingested",
+            source=source,
+            source_uri=source_uri,
+        )
     written = FUNDAMENTAL_MUTUAL_FUND_IDENTITY_DATASET.write_bronze(lake, [source], source_uri=source_uri)
     log.info(
         "fundamental.mutual_fund_identity_written",
         provider_instrument_code=source.row.provider_instrument_code,
         rows=written,
     )
-    return BronzeWrite(rows_written=written)
+    return _fundamental_bronze_write(
+        bronze_table="fundamental_mutual_fund_identity",
+        rows_written=written,
+        source=source,
+        source_uri=source_uri,
+    )
 
 
-@task(
+@materialize(
+    BRONZE_FUNDAMENTAL_ASSET,
+    by="python",
     name="write-bronze-fundamental-index-identity",
     task_run_name=_instrument_task_run_name("write-bronze-fundamental-index-identity"),
 )
@@ -1259,7 +1560,13 @@ def write_bronze_fundamental_index_identity(
     from core.lake import get_lake_client
 
     if source is None:
-        return BronzeWrite(rows_written=0, reason="not_index")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_index_identity",
+            rows_written=0,
+            reason="not_index",
+            provider_instrument_code=provider_instrument_code,
+            source_uri=source_uri,
+        )
 
     lake = get_lake_client()
     if FUNDAMENTAL_INDEX_IDENTITY_DATASET.already_ingested(
@@ -1268,15 +1575,28 @@ def write_bronze_fundamental_index_identity(
         provider_exchange_code=source.row.provider_exchange_code,
         provider_instrument_code=source.row.provider_instrument_code,
     ):
-        return BronzeWrite(rows_written=0, reason="already_ingested")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_index_identity",
+            rows_written=0,
+            reason="already_ingested",
+            source=source,
+            source_uri=source_uri,
+        )
     written = FUNDAMENTAL_INDEX_IDENTITY_DATASET.write_bronze(lake, [source], source_uri=source_uri)
     log.info(
         "fundamental.index_identity_written", provider_instrument_code=source.row.provider_instrument_code, rows=written
     )
-    return BronzeWrite(rows_written=written)
+    return _fundamental_bronze_write(
+        bronze_table="fundamental_index_identity",
+        rows_written=written,
+        source=source,
+        source_uri=source_uri,
+    )
 
 
-@task(
+@materialize(
+    BRONZE_FUNDAMENTAL_ASSET,
+    by="python",
     name="write-bronze-fundamental-etf-holdings",
     task_run_name="write-bronze-fundamental-etf-holdings-{provider_instrument_code}",
 )
@@ -1290,7 +1610,14 @@ def write_bronze_fundamental_etf_holdings(
     from core.lake import get_lake_client
 
     if not sources:
-        return BronzeWrite(rows_written=0, reason="no_etf_holdings")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_etf_holding",
+            rows_written=0,
+            reason="no_etf_holdings",
+            provider_instrument_code=provider_instrument_code,
+            snapshot_date=snapshot_date,
+            source_uri=source_uri,
+        )
 
     provider_exchange_code = sources[0].row.provider_exchange_code
     lake = get_lake_client()
@@ -1300,13 +1627,26 @@ def write_bronze_fundamental_etf_holdings(
         provider_exchange_code=provider_exchange_code,
         provider_instrument_code=provider_instrument_code,
     ):
-        return BronzeWrite(rows_written=0, reason="already_ingested")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_etf_holding",
+            rows_written=0,
+            reason="already_ingested",
+            sources=sources,
+            source_uri=source_uri,
+        )
     written = FUNDAMENTAL_ETF_HOLDING_DATASET.write_bronze(lake, sources, source_uri=source_uri)
     log.info("fundamental.etf_holdings_written", provider_instrument_code=provider_instrument_code, rows=written)
-    return BronzeWrite(rows_written=written)
+    return _fundamental_bronze_write(
+        bronze_table="fundamental_etf_holding",
+        rows_written=written,
+        sources=sources,
+        source_uri=source_uri,
+    )
 
 
-@task(
+@materialize(
+    BRONZE_FUNDAMENTAL_ASSET,
+    by="python",
     name="write-bronze-fundamental-mutual-fund-holdings",
     task_run_name="write-bronze-fundamental-mutual-fund-holdings-{provider_instrument_code}",
 )
@@ -1320,7 +1660,14 @@ def write_bronze_fundamental_mutual_fund_holdings(
     from core.lake import get_lake_client
 
     if not sources:
-        return BronzeWrite(rows_written=0, reason="no_mutual_fund_holdings")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_mutual_fund_holding",
+            rows_written=0,
+            reason="no_mutual_fund_holdings",
+            provider_instrument_code=provider_instrument_code,
+            snapshot_date=snapshot_date,
+            source_uri=source_uri,
+        )
 
     provider_exchange_code = sources[0].row.provider_exchange_code
     lake = get_lake_client()
@@ -1330,15 +1677,28 @@ def write_bronze_fundamental_mutual_fund_holdings(
         provider_exchange_code=provider_exchange_code,
         provider_instrument_code=provider_instrument_code,
     ):
-        return BronzeWrite(rows_written=0, reason="already_ingested")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_mutual_fund_holding",
+            rows_written=0,
+            reason="already_ingested",
+            sources=sources,
+            source_uri=source_uri,
+        )
     written = FUNDAMENTAL_MUTUAL_FUND_HOLDING_DATASET.write_bronze(lake, sources, source_uri=source_uri)
     log.info(
         "fundamental.mutual_fund_holdings_written", provider_instrument_code=provider_instrument_code, rows=written
     )
-    return BronzeWrite(rows_written=written)
+    return _fundamental_bronze_write(
+        bronze_table="fundamental_mutual_fund_holding",
+        rows_written=written,
+        sources=sources,
+        source_uri=source_uri,
+    )
 
 
-@task(
+@materialize(
+    BRONZE_FUNDAMENTAL_ASSET,
+    by="python",
     name="write-bronze-fundamental-fund-metric-facts",
     task_run_name="write-bronze-fundamental-fund-metric-facts-{provider_instrument_code}",
 )
@@ -1352,7 +1712,14 @@ def write_bronze_fundamental_fund_metric_facts(
     from core.lake import get_lake_client
 
     if not sources:
-        return BronzeWrite(rows_written=0, reason="no_fund_metric_facts")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_fund_metric_fact",
+            rows_written=0,
+            reason="no_fund_metric_facts",
+            provider_instrument_code=provider_instrument_code,
+            snapshot_date=snapshot_date,
+            source_uri=source_uri,
+        )
 
     provider_exchange_code = sources[0].row.provider_exchange_code
     lake = get_lake_client()
@@ -1362,13 +1729,26 @@ def write_bronze_fundamental_fund_metric_facts(
         provider_exchange_code=provider_exchange_code,
         provider_instrument_code=provider_instrument_code,
     ):
-        return BronzeWrite(rows_written=0, reason="already_ingested")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_fund_metric_fact",
+            rows_written=0,
+            reason="already_ingested",
+            sources=sources,
+            source_uri=source_uri,
+        )
     written = FUNDAMENTAL_FUND_METRIC_FACT_DATASET.write_bronze(lake, sources, source_uri=source_uri)
     log.info("fundamental.fund_metric_facts_written", provider_instrument_code=provider_instrument_code, rows=written)
-    return BronzeWrite(rows_written=written)
+    return _fundamental_bronze_write(
+        bronze_table="fundamental_fund_metric_fact",
+        rows_written=written,
+        sources=sources,
+        source_uri=source_uri,
+    )
 
 
-@task(
+@materialize(
+    BRONZE_FUNDAMENTAL_ASSET,
+    by="python",
     name="write-bronze-fundamental-index-components",
     task_run_name="write-bronze-fundamental-index-components-{provider_instrument_code}",
 )
@@ -1382,7 +1762,14 @@ def write_bronze_fundamental_index_components(
     from core.lake import get_lake_client
 
     if not sources:
-        return BronzeWrite(rows_written=0, reason="no_index_components")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_index_component",
+            rows_written=0,
+            reason="no_index_components",
+            provider_instrument_code=provider_instrument_code,
+            snapshot_date=snapshot_date,
+            source_uri=source_uri,
+        )
 
     provider_exchange_code = sources[0].row.provider_exchange_code
     lake = get_lake_client()
@@ -1392,13 +1779,26 @@ def write_bronze_fundamental_index_components(
         provider_exchange_code=provider_exchange_code,
         provider_instrument_code=provider_instrument_code,
     ):
-        return BronzeWrite(rows_written=0, reason="already_ingested")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_index_component",
+            rows_written=0,
+            reason="already_ingested",
+            sources=sources,
+            source_uri=source_uri,
+        )
     written = FUNDAMENTAL_INDEX_COMPONENT_DATASET.write_bronze(lake, sources, source_uri=source_uri)
     log.info("fundamental.index_components_written", provider_instrument_code=provider_instrument_code, rows=written)
-    return BronzeWrite(rows_written=written)
+    return _fundamental_bronze_write(
+        bronze_table="fundamental_index_component",
+        rows_written=written,
+        sources=sources,
+        source_uri=source_uri,
+    )
 
 
-@task(
+@materialize(
+    BRONZE_FUNDAMENTAL_ASSET,
+    by="python",
     name="write-bronze-fundamental-index-historical-components",
     task_run_name="write-bronze-fundamental-index-historical-components-{provider_instrument_code}",
 )
@@ -1412,7 +1812,14 @@ def write_bronze_fundamental_index_historical_components(
     from core.lake import get_lake_client
 
     if not sources:
-        return BronzeWrite(rows_written=0, reason="no_index_historical_components")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_index_historical_component",
+            rows_written=0,
+            reason="no_index_historical_components",
+            provider_instrument_code=provider_instrument_code,
+            snapshot_date=snapshot_date,
+            source_uri=source_uri,
+        )
 
     provider_exchange_code = sources[0].row.provider_exchange_code
     lake = get_lake_client()
@@ -1422,11 +1829,22 @@ def write_bronze_fundamental_index_historical_components(
         provider_exchange_code=provider_exchange_code,
         provider_instrument_code=provider_instrument_code,
     ):
-        return BronzeWrite(rows_written=0, reason="already_ingested")
+        return _fundamental_bronze_write(
+            bronze_table="fundamental_index_historical_component",
+            rows_written=0,
+            reason="already_ingested",
+            sources=sources,
+            source_uri=source_uri,
+        )
     written = FUNDAMENTAL_INDEX_HISTORICAL_COMPONENT_DATASET.write_bronze(lake, sources, source_uri=source_uri)
     log.info(
         "fundamental.index_historical_components_written",
         provider_instrument_code=provider_instrument_code,
         rows=written,
     )
-    return BronzeWrite(rows_written=written)
+    return _fundamental_bronze_write(
+        bronze_table="fundamental_index_historical_component",
+        rows_written=written,
+        sources=sources,
+        source_uri=source_uri,
+    )

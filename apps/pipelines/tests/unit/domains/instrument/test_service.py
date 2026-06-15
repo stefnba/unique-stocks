@@ -63,7 +63,6 @@ class FakeTracker:
 async def test_run_instrument_refresh_writes_landing_and_bronze(monkeypatch: pytest.MonkeyPatch) -> None:
     """Instrument service should own ingestion control and return durable run metadata."""
     run = FakeRun()
-    materializations: list[dict[str, object]] = []
     published: list[dict[str, object]] = []
 
     async def fake_fetch(_: str) -> list[dict[str, str]]:
@@ -85,11 +84,6 @@ async def test_run_instrument_refresh_writes_landing_and_bronze(monkeypatch: pyt
     monkeypatch.setattr(service, "fetch_instrument", fake_fetch)
     monkeypatch.setattr(service, "write_instrument_to_landing_zone", fake_landing)
     monkeypatch.setattr(service, "write_bronze_instrument", lambda *_args, **_kwargs: BronzeWrite(rows_written=1))
-    monkeypatch.setattr(
-        service,
-        "record_instrument_bronze_materialization",
-        lambda **kwargs: materializations.append(kwargs),
-    )
     monkeypatch.setattr(service, "publish_prefect_ingestion_summary", fake_publish)
 
     result = await service.run_instrument_refresh(
@@ -102,14 +96,6 @@ async def test_run_instrument_refresh_writes_landing_and_bronze(monkeypatch: pyt
     assert result.run_id == "instrument-run"
     assert result.status == "completed"
     assert result.summary["exchange"] == {"US": {"rows": 1, "raw_rows": 1}}
-    assert materializations == [
-        {
-            "app_run_id": "instrument-run",
-            "snapshot_date": "2026-06-01",
-            "provider": "eodhd",
-            "rows_written": 1,
-        }
-    ]
     assert published[0]["status"] == "completed"
 
 

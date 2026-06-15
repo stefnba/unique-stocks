@@ -115,6 +115,7 @@ async def run_dbt_build(
     _release_local_lake_lock(runtime)
     tracker = PipelineRunTracker()
     artifact: dict[str, Any] | None = None
+    manifest: dict[str, Any] | None = None
     result: DbtCommandResult | None = None
     summary: dict[str, object] = {"command": command}
 
@@ -151,6 +152,7 @@ async def run_dbt_build(
             )
             _refresh_tracker_lake(tracker)
             artifact = read_dbt_run_results(target_path=str(target_path), app_root=runtime.app_root)
+            manifest = read_dbt_manifest(target_path=str(target_path), app_root=runtime.app_root)
             summary.update(
                 {
                     "return_code": result.return_code,
@@ -166,7 +168,9 @@ async def run_dbt_build(
             )
             node_count = _record_dbt_node_results(dbt_run_id=dbt_run_id, artifact=artifact)
             failed_nodes = _failed_node_count(artifact)
+            materialized_models = _dbt_materialized_models(run_results=artifact, manifest=manifest)
             summary["node_results"] = node_count
+            summary["dbt_materialized_model_count"] = len(materialized_models)
             await _create_dbt_summary_artifact(
                 dbt_run_id=dbt_run_id,
                 command=command,
@@ -197,6 +201,8 @@ async def run_dbt_build(
                         "target": resolved_target,
                         "node_results": node_count,
                         "artifact_path": result.artifact_path,
+                        "dbt_materialized_model_count": len(materialized_models),
+                        "dbt_materialized_models": materialized_models,
                     },
                 )
 
@@ -307,6 +313,16 @@ def read_dbt_run_results(*, target_path: str, app_root: str) -> dict[str, Any] |
     path = _resolve_app_path(target_path, Path(app_root)) / "run_results.json"
     if not path.exists():
         log.warning("dbt.run_results_missing", path=str(path))
+        return None
+    return json.loads(path.read_text())
+
+
+@task(name="read-dbt-manifest")
+def read_dbt_manifest(*, target_path: str, app_root: str) -> dict[str, Any] | None:
+    """Read dbt's ``manifest.json`` artifact when dbt produced one."""
+    path = _resolve_app_path(target_path, Path(app_root)) / "manifest.json"
+    if not path.exists():
+        log.debug("dbt.manifest_missing", path=str(path))
         return None
     return json.loads(path.read_text())
 
@@ -428,6 +444,76 @@ def _record_dbt_asset_materializations(
     if not asset_materializer:
         return
     asset_materializer(select=select, metadata=metadata)
+
+
+def _dbt_materialized_models(
+    *,
+    run_results: dict[str, Any] | None,
+    manifest: dict[str, Any] | None,
+) -> list[dict[str, object]]:
+    """Return compact metadata for successfully materialized dbt model nodes."""
+    if not run_results:
+        return []
+    manifest_nodes = manifest.get("nodes", {}) if manifest else {}
+    if not isinstance(manifest_nodes, dict):
+        manifest_nodes = {}
+
+    models: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for result in run_results.get("results", []):
+        if not isinstance(result, dict):
+            continue
+        unique_id = str(result.get("unique_id") or "")
+        if not unique_id.startswith("model.") or unique_id in seen:
+            continue
+        if result.get("status") != "success":
+            continue
+        node = manifest_nodes.get(unique_id, {})
+        if not isinstance(node, dict):
+            node = {}
+        models.append(_dbt_materialized_model_metadata(unique_id=unique_id, result=result, node=node))
+        seen.add(unique_id)
+    return models
+
+
+def _dbt_materialized_model_metadata(
+    *,
+    unique_id: str,
+    result: dict[str, Any],
+    node: dict[str, Any],
+) -> dict[str, object]:
+    """Build a small, stable model metadata payload for asset mapping."""
+    return {
+        "unique_id": unique_id,
+        "name": _optional_str(node.get("name")) or unique_id.rsplit(".", maxsplit=1)[-1],
+        "package_name": _optional_str(node.get("package_name")),
+        "original_file_path": _optional_str(node.get("original_file_path")),
+        "path": _optional_str(node.get("path")),
+        "fqn": _string_list(node.get("fqn")),
+        "tags": _string_list(node.get("tags")),
+        "materialized": _optional_str(_dbt_node_config_value(node, "materialized")),
+        "relation_name": _optional_str(result.get("relation_name")),
+    }
+
+
+def _dbt_node_config_value(node: dict[str, Any], key: str) -> object:
+    config = node.get("config")
+    if isinstance(config, dict):
+        return config.get(key)
+    return None
+
+
+def _optional_str(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value)
+    return text or None
+
+
+def _string_list(value: object) -> list[str]:
+    if isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray | memoryview):
+        return [str(item) for item in value]
+    return []
 
 
 def _dbt_base_command() -> list[str]:

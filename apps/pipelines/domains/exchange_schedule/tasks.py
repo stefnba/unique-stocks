@@ -5,6 +5,7 @@ from datetime import UTC, date, datetime
 import httpx
 import structlog
 from prefect import task
+from prefect.assets import materialize
 from prefect.client.schemas.objects import State, TaskRun
 from prefect.tasks import exponential_backoff
 from pydantic import ValidationError
@@ -12,6 +13,12 @@ from pydantic import ValidationError
 from control_plane.prefect import BlockRegistry
 from core.http.base import ProviderRateLimitError
 from core.ingestion import BronzeWrite, LandingWrite
+from domains.exchange_schedule.assets import (
+    BRONZE_EXCHANGE_HOLIDAY_ASSET,
+    BRONZE_EXCHANGE_SCHEDULE_ASSET,
+    attach_exchange_holiday_bronze_metadata,
+    attach_exchange_schedule_bronze_metadata,
+)
 from domains.exchange_schedule.datasets import (
     EXCHANGE_HOLIDAY_DATASET,
     EXCHANGE_SCHEDULE_DATASET,
@@ -133,7 +140,9 @@ async def write_schedule_to_landing_zone(
     )
 
 
-@task(
+@materialize(
+    BRONZE_EXCHANGE_SCHEDULE_ASSET,
+    by="python",
     name="write-bronze-exchange-schedule",
     task_run_name="write-bronze-exchange-schedule-{details.provider_schedule_exchange_code}",
 )
@@ -157,7 +166,16 @@ def write_bronze_exchange_schedule(
             provider_schedule_exchange_code=details.provider_schedule_exchange_code,
             snapshot_date=snapshot_date,
         )
-        return BronzeWrite(rows_written=0, reason="already_ingested")
+        write = BronzeWrite(rows_written=0, reason="already_ingested")
+        attach_exchange_schedule_bronze_metadata(
+            provider="eodhd",
+            provider_schedule_exchange_code=details.provider_schedule_exchange_code,
+            snapshot_date=snapshot_date,
+            rows_written=write.rows_written,
+            reason=write.reason,
+            source_uri=source_uri,
+        )
+        return write
 
     written = EXCHANGE_SCHEDULE_DATASET.write_bronze(
         lake,
@@ -170,10 +188,21 @@ def write_bronze_exchange_schedule(
         snapshot_date=snapshot_date,
         rows=written,
     )
-    return BronzeWrite(rows_written=written)
+    write = BronzeWrite(rows_written=written)
+    attach_exchange_schedule_bronze_metadata(
+        provider="eodhd",
+        provider_schedule_exchange_code=details.provider_schedule_exchange_code,
+        snapshot_date=snapshot_date,
+        rows_written=write.rows_written,
+        reason=write.reason,
+        source_uri=source_uri,
+    )
+    return write
 
 
-@task(
+@materialize(
+    BRONZE_EXCHANGE_HOLIDAY_ASSET,
+    by="python",
     name="write-bronze-exchange-holiday",
     task_run_name="write-bronze-exchange-holiday-{details.provider_schedule_exchange_code}",
 )
@@ -194,7 +223,17 @@ def write_bronze_exchange_holiday(
             provider_schedule_exchange_code=provider_schedule_exchange_code,
             snapshot_date=snapshot_date,
         )
-        return BronzeWrite(rows_written=0, reason="no_holiday")
+        write = BronzeWrite(rows_written=0, reason="no_holiday")
+        attach_exchange_holiday_bronze_metadata(
+            provider="eodhd",
+            provider_schedule_exchange_code=provider_schedule_exchange_code,
+            snapshot_date=snapshot_date,
+            rows_written=write.rows_written,
+            reason=write.reason,
+            source_uri=source_uri,
+            holiday_count=0,
+        )
+        return write
 
     lake = get_lake_client()
     if EXCHANGE_HOLIDAY_DATASET.already_ingested(
@@ -208,7 +247,17 @@ def write_bronze_exchange_holiday(
             provider_schedule_exchange_code=provider_schedule_exchange_code,
             snapshot_date=snapshot_date,
         )
-        return BronzeWrite(rows_written=0, reason="already_ingested")
+        write = BronzeWrite(rows_written=0, reason="already_ingested")
+        attach_exchange_holiday_bronze_metadata(
+            provider="eodhd",
+            provider_schedule_exchange_code=provider_schedule_exchange_code,
+            snapshot_date=snapshot_date,
+            rows_written=write.rows_written,
+            reason=write.reason,
+            source_uri=source_uri,
+            holiday_count=len(holiday),
+        )
+        return write
 
     written = EXCHANGE_HOLIDAY_DATASET.write_bronze(lake, holiday, source_uri=source_uri)
     log.info(
@@ -217,7 +266,17 @@ def write_bronze_exchange_holiday(
         snapshot_date=snapshot_date,
         rows=written,
     )
-    return BronzeWrite(rows_written=written)
+    write = BronzeWrite(rows_written=written)
+    attach_exchange_holiday_bronze_metadata(
+        provider="eodhd",
+        provider_schedule_exchange_code=provider_schedule_exchange_code,
+        snapshot_date=snapshot_date,
+        rows_written=write.rows_written,
+        reason=write.reason,
+        source_uri=source_uri,
+        holiday_count=len(holiday),
+    )
+    return write
 
 
 @task(

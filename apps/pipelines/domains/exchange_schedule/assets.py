@@ -2,7 +2,7 @@
 
 from prefect.assets import Asset, AssetProperties, materialize
 
-from core.orchestration.assets import record_prefect_materialization
+from core.orchestration.assets import attach_materialization_metadata, record_prefect_materialization
 
 BRONZE_EXCHANGE_SCHEDULE_ASSET = Asset(
     key="duckdb://unique-stocks/bronze/exchange_schedule",
@@ -22,6 +22,22 @@ GOLD_EXCHANGE_SCHEDULE_ASSET = Asset(
 )
 
 
+def attach_exchange_schedule_bronze_metadata(**metadata: object) -> dict[str, object]:
+    """Attach metadata to the Bronze exchange schedule materialization event."""
+    return attach_materialization_metadata(
+        BRONZE_EXCHANGE_SCHEDULE_ASSET,
+        {"asset_layer": "bronze", "asset_domain": "exchange_schedule", "asset_grain": "table", **metadata},
+    )
+
+
+def attach_exchange_holiday_bronze_metadata(**metadata: object) -> dict[str, object]:
+    """Attach metadata to the Bronze exchange holiday materialization event."""
+    return attach_materialization_metadata(
+        BRONZE_EXCHANGE_HOLIDAY_ASSET,
+        {"asset_layer": "bronze", "asset_domain": "exchange_schedule", "asset_grain": "table", **metadata},
+    )
+
+
 @materialize(
     BRONZE_EXCHANGE_SCHEDULE_ASSET,
     by="python",
@@ -30,7 +46,7 @@ GOLD_EXCHANGE_SCHEDULE_ASSET = Asset(
 def _record_bronze_exchange_schedule_materialization(
     **metadata: object,
 ) -> dict[str, object]:
-    return metadata
+    return attach_exchange_schedule_bronze_metadata(**metadata)
 
 
 @materialize(
@@ -41,7 +57,7 @@ def _record_bronze_exchange_schedule_materialization(
 def _record_bronze_exchange_holiday_materialization(
     **metadata: object,
 ) -> dict[str, object]:
-    return metadata
+    return attach_exchange_holiday_bronze_metadata(**metadata)
 
 
 def record_exchange_schedule_bronze_materialization(**metadata: object) -> None:
@@ -64,19 +80,45 @@ def record_exchange_holiday_bronze_materialization(**metadata: object) -> None:
 
 @materialize(
     SILVER_EXCHANGE_SCHEDULE_ASSET,
+    by="dbt",
+    asset_deps=[BRONZE_EXCHANGE_SCHEDULE_ASSET, BRONZE_EXCHANGE_HOLIDAY_ASSET],
+    name="record-dbt-silver-exchange-schedule-materialization",
+)
+def _record_silver_exchange_schedule_materialization(**metadata: object) -> dict[str, object]:
+    return attach_materialization_metadata(
+        SILVER_EXCHANGE_SCHEDULE_ASSET,
+        {"asset_layer": "silver", "asset_domain": "exchange_schedule", "asset_grain": "model_group", **metadata},
+    )
+
+
+@materialize(
     GOLD_EXCHANGE_SCHEDULE_ASSET,
     by="dbt",
-    name="record-dbt-exchange-schedule-materializations",
-    asset_deps=[BRONZE_EXCHANGE_SCHEDULE_ASSET, BRONZE_EXCHANGE_HOLIDAY_ASSET],
+    asset_deps=[SILVER_EXCHANGE_SCHEDULE_ASSET],
+    name="record-dbt-gold-exchange-schedule-materialization",
 )
-def _record_dbt_exchange_schedule_materializations(**metadata: object) -> dict[str, object]:
-    return metadata
-
-
-def record_exchange_schedule_dbt_materialization(**metadata: object) -> None:
-    """Record Prefect materializations for dbt-built exchange schedule assets."""
-    record_prefect_materialization(
-        materialization_name="dbt.exchange_schedule",
-        materializer=_record_dbt_exchange_schedule_materializations,
-        metadata=metadata,
+def _record_gold_exchange_schedule_materialization(**metadata: object) -> dict[str, object]:
+    return attach_materialization_metadata(
+        GOLD_EXCHANGE_SCHEDULE_ASSET,
+        {"asset_layer": "gold", "asset_domain": "exchange_schedule", "asset_grain": "model_group", **metadata},
     )
+
+
+def record_exchange_schedule_dbt_materialization(
+    *,
+    layers: tuple[str, ...] = ("silver", "gold"),
+    **metadata: object,
+) -> None:
+    """Record Prefect materializations for dbt-built exchange schedule assets."""
+    if "silver" in layers:
+        record_prefect_materialization(
+            materialization_name="dbt.exchange_schedule.silver",
+            materializer=_record_silver_exchange_schedule_materialization,
+            metadata=metadata,
+        )
+    if "gold" in layers:
+        record_prefect_materialization(
+            materialization_name="dbt.exchange_schedule.gold",
+            materializer=_record_gold_exchange_schedule_materialization,
+            metadata=metadata,
+        )

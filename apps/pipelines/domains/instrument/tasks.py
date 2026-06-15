@@ -4,9 +4,11 @@ from datetime import UTC, date, datetime
 
 import structlog
 from prefect import task
+from prefect.assets import materialize
 
 from control_plane.prefect import BlockRegistry
 from core.ingestion import BronzeWrite, LandingWrite
+from domains.instrument.assets import BRONZE_INSTRUMENT_ASSET, attach_instrument_bronze_metadata
 from domains.instrument.datasets import INSTRUMENT_DATASET
 from domains.instrument.parsers import parse_instrument_snapshots
 from providers.eodhd.models import Instrument
@@ -89,7 +91,9 @@ async def write_instrument_to_landing_zone(
     )
 
 
-@task(
+@materialize(
+    BRONZE_INSTRUMENT_ASSET,
+    by="python",
     name="write-bronze-instrument",
     task_run_name="write-bronze-instrument-{provider_exchange_code}",
 )
@@ -110,7 +114,17 @@ def write_bronze_instrument(
 
     if not instrument:
         log.info("instrument.write_skipped", reason="no_data", provider_exchange_code=provider_exchange_code)
-        return BronzeWrite(rows_written=0, reason="no_data")
+        write = BronzeWrite(rows_written=0, reason="no_data")
+        attach_instrument_bronze_metadata(
+            provider="eodhd",
+            provider_exchange_code=provider_exchange_code,
+            snapshot_date=snapshot_date,
+            rows_written=write.rows_written,
+            reason=write.reason,
+            source_uri=source_uri,
+            rows_raw=0,
+        )
+        return write
 
     lake = get_lake_client()
     if INSTRUMENT_DATASET.already_ingested(
@@ -124,7 +138,17 @@ def write_bronze_instrument(
             provider_exchange_code=provider_exchange_code,
             snapshot_date=snapshot_date,
         )
-        return BronzeWrite(rows_written=0, reason="already_ingested")
+        write = BronzeWrite(rows_written=0, reason="already_ingested")
+        attach_instrument_bronze_metadata(
+            provider="eodhd",
+            provider_exchange_code=provider_exchange_code,
+            snapshot_date=snapshot_date,
+            rows_written=write.rows_written,
+            reason=write.reason,
+            source_uri=source_uri,
+            rows_raw=len(instrument),
+        )
+        return write
 
     sources, rejected = parse_instrument_snapshots(instrument, provider_exchange_code, snapshot_date)
     if rejected:
@@ -141,7 +165,18 @@ def write_bronze_instrument(
             provider_exchange_code=provider_exchange_code,
             snapshot_date=snapshot_date,
         )
-        return BronzeWrite(rows_written=0, reason="no_valid_rows")
+        write = BronzeWrite(rows_written=0, reason="no_valid_rows")
+        attach_instrument_bronze_metadata(
+            provider="eodhd",
+            provider_exchange_code=provider_exchange_code,
+            snapshot_date=snapshot_date,
+            rows_written=write.rows_written,
+            reason=write.reason,
+            source_uri=source_uri,
+            rows_raw=len(instrument),
+            rows_rejected=len(rejected),
+        )
+        return write
     written = INSTRUMENT_DATASET.write_bronze(lake, sources, source_uri=source_uri)
     log.info(
         "instrument.write_done",
@@ -149,7 +184,18 @@ def write_bronze_instrument(
         snapshot_date=snapshot_date,
         rows=written,
     )
-    return BronzeWrite(rows_written=written)
+    write = BronzeWrite(rows_written=written)
+    attach_instrument_bronze_metadata(
+        provider="eodhd",
+        provider_exchange_code=provider_exchange_code,
+        snapshot_date=snapshot_date,
+        rows_written=write.rows_written,
+        reason=write.reason,
+        source_uri=source_uri,
+        rows_raw=len(instrument),
+        rows_rejected=len(rejected),
+    )
+    return write
 
 
 @task(

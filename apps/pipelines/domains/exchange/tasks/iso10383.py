@@ -4,9 +4,14 @@ from datetime import date
 
 import structlog
 from prefect import task
+from prefect.assets import materialize
 
 from control_plane.prefect import BlockRegistry
 from core.ingestion import BronzeWrite, LandingWrite
+from domains.exchange.assets import (
+    BRONZE_EXCHANGE_MIC_REGISTRY_ASSET,
+    attach_exchange_mic_registry_bronze_metadata,
+)
 from domains.exchange.datasets import EXCHANGE_MIC_REGISTRY_DATASET
 from domains.exchange.parsers import (
     load_iso10383_mic_csv,
@@ -70,7 +75,7 @@ def parse_iso10383_mic_registry(
     return valid, rejected
 
 
-@task(name="write-bronze-exchange-mic-registry")
+@materialize(BRONZE_EXCHANGE_MIC_REGISTRY_ASSET, by="python", name="write-bronze-exchange-mic-registry")
 def write_bronze_exchange_mic_registry(
     mic_rows: list[ISO10383MICRaw],
     snapshot_date: date,
@@ -81,7 +86,16 @@ def write_bronze_exchange_mic_registry(
 
     if not mic_rows:
         log.info("exchange_mic_registry.write_skipped", reason="no_data", snapshot_date=snapshot_date)
-        return BronzeWrite(rows_written=0, reason="no_data")
+        write = BronzeWrite(rows_written=0, reason="no_data")
+        attach_exchange_mic_registry_bronze_metadata(
+            provider="iso10383",
+            snapshot_date=snapshot_date,
+            rows_written=write.rows_written,
+            reason=write.reason,
+            source_uri=source_uri,
+            rows_valid=0,
+        )
+        return write
 
     lake = get_lake_client()
     if EXCHANGE_MIC_REGISTRY_DATASET.already_ingested(lake, snapshot_date=snapshot_date):
@@ -90,9 +104,27 @@ def write_bronze_exchange_mic_registry(
             reason="already_ingested",
             snapshot_date=snapshot_date,
         )
-        return BronzeWrite(rows_written=0, reason="already_ingested")
+        write = BronzeWrite(rows_written=0, reason="already_ingested")
+        attach_exchange_mic_registry_bronze_metadata(
+            provider="iso10383",
+            snapshot_date=snapshot_date,
+            rows_written=write.rows_written,
+            reason=write.reason,
+            source_uri=source_uri,
+            rows_valid=len(mic_rows),
+        )
+        return write
 
     sources = parse_exchange_mic_registry_snapshots(mic_rows, snapshot_date)
     written = EXCHANGE_MIC_REGISTRY_DATASET.write_bronze(lake, sources, source_uri=source_uri)
     log.info("exchange_mic_registry.write_done", snapshot_date=snapshot_date, rows=written)
-    return BronzeWrite(rows_written=written)
+    write = BronzeWrite(rows_written=written)
+    attach_exchange_mic_registry_bronze_metadata(
+        provider="iso10383",
+        snapshot_date=snapshot_date,
+        rows_written=write.rows_written,
+        reason=write.reason,
+        source_uri=source_uri,
+        rows_valid=len(mic_rows),
+    )
+    return write

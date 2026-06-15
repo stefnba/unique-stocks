@@ -2,7 +2,7 @@
 
 from prefect.assets import Asset, AssetProperties, materialize
 
-from core.orchestration.assets import record_prefect_materialization
+from core.orchestration.assets import attach_materialization_metadata, record_prefect_materialization
 
 BRONZE_EXCHANGE_CATALOG_ASSET = Asset(
     key="duckdb://unique-stocks/bronze/exchange_catalog",
@@ -22,13 +22,29 @@ GOLD_EXCHANGE_ASSET = Asset(
 )
 
 
+def attach_exchange_catalog_bronze_metadata(**metadata: object) -> dict[str, object]:
+    """Attach metadata to the Bronze exchange catalog materialization event."""
+    return attach_materialization_metadata(
+        BRONZE_EXCHANGE_CATALOG_ASSET,
+        {"asset_layer": "bronze", "asset_domain": "exchange", "asset_grain": "table", **metadata},
+    )
+
+
+def attach_exchange_mic_registry_bronze_metadata(**metadata: object) -> dict[str, object]:
+    """Attach metadata to the Bronze MIC registry materialization event."""
+    return attach_materialization_metadata(
+        BRONZE_EXCHANGE_MIC_REGISTRY_ASSET,
+        {"asset_layer": "bronze", "asset_domain": "exchange", "asset_grain": "table", **metadata},
+    )
+
+
 @materialize(
     BRONZE_EXCHANGE_CATALOG_ASSET,
     by="python",
     name="record-bronze-exchange-catalog-materialization",
 )
 def _record_bronze_exchange_catalog_materialization(**metadata: object) -> dict[str, object]:
-    return metadata
+    return attach_exchange_catalog_bronze_metadata(**metadata)
 
 
 @materialize(
@@ -39,7 +55,7 @@ def _record_bronze_exchange_catalog_materialization(**metadata: object) -> dict[
 def _record_bronze_exchange_mic_registry_materialization(
     **metadata: object,
 ) -> dict[str, object]:
-    return metadata
+    return attach_exchange_mic_registry_bronze_metadata(**metadata)
 
 
 def record_exchange_catalog_bronze_materialization(**metadata: object) -> None:
@@ -62,19 +78,41 @@ def record_exchange_mic_registry_bronze_materialization(**metadata: object) -> N
 
 @materialize(
     SILVER_EXCHANGE_ASSET,
+    by="dbt",
+    asset_deps=[BRONZE_EXCHANGE_CATALOG_ASSET, BRONZE_EXCHANGE_MIC_REGISTRY_ASSET],
+    name="record-dbt-silver-exchange-materialization",
+)
+def _record_silver_exchange_materialization(**metadata: object) -> dict[str, object]:
+    return attach_materialization_metadata(
+        SILVER_EXCHANGE_ASSET,
+        {"asset_layer": "silver", "asset_domain": "exchange", "asset_grain": "model_group", **metadata},
+    )
+
+
+@materialize(
     GOLD_EXCHANGE_ASSET,
     by="dbt",
-    name="record-dbt-exchange-materializations",
-    asset_deps=[BRONZE_EXCHANGE_CATALOG_ASSET, BRONZE_EXCHANGE_MIC_REGISTRY_ASSET],
+    asset_deps=[SILVER_EXCHANGE_ASSET],
+    name="record-dbt-gold-exchange-materialization",
 )
-def _record_dbt_exchange_materializations(**metadata: object) -> dict[str, object]:
-    return metadata
-
-
-def record_exchange_dbt_materialization(**metadata: object) -> None:
-    """Record Prefect materializations for dbt-built exchange assets."""
-    record_prefect_materialization(
-        materialization_name="dbt.exchange",
-        materializer=_record_dbt_exchange_materializations,
-        metadata=metadata,
+def _record_gold_exchange_materialization(**metadata: object) -> dict[str, object]:
+    return attach_materialization_metadata(
+        GOLD_EXCHANGE_ASSET,
+        {"asset_layer": "gold", "asset_domain": "exchange", "asset_grain": "model_group", **metadata},
     )
+
+
+def record_exchange_dbt_materialization(*, layers: tuple[str, ...] = ("silver", "gold"), **metadata: object) -> None:
+    """Record Prefect materializations for dbt-built exchange assets."""
+    if "silver" in layers:
+        record_prefect_materialization(
+            materialization_name="dbt.exchange.silver",
+            materializer=_record_silver_exchange_materialization,
+            metadata=metadata,
+        )
+    if "gold" in layers:
+        record_prefect_materialization(
+            materialization_name="dbt.exchange.gold",
+            materializer=_record_gold_exchange_materialization,
+            metadata=metadata,
+        )

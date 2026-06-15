@@ -24,11 +24,6 @@ from domains.exchange_schedule.tasks import (
     write_schedule_to_landing_zone,
 )
 
-from .assets import (
-    record_exchange_holiday_bronze_materialization,
-    record_exchange_schedule_bronze_materialization,
-)
-
 log = structlog.get_logger(__name__)
 
 
@@ -194,24 +189,6 @@ async def run_exchange_schedule_refresh(
                 counters=_schedule_counters(tally=run.tally, summary=summary),
                 summary=summary,
             )
-            schedule_rows = sum(row.get("schedule_rows", 0) for row in summary["exchange"].values())
-            holiday_rows = sum(row.get("holiday_rows", 0) for row in summary["exchange"].values())
-            if schedule_rows:
-                record_exchange_schedule_bronze_materialization(
-                    app_run_id=run.run_id,
-                    snapshot_date=snapshot_date.isoformat(),
-                    provider="eodhd",
-                    schedule_rows=schedule_rows,
-                    holiday_rows=holiday_rows,
-                )
-            if holiday_rows:
-                record_exchange_holiday_bronze_materialization(
-                    app_run_id=run.run_id,
-                    snapshot_date=snapshot_date.isoformat(),
-                    provider="eodhd",
-                    schedule_rows=schedule_rows,
-                    holiday_rows=holiday_rows,
-                )
             await publish_prefect_ingestion_summary(
                 flow_name="exchange-schedule-refresh",
                 domain="exchange_schedule",

@@ -339,6 +339,7 @@ async def test_dbt_build_flow_releases_local_lock_before_subprocess(monkeypatch:
     monkeypatch.setattr(dbt, "run_dbt_command", fake_run_dbt_command)
     monkeypatch.setattr(dbt, "_refresh_tracker_lake", lambda _tracker: events.append("refresh"))
     monkeypatch.setattr(dbt, "read_dbt_run_results", lambda **_: None)
+    monkeypatch.setattr(dbt, "read_dbt_manifest", lambda **_: None)
     monkeypatch.setattr(dbt, "_record_dbt_invocation", lambda **_: events.append("invocation"))
     monkeypatch.setattr(dbt, "_record_dbt_node_results", lambda **_: 0)
     monkeypatch.setattr(dbt, "_create_dbt_summary_artifact", fake_create_artifact)
@@ -399,6 +400,56 @@ def test_read_dbt_run_results_ignores_stale_shared_target(tmp_path: Path) -> Non
     per_run_target.mkdir(parents=True)
 
     assert dbt.read_dbt_run_results.fn(target_path=str(per_run_target), app_root=str(APP_ROOT)) is None
+
+
+def test_read_dbt_manifest_uses_per_run_target_path(tmp_path: Path) -> None:
+    """Dbt manifest reads should use the exact per-run target path."""
+    target_dir = tmp_path / "target" / "pipeline-runs" / "run-1"
+    target_dir.mkdir(parents=True)
+    manifest = target_dir / "manifest.json"
+    manifest.write_text('{"nodes": {"model.demo.example": {"name": "example"}}}')
+
+    assert dbt.read_dbt_manifest.fn(target_path=str(target_dir), app_root=str(APP_ROOT)) == {
+        "nodes": {"model.demo.example": {"name": "example"}}
+    }
+
+
+def test_dbt_materialized_models_extracts_successful_model_metadata() -> None:
+    """Only successful dbt model nodes should feed asset materialization mapping."""
+    run_results = {
+        "results": [
+            {"unique_id": "model.unique_stocks.stg_eod_price", "status": "success", "relation_name": "stg"},
+            {"unique_id": "test.unique_stocks.not_null_price", "status": "pass"},
+            {"unique_id": "model.unique_stocks.fct_daily_price", "status": "error"},
+        ]
+    }
+    manifest = {
+        "nodes": {
+            "model.unique_stocks.stg_eod_price": {
+                "name": "stg_eod_price",
+                "package_name": "unique_stocks",
+                "original_file_path": "models/staging/price/stg_eod_price.sql",
+                "path": "staging/price/stg_eod_price.sql",
+                "fqn": ["unique_stocks", "staging", "price", "stg_eod_price"],
+                "tags": ["daily"],
+                "config": {"materialized": "view"},
+            }
+        }
+    }
+
+    assert dbt._dbt_materialized_models(run_results=run_results, manifest=manifest) == [
+        {
+            "unique_id": "model.unique_stocks.stg_eod_price",
+            "name": "stg_eod_price",
+            "package_name": "unique_stocks",
+            "original_file_path": "models/staging/price/stg_eod_price.sql",
+            "path": "staging/price/stg_eod_price.sql",
+            "fqn": ["unique_stocks", "staging", "price", "stg_eod_price"],
+            "tags": ["daily"],
+            "materialized": "view",
+            "relation_name": "stg",
+        }
+    ]
 
 
 def test_run_dbt_command_uses_distinct_artifact_paths(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:

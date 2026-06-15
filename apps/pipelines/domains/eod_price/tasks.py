@@ -11,6 +11,7 @@ from uuid import uuid4
 
 import structlog
 from prefect import task
+from prefect.assets import materialize
 from prefect.client.schemas.objects import State, TaskRun
 from prefect.tasks import exponential_backoff
 from pydantic import ValidationError
@@ -29,6 +30,7 @@ from providers.eodhd.client import EODHDClient
 from providers.eodhd.identifiers import eodhd_api_symbol
 from providers.eodhd.models import EODBulkPriceRaw, EODPriceBarRaw
 
+from .assets import BRONZE_EOD_PRICE_ASSET, attach_eod_price_bronze_metadata
 from .coverage import (
     EOD_INSTRUMENT_BACKFILL_UNIT_TYPE,
     EOD_PRICE_DOMAIN,
@@ -254,7 +256,9 @@ def parse_eod_price(
     return valid, rejected
 
 
-@task(
+@materialize(
+    BRONZE_EOD_PRICE_ASSET,
+    by="python",
     name="write-bronze-eod-price",
     task_run_name="write-bronze-eod-price-{provider_exchange_code}",
 )
@@ -276,7 +280,18 @@ def write_bronze_eod_price(
         log.info(
             "price.write_skipped", reason="no_bars", provider_exchange_code=provider_exchange_code, bar_date=bar_date
         )
-        return BronzeWrite(rows_written=0, reason="no_bars")
+        write = BronzeWrite(rows_written=0, reason="no_bars")
+        attach_eod_price_bronze_metadata(
+            provider=EOD_PROVIDER,
+            write_scope="daily",
+            provider_exchange_code=provider_exchange_code,
+            bar_date=bar_date,
+            rows_written=write.rows_written,
+            reason=write.reason,
+            source_uri=source_uri,
+            source_count=0,
+        )
+        return write
 
     lake = get_lake_client()
     records, duplicates = _deduplicate_eod_price_records(sources, source_uri=source_uri)
@@ -289,7 +304,19 @@ def write_bronze_eod_price(
         duplicates_dropped=duplicates,
     )
     reason = "already_ingested" if written == 0 and records else None
-    return BronzeWrite(rows_written=written, reason=reason)
+    write = BronzeWrite(rows_written=written, reason=reason)
+    attach_eod_price_bronze_metadata(
+        provider=EOD_PROVIDER,
+        write_scope="daily",
+        provider_exchange_code=provider_exchange_code,
+        bar_date=bar_date,
+        rows_written=write.rows_written,
+        reason=write.reason,
+        source_uri=source_uri,
+        source_count=len(sources),
+        duplicates_dropped=duplicates,
+    )
+    return write
 
 
 @task(
@@ -764,7 +791,9 @@ async def fetch_instrument_eod_history(
     return bars
 
 
-@task(
+@materialize(
+    BRONZE_EOD_PRICE_ASSET,
+    by="python",
     name="write-backfill-eod-batch",
     task_run_name="write-backfill-eod-batch-{provider_exchange_code}",
 )
@@ -782,7 +811,16 @@ def write_backfill_eod_batch(
     from core.lake import get_lake_client
 
     if not sources:
-        return BronzeWrite(rows_written=0, reason="no_sources")
+        write = BronzeWrite(rows_written=0, reason="no_sources")
+        attach_eod_price_bronze_metadata(
+            provider=EOD_PROVIDER,
+            write_scope="backfill",
+            provider_exchange_code=provider_exchange_code,
+            rows_written=write.rows_written,
+            reason=write.reason,
+            source_count=0,
+        )
+        return write
 
     lake = get_lake_client()
     records, duplicates = _deduplicate_eod_price_records(sources)
@@ -795,7 +833,17 @@ def write_backfill_eod_batch(
         sources=len(sources),
     )
     reason = "already_ingested" if written == 0 and records else None
-    return BronzeWrite(rows_written=written, reason=reason)
+    write = BronzeWrite(rows_written=written, reason=reason)
+    attach_eod_price_bronze_metadata(
+        provider=EOD_PROVIDER,
+        write_scope="backfill",
+        provider_exchange_code=provider_exchange_code,
+        rows_written=write.rows_written,
+        reason=write.reason,
+        source_count=len(sources),
+        duplicates_dropped=duplicates,
+    )
+    return write
 
 
 def _deduplicate_eod_price_records(

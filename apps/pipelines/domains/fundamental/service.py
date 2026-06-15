@@ -35,8 +35,6 @@ from domains.fundamental.writers import write_fundamental_bronze_slices
 from providers.eodhd.identifiers import EODHDInstrumentRef, eodhd_instrument_key
 from providers.eodhd.models import FundamentalRaw
 
-from .assets import record_fundamental_bronze_materialization
-
 log = structlog.get_logger(__name__)
 _REJECTION_SAMPLE_LIMIT_PER_INSTRUMENT = 100
 
@@ -500,14 +498,6 @@ async def run_fundamental_refresh(request: FundamentalRefreshRequest) -> Fundame
                 ),
                 summary=summary,
             )
-            if total_written:
-                record_fundamental_bronze_materialization(
-                    app_run_id=run.run_id,
-                    snapshot_date=snapshot_date.isoformat(),
-                    provider="eodhd",
-                    rows_written=total_written,
-                    instruments=len(summary["instruments"]),
-                )
             await publish_prefect_ingestion_summary(
                 flow_name="fundamental-quarterly",
                 domain="fundamental",

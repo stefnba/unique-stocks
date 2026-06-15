@@ -61,8 +61,6 @@ from orchestration.domain_dbt import DbtBuildDeployment
 from orchestration.post_ingestion import run_dbt_build_after_ingestion, run_dbt_build_deployment
 from providers.eodhd.models import EODBulkPriceRaw, EODPriceBarRaw
 
-from .assets import record_eod_price_bronze_materialization
-
 log = structlog.get_logger(__name__)
 _REJECTION_SAMPLE_LIMIT_PER_UNIT = 100
 
@@ -211,15 +209,6 @@ async def run_eod_price_daily(request: EodPriceDailyRequest) -> EodPriceRefreshR
                         bar_date=bar_date,
                         source_uri=landing.source_uri,
                     )
-                    if bronze.rows_written:
-                        record_eod_price_bronze_materialization(
-                            app_run_id=run.run_id,
-                            provider_exchange_code=provider_exchange_code,
-                            bar_date=bar_date.isoformat(),
-                            rows_written=bronze.rows_written,
-                            source_uri=landing.source_uri,
-                            ingestion_mode="daily_bulk",
-                        )
 
                     summary["exchange"][provider_exchange_code] = {
                         "bar_date": bar_date.isoformat(),
@@ -983,15 +972,6 @@ async def run_eod_price_backfill(request: EodPriceBackfillRequest) -> EodPriceRe
                         )
                         batch_written = bronze_batch.rows_written
                         exchange_written += batch_written
-                        if batch_written:
-                            record_eod_price_bronze_materialization(
-                                app_run_id=run.run_id,
-                                provider_exchange_code=provider_exchange_code,
-                                from_date=_iso_date(from_date),
-                                to_date=to_date.isoformat(),
-                                rows_written=batch_written,
-                                ingestion_mode="historical_backfill",
-                            )
                     if completed_coverage_outcomes:
                         write_eod_backfill_completed_coverage(
                             run_id=str(run.run_id),
