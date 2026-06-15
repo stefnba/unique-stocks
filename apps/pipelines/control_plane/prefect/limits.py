@@ -17,7 +17,6 @@ LAKE_WRITER_SLOTS_BY_ENVIRONMENT: Final[Mapping[Environment, int]] = {
 PREFECT_LIMITS = define_limits(
     http_providers=PROVIDER_HTTP_CLIENT_REGISTRY,
     lake_writer_limit=LAKE_WRITER_SLOTS_BY_ENVIRONMENT[get_settings().environment],
-    additional_limits=[],
 )
 
 

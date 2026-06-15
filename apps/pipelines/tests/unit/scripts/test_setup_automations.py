@@ -14,7 +14,7 @@ def test_setup_automations_main_uses_plan_flag(monkeypatch: pytest.MonkeyPatch) 
             calls.append(plan)
             return 0
 
-    monkeypatch.setattr(setup_automations, "build_prefect_automations", lambda: FakePrefectAutomations())
+    monkeypatch.setattr(setup_automations, "PREFECT_AUTOMATIONS", FakePrefectAutomations())
 
     exit_code = setup_automations.main(["--plan"])
 

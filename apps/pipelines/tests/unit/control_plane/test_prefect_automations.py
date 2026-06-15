@@ -1,5 +1,6 @@
 """Tests for app Prefect automation definitions."""
 
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -49,10 +50,14 @@ async def test_app_automations_plan(
         assert f"Would create automation: {automation_name}" in output
 
 
-def test_app_automations_define_expected_triggers() -> None:
+def test_app_automations_define_expected_triggers(monkeypatch: pytest.MonkeyPatch) -> None:
     """App automation definitions should target canonical environment-scoped events."""
-    registry = app_automations.build_prefect_automations(actions=[DoNothing()], environment="prod")
-    automations_by_name = {automation.name: automation for automation in registry.automations}
+    monkeypatch.setattr(app_automations, "get_settings", lambda: SimpleNamespace(environment="dev"))
+    monkeypatch.setattr(app_automations.BlockRegistry.SLACK_WEBHOOK, "enabled", False)
+
+    automations_by_name = {
+        automation.name: automation for automation in app_automations.PREFECT_AUTOMATIONS.automations
+    }
 
     assert set(automations_by_name) == set(EXPECTED_AUTOMATIONS)
     for automation_name, event in EXPECTED_AUTOMATIONS.items():
@@ -63,11 +68,21 @@ def test_app_automations_define_expected_triggers() -> None:
         assert payload["trigger"]["match"] == {
             "unique-stocks.app": "unique-stocks",
             "unique-stocks.service": "pipelines",
-            "unique-stocks.environment": "prod",
+            "unique-stocks.environment": "dev",
         }
         assert payload["trigger"]["for_each"] == EXPECTED_FOR_EACH[automation_name]
         assert payload["tags"] == ["unique-stocks", "pipelines"]
         assert isinstance(automation.actions[0], DoNothing)
+
+
+def test_app_automations_use_current_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Automation matches should use the configured runtime environment."""
+    monkeypatch.setattr(app_automations, "get_settings", lambda: SimpleNamespace(environment="docker_dev"))
+    monkeypatch.setattr(app_automations.BlockRegistry.SLACK_WEBHOOK, "enabled", False)
+
+    for automation in app_automations.PREFECT_AUTOMATIONS.automations:
+        payload = automation.model_dump(mode="json", exclude_unset=True)
+        assert payload["trigger"]["match"]["unique-stocks.environment"] == "docker_dev"
 
 
 def test_app_automation_declaration_defers_slack_document_id(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -79,9 +94,7 @@ def test_app_automation_declaration_defers_slack_document_id(monkeypatch: pytest
     monkeypatch.setattr(app_automations.BlockRegistry.SLACK_WEBHOOK, "enabled", True)
     monkeypatch.setattr(app_automations.BlockRegistry.SLACK_WEBHOOK, "document_id", fail_document_id)
 
-    registry = app_automations.build_prefect_automations(environment="prod")
-
-    assert registry.definitions[0].name == "unique-stocks dbt failure alert"
+    assert app_automations.PREFECT_AUTOMATIONS.definitions[0].name == "unique-stocks dbt failure alert"
 
 
 def test_pipeline_alert_automation_resolves_slack_document_id_when_materialized(
@@ -89,6 +102,7 @@ def test_pipeline_alert_automation_resolves_slack_document_id_when_materialized(
 ) -> None:
     """Slack notifications should resolve the saved block only when materialized."""
     block_document_id = uuid4()
+    monkeypatch.setattr(app_automations, "get_settings", lambda: SimpleNamespace(environment="prod"))
     monkeypatch.setattr(app_automations.BlockRegistry.SLACK_WEBHOOK, "enabled", True)
     monkeypatch.setattr(app_automations.BlockRegistry.SLACK_WEBHOOK, "document_id", lambda: block_document_id)
 
@@ -96,29 +110,10 @@ def test_pipeline_alert_automation_resolves_slack_document_id_when_materialized(
         name="demo alert",
         description="demo",
         event=PrefectEvent.DBT_FAILED,
-        match=app_automations.event_match("prod"),
         subject="demo subject",
+        for_each=("unique-stocks.app_run_id",),
     ).to_prefect_automation()
 
     assert isinstance(automation.actions[0], SendNotification)
     assert automation.actions[0].block_document_id == block_document_id
     assert automation.actions[0].subject == "demo subject"
-
-
-def test_app_automations_use_supplied_notification_actions() -> None:
-    """Supplied actions should allow tests and custom callers to avoid block lookups."""
-    block_id = uuid4()
-    action = SendNotification(block_document_id=block_id, subject="configured", body="body")
-    registry = app_automations.build_prefect_automations(actions=[action], environment="prod")
-
-    for automation in registry.automations:
-        assert isinstance(automation.actions[0], SendNotification)
-        assert automation.actions[0].block_document_id == block_id
-        assert automation.actions[0].body == "body"
-
-
-def test_alert_actions_noop_when_slack_block_is_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Blank Slack webhook configuration should keep managed automations inert."""
-    monkeypatch.setattr(app_automations.BlockRegistry.SLACK_WEBHOOK, "enabled", False)
-
-    assert isinstance(app_automations.alert_actions()[0], DoNothing)
