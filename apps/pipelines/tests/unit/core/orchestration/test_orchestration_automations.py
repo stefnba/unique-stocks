@@ -60,7 +60,7 @@ async def test_automation_registry_sync_creates_when_missing(
     monkeypatch.setattr(Automation, "acreate", fake_create)
     monkeypatch.setattr(Automation, "aupdate", fail_update)
 
-    exit_code = await registry.sync(dry_run=False)
+    exit_code = await registry.sync(plan=False)
 
     assert exit_code == 0
     assert "Created automation: demo automation" in capsys.readouterr().out
@@ -95,7 +95,7 @@ async def test_automation_registry_sync_updates_existing_by_name(
     monkeypatch.setattr(Automation, "acreate", fail_create)
     monkeypatch.setattr(Automation, "aupdate", fake_update)
 
-    exit_code = await registry.sync(dry_run=False)
+    exit_code = await registry.sync(plan=False)
 
     assert exit_code == 0
     assert "Updated automation: demo automation" in capsys.readouterr().out

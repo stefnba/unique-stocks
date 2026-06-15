@@ -19,12 +19,11 @@ class AutomationRegistry:
 
     automations: tuple[Automation, ...] = field(default_factory=tuple)
 
-    async def sync(self, *, dry_run: bool) -> int:
+    async def sync(self, *, plan: bool) -> int:
         """Create or update every automation in this registry.
 
         Args:
-            dry_run: When true, print planned changes without writing to the
-                Prefect API.
+            plan: When true, print planned changes without writing to the Prefect API.
 
         Returns:
             Process-style exit code ``0`` after all planned or applied changes
@@ -40,7 +39,7 @@ class AutomationRegistry:
 
             # create
             if existing is None:
-                if dry_run:
+                if plan:
                     print(f"Would create automation: {automation.name}")
                     continue
 
@@ -49,7 +48,7 @@ class AutomationRegistry:
                 continue
 
             # update
-            if dry_run:
+            if plan:
                 print(f"Would update automation: {automation.name}")
                 continue
 

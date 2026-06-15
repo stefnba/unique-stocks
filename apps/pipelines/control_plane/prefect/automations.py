@@ -11,6 +11,7 @@ from core.prefect.events import PrefectEvent
 
 AUTOMATION_TAGS = ["unique-stocks", "pipelines"]
 
+# TODO: Restore PREFECT_NOTIFICATION_BLOCK_ID support by using SendNotification actions when configured.
 PREFECT_AUTOMATIONS = define_automations(
     [
         Automation(

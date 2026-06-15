@@ -88,7 +88,7 @@ async def test_limit_registry_sync_creates_missing_limits(
     registry = define_limits(lake_writer_limit=2)
     monkeypatch.setattr(orchestration_limits, "get_client", lambda: FakeClientContext(client))
 
-    exit_code = await registry.sync(dry_run=False)
+    exit_code = await registry.sync(plan=False)
 
     assert exit_code == 0
     assert client.created[0].name == LAKE_WRITER_LIMIT
@@ -105,7 +105,7 @@ async def test_limit_registry_sync_updates_existing_limits(
     registry = define_limits(lake_writer_limit=2)
     monkeypatch.setattr(orchestration_limits, "get_client", lambda: FakeClientContext(client))
 
-    exit_code = await registry.sync(dry_run=False)
+    exit_code = await registry.sync(plan=False)
 
     assert exit_code == 0
     assert client.updated[0][0] == LAKE_WRITER_LIMIT

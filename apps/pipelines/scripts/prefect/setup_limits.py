@@ -13,9 +13,9 @@ def build_parser() -> argparse.ArgumentParser:
     """Build the Prefect limits setup CLI parser."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--dry-run",
+        "--plan",
         action="store_true",
-        help="Print planned Prefect limits without changing the server.",
+        help="Read the Prefect API and print planned limit changes without writing them.",
     )
     return parser
 
@@ -23,7 +23,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     """CLI entrypoint."""
     args = build_parser().parse_args(list(argv) if argv is not None else None)
-    return asyncio.run(PREFECT_LIMITS.sync(dry_run=args.dry_run))
+    return asyncio.run(PREFECT_LIMITS.sync(plan=args.plan))
 
 
 if __name__ == "__main__":

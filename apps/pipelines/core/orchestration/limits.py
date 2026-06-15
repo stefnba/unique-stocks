@@ -35,12 +35,11 @@ class LimitRegistry:
         limits = self.limits() if callable(self.limits) else self.limits
         return tuple(limits)
 
-    async def sync(self, *, dry_run: bool) -> int:
+    async def sync(self, *, plan: bool) -> int:
         """Create or update every global concurrency limit in this registry.
 
         Args:
-            dry_run: When true, print planned changes without writing to the
-                Prefect API.
+            plan: When true, print planned changes without writing to the Prefect API.
 
         Returns:
             Process-style exit code ``0`` after all planned or applied changes
@@ -56,7 +55,7 @@ class LimitRegistry:
                     exists = True
 
                 if not exists:
-                    if dry_run:
+                    if plan:
                         print(f"Would create global limit {limit.name}: {_limit_summary(limit)}")
                         continue
 
@@ -64,7 +63,7 @@ class LimitRegistry:
                     print(f"Created global limit {limit.name}: {_limit_summary(limit)}")
                     continue
 
-                if dry_run:
+                if plan:
                     print(f"Would update global limit {limit.name}: {_limit_summary(limit)}")
                     continue
 

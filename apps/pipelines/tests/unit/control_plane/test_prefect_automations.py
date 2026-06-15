@@ -18,18 +18,18 @@ EXPECTED_AUTOMATIONS = {
 
 
 @pytest.mark.asyncio
-async def test_app_automations_dry_run(
+async def test_app_automations_plan(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Dry-run should describe managed app event automations."""
+    """Plan mode should describe managed app event automations."""
 
     async def read_missing(*, name: str) -> Automation:
         raise ValueError(f"Automation with name {name!r} not found")
 
     monkeypatch.setattr(Automation, "aread", read_missing)
 
-    exit_code = await PREFECT_AUTOMATIONS.sync(dry_run=True)
+    exit_code = await PREFECT_AUTOMATIONS.sync(plan=True)
 
     output = capsys.readouterr().out
     assert exit_code == 0

@@ -5,7 +5,7 @@
 .PHONY: smoke operational-health dashboard prefect-limits prefect-automations prefect-server prefect-worker
 .PHONY: docker-up docker-down docker-down-volumes docker-logs docker-logs-worker docker-logs-dashboard docker-ps docker-setup docker-prod-config
 .PHONY: lake-reset-local lake-migration lake-migration-status lake-ensure-database lake-migrate lake-ui
-.PHONY: deploy deploy-dry deploy-upsert deploy-dry-manifest
+.PHONY: deploy deploy-plan deploy-dry deploy-upsert deploy-dry-manifest
 .PHONY: dbt-install dbt-debug dbt-compile dbt-seed dbt-run dbt-test dbt-build dbt-clean dbt-run-staging dbt-run-marts
 .PHONY: dbt-docs-generate dbt-docs-serve dbt-docs
 
@@ -163,10 +163,10 @@ operational-health: ## Check Prefect API and lake audit health (pass ARGS="...")
 dashboard: ## Start the Streamlit pipeline audit dashboard
 	$(UV) run --extra dashboard streamlit run dashboard/app.py --server.address 0.0.0.0 --server.port $(STREAMLIT_SERVER_PORT) --server.headless true
 
-prefect-limits: ## Upsert Prefect global limits and provider rate limits (pass ARGS="--dry-run")
+prefect-limits: ## Upsert Prefect global limits and provider rate limits (pass ARGS="--plan")
 	$(UV) run pipelines-prefect-limits $(ARGS)
 
-prefect-automations: ## Upsert Prefect event automations (pass ARGS="--dry-run")
+prefect-automations: ## Upsert Prefect event automations (pass ARGS="--plan")
 	$(UV) run pipelines-prefect-automations $(ARGS)
 
 ##@ Local Services
@@ -273,8 +273,8 @@ lake-ui: lake-env-guard lake-ensure-database ## Open DuckDB local UI (MotherDuck
 deploy: ## Sync deployments: prune app orphans, then apply prefect.yaml
 	$(UV) run pipelines-prefect-deployments
 
-deploy-dry: ## Preview manifest entries and orphaned deployments to remove
-	$(UV) run pipelines-prefect-deployments --dry-run
+deploy-plan: ## Preview manifest entries and orphaned deployments to remove
+	$(UV) run pipelines-prefect-deployments --plan
 
 deploy-upsert: ## Apply prefect.yaml without removing orphaned deployments
 	$(UV) run prefect --no-prompt deploy --all

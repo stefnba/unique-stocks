@@ -280,13 +280,13 @@ global concurrency limits for shared lake and provider resources with `make pref
 by provider HTTP clients, such as `unique-stocks.lake-writer` for lake/dbt/migration writes and
 `unique-stocks.http.provider.eodhd` for EODHD calls. The app-level limit registry is
 `control_plane.prefect.limits.PREFECT_LIMITS`; provider policies still live on provider clients.
-`make prefect-automations` creates event automations
+Use `ARGS="--plan"` with `make prefect-limits` and `make prefect-automations`, or
+run `make deploy-plan`, when you want to read live Prefect state and preview the
+planned changes without writing them. `make prefect-automations` creates event automations
 for dbt failures, EOD coverage-gate gaps, stale running audit rows, ingestion partial/failure outcomes,
 and cancellations. Managed event names are defined in `core.prefect.events.PrefectEvent`, which is
-also used by the emit helpers. The automations use a no-op action unless
-`PREFECT_NOTIFICATION_BLOCK_ID` is set to a Prefect notification block UUID.
-If the Prefect UI shows no useful action, set that environment variable and rerun
-`make prefect-automations` against the same `PREFECT_API_URL` used by the worker.
+also used by the emit helpers. Automations currently use no-op actions; notification-block support is
+tracked in `ToDo.md`.
 If Prefect logs that a provider limit such as `unique-stocks.http.provider.eodhd` does not exist, run `make prefect-limits`
 against the same `PREFECT_API_URL` used by the worker.
 
@@ -536,7 +536,7 @@ Manual UI experiments with unrelated entrypoints are left untouched.
 
 ```bash
 cd apps/pipelines
-make deploy-dry        # preview prefect.yaml entries + orphan deletions
+make deploy-plan       # preview prefect.yaml entries + orphan deletions
 make deploy            # prune orphans, then apply prefect.yaml
 make deploy-upsert     # apply only — keep orphaned app deployments
 ```
@@ -573,7 +573,7 @@ Optional production infrastructure configuration:
 - `DASHBOARD_MOTHERDUCK_TOKEN` — optional dashboard-specific MotherDuck token. Prefer a read-only token here; when omitted, the dashboard falls back to `MOTHERDUCK_TOKEN`.
 - `PREFECT_UI_URL` — optional browser-facing Prefect UI base URL used for run deep links from the dashboard.
 - `PREFECT_WORKER_LIMIT` — maximum concurrent flow runs per worker process; defaults to `1`.
-- `PREFECT_NOTIFICATION_BLOCK_ID` — optional Prefect notification block UUID used by event automations.
+- `PREFECT_NOTIFICATION_BLOCK_ID` — reserved for planned Prefect notification support. Current automations use no-op actions.
 - `OPERATIONAL_HEALTH_RECENT_DOMAINS` — optional comma- or whitespace-separated domains the deployed `pipelines-operational-health` container must see recently, for example `eod_price,fundamental`.
 - `OPERATIONAL_HEALTH_RECENT_HOURS` — freshness window for configured recent domains; defaults to `36`.
 - `OPERATIONAL_HEALTH_STALE_RUNNING_HOURS` — stale-running threshold; defaults to `2`.

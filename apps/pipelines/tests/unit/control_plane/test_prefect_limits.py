@@ -48,14 +48,14 @@ def test_app_limits_define_lake_writer_and_provider_policies() -> None:
 
 
 @pytest.mark.asyncio
-async def test_app_limits_dry_run(
+async def test_app_limits_plan(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Dry-run should describe managed app Prefect limits."""
+    """Plan mode should describe managed app Prefect limits."""
     monkeypatch.setattr(orchestration_limits, "get_client", lambda: FakeClientContext())
 
-    exit_code = await app_limits.PREFECT_LIMITS.sync(dry_run=True)
+    exit_code = await app_limits.PREFECT_LIMITS.sync(plan=True)
 
     output = capsys.readouterr().out
     assert exit_code == 0

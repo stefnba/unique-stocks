@@ -10,7 +10,7 @@ from pathlib import Path
 
 import structlog
 
-from control_plane.prefect import PrefectDeployments
+from core.prefect.deployments import DEFAULT_PREFECT_YAML, sync_deployments
 
 log = structlog.get_logger(__name__)
 
@@ -21,13 +21,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--prefect-yaml",
         type=Path,
-        default=PrefectDeployments.DEFAULT_YAML,
+        default=DEFAULT_PREFECT_YAML,
         help="Path to the Prefect project manifest.",
     )
     parser.add_argument(
-        "--dry-run",
+        "--plan",
         action="store_true",
-        help="Print planned deletions and deployment apply without changing the server.",
+        help="Read Prefect state and print planned deployment changes without writing them.",
     )
     parser.add_argument(
         "--prune-only",
@@ -42,9 +42,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(list(argv) if argv is not None else None)
     try:
         return asyncio.run(
-            PrefectDeployments.sync(
+            sync_deployments(
                 prefect_yaml=args.prefect_yaml,
-                dry_run=args.dry_run,
+                plan=args.plan,
                 prune_only=args.prune_only,
             )
         )

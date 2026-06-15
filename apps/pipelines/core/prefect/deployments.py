@@ -16,7 +16,7 @@ import subprocess
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import ClassVar, Protocol
+from typing import Protocol
 from uuid import UUID
 
 import structlog
@@ -28,28 +28,6 @@ log = structlog.get_logger(__name__)
 
 MANAGED_ENTRYPOINT_PREFIXES: tuple[str, ...] = ("domains.", "orchestration.")
 DEFAULT_PREFECT_YAML = Path("prefect.yaml")
-
-
-class PrefectDeploymentSyncBase:
-    """Base class for app-owned Prefect deployment sync configuration."""
-
-    DEFAULT_YAML: ClassVar[Path] = DEFAULT_PREFECT_YAML
-    """Default Prefect project manifest path."""
-
-    @classmethod
-    async def sync(
-        cls,
-        *,
-        prefect_yaml: Path | None = None,
-        dry_run: bool,
-        prune_only: bool,
-    ) -> int:
-        """Prune orphaned app deployments and apply a Prefect project manifest."""
-        return await sync_deployments(
-            prefect_yaml=prefect_yaml or cls.DEFAULT_YAML,
-            dry_run=dry_run,
-            prune_only=prune_only,
-        )
 
 
 class ReadableDeployment(Protocol):
@@ -170,14 +148,14 @@ async def _read_server_deployments() -> list[tuple[DeploymentKey, DeploymentResp
     return rows
 
 
-async def _delete_orphans(orphans: Sequence[OrphanedDeployment], *, dry_run: bool) -> None:
+async def _delete_orphans(orphans: Sequence[OrphanedDeployment], *, plan: bool) -> None:
     """Delete orphaned deployments from the Prefect server."""
     if not orphans:
         log.info("deploy.sync.no_orphans")
         return
 
     for orphan in orphans:
-        if dry_run:
+        if plan:
             log.info(
                 "deploy.sync.would_delete_orphan",
                 deployment=orphan.key.slug,
@@ -190,9 +168,9 @@ async def _delete_orphans(orphans: Sequence[OrphanedDeployment], *, dry_run: boo
         log.info("deploy.sync.deleted_orphan", deployment=orphan.key.slug)
 
 
-def _run_prefect_deploy(*, dry_run: bool) -> None:
+def _run_prefect_deploy(*, plan: bool) -> None:
     """Apply the yaml manifest with Prefect's deploy command."""
-    if dry_run:
+    if plan:
         log.info("deploy.sync.would_apply_manifest")
         return
 
@@ -205,7 +183,7 @@ def _run_prefect_deploy(*, dry_run: bool) -> None:
 async def sync_deployments(
     *,
     prefect_yaml: Path,
-    dry_run: bool,
+    plan: bool,
     prune_only: bool,
 ) -> int:
     """Prune orphaned app deployments and apply ``prefect.yaml``."""
@@ -220,16 +198,16 @@ async def sync_deployments(
         expected=len(expected),
         server=len(server),
         orphans=len(orphans),
-        dry_run=dry_run,
+        plan=plan,
         prune_only=prune_only,
     )
 
     for key in sorted(expected, key=lambda item: item.slug):
         log.info("deploy.sync.manifest_entry", deployment=key.slug)
 
-    await _delete_orphans(orphans, dry_run=dry_run)
+    await _delete_orphans(orphans, plan=plan)
 
     if not prune_only:
-        _run_prefect_deploy(dry_run=dry_run)
+        _run_prefect_deploy(plan=plan)
 
     return 0
