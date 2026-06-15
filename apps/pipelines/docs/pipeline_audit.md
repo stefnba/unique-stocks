@@ -134,8 +134,10 @@ The main audit helpers live under `core.ingestion`:
 | `PipelineRunScope.record_rejections(...)`        | Flush a batch of sampled parser rejection rows.                      |
 | `PipelineUnitScope.complete_with_landing(...)`   | Complete a single scoped unit plus landing object.                   |
 
-`core.ingestion.run_tracking` is intentionally consolidated while the audit model is still changing. If navigation
-starts hurting, split it along the natural boundaries: record dataclasses, scoped DX helpers, and low-level lake writer.
+`core.ingestion.run_tracking` is a package with a stable public import surface. Record dataclasses live in
+`records.py`, run/unit context helpers live in `run_scope.py` and `unit_scope.py`, low-level lake writes live in
+`writer.py`, and aggregate status helpers live in `status.py`. `scopes.py` and `tracker.py` are small public import
+surfaces for the package.
 
 `track_run()` marks the run failed on Python exceptions and raises if a flow exits without an explicit terminal state.
 It currently treats interrupts such as Ctrl+C as failed; `cancelled` is reserved for a future explicit Prefect

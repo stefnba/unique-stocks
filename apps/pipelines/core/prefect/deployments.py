@@ -16,7 +16,7 @@ import subprocess
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import ClassVar, Protocol
 from uuid import UUID
 
 import structlog
@@ -28,6 +28,28 @@ log = structlog.get_logger(__name__)
 
 MANAGED_ENTRYPOINT_PREFIXES: tuple[str, ...] = ("domains.", "orchestration.")
 DEFAULT_PREFECT_YAML = Path("prefect.yaml")
+
+
+class PrefectDeploymentSyncBase:
+    """Base class for app-owned Prefect deployment sync configuration."""
+
+    DEFAULT_YAML: ClassVar[Path] = DEFAULT_PREFECT_YAML
+    """Default Prefect project manifest path."""
+
+    @classmethod
+    async def sync(
+        cls,
+        *,
+        prefect_yaml: Path | None = None,
+        dry_run: bool,
+        prune_only: bool,
+    ) -> int:
+        """Prune orphaned app deployments and apply a Prefect project manifest."""
+        return await sync_deployments(
+            prefect_yaml=prefect_yaml or cls.DEFAULT_YAML,
+            dry_run=dry_run,
+            prune_only=prune_only,
+        )
 
 
 class ReadableDeployment(Protocol):

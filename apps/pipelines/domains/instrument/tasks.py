@@ -5,7 +5,7 @@ from datetime import UTC, date, datetime
 import structlog
 from prefect import task
 
-from control_plane.prefect_blocks import BlockRegistry
+from control_plane.prefect import BlockRegistry
 from core.ingestion import BronzeWrite, LandingWrite
 from domains.instrument.datasets import INSTRUMENT_DATASET
 from domains.instrument.parsers import parse_instrument_snapshots

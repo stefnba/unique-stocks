@@ -30,8 +30,8 @@ from core.ingestion import PipelineRunTracker, RunCounters, terminal_status
 from core.ingestion.serialization import jsonable
 from core.lake import get_lake_client, reset_lake_client
 from core.lake.database import ensure_lake_database_for_backend
+from core.orchestration.limits import lake_writer_limit
 from core.prefect.events import emit_prefect_dbt_failure_event
-from core.prefect.limits import lake_writer_limit
 
 log = structlog.get_logger(__name__)
 

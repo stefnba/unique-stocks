@@ -19,7 +19,7 @@ from domains.eod_price.flows import eod_price_flow
 from domains.exchange.flows import exchange_catalog_flow, exchange_mic_registry_flow
 from domains.exchange_schedule.flows import exchange_schedule_flow
 from domains.fundamental.flows import fundamental_flow
-from domains.instrument.flows import instrument_flow
+from orchestration.flows.instrument import instrument_flow
 
 type SmokePreset = Literal["fundamental", "instrument", "eod-price", "exchange", "exchange-schedule"]
 

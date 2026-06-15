@@ -10,7 +10,7 @@ Domain flows call this module when they need to promote successful Bronze writes
 into Silver/Gold through a configured deployment.
 """
 
-from typing import Any, Literal
+from typing import Any
 
 import structlog
 from prefect.deployments.flow_runs import arun_deployment
@@ -18,16 +18,9 @@ from prefect.deployments.flow_runs import arun_deployment
 from config.settings import get_settings
 from core.ingestion.run_tracking import RunStatus
 from core.lake import reset_lake_client
+from orchestration.domain_dbt import DbtBuildDeployment
 
 log = structlog.get_logger(__name__)
-
-type DbtBuildDeployment = Literal[
-    "ingestion-control-build",
-    "exchange-build",
-    "instrument-build",
-    "price-build",
-    "fundamental-build",
-]
 
 
 async def run_dbt_build_after_ingestion(
@@ -162,4 +155,4 @@ def _state_type(state: Any | None) -> str | None:
     return enum_value if isinstance(enum_value, str) else None
 
 
-__all__ = ["DbtBuildDeployment", "run_dbt_build_after_ingestion", "run_dbt_build_deployment"]
+__all__ = ["run_dbt_build_after_ingestion", "run_dbt_build_deployment"]

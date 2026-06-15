@@ -21,9 +21,9 @@ This guide does not create root, human admin, or provisioner identities. Those b
 
 The app loads S3 access through Prefect blocks:
 
-- `config/aws_resources.py` defines the non-secret AWS resource defaults used by both provisioning and Prefect block wiring.
-- `config/blocks.py` defines the `aws-credentials` and `s3-bucket` blocks.
-- `DEFAULT_BUCKET_NAME` and `DEFAULT_REGION` in `config/aws_resources.py` are non-secret infrastructure values.
+- `control_plane/aws_resources.py` defines concrete environment-specific resource names used by provisioning and Prefect block wiring.
+- `control_plane/prefect/blocks.py` defines the `aws-credentials` and `s3-bucket` blocks.
+- Bucket names, IAM names, and the AWS region are non-secret control-plane wiring values.
 - Do not add bucket or region values to `.env`; the app does not read them from environment variables.
 - `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are secrets and are read only when saving Prefect blocks.
 - `make blocks-save` persists the current block definitions to the Prefect server.
@@ -42,7 +42,7 @@ For a fresh environment, `make setup` also runs `make blocks-save`.
 - Project dependencies installed with `uv sync`.
 - A provisioner identity from [iam_guide.md](iam_guide.md), or an equivalent AWS identity with permission to create S3 buckets, IAM users, IAM policies, and IAM access keys.
 - AWS credentials available to boto3 through environment variables, shared AWS config, an SSO profile, or an instance/task role.
-- The intended bucket name and region from `apps/pipelines/config/aws_resources.py`, unless you pass explicit overrides.
+- The intended bucket name and region from `apps/pipelines/control_plane/aws_resources.py`, unless you pass explicit overrides.
 
 The AWS CLI is optional but useful for checking your active identity:
 
@@ -97,7 +97,7 @@ make blocks-save
 
 Use `scripts/s3/setup_landing_zone.py` from `apps/pipelines/`. The script is idempotent for bucket creation, bucket settings, IAM user creation, and inline IAM policy updates.
 
-By default, it imports the bucket and region from `config/aws_resources.py` and applies these controls:
+By default, it resolves the bucket and region from `control_plane/aws_resources.py` and applies these controls:
 
 - S3 Block Public Access with all four bucket-level settings enabled.
 - S3 Object Ownership `BucketOwnerEnforced`, which disables ACLs.
@@ -129,7 +129,7 @@ Grant object delete only if a real cleanup workflow needs it:
 uv run python scripts/s3/setup_landing_zone.py --profile provisioner --allow-delete
 ```
 
-The Python script reads the project defaults directly from `config/aws_resources.py`.
+The Python script reads the project defaults from `control_plane/aws_resources.py`.
 
 ## Dedicated Bucket Assumption
 
@@ -181,7 +181,7 @@ If the script reports that the IAM user already has two access keys, disable and
 
 The same resources can be created manually in the AWS Console:
 
-- Create a dedicated S3 bucket in the region from `config/aws_resources.py`.
+- Create a dedicated S3 bucket in the region resolved by `control_plane/aws_resources.py`.
 - Block all public access.
 - Enforce bucket ownership, then enable default encryption and versioning.
 - Add a bucket policy statement that denies non-TLS requests.

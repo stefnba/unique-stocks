@@ -9,7 +9,7 @@ from prefect.client.schemas.objects import State, TaskRun
 from prefect.tasks import exponential_backoff
 from pydantic import ValidationError
 
-from control_plane.prefect_blocks import BlockRegistry
+from control_plane.prefect import BlockRegistry
 from core.http.base import ProviderRateLimitError
 from core.ingestion import BronzeWrite, LandingWrite
 from domains.exchange_schedule.datasets import (

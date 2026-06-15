@@ -13,7 +13,7 @@ import asyncio
 from collections.abc import Sequence
 from datetime import date
 
-from core.operations.smoke import SmokePresetRequest, normalize_preset, run_preset
+from orchestration.smoke import SmokePresetRequest, normalize_preset, run_preset
 
 DEFAULT_FUNDAMENTAL_PROVIDER_EXCHANGE_CODE = "US"
 DEFAULT_FUNDAMENTAL_PROVIDER_INSTRUMENT_CODE = "AAPL"

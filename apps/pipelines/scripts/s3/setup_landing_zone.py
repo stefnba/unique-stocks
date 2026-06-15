@@ -29,11 +29,11 @@ from typing import Any
 
 from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError, ProfileNotFound
 
-from core.clients.storage.s3.provisioning import (
+from control_plane.aws_resources import AWS_RESOURCES
+from core.storage.s3.provisioning import (
     LandingZoneConfig,
     ProvisioningError,
     ProvisioningEvent,
-    aws_resource_defaults,
     provision,
     validate_config,
 )
@@ -53,7 +53,7 @@ DRY_RUN_LABELS = {
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the landing-zone provisioning CLI parser."""
-    defaults = aws_resource_defaults()
+    defaults = AWS_RESOURCES
     parser = argparse.ArgumentParser(
         description="Set up the S3 landing-zone bucket and IAM user for the pipelines app.",
     )

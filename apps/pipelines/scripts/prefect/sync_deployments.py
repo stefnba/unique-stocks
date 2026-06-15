@@ -10,7 +10,7 @@ from pathlib import Path
 
 import structlog
 
-from core.prefect.deployments import DEFAULT_PREFECT_YAML, sync_deployments
+from control_plane.prefect import PrefectDeployments
 
 log = structlog.get_logger(__name__)
 
@@ -21,7 +21,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--prefect-yaml",
         type=Path,
-        default=DEFAULT_PREFECT_YAML,
+        default=PrefectDeployments.DEFAULT_YAML,
         help="Path to the Prefect project manifest.",
     )
     parser.add_argument(
@@ -42,7 +42,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(list(argv) if argv is not None else None)
     try:
         return asyncio.run(
-            sync_deployments(
+            PrefectDeployments.sync(
                 prefect_yaml=args.prefect_yaml,
                 dry_run=args.dry_run,
                 prune_only=args.prune_only,

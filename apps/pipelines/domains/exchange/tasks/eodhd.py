@@ -5,7 +5,7 @@ from datetime import date
 import structlog
 from prefect import task
 
-from control_plane.prefect_blocks import BlockRegistry
+from control_plane.prefect import BlockRegistry
 from core.ingestion import BronzeWrite, LandingWrite
 from domains.exchange.datasets import EXCHANGE_CATALOG_DATASET
 from domains.exchange.parsers import parse_exchange_catalog_snapshots

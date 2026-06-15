@@ -3,10 +3,6 @@
 This module maps dbt selectors to the concrete domain asset materializers in
 ``domains.*.assets``. It is intentionally outside ``core`` because the asset
 groups, selector needles, and materializer functions are app-specific.
-
-The domain list and selector metadata come from ``registry.domain_registry`` so
-domain identity and app wiring stay centralized instead of being hidden inside
-generic dbt execution code.
 """
 
 from collections.abc import Sequence
@@ -17,7 +13,7 @@ from domains.exchange.assets import record_exchange_dbt_materialization
 from domains.exchange_schedule.assets import record_exchange_schedule_dbt_materialization
 from domains.fundamental.assets import record_fundamental_dbt_materialization
 from domains.instrument.assets import record_instrument_dbt_materialization
-from registry.domain_registry import dbt_asset_domain_specs
+from orchestration.domain_dbt import DOMAIN_DBT_SPECS
 
 type DbtAssetGroup = str
 
@@ -29,9 +25,7 @@ class DbtAssetRecorder(Protocol):
         """Record materialization metadata."""
 
 
-DBT_ASSET_GROUPS: tuple[DbtAssetGroup, ...] = tuple(
-    spec.dbt_asset_group for spec in dbt_asset_domain_specs() if spec.dbt_asset_group is not None
-)
+DBT_ASSET_GROUPS: tuple[DbtAssetGroup, ...] = tuple(spec.asset_group for spec in DOMAIN_DBT_SPECS)
 
 _DBT_ASSET_RECORDERS: dict[DbtAssetGroup, DbtAssetRecorder] = {
     "exchange": record_exchange_dbt_materialization,
@@ -42,9 +36,7 @@ _DBT_ASSET_RECORDERS: dict[DbtAssetGroup, DbtAssetRecorder] = {
 }
 
 _DBT_ASSET_SELECT_NEEDLES: dict[DbtAssetGroup, tuple[str, ...]] = {
-    spec.dbt_asset_group: spec.dbt_select_needles
-    for spec in dbt_asset_domain_specs()
-    if spec.dbt_asset_group is not None
+    spec.asset_group: spec.select_needles for spec in DOMAIN_DBT_SPECS
 }
 
 
