@@ -14,6 +14,7 @@ from core.orchestration.deployments import (
     load_prefect_yaml_deployments,
     resolve_flow_name,
 )
+from orchestration.domain_dbt import DBT_BUILD_SPECS
 
 APPS_PIPELINES = APP_ROOT
 
@@ -68,6 +69,19 @@ def test_ingestion_deployments_enable_clean_post_ingestion_builds() -> None:
     )
     assert isinstance(historical_backfill_parameters, dict)
     assert historical_backfill_parameters["build_selection_views_if_missing"] is True
+
+
+def test_dbt_build_specs_match_manifest_selectors() -> None:
+    """Inline child dbt builds should use the same selectors as direct deployments."""
+    deployments = load_prefect_yaml_deployments(APPS_PIPELINES / DEFAULT_PREFECT_YAML)
+    by_key = {
+        DeploymentKey(resolve_flow_name(deployment), str(deployment["name"])): deployment for deployment in deployments
+    }
+
+    for build, spec in DBT_BUILD_SPECS.items():
+        parameters = by_key[DeploymentKey("dbt-build", build)].get("parameters")
+        assert isinstance(parameters, dict)
+        assert parameters["select"] == list(spec.select)
 
 
 @pytest.mark.parametrize(

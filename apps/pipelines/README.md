@@ -275,6 +275,8 @@ make prefect-worker        # start the worker
 `make prefect-worker` defaults to one concurrent flow run (`PREFECT_WORKER_LIMIT=1`) so separate
 deployments do not write the same local lake at the same time. Raise it only after adding Prefect
 global concurrency limits for shared lake and provider resources with `make prefect-limits`.
+Synchronous post-ingestion dbt builds run as child flows inside their parent flow, so this serialized
+worker setup does not require a second worker slot for `dbt-build/*` before the parent can continue.
 
 `make prefect-limits` upserts the shared lake writer limit and provider rate limits declared
 by provider HTTP clients, such as `unique-stocks.lake-writer` for lake/dbt/migration writes and
@@ -462,21 +464,23 @@ Production dbt execution is available as Prefect deployments:
 - `dbt-build/fundamental-build`: fundamental staging/intermediate + fundamental/instrument marts.
 
 Ingestion deployments set `run_dbt_build=true` where Silver/Gold freshness matters. A clean
-domain audit status (`pipeline.runs.status = 'completed'`) launches the matching dbt deployment
-with the ingestion `run_id` as `parent_run_id`; `partial`, `failed`, or all-skipped ingestion
-runs do not auto-promote Bronze data. Run the dbt deployments directly for bootstrap, repair,
-or full rebuilds. Each dbt invocation writes to its own `dbt/target/pipeline-runs/<dbt_run_id>/`
+domain audit status (`pipeline.runs.status = 'completed'`) runs the matching dbt build selector
+as a child flow with the ingestion `run_id` as `parent_run_id`; `partial`, `failed`, or
+all-skipped ingestion runs do not auto-promote Bronze data. Run the dbt deployments directly for
+bootstrap, repair, or full rebuilds. Each dbt invocation writes to its own
+`dbt/target/pipeline-runs/<dbt_run_id>/`
 directory; orchestration reads `run_results.json` only from that per-run path, records the exact
 artifact path in the dbt audit table, and publishes a Prefect Markdown artifact with the invocation
 summary. Every ingestion flow publishes a compact Prefect Markdown summary artifact, and EOD
 coverage gates publish a Prefect table artifact when they find gaps. Successful Bronze writes and
 dbt build/run invocations record simple Prefect asset materializations for Bronze, Silver, and
 Gold layer visibility in Prefect.
-If a post-ingestion dbt deployment fails after the ingestion audit has completed, the parent Prefect
+If a post-ingestion dbt build fails after the ingestion audit has completed, the parent Prefect
 flow intentionally fails for alerting while `pipeline.runs` keeps the ingestion status and dbt audit
 tables carry the transformation failure details.
-The shared dbt build deployment uses a one-run queue, so overlapping clean ingestion runs wait for
-the active transform instead of cancelling a newer promotion.
+Direct `dbt-build/*` deployments use a one-run queue. Automatic post-ingestion child builds rely on
+the shared lake writer global limit, so overlapping clean ingestion runs wait for the active
+transform instead of cancelling a newer promotion.
 
 DuckDB allows one writer at a time. If `make lake-migrate` or `make dbt-build` reports a database lock, close any local DuckDB/Cursor/VS Code database viewer connected to `unique_stocks.duckdb` and rerun the command.
 
@@ -592,7 +596,8 @@ migrations; `make setup` still runs migrations idempotently as part of first-tim
 Workers are serialized by default with `PREFECT_WORKER_LIMIT=1`. Keep deployment-level concurrency
 limits in place, and keep the `make prefect-limits` global limits in sync before scaling worker
 concurrency for shared lake files, MotherDuck writes, or provider quotas. Local DuckDB should keep
-one lake writer slot. The lake writer slot policy is declared in
+one lake writer slot. Synchronous child dbt builds run inline and therefore do not need a second
+worker slot. The lake writer slot policy is declared in
 `control_plane/prefect/limits.py`; raise it only after validating concurrent lake, dbt, migration,
 and audit writes in the target environment.
 

@@ -1,8 +1,6 @@
 """Tests for app post-ingestion dbt build gating."""
 
-from dataclasses import dataclass
 from datetime import date
-from uuid import UUID
 
 import pytest
 from pydantic import SecretStr
@@ -13,30 +11,11 @@ from orchestration import post_ingestion
 from orchestration.flows import instrument as instrument_flows
 
 
-@dataclass(frozen=True)
-class FakeState:
-    """Minimal Prefect state double."""
-
-    name: str
-    type: str
-    completed: bool
-
-    def is_completed(self) -> bool:
-        """Return whether the fake state is completed."""
-        return self.completed
-
-
-@dataclass(frozen=True)
-class FakeFlowRun:
-    """Minimal Prefect flow run double."""
-
-    id: UUID
-    state: FakeState | None
-
-
 @pytest.mark.asyncio
-async def test_post_ingestion_build_runs_deployment_after_completed_status(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A completed upstream audit status should launch the matching dbt deployment."""
+async def test_post_ingestion_build_runs_inline_child_after_completed_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A completed upstream audit status should run the matching dbt build inline."""
     calls: list[dict[str, object]] = []
     events: list[str] = []
 
@@ -47,15 +26,12 @@ async def test_post_ingestion_build_runs_deployment_after_completed_status(monke
 
     monkeypatch.setattr(post_ingestion, "reset_lake_client", fake_reset_lake_client)
 
-    async def fake_run_deployment(*args: object, **kwargs: object) -> FakeFlowRun:
-        events.append("submit")
-        calls.append({"args": args, "kwargs": kwargs})
-        return FakeFlowRun(
-            id=UUID("00000000-0000-0000-0000-000000000001"),
-            state=FakeState(name="Completed", type="COMPLETED", completed=True),
-        )
+    async def fake_dbt_build_flow(**kwargs: object) -> dict[str, object]:
+        events.append("inline")
+        calls.append(kwargs)
+        return {"return_code": 0}
 
-    monkeypatch.setattr(post_ingestion, "arun_deployment", fake_run_deployment)
+    monkeypatch.setattr(post_ingestion, "dbt_build_flow", fake_dbt_build_flow)
 
     result = await post_ingestion.run_dbt_build_after_ingestion(
         enabled=True,
@@ -66,29 +42,30 @@ async def test_post_ingestion_build_runs_deployment_after_completed_status(monke
 
     assert result["triggered"] is True
     assert result["deployment"] == "dbt-build/price-build"
-    assert result["flow_run_id"] == "00000000-0000-0000-0000-000000000001"
+    assert result["execution_mode"] == "inline"
+    assert result["dbt_summary"] == {"return_code": 0}
     assert calls == [
         {
-            "args": ("dbt-build/price-build",),
-            "kwargs": {
-                "parameters": {"parent_run_id": "parent-run"},
-                "idempotency_key": "parent-run:price-build",
-                "tags": ["post-ingestion-dbt", "price-build"],
-                "as_subflow": True,
-            },
-        }
+            "select": [
+                "path:models/staging/pipeline",
+                "path:models/staging/price",
+                "+path:models/intermediate/price",
+                "+path:models/marts/price",
+            ],
+            "parent_run_id": "parent-run",
+        },
     ]
-    assert events == ["release", "submit"]
+    assert events == ["release", "inline"]
 
 
 @pytest.mark.asyncio
 async def test_post_ingestion_build_skips_partial_status(monkeypatch: pytest.MonkeyPatch) -> None:
     """Partial upstream audit status should not promote Bronze data."""
 
-    async def fail_if_called(*_: object, **__: object) -> FakeFlowRun:
+    async def fail_if_called(*_: object, **__: object) -> dict[str, object]:
         raise AssertionError("partial ingestion must not trigger dbt")
 
-    monkeypatch.setattr(post_ingestion, "arun_deployment", fail_if_called)
+    monkeypatch.setattr(post_ingestion, "dbt_build_flow", fail_if_called)
 
     result = await post_ingestion.run_dbt_build_after_ingestion(
         enabled=True,
@@ -107,20 +84,17 @@ async def test_post_ingestion_build_skips_partial_status(monkeypatch: pytest.Mon
 
 
 @pytest.mark.asyncio
-async def test_post_ingestion_build_raises_when_dbt_deployment_fails(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The launcher should fail the caller when the dbt deployment does not complete."""
+async def test_post_ingestion_build_raises_when_dbt_build_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The launcher should fail the caller when the dbt build does not complete."""
     monkeypatch.setattr(post_ingestion, "get_settings", lambda: Settings(motherduck_token=SecretStr("")))
     monkeypatch.setattr(post_ingestion, "reset_lake_client", lambda: None)
 
-    async def fake_run_deployment(*_: object, **__: object) -> FakeFlowRun:
-        return FakeFlowRun(
-            id=UUID("00000000-0000-0000-0000-000000000002"),
-            state=FakeState(name="Failed", type="FAILED", completed=False),
-        )
+    async def fake_dbt_build_flow(**_: object) -> dict[str, object]:
+        raise RuntimeError("dbt failed")
 
-    monkeypatch.setattr(post_ingestion, "arun_deployment", fake_run_deployment)
+    monkeypatch.setattr(post_ingestion, "dbt_build_flow", fake_dbt_build_flow)
 
-    with pytest.raises(RuntimeError, match="dbt-build/instrument-build"):
+    with pytest.raises(RuntimeError, match="dbt failed"):
         await post_ingestion.run_dbt_build_after_ingestion(
             enabled=True,
             build="instrument-build",

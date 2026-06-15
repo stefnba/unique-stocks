@@ -1,24 +1,23 @@
 """Application post-ingestion dbt build orchestration.
 
-This module owns the app-specific policy for launching named dbt deployments
-after ingestion flows complete. It belongs in ``orchestration`` because build
-names such as ``price-build`` and ``fundamental-build`` are deployment wiring,
-not reusable core behavior.
+This module owns the app-specific policy for running named dbt builds after
+ingestion flows complete. It belongs in ``orchestration`` because build names
+such as ``price-build`` and ``fundamental-build`` are deployment wiring, not
+reusable core behavior.
 
 The generic dbt subprocess and audit mechanics remain in ``core.transforms``.
 Domain flows call this module when they need to promote successful Bronze writes
-into Silver/Gold through a configured deployment.
+into Silver/Gold through a configured build selector.
 """
 
-from typing import Any
-
 import structlog
-from prefect.deployments.flow_runs import arun_deployment
+from prefect import tags as prefect_tags
 
 from config.settings import get_settings
 from core.ingestion.run_tracking import RunStatus
 from core.lake import reset_lake_client
-from orchestration.domain_dbt import DbtBuildDeployment
+from orchestration.dbt import dbt_build_flow
+from orchestration.domain_dbt import DBT_BUILD_SPECS, DbtBuildDeployment
 
 log = structlog.get_logger(__name__)
 
@@ -30,7 +29,7 @@ async def run_dbt_build_after_ingestion(
     upstream_status: RunStatus,
     parent_run_id: str,
 ) -> dict[str, object]:
-    """Run a dbt deployment only after a clean ingestion audit status.
+    """Run a dbt build only after a clean ingestion audit status.
 
     This deliberately gates on the app's durable ``pipeline.runs.status`` value,
     not Prefect's flow-run state. Domain flows can finish normally while recording
@@ -66,59 +65,41 @@ async def run_dbt_build_deployment(
     idempotency_key: str | None = None,
     tags: list[str] | None = None,
 ) -> dict[str, object]:
-    """Launch a dbt build deployment and require a completed Prefect state."""
+    """Run the configured dbt build and require a completed Prefect state.
+
+    The public ``dbt-build/*`` deployments remain available for direct operator
+    runs. When another flow needs a synchronous dbt build, call the dbt flow
+    inline so a single-slot worker cannot deadlock waiting for a child
+    deployment that needs the same worker.
+    """
     deployment_name = f"dbt-build/{build}"
-    parameters: dict[str, Any] = {"parent_run_id": parent_run_id}
     run_tags = tags or ["dbt", build]
     _release_local_lake_lock_before_dbt(build=build, parent_run_id=parent_run_id)
-    if idempotency_key is None:
-        flow_run = await arun_deployment(
-            deployment_name,
-            parameters=parameters,
-            tags=run_tags,
-            as_subflow=True,
+    spec = DBT_BUILD_SPECS[build]
+    with prefect_tags(*run_tags):
+        dbt_summary = await dbt_build_flow(
+            select=list(spec.select),
+            parent_run_id=parent_run_id,
         )
-    else:
-        flow_run = await arun_deployment(
-            deployment_name,
-            parameters=parameters,
-            idempotency_key=idempotency_key,
-            tags=run_tags,
-            as_subflow=True,
-        )
-    state = flow_run.state
-    state_name = _state_name(state)
-    state_type = _state_type(state)
+
     result: dict[str, object] = {
         "enabled": True,
         "triggered": True,
         "build": build,
         "deployment": deployment_name,
-        "flow_run_id": str(flow_run.id),
-        "state_name": state_name,
-        "state_type": state_type,
+        "execution_mode": "inline",
+        "idempotency_key": idempotency_key,
+        "state_name": "Completed",
+        "state_type": "COMPLETED",
+        "dbt_summary": dbt_summary,
     }
-    if state is None or not state.is_completed():
-        log.error(
-            "dbt.build_deployment_failed",
-            build=build,
-            parent_run_id=parent_run_id,
-            flow_run_id=str(flow_run.id),
-            state_name=state_name,
-            state_type=state_type,
-        )
-        raise RuntimeError(
-            f"Post-ingestion dbt deployment {deployment_name} finished in state "
-            f"{state_name or state_type or 'unknown'}."
-        )
 
     log.info(
-        "dbt.build_deployment_done",
+        "dbt.build_inline_done",
         build=build,
         parent_run_id=parent_run_id,
-        flow_run_id=str(flow_run.id),
-        state_name=state_name,
-        state_type=state_type,
+        state_name=result["state_name"],
+        state_type=result["state_type"],
     )
     return result
 
@@ -135,24 +116,11 @@ def _skip_result(*, build: DbtBuildDeployment, reason: str, upstream_status: Run
 
 
 def _release_local_lake_lock_before_dbt(*, build: DbtBuildDeployment, parent_run_id: str | None) -> None:
-    """Close this process's local DuckDB handle before a dbt deployment starts."""
+    """Close this process's local DuckDB handle before a dbt build starts."""
     if get_settings().lake_backend() != "local":
         return
     reset_lake_client()
-    log.info("dbt.local_lake_lock_released_before_deployment", build=build, parent_run_id=parent_run_id)
-
-
-def _state_name(state: Any | None) -> str | None:
-    """Return a Prefect state name without depending on concrete state internals."""
-    value = getattr(state, "name", None)
-    return value if isinstance(value, str) else None
-
-
-def _state_type(state: Any | None) -> str | None:
-    """Return a Prefect state type as a serializable string."""
-    value = getattr(state, "type", None)
-    enum_value = getattr(value, "value", value)
-    return enum_value if isinstance(enum_value, str) else None
+    log.info("dbt.local_lake_lock_released_before_build", build=build, parent_run_id=parent_run_id)
 
 
 __all__ = ["run_dbt_build_after_ingestion", "run_dbt_build_deployment"]

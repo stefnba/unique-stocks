@@ -15,6 +15,14 @@ type DbtBuildDeployment = Literal[
 
 
 @dataclass(frozen=True, slots=True)
+class DbtBuildSpec:
+    """Runtime dbt selector metadata for one build deployment."""
+
+    deployment: DbtBuildDeployment
+    select: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class DomainDbtSpec:
     """Dbt asset and post-ingestion build metadata for one domain."""
 
@@ -22,6 +30,53 @@ class DomainDbtSpec:
     asset_group: str
     select_needles: tuple[str, ...]
     post_ingestion_build: DbtBuildDeployment | None = None
+
+
+DBT_BUILD_SPECS: dict[DbtBuildDeployment, DbtBuildSpec] = {
+    "ingestion-control-build": DbtBuildSpec(
+        deployment="ingestion-control-build",
+        select=("+tag:ingestion_control",),
+    ),
+    "exchange-build": DbtBuildSpec(
+        deployment="exchange-build",
+        select=(
+            "provider_namespace_policy",
+            "eodhd_provider_namespaces",
+            "path:models/staging/exchange",
+            "path:models/staging/exchange_schedule",
+            "+path:models/intermediate/exchange",
+            "+path:models/marts/exchange",
+        ),
+    ),
+    "instrument-build": DbtBuildSpec(
+        deployment="instrument-build",
+        select=(
+            "path:models/staging/instrument",
+            "path:models/staging/fundamental",
+            "+path:models/intermediate/instrument",
+            "+path:models/intermediate/fundamental",
+            "+path:models/marts/instrument",
+        ),
+    ),
+    "price-build": DbtBuildSpec(
+        deployment="price-build",
+        select=(
+            "path:models/staging/pipeline",
+            "path:models/staging/price",
+            "+path:models/intermediate/price",
+            "+path:models/marts/price",
+        ),
+    ),
+    "fundamental-build": DbtBuildSpec(
+        deployment="fundamental-build",
+        select=(
+            "path:models/staging/fundamental",
+            "+path:models/intermediate/fundamental",
+            "+path:models/marts/fundamental",
+            "+path:models/marts/instrument",
+        ),
+    ),
+}
 
 
 DOMAIN_DBT_SPECS: tuple[DomainDbtSpec, ...] = (
@@ -59,4 +114,11 @@ DOMAIN_DBT_SPECS: tuple[DomainDbtSpec, ...] = (
 
 DOMAIN_DBT_REGISTRY: dict[Domain, DomainDbtSpec] = {spec.domain: spec for spec in DOMAIN_DBT_SPECS}
 
-__all__ = ["DOMAIN_DBT_REGISTRY", "DOMAIN_DBT_SPECS", "DbtBuildDeployment", "DomainDbtSpec"]
+__all__ = [
+    "DBT_BUILD_SPECS",
+    "DOMAIN_DBT_REGISTRY",
+    "DOMAIN_DBT_SPECS",
+    "DbtBuildDeployment",
+    "DbtBuildSpec",
+    "DomainDbtSpec",
+]
