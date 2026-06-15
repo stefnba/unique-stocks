@@ -531,7 +531,7 @@ Each mode maps to the same orchestration flow with different default parameters.
 Bootstrap order for a new environment: exchange reference manual → ingestion-control-build when selector/control views are needed → instrument → ingest. The reference parent runs catalog, MIC, exchange-build, scoped schedule refresh, and the final exchange-build in order. In normal operation, scheduled exchange reference, exchange schedule, instrument, EOD price, and fundamentals deployments trigger their matching dbt build after a clean audit status; pass `run_dbt_build=false` for Bronze-only runs. Historical EOD backfill also has a preflight guard: the deployment sets `build_selection_views_if_missing=true`, so it runs `dbt-build/ingestion-control-build` before provider-instrument selection when the required Silver selector views do not exist yet.
 
 `make deploy` is the source-of-truth sync: it removes orphaned deployments owned by this app
-(entrypoints under `domains.*` or `orchestration.*`), then applies `prefect.yaml`.
+(entrypoints under `orchestration.*`), then applies `prefect.yaml`.
 Manual UI experiments with unrelated entrypoints are left untouched.
 
 ```bash

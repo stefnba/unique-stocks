@@ -73,7 +73,8 @@ def test_ingestion_deployments_enable_clean_post_ingestion_builds() -> None:
 @pytest.mark.parametrize(
     ("entrypoint", "expected"),
     [
-        ("domains.eod_price.flows:eod_price_flow", True),
+        ("domains.eod_price.flows:eod_price_flow", False),
+        ("orchestration.flows.eod_price:eod_price_flow", True),
         ("orchestration.flows.instrument:instrument_flow", True),
         ("orchestration.dbt:dbt_build_flow", True),
         ("some.other.module:flow_fn", False),
@@ -91,6 +92,7 @@ def test_find_orphaned_deployments_only_prunes_managed_entries() -> None:
     delete_id = UUID("00000000-0000-0000-0000-000000000001")
     keep_id = UUID("00000000-0000-0000-0000-000000000002")
     ignore_id = UUID("00000000-0000-0000-0000-000000000003")
+    legacy_id = UUID("00000000-0000-0000-0000-000000000004")
 
     class _Deployment:
         def __init__(self, deployment_id: UUID, entrypoint: str | None) -> None:
@@ -100,11 +102,15 @@ def test_find_orphaned_deployments_only_prunes_managed_entries() -> None:
     server = [
         (
             DeploymentKey("eod-price-daily", "eod-price-refresh-daily"),
-            _Deployment(keep_id, "domains.eod_price.flows:eod_price_flow"),
+            _Deployment(keep_id, "orchestration.flows.eod_price:eod_price_flow"),
         ),
         (
             DeploymentKey("eod-price-daily", "legacy-backfill"),
-            _Deployment(delete_id, "domains.eod_price.flows:eod_price_flow"),
+            _Deployment(delete_id, "orchestration.flows.eod_price:eod_price_flow"),
+        ),
+        (
+            DeploymentKey("eod-price-daily", "old-domain-backfill"),
+            _Deployment(legacy_id, "domains.eod_price.flows:eod_price_flow"),
         ),
         (
             DeploymentKey("experimental-flow", "try"),

@@ -3,7 +3,7 @@
 This module makes the checked-in deployment manifest the source of truth:
 
 1. Remove orphaned deployments that belong to this app (entrypoints under
-   ``domains.`` or ``orchestration.``) but are no longer declared in yaml.
+   ``orchestration.``) but are no longer declared in yaml.
 2. Run ``prefect deploy --all`` to create or update the declared deployments.
 
 Unrelated deployments created manually in the Prefect UI are left untouched.
@@ -26,7 +26,7 @@ from prefect.client.schemas.responses import DeploymentResponse
 
 log = structlog.get_logger(__name__)
 
-MANAGED_ENTRYPOINT_PREFIXES: tuple[str, ...] = ("domains.", "orchestration.")
+MANAGED_ENTRYPOINT_PREFIXES: tuple[str, ...] = ("orchestration.",)
 DEFAULT_PREFECT_YAML = Path("prefect.yaml")
 
 
