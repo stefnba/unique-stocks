@@ -5,17 +5,14 @@ from contextlib import contextmanager
 
 import pytest
 
-from config.settings import get_settings
+from core.http.base import HttpClientBase
 from core.prefect import limits as prefect_limits
 from core.prefect.limits import (
     ProviderRateLimitPolicy,
-    iter_provider_http_clients,
+    define_limits,
     provider_rate_limit_registrations,
     setup_prefect_limits,
 )
-from providers.eodhd.client import EODHDClient
-from providers.iso10383.client import ISO10383Client
-from providers.registry import Provider
 
 
 class FakePrefectClient:
@@ -40,6 +37,21 @@ class FakePrefectClient:
                 "slot_decay_per_second": slot_decay_per_second,
             }
         )
+
+
+class ClientWithPolicy(HttpClientBase):
+    """Minimal provider client with a declared rate-limit policy."""
+
+    PROVIDER = "eodhd"
+    BASE_URL = "https://example.test"
+    RATE_LIMIT_POLICY = ProviderRateLimitPolicy(burst_capacity=100, slot_decay_per_second=10.0)
+
+
+class ClientWithoutPolicy(HttpClientBase):
+    """Minimal provider client without a rate-limit policy."""
+
+    PROVIDER = "iso10383"
+    BASE_URL = "https://example.test"
 
 
 @pytest.mark.asyncio
@@ -71,21 +83,35 @@ def test_provider_rate_limit_policy_allows_explicit_name() -> None:
     assert policy.limit_name("demo") == "unique-stocks.provider.custom"
 
 
-def test_iter_provider_http_clients_discovers_known_provider_clients() -> None:
-    """Provider discovery should find HTTP clients from Provider enum packages."""
-    clients = set(iter_provider_http_clients(Provider))
-
-    assert EODHDClient in clients
-    assert ISO10383Client in clients
-
-
 def test_provider_rate_limit_registrations_include_only_declared_policies() -> None:
     """Only clients declaring RATE_LIMIT_POLICY should produce Prefect registrations."""
-    registrations = list(provider_rate_limit_registrations(Provider))
+    registrations = list(provider_rate_limit_registrations((ClientWithPolicy, ClientWithoutPolicy)))
 
     assert [registration.name for registration in registrations] == ["unique-stocks.provider.eodhd"]
     assert registrations[0].burst_capacity == 100
     assert registrations[0].slot_decay_per_second == 10.0
+
+
+def test_prefect_limit_registry_resolves_lazily() -> None:
+    """Limit registries should resolve callables only when used."""
+    lake_limit = 2
+    registry = define_limits(
+        lake_writer_limit=lambda: lake_limit,
+        provider_clients=lambda: (ClientWithPolicy, ClientWithoutPolicy),
+    )
+
+    lake_limit = 4
+
+    assert registry.resolve_lake_writer_limit() == 4
+    assert registry.resolve_provider_clients() == (ClientWithPolicy, ClientWithoutPolicy)
+
+
+def test_prefect_limit_registry_rejects_invalid_lake_limit() -> None:
+    """Invalid lake writer limits should fail before hitting Prefect."""
+    registry = define_limits(lake_writer_limit=0)
+
+    with pytest.raises(ValueError, match="at least 1"):
+        registry.resolve_lake_writer_limit()
 
 
 def test_lake_writer_limit_fails_open_when_not_strict(
@@ -178,18 +204,13 @@ async def test_wait_for_provider_api_credit_fails_open_when_not_strict(
 
 
 @pytest.mark.asyncio
-async def test_setup_prefect_limits_uses_app_defaults(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """Dry-run should use app-declared provider rate-limit policies."""
-    monkeypatch.delenv("PREFECT_LAKE_WRITER_LIMIT", raising=False)
-    monkeypatch.delenv("MOTHERDUCK_TOKEN", raising=False)
-    get_settings.cache_clear()
-
-    try:
-        exit_code = await setup_prefect_limits(providers=Provider, dry_run=True)
-    finally:
-        get_settings.cache_clear()
+async def test_setup_prefect_limits_uses_supplied_lake_limit(capsys: pytest.CaptureFixture[str]) -> None:
+    """Dry-run should use supplied lake limit and provider policies."""
+    exit_code = await setup_prefect_limits(
+        provider_clients=(ClientWithPolicy, ClientWithoutPolicy),
+        lake_writer_limit=1,
+        dry_run=True,
+    )
 
     output = capsys.readouterr().out
     assert exit_code == 0
@@ -199,18 +220,13 @@ async def test_setup_prefect_limits_uses_app_defaults(
 
 
 @pytest.mark.asyncio
-async def test_setup_prefect_limits_uses_motherduck_default(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """MotherDuck should get a higher lake writer default when no override is set."""
-    monkeypatch.delenv("PREFECT_LAKE_WRITER_LIMIT", raising=False)
-    monkeypatch.setenv("MOTHERDUCK_TOKEN", "test-token")
-    get_settings.cache_clear()
-
-    try:
-        exit_code = await setup_prefect_limits(providers=Provider, dry_run=True)
-    finally:
-        get_settings.cache_clear()
+async def test_setup_prefect_limits_accepts_higher_supplied_lake_limit(capsys: pytest.CaptureFixture[str]) -> None:
+    """Callers can supply a higher lake writer limit."""
+    exit_code = await setup_prefect_limits(
+        provider_clients=(ClientWithPolicy, ClientWithoutPolicy),
+        lake_writer_limit=4,
+        dry_run=True,
+    )
 
     output = capsys.readouterr().out
     assert exit_code == 0
@@ -218,18 +234,13 @@ async def test_setup_prefect_limits_uses_motherduck_default(
 
 
 @pytest.mark.asyncio
-async def test_setup_prefect_limits_honors_lake_writer_env_override(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """Lake writer limit remains environment-overridable for deployments."""
-    monkeypatch.setenv("PREFECT_LAKE_WRITER_LIMIT", "2")
-    monkeypatch.setenv("MOTHERDUCK_TOKEN", "test-token")
-    get_settings.cache_clear()
-
-    try:
-        exit_code = await setup_prefect_limits(providers=Provider, dry_run=True)
-    finally:
-        get_settings.cache_clear()
+async def test_setup_prefect_limits_accepts_override_lake_limit(capsys: pytest.CaptureFixture[str]) -> None:
+    """Callers can pass environment-derived overrides without core reading settings."""
+    exit_code = await setup_prefect_limits(
+        provider_clients=(ClientWithPolicy, ClientWithoutPolicy),
+        lake_writer_limit=2,
+        dry_run=True,
+    )
 
     output = capsys.readouterr().out
     assert exit_code == 0

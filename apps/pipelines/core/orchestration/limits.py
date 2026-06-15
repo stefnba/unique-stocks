@@ -27,7 +27,7 @@ class LimitRegistry:
 
     limits: LimitDefinitions = field(default_factory=tuple)
 
-    def resolve_limits(self) -> tuple[GlobalConcurrencyLimitCreate, ...]:
+    def _resolve_limits(self) -> tuple[GlobalConcurrencyLimitCreate, ...]:
         """Return the concrete Prefect limit definitions for this sync run.
 
         Returns:
@@ -49,7 +49,7 @@ class LimitRegistry:
             complete successfully.
         """
         async with get_client() as client:
-            for limit in self.resolve_limits():
+            for limit in self._resolve_limits():
                 try:
                     await client.read_global_concurrency_limit_by_name(limit.name)
                 except ObjectNotFound:

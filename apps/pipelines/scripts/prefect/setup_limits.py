@@ -6,8 +6,7 @@ import argparse
 import asyncio
 from collections.abc import Sequence
 
-from core.prefect.limits import setup_prefect_limits
-from providers.registry import Provider
+from control_plane.prefect.limits import PREFECT_LIMITS
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -24,7 +23,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     """CLI entrypoint."""
     args = build_parser().parse_args(list(argv) if argv is not None else None)
-    return asyncio.run(setup_prefect_limits(providers=Provider, dry_run=args.dry_run))
+    return asyncio.run(PREFECT_LIMITS.sync(dry_run=args.dry_run))
 
 
 if __name__ == "__main__":
