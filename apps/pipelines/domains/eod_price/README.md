@@ -1,8 +1,10 @@
 # EOD price domain
 
-Prefect flows and tasks for end-of-day OHLCV ingestion from EODHD.
+Domain service, tasks, parsers, and coverage helpers for end-of-day OHLCV
+ingestion from EODHD. Public Prefect entrypoints live in
+`orchestration/flows/eod_price.py`.
 
-## Flows
+## Public flows
 
 | Flow                 | Endpoint grain                            | Lake output                                       |
 | -------------------- | ----------------------------------------- | ------------------------------------------------- |

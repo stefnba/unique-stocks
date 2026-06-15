@@ -12,7 +12,6 @@ class InstrumentRefreshRequest:
 
     snapshot_date: date | None = None
     provider_exchange_codes: list[str] | None = None
-    run_dbt_build: bool = False
 
 
 @dataclass(frozen=True, slots=True)

@@ -161,7 +161,6 @@ async def test_instrument_flow_triggers_build_with_completed_audit_status(monkey
         InstrumentRefreshRequest(
             snapshot_date=date(2026, 6, 1),
             provider_exchange_codes=["US"],
-            run_dbt_build=True,
         )
     ]
     assert build_calls == [

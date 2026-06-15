@@ -74,7 +74,7 @@ deployments:
       On clean ingestion completion, triggers dbt-build/price-build.
       Schedule: Mon–Fri 4:30pm America/New_York.
       Optional: trade_date, provider_exchange_codes (e.g. ["US"]).
-    entrypoint: domains.eod_price.flows:eod_price_flow
+    entrypoint: orchestration.flows.eod_price:eod_price_flow
     tags: [eod-price, scheduled]
     parameters:
       run_dbt_build: true
@@ -91,7 +91,7 @@ deployments:
       Single-day EOD backfill via the bulk endpoint (same code path as daily, no schedule).
 
       Optional: trade_date (omit for provider latest day), provider_exchange_codes.
-    entrypoint: domains.eod_price.flows:eod_price_flow
+    entrypoint: orchestration.flows.eod_price:eod_price_flow
     tags: [eod-price, backfill]
     parameters:
       trade_date: null
@@ -114,7 +114,7 @@ deployments:
       If the required Silver selector views are missing, runs dbt-build/price-build first.
       On clean ingestion completion, triggers dbt-build/price-build.
       Optional: from_date, to_date, provider_exchange_codes, batch_size (default 50), max_provider_calls.
-    entrypoint: domains.eod_price.flows:eod_price_backfill_flow
+    entrypoint: orchestration.flows.eod_price:eod_price_backfill_flow
     tags: [eod-price, backfill]
     parameters:
       batch_size: 50
@@ -134,7 +134,7 @@ deployments:
     description: >
       Fetch the EODHD exchange catalog → S3 landing → bronze.exchange_catalog.
       Bootstrap step 1. Run before exchange-build.
-    entrypoint: domains.exchange.flows:exchange_catalog_flow
+    entrypoint: orchestration.flows.exchange:exchange_catalog_flow
     tags: [exchange, bootstrap, manual]
     <<: *manual
 
@@ -143,7 +143,7 @@ deployments:
     description: >
       Download ISO 10383 MIC registry CSV → S3 landing → bronze.exchange_mic_registry.
       Bootstrap step 2. Run before exchange-build.
-    entrypoint: domains.exchange.flows:exchange_mic_registry_flow
+    entrypoint: orchestration.flows.exchange:exchange_mic_registry_flow
     tags: [exchange, bootstrap, manual]
     <<: *manual
 
@@ -155,7 +155,7 @@ deployments:
       Runs provider catalog, ISO MIC registry, exchange-build, scoped exchange schedule,
       then the schedule flow's clean post-ingestion exchange-build.
       Use this as the new-environment bootstrap entrypoint.
-    entrypoint: domains.exchange.flows:exchange_reference_refresh_flow
+    entrypoint: orchestration.flows.exchange:exchange_reference_refresh_flow
     tags: [exchange, reference, bootstrap, manual]
     parameters:
       snapshot_date: null
@@ -173,7 +173,7 @@ deployments:
       Keeps provider catalog, MIC mappings, operational schedules, and exchange calendars
       current through one explicit reference chain.
       Schedule: First day of each month at 6am America/New_York.
-    entrypoint: domains.exchange.flows:exchange_reference_refresh_flow
+    entrypoint: orchestration.flows.exchange:exchange_reference_refresh_flow
     tags: [exchange, reference, scheduled]
     parameters:
       snapshot_date: null
@@ -204,7 +204,7 @@ deployments:
       Skips exchanges already ingested for snapshot_date.
       On clean ingestion completion, triggers dbt-build/exchange-build.
       Optional: snapshot_date, provider_schedule_exchange_codes.
-    entrypoint: domains.exchange_schedule.flows:exchange_schedule_flow
+    entrypoint: orchestration.flows.exchange_schedule:exchange_schedule_flow
     tags: [exchange, schedule, manual]
     parameters:
       snapshot_date: null
@@ -222,7 +222,7 @@ deployments:
       Keeps calendars current for the EOD price universe and triggers dbt-build/exchange-build
       after clean ingestion.
       Schedule: Sunday 7am America/New_York.
-    entrypoint: domains.exchange_schedule.flows:exchange_schedule_flow
+    entrypoint: orchestration.flows.exchange_schedule:exchange_schedule_flow
     tags: [exchange, schedule, scheduled]
     parameters:
       snapshot_date: null
@@ -289,7 +289,7 @@ deployments:
       Per-instrument API fetch → S3 landing → bronze.fundamental_* tables.
       On clean ingestion completion, triggers dbt-build/fundamental-build.
       Optional: provider_instruments, provider_exchange_codes, limit, snapshot_date.
-    entrypoint: domains.fundamental.flows:fundamental_flow
+    entrypoint: orchestration.flows.fundamental:fundamental_flow
     tags: [fundamental, manual]
     parameters:
       batch_size: 1
@@ -304,7 +304,7 @@ deployments:
       Re-fetches latest provider documents on the first day of each calendar quarter
       and triggers dbt-build/fundamental-build after clean ingestion.
       Schedule: Jan/Apr/Jul/Oct 6am America/New_York.
-    entrypoint: domains.fundamental.flows:fundamental_flow
+    entrypoint: orchestration.flows.fundamental:fundamental_flow
     tags: [fundamental, scheduled]
     parameters:
       skip_existing: false
@@ -335,7 +335,7 @@ deployments:
       Set limit and max_provider_credits at run time to cap provider spend.
       On clean ingestion completion, triggers dbt-build/fundamental-build.
       Optional: provider_exchange_codes, batch_size, provider_batch_delay_seconds.
-    entrypoint: domains.fundamental.flows:fundamental_flow
+    entrypoint: orchestration.flows.fundamental:fundamental_flow
     tags: [fundamental, backfill]
     parameters:
       skip_existing: false
@@ -358,7 +358,7 @@ deployments:
       Use after parser changes or to rebuild bronze from landed documents.
       On clean ingestion completion, triggers dbt-build/fundamental-build.
       Optional: provider_instruments, landing_source_uris_by_instrument, provider_exchange_codes, limit.
-    entrypoint: domains.fundamental.flows:fundamental_flow
+    entrypoint: orchestration.flows.fundamental:fundamental_flow
     tags: [fundamental, replay]
     parameters:
       replay_landing: true

@@ -11,11 +11,54 @@ import pytest
 from core.http.base import ProviderRateLimitError
 from core.ingestion import BronzeWrite, LandingWrite, RunUnitTally
 from core.ingestion.run_tracking import UnitStatus
-from domains.eod_price import flows
+from domains.eod_price import service as flows
+from domains.eod_price.contracts import EodPriceBackfillRequest, EodPriceDailyRequest
 from providers.eodhd.models import EODBulkPriceRaw, EODPriceBarRaw
 
 FROM_DATE = date(2026, 5, 1)
 TO_DATE = date(2026, 5, 31)
+
+
+async def _daily(
+    *,
+    trade_date: date | None = None,
+    provider_exchange_codes: list[str] | None = None,
+    run_dbt_build: bool = False,
+) -> dict[str, object]:
+    """Run the daily service and return its summary for flow-branch tests."""
+    result = await flows.run_eod_price_daily(
+        EodPriceDailyRequest(
+            trade_date=trade_date,
+            provider_exchange_codes=provider_exchange_codes,
+            run_dbt_build=run_dbt_build,
+        )
+    )
+    return result.summary
+
+
+async def _backfill(
+    *,
+    from_date: date | None = None,
+    to_date: date | None = None,
+    provider_exchange_codes: list[str] | None = None,
+    batch_size: int = 50,
+    max_provider_calls: int | None = None,
+    build_selection_views_if_missing: bool = False,
+    run_dbt_build: bool = False,
+) -> dict[str, object]:
+    """Run the backfill service and return its summary for flow-branch tests."""
+    result = await flows.run_eod_price_backfill(
+        EodPriceBackfillRequest(
+            from_date=from_date,
+            to_date=to_date,
+            provider_exchange_codes=provider_exchange_codes,
+            batch_size=batch_size,
+            max_provider_calls=max_provider_calls,
+            build_selection_views_if_missing=build_selection_views_if_missing,
+            run_dbt_build=run_dbt_build,
+        )
+    )
+    return result.summary
 
 
 class FakeRun:
@@ -187,7 +230,7 @@ async def test_eod_daily_explicit_trade_date_skips_already_ingested_exchange(
     monkeypatch.setattr(flows, "eod_price_already_ingested", lambda *_: True)
     monkeypatch.setattr(flows, "fetch_eod_price_bulk", fail_fetch)
 
-    summary = await flows.eod_price_flow.fn(trade_date=TO_DATE, provider_exchange_codes=["US"])
+    summary = await _daily(trade_date=TO_DATE, provider_exchange_codes=["US"])
 
     assert summary["exchange"] == {"US": {"bar_date": TO_DATE.isoformat(), "rows_written": 0}}
     assert run.units[0]["status"] == "skipped"
@@ -212,7 +255,7 @@ async def test_eod_daily_provider_latest_still_fetches_without_trade_date(monkey
     monkeypatch.setattr(flows, "eod_price_already_ingested", fail_precheck)
     monkeypatch.setattr(flows, "fetch_eod_price_bulk", fetch)
 
-    summary = await flows.eod_price_flow.fn(provider_exchange_codes=["US"])
+    summary = await _daily(provider_exchange_codes=["US"])
 
     assert calls == ["US"]
     assert summary["exchange"] == {"US": {"bar_date": None, "rows_written": 0}}
@@ -265,7 +308,7 @@ async def test_eod_daily_coverage_gate_marks_run_partial(monkeypatch: pytest.Mon
     monkeypatch.setattr(flows, "run_dbt_build_after_ingestion", dbt_build)
     monkeypatch.setattr(flows, "load_eod_price_coverage_gaps", load_gaps)
 
-    summary = await flows.eod_price_flow.fn(trade_date=TO_DATE, provider_exchange_codes=["US"], run_dbt_build=True)
+    summary = await _daily(trade_date=TO_DATE, provider_exchange_codes=["US"], run_dbt_build=True)
     coverage_gate = cast(dict[str, object], summary["coverage_gate"])
 
     assert run.completed_status == "partial"
@@ -301,7 +344,7 @@ async def test_eod_daily_dbt_failure_preserves_ingestion_audit_status(monkeypatc
     monkeypatch.setattr(flows, "run_dbt_build_after_ingestion", dbt_build)
 
     with pytest.raises(RuntimeError, match="dbt failed"):
-        await flows.eod_price_flow.fn(trade_date=TO_DATE, provider_exchange_codes=["US"], run_dbt_build=True)
+        await _daily(trade_date=TO_DATE, provider_exchange_codes=["US"], run_dbt_build=True)
 
     assert run.completed_status == "completed"
     assert run.failed_error is None
@@ -346,7 +389,7 @@ async def test_eod_daily_no_data_still_runs_coverage_gate(monkeypatch: pytest.Mo
     monkeypatch.setattr(flows, "run_dbt_build_deployment", dbt_build)
     monkeypatch.setattr(flows, "load_eod_price_coverage_gaps", load_gaps)
 
-    summary = await flows.eod_price_flow.fn(trade_date=TO_DATE, provider_exchange_codes=["US"], run_dbt_build=True)
+    summary = await _daily(trade_date=TO_DATE, provider_exchange_codes=["US"], run_dbt_build=True)
     coverage_gate = cast(dict[str, object], summary["coverage_gate"])
 
     assert build_calls == [
@@ -396,7 +439,7 @@ async def test_eod_daily_provider_latest_date_mismatch_is_partial(monkeypatch: p
     monkeypatch.setattr(flows, "run_dbt_build_after_ingestion", dbt_build)
     monkeypatch.setattr(flows, "load_eod_price_coverage_gaps", load_gaps)
 
-    summary = await flows.eod_price_flow.fn(provider_exchange_codes=["US"], run_dbt_build=True)
+    summary = await _daily(provider_exchange_codes=["US"], run_dbt_build=True)
 
     assert run.completed_status == "partial"
     assert summary["latest_date_mismatches"] == [
@@ -445,7 +488,7 @@ async def test_eod_backfill_provider_call_budget_limits_submitted_instruments(
     monkeypatch.setattr(flows, "write_eod_backfill_coverage", record_coverage)
     monkeypatch.setattr(flows, "write_eod_backfill_deferred_coverage", record_deferred)
 
-    summary = await flows.eod_price_backfill_flow.fn(
+    summary = await _backfill(
         from_date=FROM_DATE,
         to_date=TO_DATE,
         provider_exchange_codes=["US"],
@@ -500,7 +543,7 @@ async def test_eod_backfill_defaults_to_full_history_and_records_completed_cover
     monkeypatch.setattr(flows, "write_backfill_eod_batch", lambda sources, **_: BronzeWrite(rows_written=len(sources)))
     monkeypatch.setattr(flows, "write_eod_backfill_completed_coverage", write_completed)
 
-    summary = await flows.eod_price_backfill_flow.fn(
+    summary = await _backfill(
         to_date=TO_DATE,
         provider_exchange_codes=["US"],
         batch_size=1,
@@ -568,7 +611,7 @@ async def test_eod_backfill_builds_missing_selection_views_before_pending_select
     monkeypatch.setattr(flows, "run_dbt_build_deployment", build_price)
     monkeypatch.setattr(flows, "load_backfill_pending_instruments", load_pending)
 
-    summary = await flows.eod_price_backfill_flow.fn(
+    summary = await _backfill(
         from_date=FROM_DATE,
         to_date=TO_DATE,
         provider_exchange_codes=["US"],
@@ -622,7 +665,7 @@ async def test_eod_backfill_preflight_failure_is_audited(monkeypatch: pytest.Mon
     monkeypatch.setattr(flows, "load_backfill_pending_instruments", fail_pending)
 
     with pytest.raises(RuntimeError, match="preflight dbt failed"):
-        await flows.eod_price_backfill_flow.fn(
+        await _backfill(
             from_date=FROM_DATE,
             to_date=TO_DATE,
             provider_exchange_codes=["US"],
@@ -678,7 +721,7 @@ async def test_eod_backfill_stops_after_provider_rate_limit(monkeypatch: pytest.
 
     monkeypatch.setattr(flows, "write_eod_backfill_deferred_coverage", record_deferred)
 
-    summary = await flows.eod_price_backfill_flow.fn(
+    summary = await _backfill(
         from_date=FROM_DATE,
         to_date=TO_DATE,
         provider_exchange_codes=["US"],
@@ -722,7 +765,7 @@ async def test_eod_backfill_all_rejected_rows_do_not_write_no_data_coverage(
         lambda **_: BronzeWrite(rows_written=0),
     )
 
-    summary = await flows.eod_price_backfill_flow.fn(
+    summary = await _backfill(
         from_date=FROM_DATE,
         to_date=TO_DATE,
         provider_exchange_codes=["US"],
@@ -759,7 +802,7 @@ async def test_eod_backfill_mixed_valid_and_rejected_rows_do_not_write_completed
     monkeypatch.setattr(flows, "write_eod_backfill_coverage", fail_no_data_coverage)
     monkeypatch.setattr(flows, "write_eod_backfill_completed_coverage", record_completed)
 
-    summary = await flows.eod_price_backfill_flow.fn(
+    summary = await _backfill(
         from_date=FROM_DATE,
         to_date=TO_DATE,
         provider_exchange_codes=["US"],

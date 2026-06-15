@@ -20,6 +20,7 @@ async def test_publish_prefect_ingestion_summary_creates_artifact_and_partial_ev
     def emit_event(**kwargs: object) -> None:
         events.append(kwargs)
 
+    monkeypatch.setattr(prefect_events, "get_run_context", lambda: object())
     monkeypatch.setattr(prefect_events, "create_markdown_artifact", create_artifact)
     monkeypatch.setattr(prefect_events, "emit_prefect_event", emit_event)
 
@@ -47,3 +48,33 @@ async def test_publish_prefect_ingestion_summary_creates_artifact_and_partial_ev
             },
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_publish_prefect_ingestion_summary_skips_artifact_without_run_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Direct service calls should not create Prefect artifacts without a run context."""
+    artifacts: list[dict[str, object]] = []
+    events: list[dict[str, object]] = []
+
+    def create_artifact(**kwargs: object) -> str:
+        artifacts.append(kwargs)
+        return "artifact-id"
+
+    def emit_event(**kwargs: object) -> None:
+        events.append(kwargs)
+
+    monkeypatch.setattr(prefect_events, "create_markdown_artifact", create_artifact)
+    monkeypatch.setattr(prefect_events, "emit_prefect_event", emit_event)
+
+    await prefect_events.publish_prefect_ingestion_summary(
+        flow_name="instrument-refresh",
+        domain="instrument",
+        app_run_id="run-1",
+        status="partial",
+        summary={"failed": ["US"], "snapshot_date": "2026-05-31"},
+    )
+
+    assert artifacts == []
+    assert events

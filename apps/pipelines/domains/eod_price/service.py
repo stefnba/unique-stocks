@@ -1,4 +1,4 @@
-"""EOD price daily flow.
+"""EOD price domain service.
 
 Ingests end-of-day OHLCV price for all exchange using the provider bulk
 endpoint — one API call per exchange per date, not one per instrument.
@@ -14,8 +14,8 @@ import uuid
 from datetime import date
 
 import structlog
-from prefect import flow
 from prefect.artifacts import create_table_artifact
+from prefect.context import get_run_context
 from prefect.transactions import transaction
 from pydantic import ValidationError
 
@@ -32,7 +32,8 @@ from core.ingestion import (
 )
 from core.ingestion.parser import attach_source_uri
 from core.lake import reset_lake_client
-from core.prefect.events import emit_prefect_coverage_gate_failure_event, publish_prefect_ingestion_summary
+from core.orchestration.events import emit_prefect_coverage_gate_failure_event, publish_prefect_ingestion_summary
+from domains.eod_price.contracts import EodPriceBackfillRequest, EodPriceDailyRequest, EodPriceRefreshResult
 from domains.eod_price.models import EODBar
 from domains.eod_price.parsers import infer_bulk_bar_date, parse_instrument_bars
 from domains.eod_price.tasks import (
@@ -66,31 +67,17 @@ log = structlog.get_logger(__name__)
 _REJECTION_SAMPLE_LIMIT_PER_UNIT = 100
 
 
-@flow(
-    name="eod-price-daily",
-    description=(
-        "Daily EOD OHLCV ingestion via the provider bulk endpoint (one API call per exchange). "
-        "Writes S3 landing JSON, then bronze.eod_price. Use deployment backfill for a single past date."
-    ),
-)
-async def eod_price_flow(
-    trade_date: date | None = None,
-    provider_exchange_codes: list[str] | None = None,
-    run_dbt_build: bool = False,
-) -> dict[str, object]:
+async def run_eod_price_daily(request: EodPriceDailyRequest) -> EodPriceRefreshResult:
     """Ingest EOD price for all (or the given) exchange on trade_date.
 
     Args:
-        trade_date: Specific trading date to ingest. If omitted, the provider returns
-            its latest available trading day per exchange.
-        provider_exchange_codes: Provider catalog/API codes to ingest. Defaults
-            to provider namespaces enabled for daily EOD price ingestion by the
-            dbt provider namespace policy. Pass ["US"] to restrict to US
-            equities only.
-        run_dbt_build: When true, launch ``dbt-build/price-build`` after a
-            clean ingestion audit status.
+        request: Daily refresh inputs. If ``trade_date`` is omitted, the
+            provider returns its latest available trading day per exchange.
+            Provider exchange codes default to the dbt-built EOD price universe.
     """
-    codes = provider_exchange_codes or await fetch_eod_provider_exchange_codes()
+    trade_date = request.trade_date
+    run_dbt_build = request.run_dbt_build
+    codes = request.provider_exchange_codes or await fetch_eod_provider_exchange_codes()
 
     total_written = 0
     total_raw = 0
@@ -118,7 +105,7 @@ async def eod_price_flow(
         provider="eodhd",
         parameters={
             "trade_date": trade_date.isoformat() if trade_date else None,
-            "provider_exchange_codes": provider_exchange_codes,
+            "provider_exchange_codes": request.provider_exchange_codes,
             "run_dbt_build": run_dbt_build,
         },
         target_window_start=trade_date,
@@ -380,7 +367,10 @@ async def eod_price_flow(
                 )
             raise
 
-    return summary
+    if run_id is None or run_status is None:
+        msg = "EOD price daily refresh did not record a run result."
+        raise RuntimeError(msg)
+    return EodPriceRefreshResult(run_id=run_id, status=run_status, summary=summary)
 
 
 def _daily_rejection_records(
@@ -566,6 +556,15 @@ async def _emit_coverage_gate_artifact(*, gaps: list[EODPriceCoverageGap], paren
     """Publish a table artifact with a bounded sample of coverage gaps."""
     if not gaps:
         return
+    try:
+        get_run_context()
+    except RuntimeError:
+        log.debug(
+            "price.coverage_gate_artifact_skipped",
+            parent_run_id=parent_run_id,
+            reason="missing_run_context",
+        )
+        return
     rows = [_coverage_gap_summary_row(gap) for gap in gaps[:100]]
     try:
         artifact_id = create_table_artifact(
@@ -644,27 +643,7 @@ async def _build_price_selection_views_if_missing(
     return result
 
 
-# ---------------------------------------------------------------------------
-# Entry point for manual runs / local testing
-# ---------------------------------------------------------------------------
-
-
-@flow(
-    name="eod-price-backfill",
-    description=(
-        "Historical EOD backfill via the per-instrument endpoint (one API call per instrument, any date range). "
-        "Defaults to full provider history through to_date. Skips instruments already completed for the window."
-    ),
-)
-async def eod_price_backfill_flow(
-    from_date: date | None = None,
-    to_date: date | None = None,
-    provider_exchange_codes: list[str] | None = None,
-    batch_size: int = 50,
-    max_provider_calls: int | None = None,
-    build_selection_views_if_missing: bool = False,
-    run_dbt_build: bool = False,
-) -> dict[str, object]:
+async def run_eod_price_backfill(request: EodPriceBackfillRequest) -> EodPriceRefreshResult:
     """Ingest full OHLCV history for every latest EODHD provider instrument.
 
     Processes each exchange sequentially; within an exchange, fetches
@@ -687,28 +666,16 @@ async def eod_price_backfill_flow(
     and reference flows.
 
     Args:
-        from_date: Earliest bar date to request from the provider. Omit to
-            retrieve all available provider history.
-        to_date: Latest bar date. Defaults to today.
-        provider_exchange_codes: Provider catalog/API codes to backfill. Defaults
-            to provider namespaces enabled for historical EOD backfill by the
-            dbt provider namespace policy.
-        batch_size: Instruments fetched concurrently per batch. Keep this low
-            enough to stay within the provider's API rate limits.
-            At batch_size=50 and ~0.75 s/call the flow can process ~5 k
-            instruments/hour, well within the daily quota.
-        max_provider_calls: Optional cap on per-instrument provider fetches submitted
-            during this run. Re-run later with the same date window to resume from
-            the Silver completion/no-data coverage pending-instrument detection.
-        build_selection_views_if_missing: When true, launch
-            ``dbt-build/ingestion-control-build`` before pending-instrument selection if the
-            required Silver selector views are absent.
-        run_dbt_build: When true, launch ``dbt-build/price-build`` after a
-            clean ingestion audit status.
+        request: Backfill inputs, including date window, provider exchange
+            scope, batch size, optional provider-call cap, selector-view
+            preflight flag, and post-ingestion dbt-build flag.
     """
-    to_date = to_date or date.today()
-    codes = provider_exchange_codes or await fetch_eod_backfill_provider_exchange_codes()
-    provider_call_limit = None if max_provider_calls is None else max(0, int(max_provider_calls))
+    from_date = request.from_date
+    to_date = request.to_date or date.today()
+    run_dbt_build = request.run_dbt_build
+    codes = request.provider_exchange_codes or await fetch_eod_backfill_provider_exchange_codes()
+    batch_size = request.batch_size
+    provider_call_limit = None if request.max_provider_calls is None else max(0, int(request.max_provider_calls))
     provider_calls_submitted = 0
     provider_calls_deferred = 0
 
@@ -739,10 +706,10 @@ async def eod_price_backfill_flow(
         parameters={
             "from_date": _iso_date(from_date),
             "to_date": to_date.isoformat(),
-            "provider_exchange_codes": provider_exchange_codes,
-            "batch_size": batch_size,
-            "max_provider_calls": max_provider_calls,
-            "build_selection_views_if_missing": build_selection_views_if_missing,
+            "provider_exchange_codes": request.provider_exchange_codes,
+            "batch_size": request.batch_size,
+            "max_provider_calls": request.max_provider_calls,
+            "build_selection_views_if_missing": request.build_selection_views_if_missing,
             "run_dbt_build": run_dbt_build,
         },
         target_window_start=from_date,
@@ -759,7 +726,7 @@ async def eod_price_backfill_flow(
         )
 
         try:
-            if build_selection_views_if_missing and run_id is not None:
+            if request.build_selection_views_if_missing and run_id is not None:
                 await _build_price_selection_views_if_missing(parent_run_id=run_id, summary=summary)
 
             stop_after_exchange = False
@@ -1155,4 +1122,10 @@ async def eod_price_backfill_flow(
                 )
             raise
 
-    return summary
+    if run_id is None or run_status is None:
+        msg = "EOD price backfill did not record a run result."
+        raise RuntimeError(msg)
+    return EodPriceRefreshResult(run_id=run_id, status=run_status, summary=summary)
+
+
+__all__ = ["run_eod_price_backfill", "run_eod_price_daily"]

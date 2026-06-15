@@ -14,6 +14,7 @@ from uuid import UUID
 
 import structlog
 from prefect.artifacts import create_markdown_artifact
+from prefect.context import get_run_context
 from prefect.events import emit_event
 
 logger = structlog.get_logger(__name__)
@@ -207,6 +208,18 @@ async def _create_ingestion_summary_artifact(
     status: str,
     summary: dict[str, Any],
 ) -> None:
+    try:
+        get_run_context()
+    except RuntimeError:
+        logger.debug(
+            "prefect_ingestion_summary_artifact_skipped",
+            flow_name=flow_name,
+            domain=domain,
+            run_id=app_run_id,
+            reason="missing_run_context",
+        )
+        return
+
     try:
         summary_json = json.dumps(_jsonable(summary), default=str, indent=2, sort_keys=True)
         if len(summary_json) > 12_000:

@@ -268,3 +268,8 @@ def test_eod_price_accepts_domain_style_alias() -> None:
 def test_exchange_schedule_accepts_domain_style_alias() -> None:
     """Exchange schedule smoke should accept the Python domain spelling too."""
     assert smoke.normalize_preset("exchange_schedule") == "exchange-schedule"
+
+
+def test_normalize_preset_is_case_and_whitespace_tolerant() -> None:
+    """Smoke preset normalization should be forgiving at CLI boundaries."""
+    assert smoke.normalize_preset(" EOD_PRICE ") == "eod-price"

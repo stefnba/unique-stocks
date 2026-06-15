@@ -516,7 +516,7 @@ make dbt-build
 ## Prefect deployments
 
 `prefect.yaml` registers one domain-first deployment name per operational mode (scheduled, manual, backfill, build).
-Each mode maps to the same domain flow with different default parameters.
+Each mode maps to the same orchestration flow with different default parameters.
 
 | Domain                     | Deployments                                                                                                                                                                                                                                                                                        | Mode                                |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |

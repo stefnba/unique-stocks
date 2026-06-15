@@ -2,7 +2,7 @@
 
 from prefect.assets import Asset, AssetProperties, materialize
 
-from core.prefect.assets import record_prefect_materialization
+from core.orchestration.assets import record_prefect_materialization
 
 
 @materialize(

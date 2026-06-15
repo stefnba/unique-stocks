@@ -1,11 +1,15 @@
-"""Exchange catalog ingestion flow."""
+"""Domain service for exchange reference ingestion."""
 
 from datetime import date
 
-from prefect import flow
-
-from core.ingestion import PipelineRunTracker, RunCounters, terminal_status
-from core.prefect.events import publish_prefect_ingestion_summary
+from core.ingestion import PipelineRunTracker, RunCounters, RunStatus, terminal_status
+from core.orchestration.events import publish_prefect_ingestion_summary
+from domains.exchange.contracts import (
+    ExchangeCatalogRefreshRequest,
+    ExchangeCatalogRefreshResult,
+    ExchangeMicRegistryRefreshRequest,
+    ExchangeMicRegistryRefreshResult,
+)
 from domains.exchange.tasks.eodhd import (
     fetch_exchange_catalog,
     write_bronze_exchange_catalog,
@@ -18,7 +22,6 @@ from domains.exchange.tasks.iso10383 import (
     write_bronze_exchange_mic_registry,
     write_mic_registry_to_landing_zone,
 )
-from orchestration.post_ingestion import run_dbt_build_deployment
 
 from .assets import (
     record_exchange_catalog_bronze_materialization,
@@ -26,20 +29,18 @@ from .assets import (
 )
 
 
-@flow(
-    name="exchange-catalog-refresh",
-    description=(
-        "Fetch the provider exchange catalog (supported MICs/codes) and write "
-        "S3 landing + bronze.exchange_catalog for today's snapshot."
-    ),
-)
-async def exchange_catalog_flow() -> int:
-    """Fetch the provider exchange catalog and write landing + bronze snapshots."""
-    snapshot_date = date.today()
+async def run_exchange_catalog_refresh(
+    request: ExchangeCatalogRefreshRequest,
+) -> ExchangeCatalogRefreshResult:
+    """Fetch the provider exchange catalog and write landing + Bronze snapshots."""
+    snapshot_date = request.snapshot_date or date.today()
     tracker = PipelineRunTracker()
     rows_raw = 0
     rows_written = 0
+    run_id: str | None = None
+    run_status: RunStatus | None = None
     summary: dict[str, object] = {"snapshot_date": snapshot_date.isoformat()}
+
     with tracker.track_run(
         flow_name="exchange-catalog-refresh",
         domain="exchange",
@@ -49,6 +50,7 @@ async def exchange_catalog_flow() -> int:
         target_window_start=snapshot_date,
         target_window_end=snapshot_date,
     ) as run:
+        run_id = str(run.run_id)
         try:
             with run.track_unit(
                 unit_type="catalog_snapshot",
@@ -70,9 +72,9 @@ async def exchange_catalog_flow() -> int:
                     rows_valid=rows_written,
                     rows_written=rows_written,
                 )
-            status = terminal_status(failed=run.tally.failed)
+            run_status = terminal_status(failed=run.tally.failed)
             run.complete(
-                status=status,
+                status=run_status,
                 rows_raw=rows_raw,
                 rows_valid=rows_written,
                 rows_written=rows_written,
@@ -90,10 +92,9 @@ async def exchange_catalog_flow() -> int:
                 flow_name="exchange-catalog-refresh",
                 domain="exchange",
                 app_run_id=run.run_id,
-                status=status,
+                status=run_status,
                 summary=summary,
             )
-            return rows_written
         except Exception as exc:
             if not run.is_terminal:
                 run.fail(
@@ -110,19 +111,29 @@ async def exchange_catalog_flow() -> int:
             )
             raise
 
+    if run_id is None or run_status is None:
+        msg = "Exchange catalog refresh did not record a run result."
+        raise RuntimeError(msg)
+    return ExchangeCatalogRefreshResult(
+        run_id=run_id,
+        status=run_status,
+        summary=summary,
+        rows_written=rows_written,
+    )
 
-@flow(
-    name="exchange-mic-registry-refresh",
-    description=("Download the ISO 10383 MIC registry CSV and write S3 landing + bronze.exchange_mic_registry."),
-)
-async def exchange_mic_registry_flow(snapshot_date: date | None = None) -> dict[str, object]:
-    """Fetch the ISO MIC registry CSV and write landing + bronze snapshots."""
-    snapshot_date = snapshot_date or date.today()
+
+async def run_exchange_mic_registry_refresh(
+    request: ExchangeMicRegistryRefreshRequest,
+) -> ExchangeMicRegistryRefreshResult:
+    """Fetch the ISO MIC registry CSV and write landing + Bronze snapshots."""
+    snapshot_date = request.snapshot_date or date.today()
     tracker = PipelineRunTracker()
     rows_raw = 0
     rows_valid = 0
     rows_rejected = 0
     rows_written = 0
+    run_id: str | None = None
+    run_status: RunStatus | None = None
     summary: dict[str, object] = {}
 
     with tracker.track_run(
@@ -134,6 +145,7 @@ async def exchange_mic_registry_flow(snapshot_date: date | None = None) -> dict[
         target_window_start=snapshot_date,
         target_window_end=snapshot_date,
     ) as run:
+        run_id = str(run.run_id)
         try:
             with run.track_unit(
                 unit_type="mic_registry_snapshot",
@@ -179,8 +191,9 @@ async def exchange_mic_registry_flow(snapshot_date: date | None = None) -> dict[
                         ]
                     )
 
+            run_status = terminal_status(failed=run.tally.failed, rejected=rows_rejected)
             run.complete(
-                status=terminal_status(failed=run.tally.failed, rejected=rows_rejected),
+                status=run_status,
                 counters=RunCounters(
                     rows_raw=rows_raw,
                     rows_valid=rows_valid,
@@ -189,7 +202,6 @@ async def exchange_mic_registry_flow(snapshot_date: date | None = None) -> dict[
                 ),
                 summary=summary,
             )
-            status = terminal_status(failed=run.tally.failed, rejected=rows_rejected)
             if rows_written:
                 record_exchange_mic_registry_bronze_materialization(
                     app_run_id=run.run_id,
@@ -201,7 +213,7 @@ async def exchange_mic_registry_flow(snapshot_date: date | None = None) -> dict[
                 flow_name="exchange-mic-registry-refresh",
                 domain="exchange",
                 app_run_id=run.run_id,
-                status=status,
+                status=run_status,
                 summary=summary,
             )
         except Exception as exc:
@@ -225,56 +237,10 @@ async def exchange_mic_registry_flow(snapshot_date: date | None = None) -> dict[
             )
             raise
 
-    return summary
+    if run_id is None or run_status is None:
+        msg = "Exchange MIC registry refresh did not record a run result."
+        raise RuntimeError(msg)
+    return ExchangeMicRegistryRefreshResult(run_id=run_id, status=run_status, summary=summary)
 
 
-@flow(
-    name="exchange-reference-refresh",
-    description=(
-        "Refresh exchange reference inputs in order: provider catalog, ISO MIC registry, "
-        "exchange dbt contract, scoped provider schedules, and exchange calendars."
-    ),
-)
-async def exchange_reference_refresh_flow(
-    snapshot_date: date | None = None,
-    schedule_snapshot_date: date | None = None,
-    schedule_batch_size: int = 10,
-    provider_batch_delay_seconds: float = 0.0,
-    run_dbt_build: bool = True,
-) -> dict[str, object]:
-    """Run the full exchange reference refresh chain.
-
-    ``run_dbt_build=True`` runs ``dbt-build/exchange-build`` after catalog/MIC
-    refresh so the schedule flow can resolve its operational scope from the
-    latest provider universe. The schedule flow then runs the same exchange
-    build again after clean schedule ingestion so calendars include the new
-    trading-hours and holiday rows.
-    """
-    from domains.exchange_schedule.flows import exchange_schedule_flow
-
-    snapshot_date = snapshot_date or date.today()
-    schedule_snapshot_date = schedule_snapshot_date or snapshot_date
-    summary: dict[str, object] = {
-        "snapshot_date": snapshot_date.isoformat(),
-        "schedule_snapshot_date": schedule_snapshot_date.isoformat(),
-    }
-
-    summary["exchange_catalog_rows_written"] = await exchange_catalog_flow()
-    summary["exchange_mic_registry"] = await exchange_mic_registry_flow(snapshot_date=snapshot_date)
-
-    if run_dbt_build:
-        summary["exchange_build_before_schedule"] = await run_dbt_build_deployment(
-            build="exchange-build",
-            parent_run_id=None,
-            tags=["exchange-reference-refresh", "exchange-build", "pre-schedule"],
-        )
-    else:
-        summary["exchange_build_before_schedule"] = {"enabled": False, "triggered": False, "build": "exchange-build"}
-
-    summary["exchange_schedule"] = await exchange_schedule_flow(
-        snapshot_date=schedule_snapshot_date,
-        batch_size=schedule_batch_size,
-        provider_batch_delay_seconds=provider_batch_delay_seconds,
-        run_dbt_build=run_dbt_build,
-    )
-    return summary
+__all__ = ["run_exchange_catalog_refresh", "run_exchange_mic_registry_refresh"]

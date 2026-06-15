@@ -1,4 +1,4 @@
-"""Fundamentals ingestion flow."""
+"""Domain service for fundamentals ingestion."""
 
 import asyncio
 from collections.abc import AsyncIterator
@@ -6,7 +6,6 @@ from datetime import date
 from typing import cast
 
 import structlog
-from prefect import flow
 from pydantic import ValidationError
 
 from core.http.base import ProviderRateLimitError
@@ -18,7 +17,8 @@ from core.ingestion import (
     RunStatus,
     terminal_status,
 )
-from core.prefect.events import publish_prefect_ingestion_summary
+from core.orchestration.events import publish_prefect_ingestion_summary
+from domains.fundamental.contracts import FundamentalRefreshRequest, FundamentalRefreshResult
 from domains.fundamental.tasks import (
     delete_fundamental_snapshot_rows,
     fetch_fundamental_instrument,
@@ -28,26 +28,10 @@ from domains.fundamental.tasks import (
     load_fundamental_from_landing,
     load_fundamental_instrument_selection,
     parse_fundamental_stock,
-    write_bronze_fundamental_document,
-    write_bronze_fundamental_etf_holdings,
-    write_bronze_fundamental_etf_identity,
-    write_bronze_fundamental_fund_metric_facts,
-    write_bronze_fundamental_index_components,
-    write_bronze_fundamental_index_identity,
-    write_bronze_fundamental_mutual_fund_holdings,
-    write_bronze_fundamental_mutual_fund_identity,
-    write_bronze_fundamental_statement_facts,
-    write_bronze_fundamental_stock_earnings_facts,
-    write_bronze_fundamental_stock_holders,
-    write_bronze_fundamental_stock_identity,
-    write_bronze_fundamental_stock_insider_transactions,
-    write_bronze_fundamental_stock_metric_facts,
-    write_bronze_fundamental_stock_outstanding_shares,
-    write_bronze_fundamental_stock_shares_stats,
     write_fundamental_deferred_coverage,
     write_fundamental_to_landing,
 )
-from orchestration.post_ingestion import run_dbt_build_after_ingestion
+from domains.fundamental.writers import write_fundamental_bronze_slices
 from providers.eodhd.identifiers import EODHDInstrumentRef, eodhd_instrument_key
 from providers.eodhd.models import FundamentalRaw
 
@@ -57,30 +41,7 @@ log = structlog.get_logger(__name__)
 _REJECTION_SAMPLE_LIMIT_PER_INSTRUMENT = 100
 
 
-@flow(
-    name="fundamental-quarterly",
-    description=(
-        "Ingest EODHD fundamental JSON per provider_instrument_code. Writes S3 landing, document metadata, "
-        "and curated bronze.fundamental_* slices for active marts."
-    ),
-)
-async def fundamental_flow(
-    provider_instruments: list[dict[str, str]] | None = None,
-    snapshot_date: date | None = None,
-    ingestion_batch_date: date | None = None,
-    continue_ingestion_batch: bool = False,
-    provider_exchange_codes: list[str] | None = None,
-    limit: int | None = None,
-    skip_existing: bool = True,
-    refresh_existing: bool = False,
-    replay_landing: bool = False,
-    landing_source_uris_by_instrument: dict[str, str] | None = None,
-    batch_size: int = 1,
-    provider_batch_delay_seconds: float = 0.0,
-    provider_credits_per_call: int = 10,
-    max_provider_credits: int | None = None,
-    run_dbt_build: bool = False,
-) -> dict[str, object]:
+async def run_fundamental_refresh(request: FundamentalRefreshRequest) -> FundamentalRefreshResult:
     """Ingest fundamentals for explicit provider instruments or latest provider instruments.
 
     Automatic provider_instrument_code selection reads all latest EODHD provider instruments from
@@ -105,15 +66,14 @@ async def fundamental_flow(
     calls for fundamentals backfills where each EODHD call costs 10 credits.
     If the provider returns HTTP 429, the flow stops after the active fetch
     batch and records unsubmitted instruments as deferred so the same batch date can
-    continue after the provider quota resets. Set ``run_dbt_build=True`` to
-    launch ``dbt-build/fundamental-build`` after a clean ingestion audit status.
+    continue after the provider quota resets.
     """
     from domains.fundamental.tasks import resolve_fundamental_snapshot_date_task
 
     resolved_batch = resolve_fundamental_snapshot_date_task(
-        snapshot_date=snapshot_date,
-        ingestion_batch_date=ingestion_batch_date,
-        continue_ingestion_batch=continue_ingestion_batch,
+        snapshot_date=request.snapshot_date,
+        ingestion_batch_date=request.ingestion_batch_date,
+        continue_ingestion_batch=request.continue_ingestion_batch,
     )
     snapshot_date = date.fromisoformat(str(resolved_batch["snapshot_date"]))
     snapshot_date_source = str(resolved_batch["source"])
@@ -124,24 +84,26 @@ async def fundamental_flow(
             source=snapshot_date_source,
         )
 
-    refresh_changed_existing = refresh_existing or not skip_existing
+    refresh_changed_existing = request.refresh_existing or not request.skip_existing
     auto_selection_anti_joined = False
-    if provider_instruments:
-        requested_instruments = _coerce_instrument_refs(provider_instruments)
+    if request.provider_instruments:
+        requested_instruments = _coerce_instrument_refs(request.provider_instruments)
     else:
-        selected_provider_exchange_codes = provider_exchange_codes or fetch_fundamental_provider_exchange_codes()
-        skip_completed = skip_existing and not refresh_changed_existing
+        selected_provider_exchange_codes = (
+            request.provider_exchange_codes or fetch_fundamental_provider_exchange_codes()
+        )
+        skip_completed = request.skip_existing and not refresh_changed_existing
         instrument_selection = load_fundamental_instrument_selection(
             selected_provider_exchange_codes,
-            limit,
+            request.limit,
             snapshot_date=snapshot_date,
             skip_completed=skip_completed,
         )
         requested_instruments = instrument_selection.instruments
         auto_selection_anti_joined = instrument_selection.completion_filter_applied
-    fetch_batch_size = max(1, int(batch_size))
-    fetch_batch_delay = max(0.0, float(provider_batch_delay_seconds))
-    provider_credit_cost = max(1, int(provider_credits_per_call))
+    fetch_batch_size = max(1, int(request.batch_size))
+    fetch_batch_delay = max(0.0, float(request.provider_batch_delay_seconds))
+    provider_credit_cost = max(1, int(request.provider_credits_per_call))
 
     summary: dict = {
         "snapshot_date": snapshot_date.isoformat(),
@@ -167,23 +129,22 @@ async def fundamental_flow(
         run_kind="snapshot",
         provider="eodhd",
         parameters={
-            "provider_instruments": provider_instruments,
+            "provider_instruments": request.provider_instruments,
             "snapshot_date": snapshot_date.isoformat(),
-            "ingestion_batch_date": ingestion_batch_date.isoformat() if ingestion_batch_date else None,
-            "continue_ingestion_batch": continue_ingestion_batch,
+            "ingestion_batch_date": request.ingestion_batch_date.isoformat() if request.ingestion_batch_date else None,
+            "continue_ingestion_batch": request.continue_ingestion_batch,
             "snapshot_date_source": snapshot_date_source,
-            "provider_exchange_codes": provider_exchange_codes,
-            "limit": limit,
-            "skip_existing": skip_existing,
-            "refresh_existing": refresh_existing,
+            "provider_exchange_codes": request.provider_exchange_codes,
+            "limit": request.limit,
+            "skip_existing": request.skip_existing,
+            "refresh_existing": request.refresh_existing,
             "refresh_changed_existing": refresh_changed_existing,
-            "replay_landing": replay_landing,
-            "landing_source_uris_by_instrument": landing_source_uris_by_instrument,
+            "replay_landing": request.replay_landing,
+            "landing_source_uris_by_instrument": request.landing_source_uris_by_instrument,
             "batch_size": fetch_batch_size,
             "provider_batch_delay_seconds": fetch_batch_delay,
             "provider_credits_per_call": provider_credit_cost,
-            "max_provider_credits": max_provider_credits,
-            "run_dbt_build": run_dbt_build,
+            "max_provider_credits": request.max_provider_credits,
         },
         target_window_start=snapshot_date,
         target_window_end=snapshot_date,
@@ -200,7 +161,7 @@ async def fundamental_flow(
                 }
                 if (
                     not auto_selection_anti_joined
-                    and skip_existing
+                    and request.skip_existing
                     and not refresh_changed_existing
                     and fundamental_document_already_ingested(
                         instrument.provider_exchange_code,
@@ -219,8 +180,8 @@ async def fundamental_flow(
                     continue
                 pending_instruments.append(instrument)
 
-            if not replay_landing and max_provider_credits is not None:
-                max_provider_calls = max(0, int(max_provider_credits) // provider_credit_cost)
+            if not request.replay_landing and request.max_provider_credits is not None:
+                max_provider_calls = max(0, int(request.max_provider_credits) // provider_credit_cost)
                 skipped_for_budget = pending_instruments[max_provider_calls:]
                 pending_instruments = pending_instruments[:max_provider_calls]
                 if skipped_for_budget:
@@ -250,8 +211,8 @@ async def fundamental_flow(
             async for instrument, result, is_batch_end in _fundamental_raw_results(
                 pending_instruments,
                 snapshot_date=snapshot_date,
-                replay_landing=replay_landing,
-                landing_source_uris_by_instrument=landing_source_uris_by_instrument,
+                replay_landing=request.replay_landing,
+                landing_source_uris_by_instrument=request.landing_source_uris_by_instrument,
                 fetch_batch_size=fetch_batch_size,
                 fetch_batch_delay=fetch_batch_delay,
             ):
@@ -330,7 +291,7 @@ async def fundamental_flow(
                     continue
 
                 try:
-                    if replay_landing:
+                    if request.replay_landing:
                         raw, landing = cast(tuple[FundamentalRaw, LandingWrite], result)
                     else:
                         raw = cast(FundamentalRaw, result)
@@ -414,111 +375,28 @@ async def fundamental_flow(
                             snapshot_date,
                         )
 
-                    document_write = write_bronze_fundamental_document(document, source_uri=landing.source_uri)
-                    identity_write = write_bronze_fundamental_stock_identity(
-                        identity,
-                        source_uri=landing.source_uri,
-                        provider_instrument_code=provider_instrument_code,
-                    )
-                    statement_facts_write = write_bronze_fundamental_statement_facts(
-                        statement_facts,
-                        provider_instrument_code=provider_instrument_code,
-                        snapshot_date=snapshot_date,
-                        source_uri=landing.source_uri,
-                    )
-                    earnings_facts_write = write_bronze_fundamental_stock_earnings_facts(
-                        earnings_facts,
-                        provider_instrument_code=provider_instrument_code,
-                        snapshot_date=snapshot_date,
-                        source_uri=landing.source_uri,
-                    )
-                    shares_stats_write = write_bronze_fundamental_stock_shares_stats(
-                        shares_stats,
-                        source_uri=landing.source_uri,
-                        provider_instrument_code=provider_instrument_code,
-                    )
-                    outstanding_shares_write = write_bronze_fundamental_stock_outstanding_shares(
-                        outstanding_shares,
+                    bronze_write = write_fundamental_bronze_slices(
+                        document=document,
+                        identity=identity,
+                        statement_facts=statement_facts,
+                        earnings_facts=earnings_facts,
+                        shares_stats=shares_stats,
+                        outstanding_shares=outstanding_shares,
+                        holders=holders,
+                        insider_transactions=insider_transactions,
+                        metric_facts=metric_facts,
+                        etf_identity=etf_identity,
+                        mutual_fund_identity=mutual_fund_identity,
+                        index_identity=index_identity,
+                        etf_holdings=etf_holdings,
+                        mutual_fund_holdings=mutual_fund_holdings,
+                        fund_metric_facts=fund_metric_facts,
+                        index_components=index_components,
                         provider_instrument_code=provider_instrument_code,
                         snapshot_date=snapshot_date,
                         source_uri=landing.source_uri,
                     )
-                    holders_write = write_bronze_fundamental_stock_holders(
-                        holders,
-                        provider_instrument_code=provider_instrument_code,
-                        snapshot_date=snapshot_date,
-                        source_uri=landing.source_uri,
-                    )
-                    insider_transactions_write = write_bronze_fundamental_stock_insider_transactions(
-                        insider_transactions,
-                        provider_instrument_code=provider_instrument_code,
-                        snapshot_date=snapshot_date,
-                        source_uri=landing.source_uri,
-                    )
-                    metric_facts_write = write_bronze_fundamental_stock_metric_facts(
-                        metric_facts,
-                        provider_instrument_code=provider_instrument_code,
-                        snapshot_date=snapshot_date,
-                        source_uri=landing.source_uri,
-                    )
-                    etf_identity_write = write_bronze_fundamental_etf_identity(
-                        etf_identity,
-                        source_uri=landing.source_uri,
-                        provider_instrument_code=provider_instrument_code,
-                    )
-                    mutual_fund_identity_write = write_bronze_fundamental_mutual_fund_identity(
-                        mutual_fund_identity,
-                        source_uri=landing.source_uri,
-                        provider_instrument_code=provider_instrument_code,
-                    )
-                    index_identity_write = write_bronze_fundamental_index_identity(
-                        index_identity,
-                        source_uri=landing.source_uri,
-                        provider_instrument_code=provider_instrument_code,
-                    )
-                    etf_holdings_write = write_bronze_fundamental_etf_holdings(
-                        etf_holdings,
-                        provider_instrument_code=provider_instrument_code,
-                        snapshot_date=snapshot_date,
-                        source_uri=landing.source_uri,
-                    )
-                    mutual_fund_holdings_write = write_bronze_fundamental_mutual_fund_holdings(
-                        mutual_fund_holdings,
-                        provider_instrument_code=provider_instrument_code,
-                        snapshot_date=snapshot_date,
-                        source_uri=landing.source_uri,
-                    )
-                    fund_metric_facts_write = write_bronze_fundamental_fund_metric_facts(
-                        fund_metric_facts,
-                        provider_instrument_code=provider_instrument_code,
-                        snapshot_date=snapshot_date,
-                        source_uri=landing.source_uri,
-                    )
-                    index_components_write = write_bronze_fundamental_index_components(
-                        index_components,
-                        provider_instrument_code=provider_instrument_code,
-                        snapshot_date=snapshot_date,
-                        source_uri=landing.source_uri,
-                    )
-
-                    rows_written = (
-                        document_write.rows_written
-                        + identity_write.rows_written
-                        + statement_facts_write.rows_written
-                        + earnings_facts_write.rows_written
-                        + shares_stats_write.rows_written
-                        + outstanding_shares_write.rows_written
-                        + holders_write.rows_written
-                        + insider_transactions_write.rows_written
-                        + metric_facts_write.rows_written
-                        + etf_identity_write.rows_written
-                        + mutual_fund_identity_write.rows_written
-                        + index_identity_write.rows_written
-                        + etf_holdings_write.rows_written
-                        + mutual_fund_holdings_write.rows_written
-                        + fund_metric_facts_write.rows_written
-                        + index_components_write.rows_written
-                    )
+                    rows_written = bronze_write.rows_written
                     total_written += rows_written
 
                     unit_id = run.record_unit_with_landing(
@@ -526,24 +404,7 @@ async def fundamental_flow(
                         unit_type="instrument_snapshot",
                         unit_key=unit_key,
                         status="completed",
-                        reason=_write_reason(
-                            document_write.reason,
-                            identity_write.reason,
-                            statement_facts_write.reason,
-                            earnings_facts_write.reason,
-                            shares_stats_write.reason,
-                            outstanding_shares_write.reason,
-                            holders_write.reason,
-                            insider_transactions_write.reason,
-                            metric_facts_write.reason,
-                            etf_identity_write.reason,
-                            mutual_fund_identity_write.reason,
-                            index_identity_write.reason,
-                            etf_holdings_write.reason,
-                            mutual_fund_holdings_write.reason,
-                            fund_metric_facts_write.reason,
-                            index_components_write.reason,
-                        ),
+                        reason=bronze_write.reason,
                         rows_raw=1,
                         rows_valid=rows_valid,
                         rows_rejected=rejected,
@@ -678,14 +539,10 @@ async def fundamental_flow(
             )
             raise
 
-    if run_dbt_build and run_id is not None and run_status is not None:
-        summary["dbt_build"] = await run_dbt_build_after_ingestion(
-            enabled=run_dbt_build,
-            build="fundamental-build",
-            upstream_status=run_status,
-            parent_run_id=run_id,
-        )
-    return summary
+    if run_id is None or run_status is None:
+        msg = "Fundamentals refresh did not record a run result."
+        raise RuntimeError(msg)
+    return FundamentalRefreshResult(run_id=run_id, status=run_status, summary=summary)
 
 
 async def _fundamental_raw_results(
@@ -733,12 +590,6 @@ async def _fundamental_raw_results(
 
         if not replay_landing and fetch_batch_delay > 0 and i + fetch_batch_size < len(instruments):
             await asyncio.sleep(fetch_batch_delay)
-
-
-def _write_reason(*reasons: str | None) -> str | None:
-    """Combine non-empty Bronze write reasons into a stable unit reason string."""
-    reason_set = sorted({reason for reason in reasons if reason})
-    return ",".join(reason_set) if reason_set else None
 
 
 def _coerce_instrument_refs(values: list[dict[str, str]]) -> list[EODHDInstrumentRef]:

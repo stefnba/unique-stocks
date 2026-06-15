@@ -100,25 +100,34 @@ without a Prefect flow context.
 
 ## Current Migration Status
 
-`instrument` is the first migrated thin-flow domain:
+The active ingestion domains now use the thin-flow pattern:
 
 ```text
+domains/exchange/contracts.py
+domains/exchange/service.py
+orchestration/flows/exchange.py
+
+domains/exchange_schedule/contracts.py
+domains/exchange_schedule/service.py
+orchestration/flows/exchange_schedule.py
+
 domains/instrument/contracts.py
 domains/instrument/service.py
 orchestration/flows/instrument.py
+
+domains/eod_price/contracts.py
+domains/eod_price/service.py
+orchestration/flows/eod_price.py
+
+domains/fundamental/contracts.py
+domains/fundamental/service.py
+domains/fundamental/writers.py
+orchestration/flows/fundamental.py
 ```
 
-Other domains may still have temporary `domains/<domain>/flows.py` files. Move
-them one at a time by extracting a request/result contract and a domain service
-before moving the thin Prefect entrypoint to `orchestration/flows/`.
-
-Recommended follow-up order:
-
-1. `exchange`, because it is small but has multiple reference flows.
-2. `exchange_schedule`, because it is medium-sized and exercises batch controls.
-3. `eod_price`, after splitting daily and backfill services.
-4. `fundamental`, after splitting selection, ingestion, writing, and summary
-   helpers.
+New domains should start in this shape. Do not add new
+`domains/<domain>/flows.py` files; Prefect entrypoints belong under
+`orchestration/flows/`.
 
 ## Migration Checklist For A Domain
 
@@ -128,5 +137,5 @@ Recommended follow-up order:
    task/helper surfaces.
 4. Add `orchestration/flows/<domain>.py` as the thin `@flow` entrypoint.
 5. Update `prefect.yaml`, smoke composition, and tests to import the new flow.
-6. Delete the old `domains/<domain>/flows.py`; do not add compatibility shims.
+6. Delete any old `domains/<domain>/flows.py`; do not add compatibility shims.
 7. Run focused domain, orchestration, and deployment-entrypoint tests.

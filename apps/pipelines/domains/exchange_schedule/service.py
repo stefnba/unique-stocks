@@ -1,10 +1,9 @@
-"""Exchange schedule and holiday ingestion flow."""
+"""Domain service for exchange schedule ingestion."""
 
 import asyncio
 from datetime import date
 
 import structlog
-from prefect import flow
 
 from core.ingestion import (
     PipelineRunTracker,
@@ -13,7 +12,8 @@ from core.ingestion import (
     RunUnitTally,
     terminal_status,
 )
-from core.prefect.events import publish_prefect_ingestion_summary
+from core.orchestration.events import publish_prefect_ingestion_summary
+from domains.exchange_schedule.contracts import ExchangeScheduleRefreshRequest, ExchangeScheduleRefreshResult
 from domains.exchange_schedule.tasks import (
     fetch_exchange_details,
     fetch_provider_schedule_exchange_codes,
@@ -23,7 +23,6 @@ from domains.exchange_schedule.tasks import (
     write_bronze_exchange_schedule,
     write_schedule_to_landing_zone,
 )
-from orchestration.post_ingestion import run_dbt_build_after_ingestion
 
 from .assets import (
     record_exchange_holiday_bronze_materialization,
@@ -33,35 +32,14 @@ from .assets import (
 log = structlog.get_logger(__name__)
 
 
-@flow(
-    name="exchange-schedule-refresh",
-    description=(
-        "Ingest trading hours and holidays for operational provider schedule API codes. "
-        "Writes bronze.exchange_schedule and bronze.exchange_holiday. Skips exchanges already ingested for "
-        "snapshot_date. Provider fetches run in bounded batches; landing and Bronze writes stay sequential."
-    ),
-)
-async def exchange_schedule_flow(
-    snapshot_date: date | None = None,
-    provider_schedule_exchange_codes: list[str] | None = None,
-    batch_size: int = 10,
-    provider_batch_delay_seconds: float = 0.0,
-    run_dbt_build: bool = False,
-) -> dict[str, object]:
-    """Ingest exchange schedule and holiday for the operational provider schedule universe.
-
-    When ``provider_schedule_exchange_codes`` is omitted, the flow calls the
-    provider's live schedule-code list and intersects it with the dbt-built EOD
-    price universe and MIC candidates. ``batch_size`` caps concurrent provider
-    fetches per batch; landing and Bronze writes stay sequential within each
-    batch. ``provider_batch_delay_seconds`` adds a pause between fetch batches
-    to reduce rate-limit and overload errors. Set ``run_dbt_build=True`` to
-    launch ``dbt-build/exchange-build`` after a clean ingestion audit status.
-    """
-    snapshot_date = snapshot_date or date.today()
-    fetch_batch_size = max(1, int(batch_size))
-    fetch_batch_delay = max(0.0, float(provider_batch_delay_seconds))
-    if provider_schedule_exchange_codes is None:
+async def run_exchange_schedule_refresh(
+    request: ExchangeScheduleRefreshRequest,
+) -> ExchangeScheduleRefreshResult:
+    """Ingest exchange schedule and holiday for the operational provider schedule universe."""
+    snapshot_date = request.snapshot_date or date.today()
+    fetch_batch_size = max(1, int(request.batch_size))
+    fetch_batch_delay = max(0.0, float(request.provider_batch_delay_seconds))
+    if request.provider_schedule_exchange_codes is None:
         available_schedule_codes = await fetch_provider_schedule_exchange_codes()
         codes = resolve_operational_schedule_exchange_codes(available_schedule_codes)
         scope = {
@@ -70,12 +48,13 @@ async def exchange_schedule_flow(
             "selected_provider_schedule_codes": len(codes),
         }
     else:
-        codes = _normalize_codes(provider_schedule_exchange_codes)
+        codes = _normalize_codes(request.provider_schedule_exchange_codes)
         scope = {
             "source": "explicit_parameter",
             "available_provider_schedule_codes": None,
             "selected_provider_schedule_codes": len(codes),
         }
+
     tracker = PipelineRunTracker()
     run_id: str | None = None
     run_status: RunStatus | None = None
@@ -95,17 +74,15 @@ async def exchange_schedule_flow(
         provider="eodhd",
         parameters={
             "snapshot_date": snapshot_date.isoformat(),
-            "provider_schedule_exchange_codes": provider_schedule_exchange_codes,
+            "provider_schedule_exchange_codes": request.provider_schedule_exchange_codes,
             "batch_size": fetch_batch_size,
             "provider_batch_delay_seconds": fetch_batch_delay,
-            "run_dbt_build": run_dbt_build,
         },
         target_window_start=snapshot_date,
         target_window_end=snapshot_date,
     ) as run:
         run_id = str(run.run_id)
         try:
-            # Pre-filter exchange already in bronze for this snapshot.
             pending = []
             for provider_schedule_exchange_code in codes:
                 if schedule_already_ingested(provider_schedule_exchange_code, snapshot_date):
@@ -132,13 +109,11 @@ async def exchange_schedule_flow(
 
             for batch_index in range(0, len(pending), fetch_batch_size):
                 batch_codes = pending[batch_index : batch_index + fetch_batch_size]
-                # return_exceptions=True prevents one failure from cancelling the batch.
                 results = await asyncio.gather(
                     *[fetch_exchange_details(code) for code in batch_codes],
                     return_exceptions=True,
                 )
 
-                # Write results sequentially to avoid concurrent DuckDB write conflicts.
                 for provider_schedule_exchange_code, details in zip(batch_codes, results, strict=True):
                     if isinstance(details, BaseException):
                         log.error(
@@ -259,14 +234,11 @@ async def exchange_schedule_flow(
                 summary=summary,
             )
             raise
-    if run_dbt_build and run_id is not None and run_status is not None:
-        summary["dbt_build"] = await run_dbt_build_after_ingestion(
-            enabled=run_dbt_build,
-            build="exchange-build",
-            upstream_status=run_status,
-            parent_run_id=run_id,
-        )
-    return summary
+
+    if run_id is None or run_status is None:
+        msg = "Exchange schedule refresh did not record a run result."
+        raise RuntimeError(msg)
+    return ExchangeScheduleRefreshResult(run_id=run_id, status=run_status, summary=summary)
 
 
 def _normalize_codes(codes: list[str]) -> list[str]:
@@ -288,3 +260,6 @@ def _combined_bronze_reason(*reasons: str | None) -> str | None:
     """Return a compact reason when all Bronze writes skipped."""
     distinct = list(dict.fromkeys(reason for reason in reasons if reason))
     return "+".join(distinct) if distinct else None
+
+
+__all__ = ["run_exchange_schedule_refresh"]

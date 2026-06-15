@@ -39,7 +39,7 @@ from core.ingestion.run_tracking.utils import (
 )
 from core.ingestion.serialization import canonical_json, jsonable
 from core.lake import DataLakeClient, get_lake_client
-from core.prefect.events import emit_prefect_pipeline_cancelled_event
+from core.orchestration.events import emit_prefect_pipeline_cancelled_event
 
 log = structlog.get_logger(__name__)
 
@@ -47,7 +47,7 @@ log = structlog.get_logger(__name__)
 class PipelineRunTracker:
     """Low-level writer for pipeline audit facts.
 
-    Most domain flows should prefer ``track_run()`` and the returned
+    Most domain services should prefer ``track_run()`` and the returned
     ``PipelineRunScope``. The direct methods remain available for tests,
     compatibility, and rare batch paths that need explicit row construction.
     """

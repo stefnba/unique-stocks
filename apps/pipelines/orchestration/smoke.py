@@ -1,9 +1,9 @@
 """Application local smoke presets.
 
-This module intentionally imports concrete domain flows and is therefore app
-orchestration, not generic operations infrastructure. The presets keep local
-developer checks narrow while still exercising the real provider, landing, and
-Bronze write paths.
+This module intentionally imports concrete orchestration flows and is therefore
+app orchestration, not generic operations infrastructure. The presets keep
+local developer checks narrow while still exercising the real provider,
+landing, and Bronze write paths.
 """
 
 from __future__ import annotations
@@ -15,13 +15,23 @@ from typing import Literal
 import structlog
 
 from config.settings import get_settings
-from domains.eod_price.flows import eod_price_flow
-from domains.exchange.flows import exchange_catalog_flow, exchange_mic_registry_flow
-from domains.exchange_schedule.flows import exchange_schedule_flow
-from domains.fundamental.flows import fundamental_flow
+from orchestration.flows.eod_price import eod_price_flow
+from orchestration.flows.exchange import exchange_catalog_flow, exchange_mic_registry_flow
+from orchestration.flows.exchange_schedule import exchange_schedule_flow
+from orchestration.flows.fundamental import fundamental_flow
 from orchestration.flows.instrument import instrument_flow
 
 type SmokePreset = Literal["fundamental", "instrument", "eod-price", "exchange", "exchange-schedule"]
+
+_PRESET_ALIASES: dict[str, SmokePreset] = {
+    "eod_price": "eod-price",
+    "eod-price": "eod-price",
+    "exchange": "exchange",
+    "exchange_schedule": "exchange-schedule",
+    "exchange-schedule": "exchange-schedule",
+    "fundamental": "fundamental",
+    "instrument": "instrument",
+}
 
 log = structlog.get_logger(__name__)
 
@@ -39,20 +49,9 @@ class SmokePresetRequest:
 
 def normalize_preset(value: str) -> SmokePreset:
     """Normalize common domain spelling variants to smoke preset names."""
-    if value == "eod_price":
-        return "eod-price"
-    if value == "exchange_schedule":
-        return "exchange-schedule"
-    if value == "fundamental":
-        return "fundamental"
-    if value == "exchange":
-        return "exchange"
-    if value == "exchange-schedule":
-        return "exchange-schedule"
-    if value == "instrument":
-        return "instrument"
-    if value == "eod-price":
-        return "eod-price"
+    preset = _PRESET_ALIASES.get(value.strip().lower())
+    if preset is not None:
+        return preset
     raise ValueError(f"Unsupported smoke preset: {value}")
 
 

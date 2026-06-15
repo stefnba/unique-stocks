@@ -13,13 +13,55 @@ from core.http.base import ProviderRateLimitError
 from core.ingestion import BronzeWrite, LandingWrite, RunUnitTally
 from core.ingestion.run_tracking import UnitStatus
 from core.lake.sql import SqlTemplateContext, render_sql_file
-from domains.fundamental import flows, tasks
+from domains.fundamental import service as flows
+from domains.fundamental import tasks
+from domains.fundamental.contracts import FundamentalRefreshRequest
 from domains.fundamental.parsers import parse_fundamental_document
+from domains.fundamental.writers import FundamentalBronzeSliceWrite
 from domains.instrument.universe import SilverIngestionContractError
 from providers.eodhd.identifiers import EODHDInstrumentRef, eodhd_instrument_key
 from providers.eodhd.models import FundamentalRaw
 
 SNAPSHOT_DATE = date(2026, 5, 29)
+
+
+async def _fundamental(
+    *,
+    provider_instruments: list[dict[str, str]] | None = None,
+    snapshot_date: date | None = None,
+    ingestion_batch_date: date | None = None,
+    continue_ingestion_batch: bool = False,
+    provider_exchange_codes: list[str] | None = None,
+    limit: int | None = None,
+    skip_existing: bool = True,
+    refresh_existing: bool = False,
+    replay_landing: bool = False,
+    landing_source_uris_by_instrument: dict[str, str] | None = None,
+    batch_size: int = 1,
+    provider_batch_delay_seconds: float = 0.0,
+    provider_credits_per_call: int = 10,
+    max_provider_credits: int | None = None,
+) -> dict[str, object]:
+    """Run the fundamentals service and return its summary for branch tests."""
+    result = await flows.run_fundamental_refresh(
+        FundamentalRefreshRequest(
+            provider_instruments=provider_instruments,
+            snapshot_date=snapshot_date,
+            ingestion_batch_date=ingestion_batch_date,
+            continue_ingestion_batch=continue_ingestion_batch,
+            provider_exchange_codes=provider_exchange_codes,
+            limit=limit,
+            skip_existing=skip_existing,
+            refresh_existing=refresh_existing,
+            replay_landing=replay_landing,
+            landing_source_uris_by_instrument=landing_source_uris_by_instrument,
+            batch_size=batch_size,
+            provider_batch_delay_seconds=provider_batch_delay_seconds,
+            provider_credits_per_call=provider_credits_per_call,
+            max_provider_credits=max_provider_credits,
+        )
+    )
+    return result.summary
 
 
 def _instrument(provider_exchange_code: str = "US", provider_instrument_code: str = "AAPL") -> dict[str, str]:
@@ -225,7 +267,7 @@ async def test_continue_ingestion_batch_uses_resolved_snapshot_date(monkeypatch:
     monkeypatch.setattr(tasks, "resolve_fundamental_snapshot_date_task", fake_resolve)
     monkeypatch.setattr(flows, "fundamental_document_already_ingested", lambda *_: True)
 
-    summary = await flows.fundamental_flow.fn(
+    summary = await _fundamental(
         provider_instruments=[_instrument()],
         continue_ingestion_batch=True,
     )
@@ -265,7 +307,7 @@ async def test_fundamental_flow_uses_provider_universe_for_default_instruments(m
     monkeypatch.setattr(flows, "fetch_fundamental_provider_exchange_codes", fetch_codes)
     monkeypatch.setattr(flows, "load_fundamental_instrument_selection", load_instruments)
 
-    summary = await flows.fundamental_flow.fn(snapshot_date=SNAPSHOT_DATE, limit=5)
+    summary = await _fundamental(snapshot_date=SNAPSHOT_DATE, limit=5)
 
     assert loaded_codes == [["US"]]
     assert summary["instruments"] == {}
@@ -364,7 +406,7 @@ async def test_auto_selected_anti_join_skips_redundant_existing_guard(monkeypatc
     monkeypatch.setattr(flows, "fundamental_document_already_ingested", fail_existing_check)
     monkeypatch.setattr(flows, "write_fundamental_deferred_coverage", lambda **_: BronzeWrite(rows_written=1))
 
-    summary = await flows.fundamental_flow.fn(
+    summary = await _fundamental(
         provider_exchange_codes=["US"],
         snapshot_date=SNAPSHOT_DATE,
         max_provider_credits=0,
@@ -402,7 +444,7 @@ async def test_refresh_auto_selection_keeps_completed_instruments_in_scope(monke
     monkeypatch.setattr(flows, "load_fundamental_instrument_selection", load_instruments)
     monkeypatch.setattr(flows, "write_fundamental_deferred_coverage", lambda **_: BronzeWrite(rows_written=1))
 
-    summary = await flows.fundamental_flow.fn(
+    summary = await _fundamental(
         provider_exchange_codes=["US"],
         snapshot_date=SNAPSHOT_DATE,
         refresh_existing=True,
@@ -436,24 +478,9 @@ async def test_skip_existing_false_uses_changed_payload_refresh(monkeypatch: pyt
     monkeypatch.setattr(flows, "load_fundamental_document_payload_hash", lambda *_: payload_hash)
     monkeypatch.setattr(flows, "write_fundamental_to_landing", fail_if_called)
     monkeypatch.setattr(flows, "delete_fundamental_snapshot_rows", fail_if_called)
-    monkeypatch.setattr(flows, "write_bronze_fundamental_document", fail_if_called)
-    monkeypatch.setattr(flows, "write_bronze_fundamental_stock_identity", fail_if_called)
-    monkeypatch.setattr(flows, "write_bronze_fundamental_statement_facts", fail_if_called)
-    monkeypatch.setattr(flows, "write_bronze_fundamental_stock_earnings_facts", fail_if_called)
-    monkeypatch.setattr(flows, "write_bronze_fundamental_stock_shares_stats", fail_if_called)
-    monkeypatch.setattr(flows, "write_bronze_fundamental_stock_outstanding_shares", fail_if_called)
-    monkeypatch.setattr(flows, "write_bronze_fundamental_stock_holders", fail_if_called)
-    monkeypatch.setattr(flows, "write_bronze_fundamental_stock_insider_transactions", fail_if_called)
-    monkeypatch.setattr(flows, "write_bronze_fundamental_stock_metric_facts", fail_if_called)
-    monkeypatch.setattr(flows, "write_bronze_fundamental_etf_identity", fail_if_called)
-    monkeypatch.setattr(flows, "write_bronze_fundamental_mutual_fund_identity", fail_if_called)
-    monkeypatch.setattr(flows, "write_bronze_fundamental_index_identity", fail_if_called)
-    monkeypatch.setattr(flows, "write_bronze_fundamental_etf_holdings", fail_if_called)
-    monkeypatch.setattr(flows, "write_bronze_fundamental_mutual_fund_holdings", fail_if_called)
-    monkeypatch.setattr(flows, "write_bronze_fundamental_fund_metric_facts", fail_if_called)
-    monkeypatch.setattr(flows, "write_bronze_fundamental_index_components", fail_if_called)
+    monkeypatch.setattr(flows, "write_fundamental_bronze_slices", fail_if_called)
 
-    summary = await flows.fundamental_flow.fn(
+    summary = await _fundamental(
         provider_instruments=[_instrument()],
         snapshot_date=SNAPSHOT_DATE,
         skip_existing=False,
@@ -503,11 +530,8 @@ async def test_replay_landing_uses_landed_json_without_provider_fetch(monkeypatc
     async def fail_landing(*_: object, **__: object) -> None:
         raise AssertionError("replay should not write a new landing object")
 
-    def write_one(*_: object, **__: object) -> BronzeWrite:
-        return BronzeWrite(rows_written=1)
-
-    def write_none(*_: object, **__: object) -> BronzeWrite:
-        return BronzeWrite(rows_written=0, reason="empty")
+    def write_slices(*_: object, **__: object) -> FundamentalBronzeSliceWrite:
+        return FundamentalBronzeSliceWrite(rows_written=3, reason=None)
 
     monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
     _stub_snapshot_resolver(monkeypatch)
@@ -517,27 +541,9 @@ async def test_replay_landing_uses_landed_json_without_provider_fetch(monkeypatc
     monkeypatch.setattr(flows, "parse_fundamental_stock", tasks.parse_fundamental_stock.fn)
     monkeypatch.setattr(flows, "load_fundamental_document_payload_hash", lambda *_: None)
     monkeypatch.setattr(flows, "write_fundamental_to_landing", fail_landing)
-    monkeypatch.setattr(flows, "write_bronze_fundamental_document", write_one)
-    monkeypatch.setattr(flows, "write_bronze_fundamental_stock_identity", write_one)
-    monkeypatch.setattr(flows, "write_bronze_fundamental_statement_facts", write_one)
-    for name in (
-        "write_bronze_fundamental_stock_earnings_facts",
-        "write_bronze_fundamental_stock_shares_stats",
-        "write_bronze_fundamental_stock_outstanding_shares",
-        "write_bronze_fundamental_stock_holders",
-        "write_bronze_fundamental_stock_insider_transactions",
-        "write_bronze_fundamental_stock_metric_facts",
-        "write_bronze_fundamental_etf_identity",
-        "write_bronze_fundamental_mutual_fund_identity",
-        "write_bronze_fundamental_index_identity",
-        "write_bronze_fundamental_etf_holdings",
-        "write_bronze_fundamental_mutual_fund_holdings",
-        "write_bronze_fundamental_fund_metric_facts",
-        "write_bronze_fundamental_index_components",
-    ):
-        monkeypatch.setattr(flows, name, write_none)
+    monkeypatch.setattr(flows, "write_fundamental_bronze_slices", write_slices)
 
-    summary = await flows.fundamental_flow.fn(
+    summary = await _fundamental(
         provider_instruments=[_instrument()],
         snapshot_date=SNAPSHOT_DATE,
         replay_landing=True,
@@ -573,7 +579,7 @@ async def test_provider_credit_budget_skips_instruments_before_fetch(monkeypatch
     monkeypatch.setattr(flows, "load_fundamental_document_payload_hash", lambda *_: payload_hash)
     monkeypatch.setattr(flows, "write_fundamental_to_landing", fail_if_called)
     monkeypatch.setattr(flows, "delete_fundamental_snapshot_rows", fail_if_called)
-    monkeypatch.setattr(flows, "write_bronze_fundamental_document", fail_if_called)
+    monkeypatch.setattr(flows, "write_fundamental_bronze_slices", fail_if_called)
     deferred_calls: list[list[str]] = []
 
     def record_deferred(**kwargs: object) -> BronzeWrite:
@@ -585,7 +591,7 @@ async def test_provider_credit_budget_skips_instruments_before_fetch(monkeypatch
 
     monkeypatch.setattr(flows, "write_fundamental_deferred_coverage", record_deferred)
 
-    summary = await flows.fundamental_flow.fn(
+    summary = await _fundamental(
         provider_instruments=[_instrument(), _instrument("US", "MSFT")],
         snapshot_date=SNAPSHOT_DATE,
         skip_existing=False,
@@ -627,7 +633,7 @@ async def test_fundamental_flow_defers_remaining_instruments_after_provider_rate
     monkeypatch.setattr(flows, "load_fundamental_document_payload_hash", lambda *_: payload_hash)
     monkeypatch.setattr(flows, "write_fundamental_to_landing", fail_if_called)
     monkeypatch.setattr(flows, "delete_fundamental_snapshot_rows", fail_if_called)
-    monkeypatch.setattr(flows, "write_bronze_fundamental_document", fail_if_called)
+    monkeypatch.setattr(flows, "write_fundamental_bronze_slices", fail_if_called)
     deferred_calls: list[list[str]] = []
 
     def record_deferred(**kwargs: object) -> BronzeWrite:
@@ -639,7 +645,7 @@ async def test_fundamental_flow_defers_remaining_instruments_after_provider_rate
 
     monkeypatch.setattr(flows, "write_fundamental_deferred_coverage", record_deferred)
 
-    summary = await flows.fundamental_flow.fn(
+    summary = await _fundamental(
         provider_instruments=[_instrument(), _instrument("US", "MSFT"), _instrument("US", "GOOG")],
         snapshot_date=SNAPSHOT_DATE,
         skip_existing=False,

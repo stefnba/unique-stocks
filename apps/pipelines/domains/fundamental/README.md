@@ -1,6 +1,12 @@
 # Fundamental domain
 
-Prefect flow `fundamental-quarterly` ingests EODHD fundamentals JSON per instrument into S3 landing, writes one document metadata row, and extracts a curated set of active `bronze.fundamental_*` slice tables.
+Domain service, parser, and Bronze writer helpers for EODHD fundamentals JSON.
+The public Prefect entrypoint is `orchestration/flows/fundamental.py` flow
+`fundamental-quarterly`.
+
+`fundamental-quarterly` ingests one provider document per instrument into S3
+landing, writes one document metadata row, and extracts a curated set of active
+`bronze.fundamental_*` slice tables.
 
 The raw landed JSON is the replay source for the full provider document. Lower-priority sections such as split/dividend-count snapshots, ESG activity rows, and historical index components remain preserved there until a concrete mart or product need justifies modeling them.
 

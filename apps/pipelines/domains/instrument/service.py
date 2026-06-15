@@ -12,7 +12,7 @@ from core.ingestion import (
     RunUnitTally,
     terminal_status,
 )
-from core.prefect.events import publish_prefect_ingestion_summary
+from core.orchestration.events import publish_prefect_ingestion_summary
 from domains.instrument.contracts import InstrumentRefreshRequest, InstrumentRefreshResult
 from domains.instrument.tasks import (
     fetch_instrument,
@@ -49,7 +49,6 @@ async def run_instrument_refresh(request: InstrumentRefreshRequest) -> Instrumen
         parameters={
             "snapshot_date": snapshot_date.isoformat(),
             "provider_exchange_codes": request.provider_exchange_codes,
-            "run_dbt_build": request.run_dbt_build,
         },
         target_window_start=snapshot_date,
         target_window_end=snapshot_date,

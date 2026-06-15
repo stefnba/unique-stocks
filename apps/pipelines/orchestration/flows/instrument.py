@@ -27,7 +27,6 @@ async def instrument_flow(
     request = InstrumentRefreshRequest(
         snapshot_date=snapshot_date,
         provider_exchange_codes=provider_exchange_codes,
-        run_dbt_build=run_dbt_build,
     )
     result = await run_instrument_refresh(request)
     summary = result.summary

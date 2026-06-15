@@ -109,14 +109,15 @@ with tracker.track_run(
     run.complete(rows_raw=rows_raw, rows_written=rows_written)
 ```
 
-Do not copy SQL into domain flows. Add new tracking behavior to `core.ingestion.run_tracking` and keep the
-domain flow limited to choosing the right flow, unit type, unit key, dataset, counters, and reason. Avoid making
+Do not copy SQL into domain services or flow entrypoints. Add new tracking behavior to
+`core.ingestion.run_tracking` and keep the domain service limited to choosing the right
+unit type, unit key, dataset, counters, and reason. Avoid making
 landing tasks write audit rows directly; Prefect tasks are retryable work steps and should return `LandingWrite`
 metadata, while the flow or unit scope records the audit row with the active run/unit context.
 
 For parser rejection samples, build rows from the active run scope with `run.rejection_record(...)` and flush them
 with `run.record_rejections(...)`. This keeps `run_id` and `domain` bound in one place while still allowing backfill
-flows to batch rejection inserts at batch boundaries.
+services to batch rejection inserts at batch boundaries.
 
 The main audit helpers live under `core.ingestion`:
 

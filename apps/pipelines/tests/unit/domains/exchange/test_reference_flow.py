@@ -5,8 +5,7 @@ from datetime import date
 import pytest
 from pytest import MonkeyPatch
 
-from domains.exchange import flows as exchange_flows
-from domains.exchange_schedule import flows as schedule_flows
+from orchestration.flows import exchange as exchange_flows
 
 
 @pytest.mark.asyncio
@@ -33,7 +32,7 @@ async def test_exchange_reference_refresh_runs_schedule_after_prebuild(monkeypat
     monkeypatch.setattr(exchange_flows, "exchange_catalog_flow", fake_catalog)
     monkeypatch.setattr(exchange_flows, "exchange_mic_registry_flow", fake_mic_registry)
     monkeypatch.setattr(exchange_flows, "run_dbt_build_deployment", fake_build)
-    monkeypatch.setattr(schedule_flows, "exchange_schedule_flow", fake_schedule)
+    monkeypatch.setattr(exchange_flows, "exchange_schedule_flow", fake_schedule)
 
     summary = await exchange_flows.exchange_reference_refresh_flow.fn(
         snapshot_date=date(2026, 6, 12),
@@ -83,7 +82,7 @@ async def test_exchange_reference_refresh_stops_before_schedule_when_prebuild_fa
     monkeypatch.setattr(exchange_flows, "exchange_catalog_flow", fake_catalog)
     monkeypatch.setattr(exchange_flows, "exchange_mic_registry_flow", fake_mic_registry)
     monkeypatch.setattr(exchange_flows, "run_dbt_build_deployment", fake_build)
-    monkeypatch.setattr(schedule_flows, "exchange_schedule_flow", fake_schedule)
+    monkeypatch.setattr(exchange_flows, "exchange_schedule_flow", fake_schedule)
 
     with pytest.raises(RuntimeError, match="pre-schedule dbt failed"):
         await exchange_flows.exchange_reference_refresh_flow.fn(snapshot_date=date(2026, 6, 12))
