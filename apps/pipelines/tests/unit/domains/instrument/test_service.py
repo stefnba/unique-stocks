@@ -21,6 +21,8 @@ class FakeRun:
         self.run_id = "instrument-run"
         self.tally = RunUnitTally()
         self.is_terminal = False
+        self.completed_kwargs: dict[str, object] | None = None
+        self.failed_error: object | None = None
 
     def record_unit(self, **kwargs: object) -> str:
         """Capture one unit and update the tally."""
@@ -33,12 +35,14 @@ class FakeRun:
         """Capture one landed unit and update the tally."""
         return self.record_unit(**kwargs)
 
-    def complete(self, **_: object) -> None:
+    def complete(self, **kwargs: object) -> None:
         """Mark the fake run terminal."""
+        self.completed_kwargs = kwargs
         self.is_terminal = True
 
-    def fail(self, *_: object, **__: object) -> None:
+    def fail(self, error: object, **__: object) -> None:
         """Mark the fake run failed."""
+        self.failed_error = error
         self.is_terminal = True
 
 
@@ -107,3 +111,65 @@ async def test_run_instrument_refresh_writes_landing_and_bronze(monkeypatch: pyt
         }
     ]
     assert published[0]["status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_run_instrument_refresh_respects_empty_exchange_scope(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An explicit empty exchange list should be a no-op, not a request for all exchanges."""
+    run = FakeRun()
+    published: list[dict[str, object]] = []
+
+    async def unexpected_default_codes() -> list[str]:
+        raise AssertionError("default exchange codes should not be loaded")
+
+    async def fake_publish(**kwargs: object) -> None:
+        published.append(kwargs)
+
+    monkeypatch.setattr(service, "PipelineRunTracker", lambda: FakeTracker(run))
+    monkeypatch.setattr(service, "fetch_instrument_provider_exchange_codes", unexpected_default_codes)
+    monkeypatch.setattr(service, "instrument_already_ingested", lambda *_: pytest.fail("no exchange checks expected"))
+    monkeypatch.setattr(service, "fetch_instrument", lambda *_: pytest.fail("no provider fetches expected"))
+    monkeypatch.setattr(service, "publish_prefect_ingestion_summary", fake_publish)
+
+    result = await service.run_instrument_refresh(
+        InstrumentRefreshRequest(
+            snapshot_date=date(2026, 6, 1),
+            provider_exchange_codes=[],
+        )
+    )
+
+    assert result.status == "skipped"
+    assert result.summary["exchange"] == {}
+    assert result.summary["skipped"] == []
+    assert result.summary["failed"] == []
+    assert run.completed_kwargs is not None
+    assert run.completed_kwargs["status"] == "skipped"
+    assert published[0]["status"] == "skipped"
+
+
+@pytest.mark.asyncio
+async def test_run_instrument_refresh_audits_default_scope_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Failures while resolving default exchange scope should be recorded in the run audit."""
+    run = FakeRun()
+    published: list[dict[str, object]] = []
+
+    async def failing_default_codes() -> list[str]:
+        raise RuntimeError("exchange universe unavailable")
+
+    async def fake_publish(**kwargs: object) -> None:
+        published.append(kwargs)
+
+    monkeypatch.setattr(service, "PipelineRunTracker", lambda: FakeTracker(run))
+    monkeypatch.setattr(service, "fetch_instrument_provider_exchange_codes", failing_default_codes)
+    monkeypatch.setattr(service, "publish_prefect_ingestion_summary", fake_publish)
+
+    with pytest.raises(RuntimeError, match="exchange universe unavailable"):
+        await service.run_instrument_refresh(
+            InstrumentRefreshRequest(
+                snapshot_date=date(2026, 6, 1),
+            )
+        )
+
+    assert run.failed_error is not None
+    assert "exchange universe unavailable" in str(run.failed_error)
+    assert published[0]["status"] == "failed"

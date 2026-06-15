@@ -12,6 +12,7 @@ Pipeline code should follow this dependency direction:
 control_plane -> config
 orchestration -> domains -> providers -> core
 orchestration -> dbt/lakehouse/control_plane when composing app workflows
+domains/tasks -> control_plane.prefect for runtime BlockRegistry handles only
 lakehouse -> domains + core audit table specs
 scripts -> one app/core function, then exit code/output
 ```
@@ -94,6 +95,9 @@ status, and the returned summary shape there.
 Domain tasks own Prefect task wrappers around concrete IO steps. They answer:
 "What concrete IO step should Prefect run, retry, name, and observe?" Put
 provider calls, S3 writes, lake writes, and existence checks in `tasks.py`.
+Domain tasks may import `BlockRegistry` from `control_plane.prefect` to load
+named Prefect blocks at runtime. They must not import control-plane setup,
+deployment sync, or environment provisioning modules.
 
 Domain parsers, datasets, and tables stay separate so they remain testable
 without a Prefect flow context.

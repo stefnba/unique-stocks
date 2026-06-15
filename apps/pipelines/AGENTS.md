@@ -47,6 +47,7 @@ Boundary rules:
 - Do not import `boto3` directly in domain code.
 - Do not import `duckdb` directly in domain code.
 - Do not read credentials from settings in tasks or flows. Load credentials from `BlockRegistry` at runtime.
+- Domain tasks may import `BlockRegistry` from `control_plane.prefect` only for runtime block loading; do not import control-plane setup, deployment sync, or provisioning modules from domain code.
 - Use `get_settings()` as the only public settings accessor. Limit it to app composition modules such as `control_plane/`, `orchestration/`, and scripts, existing core client internals that still need lazy defaults, and tests that override settings between cases.
 - Prefer function-local `get_settings()` calls; module-level calls are only for import-time declarations such as Prefect block definitions. Do not add new `core` settings imports; prefer explicit primitive values or app-owned factories.
 

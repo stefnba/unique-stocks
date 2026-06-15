@@ -30,7 +30,6 @@ log = structlog.get_logger(__name__)
 async def run_instrument_refresh(request: InstrumentRefreshRequest) -> InstrumentRefreshResult:
     """Run instrument ingestion for one snapshot."""
     snapshot_date = request.snapshot_date or date.today()
-    codes = request.provider_exchange_codes or await fetch_instrument_provider_exchange_codes()
     tracker = PipelineRunTracker()
     run_id: str | None = None
     run_status: RunStatus | None = None
@@ -55,6 +54,11 @@ async def run_instrument_refresh(request: InstrumentRefreshRequest) -> Instrumen
     ) as run:
         run_id = str(run.run_id)
         try:
+            if request.provider_exchange_codes is None:
+                codes = await fetch_instrument_provider_exchange_codes()
+            else:
+                codes = request.provider_exchange_codes
+
             pending = []
             for provider_exchange_code in codes:
                 if instrument_already_ingested(provider_exchange_code, snapshot_date):

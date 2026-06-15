@@ -88,9 +88,13 @@ async def run_fundamental_refresh(request: FundamentalRefreshRequest) -> Fundame
     auto_selection_anti_joined = False
     if request.provider_instruments:
         requested_instruments = _coerce_instrument_refs(request.provider_instruments)
+    elif request.provider_exchange_codes == []:
+        requested_instruments = []
     else:
         selected_provider_exchange_codes = (
-            request.provider_exchange_codes or fetch_fundamental_provider_exchange_codes()
+            fetch_fundamental_provider_exchange_codes()
+            if request.provider_exchange_codes is None
+            else request.provider_exchange_codes
         )
         skip_completed = request.skip_existing and not refresh_changed_existing
         instrument_selection = load_fundamental_instrument_selection(

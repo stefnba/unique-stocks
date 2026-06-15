@@ -77,7 +77,11 @@ async def run_eod_price_daily(request: EodPriceDailyRequest) -> EodPriceRefreshR
     """
     trade_date = request.trade_date
     run_dbt_build = request.run_dbt_build
-    codes = request.provider_exchange_codes or await fetch_eod_provider_exchange_codes()
+    codes = (
+        await fetch_eod_provider_exchange_codes()
+        if request.provider_exchange_codes is None
+        else request.provider_exchange_codes
+    )
 
     total_written = 0
     total_raw = 0
@@ -673,7 +677,11 @@ async def run_eod_price_backfill(request: EodPriceBackfillRequest) -> EodPriceRe
     from_date = request.from_date
     to_date = request.to_date or date.today()
     run_dbt_build = request.run_dbt_build
-    codes = request.provider_exchange_codes or await fetch_eod_backfill_provider_exchange_codes()
+    codes = (
+        await fetch_eod_backfill_provider_exchange_codes()
+        if request.provider_exchange_codes is None
+        else request.provider_exchange_codes
+    )
     batch_size = request.batch_size
     provider_call_limit = None if request.max_provider_calls is None else max(0, int(request.max_provider_calls))
     provider_calls_submitted = 0
