@@ -1,7 +1,5 @@
 """Tests for app Prefect limit definitions."""
 
-import importlib
-
 import pytest
 
 from config.settings import get_settings
@@ -29,19 +27,21 @@ class FakeClientContext:
         """Exit without cleanup."""
 
 
-def test_app_limits_resolve_settings_and_provider_policies(monkeypatch: pytest.MonkeyPatch) -> None:
-    """App limit registry should resolve settings and provider policy definitions."""
-    monkeypatch.setenv("PREFECT_LAKE_WRITER_LIMIT", "3")
-    get_settings.cache_clear()
+def test_app_lake_writer_slots_are_environment_policy() -> None:
+    """Lake writer slots should be explicit control-plane policy."""
+    assert app_limits.LAKE_WRITER_SLOTS_BY_ENVIRONMENT == {
+        "dev": 1,
+        "docker_dev": 1,
+        "prod": 1,
+    }
 
-    try:
-        reloaded_limits = importlib.reload(app_limits)
-        limits = {limit.name: limit for limit in reloaded_limits.PREFECT_LIMITS._resolve_limits()}
-    finally:
-        get_settings.cache_clear()
-        importlib.reload(app_limits)
 
-    assert limits[LAKE_WRITER_LIMIT].limit == 3
+def test_app_limits_define_lake_writer_and_provider_policies() -> None:
+    """App limit registry should define lake writer and provider policy definitions."""
+    limits = {limit.name: limit for limit in app_limits.PREFECT_LIMITS._resolve_limits()}
+    lake_writer_slots = app_limits.LAKE_WRITER_SLOTS_BY_ENVIRONMENT[get_settings().environment]
+
+    assert limits[LAKE_WRITER_LIMIT].limit == lake_writer_slots
     assert limits["unique-stocks.provider.eodhd"].limit == 100
     assert limits["unique-stocks.provider.eodhd"].slot_decay_per_second == 10.0
     assert "unique-stocks.provider.iso10383" not in limits

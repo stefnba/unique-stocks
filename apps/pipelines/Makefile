@@ -2,7 +2,7 @@
 .PHONY: help install setup blocks-save s3-landing-zone lake-env-guard prefect-api-guard confirm-destructive
 .PHONY: ci-local check test test-unit test-integration lint lint-fix format format-check typecheck
 .PHONY: python-lint python-lint-fix python-format python-format-check sql-lint sql-format text-format text-format-check
-.PHONY: smoke operational-health dashboard prefect-limits prefect-automations prefect-controls prefect-server prefect-worker
+.PHONY: smoke operational-health dashboard prefect-limits prefect-automations prefect-server prefect-worker
 .PHONY: docker-up docker-down docker-down-volumes docker-logs docker-logs-worker docker-logs-dashboard docker-ps docker-setup docker-prod-config
 .PHONY: lake-reset-local lake-migration lake-migration-status lake-ensure-database lake-migrate lake-ui
 .PHONY: deploy deploy-dry deploy-upsert deploy-dry-manifest
@@ -81,7 +81,8 @@ setup: lake-env-guard prefect-api-guard ## Full one-time setup: wait for server,
 	$(MAKE) lake-migrate
 	$(MAKE) blocks-save
 	$(UV) run prefect work-pool create default-process-pool --type process --overwrite
-	$(MAKE) prefect-controls
+	$(MAKE) prefect-limits
+	$(MAKE) prefect-automations
 	$(MAKE) deploy
 
 blocks-save: ## Register Prefect blocks on the server defined in control_plane/prefect/blocks.py (idempotent)
@@ -168,9 +169,6 @@ prefect-limits: ## Upsert Prefect global limits and provider rate limits (pass A
 prefect-automations: ## Upsert Prefect event automations (pass ARGS="--dry-run")
 	$(UV) run python scripts/prefect/setup_automations.py $(ARGS)
 
-prefect-controls: ## Upsert Prefect limits and automations (pass ARGS="--dry-run")
-	$(UV) run python scripts/prefect/setup_controls.py $(ARGS)
-
 ##@ Local Services
 prefect-server: ## Start a local Prefect server (no Docker)
 	@deadline=$$(( $$(date +%s) + $${PREFECT_PORT_WAIT_SECONDS:-30} )); \
@@ -226,7 +224,8 @@ docker-setup: ## Run one-time setup inside the docker-dev pipelines container
 	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python -m core.lake.migration.migrate --tables "$(LAKE_TABLES_REF)" --migrations-dir "$(LAKE_MIGRATIONS_DIR)"
 	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python -c "from control_plane.prefect import BlockRegistry; BlockRegistry.save_all(if_exists='overwrite')"
 	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen prefect work-pool create default-process-pool --type process --overwrite
-	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python scripts/prefect/setup_controls.py
+	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python scripts/prefect/setup_limits.py
+	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python scripts/prefect/setup_automations.py
 	$(COMPOSE_DEV) exec pipelines-worker uv run --no-dev --frozen python scripts/prefect/sync_deployments.py
 
 docker-prod-config: ## Render production Docker Compose config with test secrets
