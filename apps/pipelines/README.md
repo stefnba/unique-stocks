@@ -356,7 +356,7 @@ make prefect-limits
 
 The policy applies across all flows and workers that share the same `PREFECT_API_URL`. It does not
 hold a slot for the full HTTP round-trip, so per-deployment knobs still matter: EOD backfill
-`batch_size` (default `50` in `prefect.yaml`) caps concurrent in-flight calls inside one run.
+`batch_size` (default `100` in `prefect.yaml`) caps concurrent in-flight calls inside one run.
 Increase `burst_capacity` and `batch_size` together when you want both faster ramp-up and more
 parallel requests, but stay under the provider account quota to avoid HTTP 429 deferrals.
 
