@@ -5,6 +5,7 @@ from domains.eod_price.assets import (
     SILVER_PRICE_ASSET,
     _record_gold_price_materialization,
     _record_silver_price_materialization,
+    attach_eod_price_bronze_metadata,
 )
 from domains.exchange.assets import (
     BRONZE_EXCHANGE_CATALOG_ASSET,
@@ -19,12 +20,14 @@ from domains.exchange_schedule.assets import (
     SILVER_EXCHANGE_SCHEDULE_ASSET,
     _record_gold_exchange_schedule_materialization,
     _record_silver_exchange_schedule_materialization,
+    attach_exchange_holiday_bronze_metadata,
 )
 from domains.fundamental.assets import (
     BRONZE_FUNDAMENTAL_ASSET,
     SILVER_FUNDAMENTAL_ASSET,
     _record_gold_fundamental_materialization,
     _record_silver_fundamental_materialization,
+    attach_fundamental_bronze_metadata,
 )
 from domains.instrument.assets import (
     BRONZE_INSTRUMENT_ASSET,
@@ -52,3 +55,18 @@ def test_dbt_materializations_depend_on_domain_bronze_assets() -> None:
         BRONZE_EXCHANGE_HOLIDAY_ASSET,
     ]
     assert _record_gold_exchange_schedule_materialization.asset_deps == [SILVER_EXCHANGE_SCHEDULE_ASSET]
+
+
+def test_bronze_asset_metadata_classifies_changed_unchanged_and_not_applicable() -> None:
+    """Domain asset helpers should attach a consistent change-kind contract."""
+    changed = attach_eod_price_bronze_metadata(rows_written=4)
+    unchanged = attach_eod_price_bronze_metadata(rows_written=0, reason="already_ingested")
+    not_applicable = attach_exchange_holiday_bronze_metadata(rows_written=0, reason="no_holiday")
+    aggregate = attach_fundamental_bronze_metadata(rows_written=0, reason="not_stock,no_facts")
+
+    assert changed["asset_domain"] == "price"
+    assert changed["change_kind"] == "changed"
+    assert unchanged["change_kind"] == "unchanged"
+    assert not_applicable["change_kind"] == "not_applicable"
+    assert aggregate["asset_grain"] == "table_group"
+    assert aggregate["change_kind"] == "not_applicable"

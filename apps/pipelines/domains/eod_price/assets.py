@@ -2,7 +2,10 @@
 
 from prefect.assets import Asset, AssetProperties, materialize
 
-from core.orchestration.assets import attach_materialization_metadata, record_prefect_materialization
+from core.orchestration.assets import (
+    attach_asset_materialization_metadata,
+    record_prefect_materialization,
+)
 
 BRONZE_EOD_PRICE_ASSET = Asset(
     key="duckdb://unique-stocks/bronze/eod_price",
@@ -20,30 +23,18 @@ GOLD_PRICE_ASSET = Asset(
     properties=AssetProperties(name="Gold price"),
 )
 
+PRICE_NOT_APPLICABLE_REASONS = ("no_bars", "no_sources")
+
 
 def attach_eod_price_bronze_metadata(**metadata: object) -> dict[str, object]:
     """Attach metadata to the Bronze EOD price materialization event."""
-    return attach_materialization_metadata(
+    return attach_asset_materialization_metadata(
         BRONZE_EOD_PRICE_ASSET,
-        {"asset_layer": "bronze", "asset_domain": "price", "asset_grain": "table", **metadata},
-    )
-
-
-@materialize(
-    BRONZE_EOD_PRICE_ASSET,
-    by="python",
-    name="record-bronze-eod-price-materialization",
-)
-def _record_bronze_eod_price_materialization(**metadata: object) -> dict[str, object]:
-    return attach_eod_price_bronze_metadata(**metadata)
-
-
-def record_eod_price_bronze_materialization(**metadata: object) -> None:
-    """Record a Prefect materialization for Bronze EOD price rows already written."""
-    record_prefect_materialization(
-        materialization_name="bronze.eod_price",
-        materializer=_record_bronze_eod_price_materialization,
-        metadata=metadata,
+        domain="price",
+        layer="bronze",
+        grain="table",
+        not_applicable_reasons=PRICE_NOT_APPLICABLE_REASONS,
+        **metadata,
     )
 
 
@@ -54,9 +45,12 @@ def record_eod_price_bronze_materialization(**metadata: object) -> None:
     name="record-dbt-silver-price-materialization",
 )
 def _record_silver_price_materialization(**metadata: object) -> dict[str, object]:
-    return attach_materialization_metadata(
+    return attach_asset_materialization_metadata(
         SILVER_PRICE_ASSET,
-        {"asset_layer": "silver", "asset_domain": "price", "asset_grain": "model_group", **metadata},
+        domain="price",
+        layer="silver",
+        grain="model_group",
+        **metadata,
     )
 
 
@@ -67,9 +61,12 @@ def _record_silver_price_materialization(**metadata: object) -> dict[str, object
     name="record-dbt-gold-price-materialization",
 )
 def _record_gold_price_materialization(**metadata: object) -> dict[str, object]:
-    return attach_materialization_metadata(
+    return attach_asset_materialization_metadata(
         GOLD_PRICE_ASSET,
-        {"asset_layer": "gold", "asset_domain": "price", "asset_grain": "model_group", **metadata},
+        domain="price",
+        layer="gold",
+        grain="model_group",
+        **metadata,
     )
 
 

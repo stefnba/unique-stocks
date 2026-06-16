@@ -2,7 +2,10 @@
 
 from prefect.assets import Asset, AssetProperties, materialize
 
-from core.orchestration.assets import attach_materialization_metadata, record_prefect_materialization
+from core.orchestration.assets import (
+    attach_asset_materialization_metadata,
+    record_prefect_materialization,
+)
 
 BRONZE_EXCHANGE_CATALOG_ASSET = Asset(
     key="duckdb://unique-stocks/bronze/exchange_catalog",
@@ -21,58 +24,30 @@ GOLD_EXCHANGE_ASSET = Asset(
     properties=AssetProperties(name="Gold exchange"),
 )
 
+EXCHANGE_NOT_APPLICABLE_REASONS = ("no_data",)
+
 
 def attach_exchange_catalog_bronze_metadata(**metadata: object) -> dict[str, object]:
     """Attach metadata to the Bronze exchange catalog materialization event."""
-    return attach_materialization_metadata(
+    return attach_asset_materialization_metadata(
         BRONZE_EXCHANGE_CATALOG_ASSET,
-        {"asset_layer": "bronze", "asset_domain": "exchange", "asset_grain": "table", **metadata},
+        domain="exchange",
+        layer="bronze",
+        grain="table",
+        not_applicable_reasons=EXCHANGE_NOT_APPLICABLE_REASONS,
+        **metadata,
     )
 
 
 def attach_exchange_mic_registry_bronze_metadata(**metadata: object) -> dict[str, object]:
     """Attach metadata to the Bronze MIC registry materialization event."""
-    return attach_materialization_metadata(
+    return attach_asset_materialization_metadata(
         BRONZE_EXCHANGE_MIC_REGISTRY_ASSET,
-        {"asset_layer": "bronze", "asset_domain": "exchange", "asset_grain": "table", **metadata},
-    )
-
-
-@materialize(
-    BRONZE_EXCHANGE_CATALOG_ASSET,
-    by="python",
-    name="record-bronze-exchange-catalog-materialization",
-)
-def _record_bronze_exchange_catalog_materialization(**metadata: object) -> dict[str, object]:
-    return attach_exchange_catalog_bronze_metadata(**metadata)
-
-
-@materialize(
-    BRONZE_EXCHANGE_MIC_REGISTRY_ASSET,
-    by="python",
-    name="record-bronze-exchange-mic-registry-materialization",
-)
-def _record_bronze_exchange_mic_registry_materialization(
-    **metadata: object,
-) -> dict[str, object]:
-    return attach_exchange_mic_registry_bronze_metadata(**metadata)
-
-
-def record_exchange_catalog_bronze_materialization(**metadata: object) -> None:
-    """Record a Prefect materialization for Bronze exchange catalog rows."""
-    record_prefect_materialization(
-        materialization_name="bronze.exchange_catalog",
-        materializer=_record_bronze_exchange_catalog_materialization,
-        metadata=metadata,
-    )
-
-
-def record_exchange_mic_registry_bronze_materialization(**metadata: object) -> None:
-    """Record a Prefect materialization for Bronze MIC registry rows."""
-    record_prefect_materialization(
-        materialization_name="bronze.exchange_mic_registry",
-        materializer=_record_bronze_exchange_mic_registry_materialization,
-        metadata=metadata,
+        domain="exchange",
+        layer="bronze",
+        grain="table",
+        not_applicable_reasons=EXCHANGE_NOT_APPLICABLE_REASONS,
+        **metadata,
     )
 
 
@@ -83,9 +58,12 @@ def record_exchange_mic_registry_bronze_materialization(**metadata: object) -> N
     name="record-dbt-silver-exchange-materialization",
 )
 def _record_silver_exchange_materialization(**metadata: object) -> dict[str, object]:
-    return attach_materialization_metadata(
+    return attach_asset_materialization_metadata(
         SILVER_EXCHANGE_ASSET,
-        {"asset_layer": "silver", "asset_domain": "exchange", "asset_grain": "model_group", **metadata},
+        domain="exchange",
+        layer="silver",
+        grain="model_group",
+        **metadata,
     )
 
 
@@ -96,9 +74,12 @@ def _record_silver_exchange_materialization(**metadata: object) -> dict[str, obj
     name="record-dbt-gold-exchange-materialization",
 )
 def _record_gold_exchange_materialization(**metadata: object) -> dict[str, object]:
-    return attach_materialization_metadata(
+    return attach_asset_materialization_metadata(
         GOLD_EXCHANGE_ASSET,
-        {"asset_layer": "gold", "asset_domain": "exchange", "asset_grain": "model_group", **metadata},
+        domain="exchange",
+        layer="gold",
+        grain="model_group",
+        **metadata,
     )
 
 

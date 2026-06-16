@@ -7,7 +7,6 @@ from typing import Any, Protocol, cast
 
 import structlog
 from prefect import task
-from prefect.assets import materialize
 from prefect.client.schemas.objects import State, TaskRun
 from prefect.tasks import TaskRunNameCallbackWithParameters, exponential_backoff
 from pydantic import ValidationError
@@ -17,7 +16,6 @@ from core.http.base import ProviderRateLimitError
 from core.ingestion import BronzeParseResult, BronzeWrite, LandingWrite
 from core.ingestion.coverage import COVERAGE_STATUS_PROVIDER_QUOTA_DEFERRED, record_ingestion_coverage
 from core.ingestion.keys import ObjectStorageKey
-from domains.fundamental.assets import BRONZE_FUNDAMENTAL_ASSET, attach_fundamental_bronze_metadata
 from domains.fundamental.batch import resolve_fundamental_snapshot_date
 from domains.fundamental.datasets import (
     FUNDAMENTAL_DOCUMENT_DATASET,
@@ -146,22 +144,8 @@ def _fundamental_bronze_write(
     provider_instrument_code: str | None = None,
     snapshot_date: date | None = None,
 ) -> BronzeWrite:
-    """Return a Bronze write result and attach table-slice asset metadata."""
-    row = source.row if source is not None else sources[0].row if sources else None
-    source_count = 1 if source is not None else len(sources or [])
-    write = BronzeWrite(rows_written=rows_written, reason=reason)
-    attach_fundamental_bronze_metadata(
-        provider=FUNDAMENTAL_PROVIDER,
-        bronze_table=bronze_table,
-        provider_exchange_code=getattr(row, "provider_exchange_code", None),
-        provider_instrument_code=getattr(row, "provider_instrument_code", provider_instrument_code),
-        snapshot_date=getattr(row, "snapshot_date", snapshot_date),
-        rows_written=write.rows_written,
-        reason=write.reason,
-        source_uri=source_uri,
-        source_count=source_count,
-    )
-    return write
+    """Return a Bronze write result for one table-slice write."""
+    return BronzeWrite(rows_written=rows_written, reason=reason)
 
 
 @task(name="fetch-fundamental-provider-exchange-codes")
@@ -845,9 +829,7 @@ def parse_fundamental_stock(
     )
 
 
-@materialize(
-    BRONZE_FUNDAMENTAL_ASSET,
-    by="python",
+@task(
     name="write-bronze-fundamental-document",
     task_run_name=_instrument_task_run_name("write-bronze-fundamental-document"),
 )
@@ -882,9 +864,7 @@ def write_bronze_fundamental_document(
     )
 
 
-@materialize(
-    BRONZE_FUNDAMENTAL_ASSET,
-    by="python",
+@task(
     name="write-bronze-fundamental-stock-identity",
     task_run_name=_instrument_task_run_name("write-bronze-fundamental-stock-identity"),
 )
@@ -931,9 +911,7 @@ def write_bronze_fundamental_stock_identity(
     )
 
 
-@materialize(
-    BRONZE_FUNDAMENTAL_ASSET,
-    by="python",
+@task(
     name="write-bronze-fundamental-statement-facts",
     task_run_name="write-bronze-fundamental-statement-facts-{provider_instrument_code}",
 )
@@ -981,9 +959,7 @@ def write_bronze_fundamental_statement_facts(
     )
 
 
-@materialize(
-    BRONZE_FUNDAMENTAL_ASSET,
-    by="python",
+@task(
     name="write-bronze-fundamental-stock-earnings-facts",
     task_run_name="write-bronze-fundamental-stock-earnings-facts-{provider_instrument_code}",
 )
@@ -1033,9 +1009,7 @@ def write_bronze_fundamental_stock_earnings_facts(
     )
 
 
-@materialize(
-    BRONZE_FUNDAMENTAL_ASSET,
-    by="python",
+@task(
     name="write-bronze-fundamental-stock-shares-stats",
     task_run_name=_instrument_task_run_name("write-bronze-fundamental-stock-shares-stats"),
 )
@@ -1084,9 +1058,7 @@ def write_bronze_fundamental_stock_shares_stats(
     )
 
 
-@materialize(
-    BRONZE_FUNDAMENTAL_ASSET,
-    by="python",
+@task(
     name="write-bronze-fundamental-stock-outstanding-shares",
     task_run_name="write-bronze-fundamental-stock-outstanding-shares-{provider_instrument_code}",
 )
@@ -1136,9 +1108,7 @@ def write_bronze_fundamental_stock_outstanding_shares(
     )
 
 
-@materialize(
-    BRONZE_FUNDAMENTAL_ASSET,
-    by="python",
+@task(
     name="write-bronze-fundamental-stock-holders",
     task_run_name="write-bronze-fundamental-stock-holders-{provider_instrument_code}",
 )
@@ -1186,9 +1156,7 @@ def write_bronze_fundamental_stock_holders(
     )
 
 
-@materialize(
-    BRONZE_FUNDAMENTAL_ASSET,
-    by="python",
+@task(
     name="write-bronze-fundamental-stock-insider-transactions",
     task_run_name="write-bronze-fundamental-stock-insider-transactions-{provider_instrument_code}",
 )
@@ -1240,9 +1208,7 @@ def write_bronze_fundamental_stock_insider_transactions(
     )
 
 
-@materialize(
-    BRONZE_FUNDAMENTAL_ASSET,
-    by="python",
+@task(
     name="write-bronze-fundamental-stock-splits-dividends",
     task_run_name=_instrument_task_run_name("write-bronze-fundamental-stock-splits-dividends"),
 )
@@ -1291,9 +1257,7 @@ def write_bronze_fundamental_stock_splits_dividends(
     )
 
 
-@materialize(
-    BRONZE_FUNDAMENTAL_ASSET,
-    by="python",
+@task(
     name="write-bronze-fundamental-stock-dividend-counts",
     task_run_name="write-bronze-fundamental-stock-dividend-counts-{provider_instrument_code}",
 )
@@ -1343,9 +1307,7 @@ def write_bronze_fundamental_stock_dividend_counts(
     )
 
 
-@materialize(
-    BRONZE_FUNDAMENTAL_ASSET,
-    by="python",
+@task(
     name="write-bronze-fundamental-stock-metric-facts",
     task_run_name="write-bronze-fundamental-stock-metric-facts-{provider_instrument_code}",
 )
@@ -1393,9 +1355,7 @@ def write_bronze_fundamental_stock_metric_facts(
     )
 
 
-@materialize(
-    BRONZE_FUNDAMENTAL_ASSET,
-    by="python",
+@task(
     name="write-bronze-fundamental-stock-esg-activities",
     task_run_name="write-bronze-fundamental-stock-esg-activities-{provider_instrument_code}",
 )
@@ -1445,9 +1405,7 @@ def write_bronze_fundamental_stock_esg_activities(
     )
 
 
-@materialize(
-    BRONZE_FUNDAMENTAL_ASSET,
-    by="python",
+@task(
     name="write-bronze-fundamental-etf-identity",
     task_run_name=_instrument_task_run_name("write-bronze-fundamental-etf-identity"),
 )
@@ -1494,9 +1452,7 @@ def write_bronze_fundamental_etf_identity(
     )
 
 
-@materialize(
-    BRONZE_FUNDAMENTAL_ASSET,
-    by="python",
+@task(
     name="write-bronze-fundamental-mutual-fund-identity",
     task_run_name=_instrument_task_run_name("write-bronze-fundamental-mutual-fund-identity"),
 )
@@ -1545,9 +1501,7 @@ def write_bronze_fundamental_mutual_fund_identity(
     )
 
 
-@materialize(
-    BRONZE_FUNDAMENTAL_ASSET,
-    by="python",
+@task(
     name="write-bronze-fundamental-index-identity",
     task_run_name=_instrument_task_run_name("write-bronze-fundamental-index-identity"),
 )
@@ -1594,9 +1548,7 @@ def write_bronze_fundamental_index_identity(
     )
 
 
-@materialize(
-    BRONZE_FUNDAMENTAL_ASSET,
-    by="python",
+@task(
     name="write-bronze-fundamental-etf-holdings",
     task_run_name="write-bronze-fundamental-etf-holdings-{provider_instrument_code}",
 )
@@ -1644,9 +1596,7 @@ def write_bronze_fundamental_etf_holdings(
     )
 
 
-@materialize(
-    BRONZE_FUNDAMENTAL_ASSET,
-    by="python",
+@task(
     name="write-bronze-fundamental-mutual-fund-holdings",
     task_run_name="write-bronze-fundamental-mutual-fund-holdings-{provider_instrument_code}",
 )
@@ -1696,9 +1646,7 @@ def write_bronze_fundamental_mutual_fund_holdings(
     )
 
 
-@materialize(
-    BRONZE_FUNDAMENTAL_ASSET,
-    by="python",
+@task(
     name="write-bronze-fundamental-fund-metric-facts",
     task_run_name="write-bronze-fundamental-fund-metric-facts-{provider_instrument_code}",
 )
@@ -1746,9 +1694,7 @@ def write_bronze_fundamental_fund_metric_facts(
     )
 
 
-@materialize(
-    BRONZE_FUNDAMENTAL_ASSET,
-    by="python",
+@task(
     name="write-bronze-fundamental-index-components",
     task_run_name="write-bronze-fundamental-index-components-{provider_instrument_code}",
 )
@@ -1796,9 +1742,7 @@ def write_bronze_fundamental_index_components(
     )
 
 
-@materialize(
-    BRONZE_FUNDAMENTAL_ASSET,
-    by="python",
+@task(
     name="write-bronze-fundamental-index-historical-components",
     task_run_name="write-bronze-fundamental-index-historical-components-{provider_instrument_code}",
 )

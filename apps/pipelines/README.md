@@ -210,6 +210,21 @@ resume-safe, such as EOD backfill `completed` and `no_data` markers for an exact
 provider-instrument/date window. See [docs/pipeline_audit.md](docs/pipeline_audit.md) for
 table semantics, statuses, and the integration pattern.
 
+## Prefect observability signals
+
+Use the lightest Prefect signal that matches the question being answered:
+
+| Signal                           | Purpose                                                                                                                                                                     | Owner                                                                                                         |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Prefect assets                   | Data-product lineage and materialization metadata for Bronze, Silver, and Gold outputs. Metadata includes `change_kind` so no-op writes are not confused with changed data. | Domain `assets.py` files define concrete assets; `core.orchestration.assets` owns generic metadata helpers.   |
+| Custom events                    | Alerting and operational/business outcomes such as dbt failures, partial ingestion, coverage gates, stale runs, and cancellations.                                          | `core.orchestration.events` owns contracts and emitters; `control_plane/prefect/automations.py` owns actions. |
+| Prefect artifacts                | Human-readable run summaries and coverage-gate detail for operators.                                                                                                        | `core.orchestration.artifacts` publishes safe Markdown/table artifacts.                                       |
+| `pipeline.runs` and audit tables | Durable source of truth for ingestion, unit, landing, rejection, and dbt audit facts.                                                                                       | `core.ingestion` and domain services write audit rows in the lake.                                            |
+
+Do not add asset-triggered deployment automations until a concrete downstream deployment needs
+that contract. Current Bronze-to-Silver/Gold promotion remains explicit: clean ingestion runs call
+their matching dbt build as child flow orchestration.
+
 ## Pipeline dashboard
 
 The Streamlit dashboard under `dashboard/` is an operational read surface for the pipeline audit schema. It lives in this app so it can reuse `config.settings` and `core.lake.DataLakeClient`, but it runs as a separate process from the Prefect worker.

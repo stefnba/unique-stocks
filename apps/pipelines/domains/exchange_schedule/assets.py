@@ -2,7 +2,10 @@
 
 from prefect.assets import Asset, AssetProperties, materialize
 
-from core.orchestration.assets import attach_materialization_metadata, record_prefect_materialization
+from core.orchestration.assets import (
+    attach_asset_materialization_metadata,
+    record_prefect_materialization,
+)
 
 BRONZE_EXCHANGE_SCHEDULE_ASSET = Asset(
     key="duckdb://unique-stocks/bronze/exchange_schedule",
@@ -21,60 +24,30 @@ GOLD_EXCHANGE_SCHEDULE_ASSET = Asset(
     properties=AssetProperties(name="Gold exchange schedule"),
 )
 
+EXCHANGE_SCHEDULE_NOT_APPLICABLE_REASONS = ("no_holiday",)
+
 
 def attach_exchange_schedule_bronze_metadata(**metadata: object) -> dict[str, object]:
     """Attach metadata to the Bronze exchange schedule materialization event."""
-    return attach_materialization_metadata(
+    return attach_asset_materialization_metadata(
         BRONZE_EXCHANGE_SCHEDULE_ASSET,
-        {"asset_layer": "bronze", "asset_domain": "exchange_schedule", "asset_grain": "table", **metadata},
+        domain="exchange_schedule",
+        layer="bronze",
+        grain="table",
+        not_applicable_reasons=EXCHANGE_SCHEDULE_NOT_APPLICABLE_REASONS,
+        **metadata,
     )
 
 
 def attach_exchange_holiday_bronze_metadata(**metadata: object) -> dict[str, object]:
     """Attach metadata to the Bronze exchange holiday materialization event."""
-    return attach_materialization_metadata(
+    return attach_asset_materialization_metadata(
         BRONZE_EXCHANGE_HOLIDAY_ASSET,
-        {"asset_layer": "bronze", "asset_domain": "exchange_schedule", "asset_grain": "table", **metadata},
-    )
-
-
-@materialize(
-    BRONZE_EXCHANGE_SCHEDULE_ASSET,
-    by="python",
-    name="record-bronze-exchange-schedule-materialization",
-)
-def _record_bronze_exchange_schedule_materialization(
-    **metadata: object,
-) -> dict[str, object]:
-    return attach_exchange_schedule_bronze_metadata(**metadata)
-
-
-@materialize(
-    BRONZE_EXCHANGE_HOLIDAY_ASSET,
-    by="python",
-    name="record-bronze-exchange-holiday-materialization",
-)
-def _record_bronze_exchange_holiday_materialization(
-    **metadata: object,
-) -> dict[str, object]:
-    return attach_exchange_holiday_bronze_metadata(**metadata)
-
-
-def record_exchange_schedule_bronze_materialization(**metadata: object) -> None:
-    """Record a Prefect materialization for Bronze exchange schedule rows."""
-    record_prefect_materialization(
-        materialization_name="bronze.exchange_schedule",
-        materializer=_record_bronze_exchange_schedule_materialization,
-        metadata=metadata,
-    )
-
-
-def record_exchange_holiday_bronze_materialization(**metadata: object) -> None:
-    """Record a Prefect materialization for Bronze exchange holiday rows."""
-    record_prefect_materialization(
-        materialization_name="bronze.exchange_holiday",
-        materializer=_record_bronze_exchange_holiday_materialization,
-        metadata=metadata,
+        domain="exchange_schedule",
+        layer="bronze",
+        grain="table",
+        not_applicable_reasons=EXCHANGE_SCHEDULE_NOT_APPLICABLE_REASONS,
+        **metadata,
     )
 
 
@@ -85,9 +58,12 @@ def record_exchange_holiday_bronze_materialization(**metadata: object) -> None:
     name="record-dbt-silver-exchange-schedule-materialization",
 )
 def _record_silver_exchange_schedule_materialization(**metadata: object) -> dict[str, object]:
-    return attach_materialization_metadata(
+    return attach_asset_materialization_metadata(
         SILVER_EXCHANGE_SCHEDULE_ASSET,
-        {"asset_layer": "silver", "asset_domain": "exchange_schedule", "asset_grain": "model_group", **metadata},
+        domain="exchange_schedule",
+        layer="silver",
+        grain="model_group",
+        **metadata,
     )
 
 
@@ -98,9 +74,12 @@ def _record_silver_exchange_schedule_materialization(**metadata: object) -> dict
     name="record-dbt-gold-exchange-schedule-materialization",
 )
 def _record_gold_exchange_schedule_materialization(**metadata: object) -> dict[str, object]:
-    return attach_materialization_metadata(
+    return attach_asset_materialization_metadata(
         GOLD_EXCHANGE_SCHEDULE_ASSET,
-        {"asset_layer": "gold", "asset_domain": "exchange_schedule", "asset_grain": "model_group", **metadata},
+        domain="exchange_schedule",
+        layer="gold",
+        grain="model_group",
+        **metadata,
     )
 
 
