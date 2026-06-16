@@ -68,6 +68,7 @@ def test_ingestion_deployments_enable_clean_post_ingestion_builds() -> None:
         "parameters"
     )
     assert isinstance(historical_backfill_parameters, dict)
+    assert historical_backfill_parameters["batch_size"] == 100
     assert historical_backfill_parameters["build_selection_views_if_missing"] is True
 
 

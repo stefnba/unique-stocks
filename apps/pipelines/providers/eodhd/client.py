@@ -47,7 +47,7 @@ class EODHDClient(HttpClientBase):
 
     RATE_LIMIT_POLICY = ProviderRateLimitPolicy(
         burst_capacity=100,
-        slot_decay_per_second=10.0,
+        slot_decay_per_second=25.0,
     )
 
     def __init__(self, api_key: str, timeout: float = 30.0) -> None:

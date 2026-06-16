@@ -117,7 +117,7 @@ deployments:
     entrypoint: orchestration.flows.eod_price:eod_price_backfill_flow
     tags: [eod-price, backfill]
     parameters:
-      batch_size: 50
+      batch_size: 200
       build_selection_views_if_missing: true
       run_dbt_build: true
     concurrency_limit:

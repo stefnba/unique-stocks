@@ -1,5 +1,6 @@
 """Tests for EOD price flow orchestration branches."""
 
+import asyncio
 from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from datetime import date
@@ -9,10 +10,13 @@ import httpx
 import pytest
 
 from core.http.base import ProviderRateLimitError
-from core.ingestion import BronzeWrite, LandingWrite, RunUnitTally
+from core.ingestion import BronzeParseResult, BronzeWrite, LandingWrite, RunUnitTally
+from core.ingestion.parser import attach_source_uri
 from core.ingestion.run_tracking import UnitStatus
 from domains.eod_price import service as flows
 from domains.eod_price.contracts import EodPriceBackfillRequest, EodPriceDailyRequest
+from domains.eod_price.models import EODBar
+from domains.eod_price.parsers import parse_instrument_bars
 from providers.eodhd.models import EODBulkPriceRaw, EODPriceBarRaw
 
 FROM_DATE = date(2026, 5, 1)
@@ -168,6 +172,29 @@ async def _write_empty_landing(
         },
         rows_raw=len(raw_bars),
     )
+
+
+async def _parse_instrument_history_for_test(
+    raw_bars: list[EODPriceBarRaw],
+    provider_exchange_code: str,
+    provider_instrument_code: str,
+    source_uri: str | None = None,
+) -> tuple[list[BronzeParseResult[EODBar]], list[EODPriceBarRaw]]:
+    """Parse with the production parser without creating Prefect task logs."""
+    valid, rejected = parse_instrument_bars(
+        raw_bars,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+    )
+    if source_uri is not None:
+        valid = attach_source_uri(valid, source_uri)
+    return valid, rejected
+
+
+@pytest.fixture(autouse=True)
+def _use_plain_parser_in_service_tests(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep service tests focused on orchestration without Prefect task log warnings."""
+    monkeypatch.setattr(flows, "parse_instrument_eod_history", _parse_instrument_history_for_test)
 
 
 def _rejected_bar() -> EODPriceBarRaw:
@@ -571,6 +598,63 @@ async def test_eod_backfill_defaults_to_full_history_and_records_completed_cover
             ],
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_eod_backfill_writes_instrument_landings_concurrently(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Landing writes within one fetched backfill batch should run concurrently."""
+    run = FakeRun()
+    active_landings = 0
+    max_active_landings = 0
+
+    async def fetch(_: str, __: str, ___: date, ____: date) -> list[EODPriceBarRaw]:
+        return [_valid_bar()]
+
+    async def write_landing(
+        raw_bars: list[EODPriceBarRaw],
+        provider_exchange_code: str,
+        provider_instrument_code: str,
+        from_date: date | None,
+        to_date: date,
+    ) -> LandingWrite:
+        nonlocal active_landings, max_active_landings
+        active_landings += 1
+        max_active_landings = max(max_active_landings, active_landings)
+        await asyncio.sleep(0)
+        active_landings -= 1
+        return LandingWrite(
+            dataset="eod_price.backfill",
+            source_uri=f"s3://bucket/eod_price/{provider_exchange_code}/{provider_instrument_code}.jsonl",
+            partition={
+                "provider_exchange_code": provider_exchange_code,
+                "provider_instrument_code": provider_instrument_code,
+                "from_date": from_date,
+                "to_date": to_date,
+            },
+            rows_raw=len(raw_bars),
+        )
+
+    monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
+    monkeypatch.setattr(flows, "load_backfill_pending_instruments", lambda *_: ["AAPL", "MSFT", "GOOG"])
+    monkeypatch.setattr(flows, "fetch_instrument_eod_history", fetch)
+    monkeypatch.setattr(flows, "write_instrument_eod_history_to_landing", write_landing)
+    monkeypatch.setattr(flows, "write_backfill_eod_batch", lambda sources, **_: BronzeWrite(rows_written=len(sources)))
+    monkeypatch.setattr(
+        flows,
+        "write_eod_backfill_completed_coverage",
+        lambda **kwargs: BronzeWrite(rows_written=len(cast(list[object], kwargs["outcomes"]))),
+    )
+
+    await _backfill(
+        from_date=FROM_DATE,
+        to_date=TO_DATE,
+        provider_exchange_codes=["US"],
+        batch_size=3,
+    )
+
+    assert max_active_landings == 3
 
 
 @pytest.mark.asyncio

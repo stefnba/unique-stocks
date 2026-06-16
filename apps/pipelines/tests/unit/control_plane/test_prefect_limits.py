@@ -43,7 +43,7 @@ def test_app_limits_define_lake_writer_and_provider_policies() -> None:
 
     assert limits[LAKE_WRITER_LIMIT].limit == lake_writer_slots
     assert limits[provider_rate_limit_name("eodhd")].limit == 100
-    assert limits[provider_rate_limit_name("eodhd")].slot_decay_per_second == 10.0
+    assert limits[provider_rate_limit_name("eodhd")].slot_decay_per_second == 25.0
     assert provider_rate_limit_name("iso10383") not in limits
 
 

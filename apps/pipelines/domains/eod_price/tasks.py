@@ -4,6 +4,7 @@ Tasks are atomic, retryable units. Each task does exactly one thing:
 fetch, validate, or write. No business logic.
 """
 
+import asyncio
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, TypedDict
@@ -26,6 +27,7 @@ from core.ingestion.coverage import (
     ingestion_coverage_recorded,
     record_ingestion_coverage,
 )
+from core.ingestion.parser import attach_source_uri
 from providers.eodhd.client import EODHDClient
 from providers.eodhd.identifiers import eodhd_api_symbol
 from providers.eodhd.models import EODBulkPriceRaw, EODPriceBarRaw
@@ -41,7 +43,7 @@ from .coverage import (
 )
 from .datasets import EOD_PRICE_DATASET
 from .models import EODBar
-from .parsers import parse_eod_bars
+from .parsers import parse_eod_bars, parse_instrument_bars
 
 log = structlog.get_logger(__name__)
 _SQL_DIR = Path(__file__).with_name("sql")
@@ -252,6 +254,43 @@ def parse_eod_price(
         rejected=len(rejected),
         bar_date=bar_date,
         provider_exchange_code=provider_exchange_code,
+    )
+    return valid, rejected
+
+
+@task(
+    name="parse-instrument-eod-history",
+    task_run_name="parse-instrument-eod-history-{provider_exchange_code}-{provider_instrument_code}",
+)
+async def parse_instrument_eod_history(
+    raw_bars: list[EODPriceBarRaw],
+    provider_exchange_code: str,
+    provider_instrument_code: str,
+    source_uri: str | None = None,
+) -> tuple[list[BronzeParseResult[EODBar]], list[EODPriceBarRaw]]:
+    """Parse per-instrument historical bars into Bronze rows."""
+    valid, rejected = await asyncio.to_thread(
+        parse_instrument_bars,
+        raw_bars,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+    )
+    if source_uri is not None:
+        valid = attach_source_uri(valid, source_uri)
+    if rejected:
+        log.warning(
+            "backfill.parse_rejections",
+            provider_exchange_code=provider_exchange_code,
+            provider_instrument_code=provider_instrument_code,
+            count=len(rejected),
+        )
+    log.info(
+        "backfill.parsed",
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+        valid=len(valid),
+        rejected=len(rejected),
+        raw=len(raw_bars),
     )
     return valid, rejected
 
@@ -1003,29 +1042,29 @@ def _insert_eod_price_records_ignore_existing(lake: Any, records: list[dict[str,
     if not records:
         return 0
 
+    import pyarrow as pa
+
     if not lake.table_exists(EOD_PRICE_DATASET.schema, EOD_PRICE_DATASET.table_name):
         lake.execute(EOD_PRICE_DATASET.table.to_ddl())
 
     qualified = lake.qualified_name(EOD_PRICE_DATASET.schema, EOD_PRICE_DATASET.table_name)
     columns = list(records[0].keys())
     column_names = ", ".join(_quote_identifier(column) for column in columns)
-    placeholders = ", ".join("?" for _ in columns)
-    values = [[record[column] for column in columns] for record in records]
-    stage_name = _quote_identifier(f"tmp_eod_price_insert_{uuid4().hex}")
-    lake.connection.execute(f"CREATE TEMP TABLE {stage_name} AS SELECT {column_names} FROM {qualified} LIMIT 0")
+    stage_name = f"tmp_eod_price_insert_{uuid4().hex}"
+    stage_relation = _quote_identifier(stage_name)
+    arrow_table = pa.Table.from_pylist(records)
+    lake.connection.register(stage_name, arrow_table)
     try:
-        lake.connection.executemany(f"INSERT INTO {stage_name} ({column_names}) VALUES ({placeholders})", values)
-        inserted = lake.connection.execute(
+        result = lake.connection.execute(
             f"""
             INSERT OR IGNORE INTO {qualified} ({column_names})
             SELECT {column_names}
-            FROM {stage_name}
-            RETURNING 1
+            FROM {stage_relation}
             """
-        ).fetchall()
+        ).fetchone()
     finally:
-        lake.connection.execute(f"DROP TABLE IF EXISTS {stage_name}")
-    return len(inserted)
+        lake.connection.unregister(stage_name)
+    return int(result[0]) if result else 0
 
 
 def _quote_identifier(value: str) -> str:

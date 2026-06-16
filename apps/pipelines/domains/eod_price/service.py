@@ -11,6 +11,7 @@ that closed by then (US at ~21:00 UTC, Europe by ~18:00 UTC).
 import asyncio
 import inspect
 import uuid
+from dataclasses import dataclass
 from datetime import date
 
 import structlog
@@ -23,6 +24,7 @@ from core.http.base import ProviderRateLimitError
 from core.ingestion import (
     BronzeParseResult,
     LandingObjectRecord,
+    LandingWrite,
     PipelineRunScope,
     PipelineRunTracker,
     RejectionRecord,
@@ -30,12 +32,11 @@ from core.ingestion import (
     RunUnitRecord,
     terminal_status,
 )
-from core.ingestion.parser import attach_source_uri
 from core.lake import reset_lake_client
 from core.orchestration.events import emit_prefect_coverage_gate_failure_event, publish_prefect_ingestion_summary
 from domains.eod_price.contracts import EodPriceBackfillRequest, EodPriceDailyRequest, EodPriceRefreshResult
 from domains.eod_price.models import EODBar
-from domains.eod_price.parsers import infer_bulk_bar_date, parse_instrument_bars
+from domains.eod_price.parsers import infer_bulk_bar_date
 from domains.eod_price.tasks import (
     EODBackfillCoverageOutcome,
     EODPriceCoverageGap,
@@ -49,6 +50,7 @@ from domains.eod_price.tasks import (
     load_eod_price_coverage_gaps,
     load_missing_eod_backfill_selection_views,
     parse_eod_price,
+    parse_instrument_eod_history,
     write_backfill_eod_batch,
     write_bronze_eod_price,
     write_eod_backfill_completed_coverage,
@@ -63,6 +65,54 @@ from providers.eodhd.models import EODBulkPriceRaw, EODPriceBarRaw
 
 log = structlog.get_logger(__name__)
 _REJECTION_SAMPLE_LIMIT_PER_UNIT = 100
+
+
+@dataclass(frozen=True, slots=True)
+class _BackfillInstrumentBatchResult:
+    """Landing and parse output for one successful backfill instrument fetch."""
+
+    provider_instrument_code: str
+    unit_id: str
+    unit_key: dict[str, object]
+    raw_bars: list[EODPriceBarRaw]
+    landing: LandingWrite
+    valid: list[BronzeParseResult[EODBar]]
+    rejected_rows: list[EODPriceBarRaw]
+
+
+async def _write_landing_and_parse_backfill_instrument(
+    *,
+    provider_exchange_code: str,
+    provider_instrument_code: str,
+    unit_id: str,
+    unit_key: dict[str, object],
+    raw_bars: list[EODPriceBarRaw],
+    from_date: date | None,
+    to_date: date,
+) -> _BackfillInstrumentBatchResult:
+    """Write one historical landing object, then parse its bars."""
+    landing = await write_instrument_eod_history_to_landing(
+        raw_bars,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+        from_date=from_date,
+        to_date=to_date,
+    )
+    valid, rejected_rows = await parse_instrument_eod_history(
+        raw_bars,
+        provider_exchange_code=provider_exchange_code,
+        provider_instrument_code=provider_instrument_code,
+        source_uri=landing.source_uri,
+    )
+    return _BackfillInstrumentBatchResult(
+        provider_instrument_code=provider_instrument_code,
+        unit_id=unit_id,
+        unit_key=unit_key,
+        raw_bars=raw_bars,
+        landing=landing,
+        valid=valid,
+        rejected_rows=rejected_rows,
+    )
 
 
 async def run_eod_price_daily(request: EodPriceDailyRequest) -> EodPriceRefreshResult:
@@ -819,6 +869,7 @@ async def run_eod_price_backfill(request: EodPriceBackfillRequest) -> EodPriceRe
                     landing_records: list[LandingObjectRecord] = []
                     rejection_records: list[RejectionRecord] = []
                     completed_coverage_outcomes: list[EODBackfillCoverageOutcome] = []
+                    landing_inputs: list[tuple[str, str, dict[str, object], list[EODPriceBarRaw]]] = []
 
                     for provider_instrument_code, result in zip(batch_instruments, raw_results, strict=True):
                         unit_id = str(uuid.uuid4())
@@ -881,18 +932,54 @@ async def run_eod_price_backfill(request: EodPriceBackfillRequest) -> EodPriceRe
                             )
                             continue
 
-                        landing = await write_instrument_eod_history_to_landing(
-                            result,
-                            provider_exchange_code=provider_exchange_code,
-                            provider_instrument_code=provider_instrument_code,
-                            from_date=from_date,
-                            to_date=to_date,
-                        )
-                        valid, rejected_rows = parse_instrument_bars(
-                            result,
-                            provider_exchange_code=provider_exchange_code,
-                            provider_instrument_code=provider_instrument_code,
-                        )
+                        landing_inputs.append((provider_instrument_code, unit_id, unit_key, result))
+
+                    parsed_results = await asyncio.gather(
+                        *[
+                            _write_landing_and_parse_backfill_instrument(
+                                provider_exchange_code=provider_exchange_code,
+                                provider_instrument_code=provider_instrument_code,
+                                unit_id=unit_id,
+                                unit_key=unit_key,
+                                raw_bars=raw_bars,
+                                from_date=from_date,
+                                to_date=to_date,
+                            )
+                            for provider_instrument_code, unit_id, unit_key, raw_bars in landing_inputs
+                        ],
+                        return_exceptions=True,
+                    )
+                    instrument_results: list[_BackfillInstrumentBatchResult] = []
+                    instrument_errors: list[BaseException] = []
+                    for parsed in parsed_results:
+                        if isinstance(parsed, BaseException):
+                            instrument_errors.append(parsed)
+                        else:
+                            instrument_results.append(parsed)
+                    if instrument_errors:
+                        for (
+                            provider_instrument_code,
+                            _,
+                            _,
+                            _,
+                        ), parsed in zip(landing_inputs, parsed_results, strict=True):
+                            if isinstance(parsed, BaseException):
+                                log.error(
+                                    "backfill.landing_or_parse_failed",
+                                    provider_exchange_code=provider_exchange_code,
+                                    provider_instrument_code=provider_instrument_code,
+                                    error=str(parsed),
+                                )
+                        raise instrument_errors[0]
+
+                    for instrument_result in instrument_results:
+                        provider_instrument_code = instrument_result.provider_instrument_code
+                        unit_id = instrument_result.unit_id
+                        unit_key = instrument_result.unit_key
+                        result = instrument_result.raw_bars
+                        landing = instrument_result.landing
+                        valid = instrument_result.valid
+                        rejected_rows = instrument_result.rejected_rows
                         rejected = len(rejected_rows)
                         total_raw += len(result)
                         total_valid += len(valid)
@@ -900,15 +987,8 @@ async def run_eod_price_backfill(request: EodPriceBackfillRequest) -> EodPriceRe
                         exchange_raw += len(result)
                         exchange_valid += len(valid)
                         exchange_rejected += rejected
-                        if rejected_rows:
-                            log.warning(
-                                "backfill.parse_rejections",
-                                provider_exchange_code=provider_exchange_code,
-                                provider_instrument_code=provider_instrument_code,
-                                count=rejected,
-                            )
                         if valid:
-                            batch_sources.extend(attach_source_uri(valid, landing.source_uri))
+                            batch_sources.extend(valid)
                             if not rejected_rows:
                                 completed_coverage_outcomes.append(
                                     {
