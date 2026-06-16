@@ -7,8 +7,7 @@ from prefect import flow
 from config.domains import Domain
 from domains.instrument.contracts import InstrumentRefreshRequest
 from domains.instrument.service import run_instrument_refresh
-from orchestration.domain_dbt import DOMAIN_DBT_REGISTRY
-from orchestration.post_ingestion import run_dbt_build_after_ingestion
+from orchestration.post_ingestion import post_ingestion_build_for_domain, run_dbt_build_after_ingestion
 
 
 @flow(
@@ -31,13 +30,9 @@ async def instrument_flow(
     result = await run_instrument_refresh(request)
     summary = result.summary
     if run_dbt_build:
-        build = DOMAIN_DBT_REGISTRY[Domain.INSTRUMENT].post_ingestion_build
-        if build is None:
-            msg = "Instrument domain has no configured post-ingestion dbt build."
-            raise RuntimeError(msg)
         summary["dbt_build"] = await run_dbt_build_after_ingestion(
             enabled=run_dbt_build,
-            build=build,
+            build=post_ingestion_build_for_domain(Domain.INSTRUMENT),
             upstream_status=result.status,
             parent_run_id=result.run_id,
         )

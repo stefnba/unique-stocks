@@ -4,7 +4,6 @@ from collections.abc import Mapping, Sequence
 
 from core.orchestration.dbt_assets import (
     DbtAssetMaterialization,
-    DbtAssetRecorder,
     DbtAssetSpec,
     record_dbt_asset_materializations_for_specs,
     selected_dbt_asset_specs,
@@ -17,49 +16,33 @@ from domains.exchange.assets import record_exchange_dbt_materialization
 from domains.exchange_schedule.assets import record_exchange_schedule_dbt_materialization
 from domains.fundamental.assets import record_fundamental_dbt_materialization
 from domains.instrument.assets import record_instrument_dbt_materialization
-from orchestration.domain_dbt import DOMAIN_DBT_SPECS, DomainDbtSpec
 
-_DOMAIN_RECORDERS: dict[str, DbtAssetRecorder] = {
-    "exchange": record_exchange_dbt_materialization,
-    "exchange_schedule": record_exchange_schedule_dbt_materialization,
-    "instrument": record_instrument_dbt_materialization,
-    "price": record_price_dbt_materialization,
-    "fundamental": record_fundamental_dbt_materialization,
-}
-
-
-def _build_dbt_asset_specs(
-    *,
-    domain_specs: Sequence[DomainDbtSpec],
-    recorders: Mapping[str, DbtAssetRecorder],
-) -> tuple[DbtAssetSpec, ...]:
-    """Build app dbt asset specs, failing clearly when registry wiring drifts."""
-    configured = {spec.asset_group for spec in domain_specs}
-    implemented = set(recorders)
-    missing = sorted(configured - implemented)
-    extra = sorted(implemented - configured)
-    if missing or extra:
-        details = []
-        if missing:
-            details.append(f"missing recorders for: {', '.join(missing)}")
-        if extra:
-            details.append(f"unconfigured recorders for: {', '.join(extra)}")
-        msg = "Dbt asset registry does not match domain registry: " + "; ".join(details)
-        raise RuntimeError(msg)
-
-    return tuple(
-        DbtAssetSpec(
-            group=spec.asset_group,
-            select_needles=spec.select_needles,
-            recorder=recorders[spec.asset_group],
-        )
-        for spec in domain_specs
-    )
-
-
-DBT_ASSET_SPECS: tuple[DbtAssetSpec, ...] = _build_dbt_asset_specs(
-    domain_specs=DOMAIN_DBT_SPECS,
-    recorders=_DOMAIN_RECORDERS,
+DBT_ASSET_SPECS: tuple[DbtAssetSpec, ...] = (
+    DbtAssetSpec(
+        group="exchange",
+        select_needles=("exchange", "provider_namespace_policy", "eodhd_provider_namespaces"),
+        recorder=record_exchange_dbt_materialization,
+    ),
+    DbtAssetSpec(
+        group="exchange_schedule",
+        select_needles=("exchange_schedule", "schedule", "holiday"),
+        recorder=record_exchange_schedule_dbt_materialization,
+    ),
+    DbtAssetSpec(
+        group="instrument",
+        select_needles=("instrument",),
+        recorder=record_instrument_dbt_materialization,
+    ),
+    DbtAssetSpec(
+        group="price",
+        select_needles=("price", "eod", "eod_price", "stg_eod_price", "fct_daily_price"),
+        recorder=record_price_dbt_materialization,
+    ),
+    DbtAssetSpec(
+        group="fundamental",
+        select_needles=("fundamental",),
+        recorder=record_fundamental_dbt_materialization,
+    ),
 )
 
 

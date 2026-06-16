@@ -111,7 +111,7 @@ deployments:
       from_date (or provider earliest when omitted) → to_date
       → S3 landing → bronze.eod_price. Skips instruments already in bronze or marked
       terminal in pipeline.ingestion_coverage for the same backfill unit (resume-safe).
-      If the required Silver selector views are missing, runs dbt-build/price-build first.
+      If the required Silver selector views are missing, runs dbt-build/ingestion-control-build first.
       On clean ingestion completion, triggers dbt-build/price-build.
       Optional: from_date, to_date, provider_exchange_codes, batch_size (default 100), max_provider_calls.
     entrypoint: orchestration.flows.eod_price:eod_price_backfill_flow

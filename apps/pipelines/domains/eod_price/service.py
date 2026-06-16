@@ -9,15 +9,12 @@ that closed by then (US at ~21:00 UTC, Europe by ~18:00 UTC).
 """
 
 import asyncio
-import inspect
 import uuid
 from dataclasses import dataclass
 from datetime import date
+from typing import Protocol
 
 import structlog
-from prefect.artifacts import create_table_artifact
-from prefect.context import get_run_context
-from prefect.transactions import transaction
 from pydantic import ValidationError
 
 from core.http.base import ProviderRateLimitError
@@ -32,23 +29,18 @@ from core.ingestion import (
     RunUnitRecord,
     terminal_status,
 )
-from core.lake import reset_lake_client
-from core.orchestration.events import emit_coverage_gate_failure, publish_ingestion_summary
+from core.orchestration.events import publish_ingestion_summary
 from domains.eod_price.contracts import EodPriceBackfillRequest, EodPriceDailyRequest, EodPriceRefreshResult
 from domains.eod_price.models import EODBar
 from domains.eod_price.parsers import infer_bulk_bar_date
 from domains.eod_price.tasks import (
     EODBackfillCoverageOutcome,
-    EODPriceCoverageGap,
     eod_price_already_ingested,
     fetch_eod_backfill_provider_exchange_codes,
     fetch_eod_price_bulk,
     fetch_eod_provider_exchange_codes,
     fetch_instrument_eod_history,
     load_backfill_pending_instruments,
-    load_eod_latest_expected_exchange_dates,
-    load_eod_price_coverage_gaps,
-    load_missing_eod_backfill_selection_views,
     parse_eod_price,
     parse_instrument_eod_history,
     write_backfill_eod_batch,
@@ -59,8 +51,6 @@ from domains.eod_price.tasks import (
     write_eod_price_to_landing,
     write_instrument_eod_history_to_landing,
 )
-from orchestration.domain_dbt import DbtBuildDeployment
-from orchestration.post_ingestion import run_dbt_build_after_ingestion, run_dbt_build_deployment
 from providers.eodhd.models import EODBulkPriceRaw, EODPriceBarRaw
 
 log = structlog.get_logger(__name__)
@@ -78,6 +68,32 @@ class _BackfillInstrumentBatchResult:
     landing: LandingWrite
     valid: list[BronzeParseResult[EODBar]]
     rejected_rows: list[EODPriceBarRaw]
+
+
+class EodPricePreflightHook(Protocol):
+    """Optional pre-ingestion hook run inside the tracked app-run lifecycle."""
+
+    async def __call__(self, *, parent_run_id: str, summary: dict[str, object]) -> dict[str, object]:
+        """Run preflight work and mutate the run summary if needed."""
+        ...
+
+
+class EodPricePostIngestionHook(Protocol):
+    """Optional post-ingestion hook run before the tracked app run is completed."""
+
+    async def __call__(
+        self,
+        *,
+        summary: dict[str, object],
+        upstream_status: RunStatus,
+        parent_run_id: str,
+        provider_exchange_codes: list[str],
+        from_date: date | None,
+        to_date: date | None,
+        exchange_dates: dict[str, date] | None,
+    ) -> RunStatus:
+        """Return the final audit status after post-ingestion checks."""
+        ...
 
 
 async def _write_landing_and_parse_backfill_instrument(
@@ -115,16 +131,21 @@ async def _write_landing_and_parse_backfill_instrument(
     )
 
 
-async def run_eod_price_daily(request: EodPriceDailyRequest) -> EodPriceRefreshResult:
+async def run_eod_price_daily(
+    request: EodPriceDailyRequest,
+    *,
+    post_ingestion: EodPricePostIngestionHook | None = None,
+) -> EodPriceRefreshResult:
     """Ingest EOD price for all (or the given) exchange on trade_date.
 
     Args:
         request: Daily refresh inputs. If ``trade_date`` is omitted, the
             provider returns its latest available trading day per exchange.
             Provider exchange codes default to the dbt-built EOD price universe.
+        post_ingestion: Optional orchestration hook that can run after ingestion
+            units are recorded but before the tracked run is completed.
     """
     trade_date = request.trade_date
-    run_dbt_build = request.run_dbt_build
     codes = (
         await fetch_eod_provider_exchange_codes()
         if request.provider_exchange_codes is None
@@ -136,9 +157,6 @@ async def run_eod_price_daily(request: EodPriceDailyRequest) -> EodPriceRefreshR
     total_valid = 0
     total_rejected = 0
     coverage_exchange_dates: dict[str, date] = {}
-    latest_expected_dates = (
-        load_eod_latest_expected_exchange_dates(codes, date.today()) if trade_date is None and run_dbt_build else {}
-    )
     latest_date_mismatches: list[dict[str, str]] = []
     summary: dict = {
         "trade_date": trade_date.isoformat() if trade_date else None,
@@ -158,7 +176,6 @@ async def run_eod_price_daily(request: EodPriceDailyRequest) -> EodPriceRefreshR
         parameters={
             "trade_date": trade_date.isoformat() if trade_date else None,
             "provider_exchange_codes": request.provider_exchange_codes,
-            "run_dbt_build": run_dbt_build,
         },
         target_window_start=trade_date,
         target_window_end=trade_date,
@@ -211,9 +228,8 @@ async def run_eod_price_daily(request: EodPriceDailyRequest) -> EodPriceRefreshR
                             trade_date=trade_date,
                         )
                         summary["exchange"][provider_exchange_code] = {"bar_date": None, "rows_written": 0}
-                        coverage_date = trade_date or latest_expected_dates.get(provider_exchange_code)
-                        if coverage_date is not None:
-                            coverage_exchange_dates[provider_exchange_code] = coverage_date
+                        if trade_date is not None:
+                            coverage_exchange_dates[provider_exchange_code] = trade_date
                         can_mark_failed = False
                         run.record_unit(
                             unit_type="exchange_date",
@@ -231,15 +247,6 @@ async def run_eod_price_daily(request: EodPriceDailyRequest) -> EodPriceRefreshR
                         continue
 
                     bar_date = trade_date or infer_bulk_bar_date(raw_rows)
-                    expected_bar_date = latest_expected_dates.get(provider_exchange_code)
-                    if trade_date is None and expected_bar_date is not None and bar_date != expected_bar_date:
-                        mismatch = {
-                            "provider_exchange_code": provider_exchange_code,
-                            "provider_bar_date": bar_date.isoformat(),
-                            "expected_bar_date": expected_bar_date.isoformat(),
-                        }
-                        latest_date_mismatches.append(mismatch)
-                        log.warning("price.latest_date_mismatch", **mismatch)
                     landing = await write_eod_price_to_landing(
                         raw_rows,
                         provider_exchange_code=provider_exchange_code,
@@ -262,10 +269,9 @@ async def run_eod_price_daily(request: EodPriceDailyRequest) -> EodPriceRefreshR
 
                     summary["exchange"][provider_exchange_code] = {
                         "bar_date": bar_date.isoformat(),
-                        "expected_bar_date": expected_bar_date.isoformat() if expected_bar_date else None,
                         "rows_written": bronze.rows_written,
                     }
-                    coverage_exchange_dates[provider_exchange_code] = expected_bar_date or bar_date
+                    coverage_exchange_dates[provider_exchange_code] = bar_date
                     total_written += bronze.rows_written
                     can_mark_failed = False
                     unit_id = run.record_unit_with_landing(
@@ -339,8 +345,6 @@ async def run_eod_price_daily(request: EodPriceDailyRequest) -> EodPriceRefreshR
                 rejected=total_rejected,
                 skipped_all=_all_units_skipped(total=run.tally.total, skipped=run.tally.skipped),
             )
-            if latest_date_mismatches and run_status == "completed":
-                run_status = "partial"
             ingestion_status = run_status
             counters = run.tally.counters(
                 rows_raw=total_raw,
@@ -348,9 +352,9 @@ async def run_eod_price_daily(request: EodPriceDailyRequest) -> EodPriceRefreshR
                 rows_rejected=total_rejected,
                 rows_written=total_written,
             )
-            if run_dbt_build and run_id is not None:
+            if post_ingestion is not None and run_id is not None:
                 try:
-                    run_status = await _run_price_post_ingestion_checks(
+                    run_status = await post_ingestion(
                         summary=summary,
                         upstream_status=ingestion_status,
                         parent_run_id=run_id,
@@ -479,214 +483,17 @@ def _iso_date(value: date | None) -> str | None:
     return value.isoformat() if value else None
 
 
-async def _run_price_post_ingestion_checks(
-    *,
-    summary: dict[str, object],
-    upstream_status: RunStatus,
-    parent_run_id: str,
-    provider_exchange_codes: list[str],
-    from_date: date | None,
-    to_date: date | None,
-    exchange_dates: dict[str, date] | None,
-) -> RunStatus:
-    """Run dbt and downgrade the audit status when the coverage gate finds gaps."""
-    reset_lake_client()
-    force_skipped_gate = upstream_status == "skipped" and bool(exchange_dates)
-    try:
-        if force_skipped_gate:
-            summary["dbt_build"] = await run_dbt_build_deployment(
-                build="price-build",
-                parent_run_id=parent_run_id,
-                idempotency_key=f"{parent_run_id}:price-build",
-                tags=["post-ingestion-dbt", "price-build"],
-            )
-        else:
-            summary["dbt_build"] = await run_dbt_build_after_ingestion(
-                enabled=True,
-                build="price-build",
-                upstream_status=upstream_status,
-                parent_run_id=parent_run_id,
-            )
-    finally:
-        reset_lake_client()
-    dbt_build = summary["dbt_build"]
-    if not isinstance(dbt_build, dict) or not dbt_build.get("triggered"):
-        summary["coverage_gate"] = {
-            "status": "skipped",
-            "reason": "dbt_build_not_triggered",
-            "upstream_status": upstream_status,
-        }
-        return upstream_status
-
-    gaps = load_eod_price_coverage_gaps(
-        provider_exchange_codes=provider_exchange_codes,
-        from_date=from_date,
-        to_date=to_date,
-        exchange_dates=exchange_dates,
-    )
-    summary["coverage_gate"] = _coverage_gate_summary(gaps)
-    await _emit_coverage_gate_artifact(gaps=gaps, parent_run_id=parent_run_id)
-    if gaps:
-        log.warning(
-            "price.coverage_gate_failed",
-            gaps=len(gaps),
-            provider_exchange_codes=provider_exchange_codes,
-            from_date=from_date,
-            to_date=to_date,
-        )
-        emit_coverage_gate_failure(
-            app_run_id=parent_run_id,
-            gaps_count=len(gaps),
-            provider_exchange_codes=provider_exchange_codes,
-            from_date=_iso_date(from_date) or "open",
-            to_date=to_date.isoformat() if to_date else "latest",
-        )
-        return "partial"
-    log.info("price.coverage_gate_passed", provider_exchange_codes=provider_exchange_codes)
-    return upstream_status
-
-
-def _coverage_gate_summary(gaps: list[EODPriceCoverageGap]) -> dict[str, object]:
-    """Return compact run-summary metadata for exchange/day coverage gaps."""
-    by_status: dict[str, int] = {}
-    by_tier: dict[str, int] = {}
-    by_daily_mode: dict[str, int] = {}
-    for gap in gaps:
-        status = str(gap["exchange_day_status"])
-        by_status[status] = by_status.get(status, 0) + 1
-        tier = str(gap.get("universe_tier", "unknown"))
-        by_tier[tier] = by_tier.get(tier, 0) + 1
-        daily_mode = str(gap.get("daily_coverage_mode", "unknown"))
-        by_daily_mode[daily_mode] = by_daily_mode.get(daily_mode, 0) + 1
-    return {
-        "status": "failed" if gaps else "passed",
-        "scope": "blocking_latest_daily_coverage",
-        "blocking_flag": "is_blocking_coverage_gap",
-        "gaps": len(gaps),
-        "by_status": by_status,
-        "by_tier": by_tier,
-        "by_daily_mode": by_daily_mode,
-        "sample": [_coverage_gap_summary_row(gap) for gap in gaps[:20]],
-    }
-
-
-def _coverage_gap_summary_row(gap: EODPriceCoverageGap) -> dict[str, object]:
-    """Return a JSON-safe compact representation of one coverage gap."""
-    bar_date = gap["bar_date"]
-    latest_expected_bar_date = gap.get("latest_expected_bar_date")
-    return {
-        "provider_exchange_code": gap["provider_exchange_code"],
-        "bar_date": bar_date.isoformat() if isinstance(bar_date, date) else str(bar_date),
-        "universe_tier": gap.get("universe_tier", "unknown"),
-        "daily_coverage_mode": gap.get("daily_coverage_mode", "unknown"),
-        "latest_expected_bar_date": (
-            latest_expected_bar_date.isoformat()
-            if isinstance(latest_expected_bar_date, date)
-            else latest_expected_bar_date
-        ),
-        "is_blocking_coverage_gap": gap.get("is_blocking_coverage_gap", True),
-        "exchange_day_status": gap["exchange_day_status"],
-        "expected_instruments": gap["expected_instruments"],
-        "priced_instruments": gap["priced_instruments"],
-        "missing_price_instruments": gap["missing_price_instruments"],
-        "unknown_calendar_instruments": gap["unknown_calendar_instruments"],
-        "unknown_calendar_coverage_instruments": gap["unknown_calendar_coverage_instruments"],
-        "unknown_instrument_lifecycle_instruments": gap["unknown_instrument_lifecycle_instruments"],
-    }
-
-
-async def _emit_coverage_gate_artifact(*, gaps: list[EODPriceCoverageGap], parent_run_id: str) -> None:
-    """Publish a table artifact with a bounded sample of coverage gaps."""
-    if not gaps:
-        return
-    try:
-        get_run_context()
-    except RuntimeError:
-        log.debug(
-            "price.coverage_gate_artifact_skipped",
-            parent_run_id=parent_run_id,
-            reason="missing_run_context",
-        )
-        return
-    rows = [_coverage_gap_summary_row(gap) for gap in gaps[:100]]
-    try:
-        artifact_id = create_table_artifact(
-            key=f"eod-price-coverage-{parent_run_id}",
-            table=rows,
-            description=f"EOD price coverage gate found {len(gaps)} gap(s).",
-        )
-        if inspect.isawaitable(artifact_id):
-            await artifact_id
-    except Exception:
-        log.warning("price.coverage_gate_artifact_failed", parent_run_id=parent_run_id, exc_info=True)
-
-
 def _exception_summary(exc: Exception) -> dict[str, str]:
     """Return a compact JSON-safe exception summary for run metadata."""
     return {"type": type(exc).__name__, "message": str(exc)[-2000:]}
 
 
-async def _build_price_selection_views_if_missing(
+async def run_eod_price_backfill(
+    request: EodPriceBackfillRequest,
     *,
-    parent_run_id: str,
-    summary: dict[str, object],
-) -> dict[str, object]:
-    """Build ingestion-control selector views when historical backfill needs them."""
-    build_name: DbtBuildDeployment = "ingestion-control-build"
-    missing_before = load_missing_eod_backfill_selection_views()
-    if not missing_before:
-        result: dict[str, object] = {
-            "enabled": True,
-            "triggered": False,
-            "build": build_name,
-            "reason": "selection_views_present",
-            "missing": [],
-        }
-        summary["preflight_dbt_build"] = result
-        return result
-
-    log.info("backfill.selection_views_missing", missing=missing_before)
-    preflight_summary: dict[str, object] = {
-        "enabled": True,
-        "triggered": True,
-        "build": build_name,
-        "missing_before": missing_before,
-    }
-    summary["preflight_dbt_build"] = preflight_summary
-    reset_lake_client()
-    try:
-        with transaction(key=f"eod-price-selection-views:{','.join(sorted(missing_before))}"):
-            result = await run_dbt_build_deployment(
-                build=build_name,
-                parent_run_id=parent_run_id,
-                idempotency_key=f"{parent_run_id}:preflight:{build_name}",
-                tags=["preflight-dbt", build_name],
-            )
-    except Exception as exc:
-        preflight_summary["status"] = "failed"
-        preflight_summary["error"] = _exception_summary(exc)
-        raise
-    finally:
-        reset_lake_client()
-    missing_after = load_missing_eod_backfill_selection_views()
-    if missing_after:
-        result["reason"] = "missing_selection_views"
-        result["missing_before"] = missing_before
-        result["missing_after"] = missing_after
-        result["status"] = "failed"
-        summary["preflight_dbt_build"] = result
-        missing = ", ".join(f"silver.{table}" for table in missing_after)
-        raise RuntimeError(
-            f"dbt-build/{build_name} completed but required backfill selector views are missing: {missing}"
-        )
-    result["reason"] = "missing_selection_views"
-    result["missing_before"] = missing_before
-    result["missing_after"] = []
-    summary["preflight_dbt_build"] = result
-    return result
-
-
-async def run_eod_price_backfill(request: EodPriceBackfillRequest) -> EodPriceRefreshResult:
+    preflight: EodPricePreflightHook | None = None,
+    post_ingestion: EodPricePostIngestionHook | None = None,
+) -> EodPriceRefreshResult:
     """Ingest full OHLCV history for every latest EODHD provider instrument.
 
     Processes each exchange sequentially; within an exchange, fetches
@@ -710,12 +517,14 @@ async def run_eod_price_backfill(request: EodPriceBackfillRequest) -> EodPriceRe
 
     Args:
         request: Backfill inputs, including date window, provider exchange
-            scope, batch size, optional provider-call cap, selector-view
-            preflight flag, and post-ingestion dbt-build flag.
+            scope, batch size, and optional provider-call cap.
+        preflight: Optional orchestration hook that can run before backfill
+            selection inside the tracked run.
+        post_ingestion: Optional orchestration hook that can run after ingestion
+            units are recorded but before the tracked run is completed.
     """
     from_date = request.from_date
     to_date = request.to_date or date.today()
-    run_dbt_build = request.run_dbt_build
     codes = (
         await fetch_eod_backfill_provider_exchange_codes()
         if request.provider_exchange_codes is None
@@ -756,8 +565,6 @@ async def run_eod_price_backfill(request: EodPriceBackfillRequest) -> EodPriceRe
             "provider_exchange_codes": request.provider_exchange_codes,
             "batch_size": request.batch_size,
             "max_provider_calls": request.max_provider_calls,
-            "build_selection_views_if_missing": request.build_selection_views_if_missing,
-            "run_dbt_build": run_dbt_build,
         },
         target_window_start=from_date,
         target_window_end=to_date,
@@ -773,8 +580,8 @@ async def run_eod_price_backfill(request: EodPriceBackfillRequest) -> EodPriceRe
         )
 
         try:
-            if request.build_selection_views_if_missing and run_id is not None:
-                await _build_price_selection_views_if_missing(parent_run_id=run_id, summary=summary)
+            if preflight is not None and run_id is not None:
+                await preflight(parent_run_id=run_id, summary=summary)
 
             stop_after_exchange = False
             for provider_exchange_code in codes:
@@ -1129,9 +936,9 @@ async def run_eod_price_backfill(request: EodPriceBackfillRequest) -> EodPriceRe
                 rows_rejected=total_rejected,
                 rows_written=total_written,
             )
-            if run_dbt_build and run_id is not None:
+            if post_ingestion is not None and run_id is not None:
                 try:
-                    run_status = await _run_price_post_ingestion_checks(
+                    run_status = await post_ingestion(
                         summary=summary,
                         upstream_status=ingestion_status,
                         parent_run_id=run_id,
@@ -1196,4 +1003,9 @@ async def run_eod_price_backfill(request: EodPriceBackfillRequest) -> EodPriceRe
     return EodPriceRefreshResult(run_id=run_id, status=run_status, summary=summary)
 
 
-__all__ = ["run_eod_price_backfill", "run_eod_price_daily"]
+__all__ = [
+    "EodPricePostIngestionHook",
+    "EodPricePreflightHook",
+    "run_eod_price_backfill",
+    "run_eod_price_daily",
+]

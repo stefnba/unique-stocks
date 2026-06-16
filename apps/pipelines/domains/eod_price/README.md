@@ -137,11 +137,12 @@ no blocking missing/unknown gap. If the previous daily run
 was partial, rerunning the same explicit exchange/date fetches again and inserts
 only still-missing Bronze keys. Provider-latest runs with no `trade_date` still
 fetch first because the bar date is unknown before the provider response.
-When `run_dbt_build=true`, provider-latest runs compare the returned provider
-date with the latest expected exchange trading date from `silver.int_exchange_trading_day`
-for blocking daily namespaces; a mismatch is audited as `partial`, and the coverage
-gate checks the expected date. Monitor-only namespaces can still be ingested and
-reported, but they do not downgrade the run.
+When the orchestration flow runs with `run_dbt_build=true`, provider-latest
+runs compare the returned provider date with the latest expected exchange
+trading date from `silver.int_exchange_trading_day` for blocking daily
+namespaces; a mismatch is audited as `partial`, and the coverage gate checks
+the expected date. Monitor-only namespaces can still be ingested and reported,
+but they do not downgrade the run.
 
 ## Local flow check
 

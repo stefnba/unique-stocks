@@ -1,9 +1,8 @@
 """Application post-ingestion dbt build orchestration.
 
-This module owns the app-specific policy for running named dbt builds after
-ingestion flows complete. It belongs in ``orchestration`` because build names
-such as ``price-build`` and ``fundamental-build`` are deployment wiring, not
-reusable core behavior.
+This module owns the app-specific policy for running configured dbt builds after
+ingestion flows complete. The desired build deployment declarations live in
+``control_plane``; this module owns the runtime decision to trigger them.
 
 The generic dbt subprocess and audit mechanics remain in ``core.transforms``.
 Domain flows call this module when they need to promote successful Bronze writes
@@ -13,13 +12,27 @@ into Silver/Gold through a configured build selector.
 import structlog
 from prefect import tags as prefect_tags
 
+from config.domains import Domain
 from config.settings import get_settings
+from control_plane.prefect.dbt_builds import DBT_BUILD_SPECS, DbtBuildDeployment
 from core.ingestion.run_tracking import RunStatus
 from core.lake import reset_lake_client
 from orchestration.dbt import dbt_build_flow
-from orchestration.domain_dbt import DBT_BUILD_SPECS, DbtBuildDeployment
 
 log = structlog.get_logger(__name__)
+
+POST_INGESTION_BUILDS_BY_DOMAIN: dict[Domain, DbtBuildDeployment] = {
+    Domain.EXCHANGE: "exchange-build",
+    Domain.EXCHANGE_SCHEDULE: "exchange-build",
+    Domain.INSTRUMENT: "instrument-build",
+    Domain.EOD_PRICE: "price-build",
+    Domain.FUNDAMENTAL: "fundamental-build",
+}
+
+
+def post_ingestion_build_for_domain(domain: Domain) -> DbtBuildDeployment:
+    """Return the configured post-ingestion dbt build for a domain."""
+    return POST_INGESTION_BUILDS_BY_DOMAIN[domain]
 
 
 async def run_dbt_build_after_ingestion(
@@ -123,4 +136,9 @@ def _release_local_lake_lock_before_dbt(*, build: DbtBuildDeployment, parent_run
     log.info("dbt.local_lake_lock_released_before_build", build=build, parent_run_id=parent_run_id)
 
 
-__all__ = ["run_dbt_build_after_ingestion", "run_dbt_build_deployment"]
+__all__ = [
+    "POST_INGESTION_BUILDS_BY_DOMAIN",
+    "post_ingestion_build_for_domain",
+    "run_dbt_build_after_ingestion",
+    "run_dbt_build_deployment",
+]

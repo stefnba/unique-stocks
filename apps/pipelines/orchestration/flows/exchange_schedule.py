@@ -4,9 +4,10 @@ from datetime import date
 
 from prefect import flow
 
+from config.domains import Domain
 from domains.exchange_schedule.contracts import ExchangeScheduleRefreshRequest
 from domains.exchange_schedule.service import run_exchange_schedule_refresh
-from orchestration.post_ingestion import run_dbt_build_after_ingestion
+from orchestration.post_ingestion import post_ingestion_build_for_domain, run_dbt_build_after_ingestion
 
 
 @flow(
@@ -37,7 +38,7 @@ async def exchange_schedule_flow(
     if run_dbt_build:
         summary["dbt_build"] = await run_dbt_build_after_ingestion(
             enabled=run_dbt_build,
-            build="exchange-build",
+            build=post_ingestion_build_for_domain(Domain.EXCHANGE_SCHEDULE),
             upstream_status=result.status,
             parent_run_id=result.run_id,
         )

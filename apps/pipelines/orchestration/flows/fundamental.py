@@ -4,9 +4,10 @@ from datetime import date
 
 from prefect import flow
 
+from config.domains import Domain
 from domains.fundamental.contracts import FundamentalRefreshRequest
 from domains.fundamental.service import run_fundamental_refresh
-from orchestration.post_ingestion import run_dbt_build_after_ingestion
+from orchestration.post_ingestion import post_ingestion_build_for_domain, run_dbt_build_after_ingestion
 
 
 @flow(
@@ -56,7 +57,7 @@ async def fundamental_flow(
     if run_dbt_build:
         summary["dbt_build"] = await run_dbt_build_after_ingestion(
             enabled=run_dbt_build,
-            build="fundamental-build",
+            build=post_ingestion_build_for_domain(Domain.FUNDAMENTAL),
             upstream_status=result.status,
             parent_run_id=result.run_id,
         )

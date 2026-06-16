@@ -12,7 +12,6 @@ class EodPriceDailyRequest:
 
     trade_date: date | None = None
     provider_exchange_codes: list[str] | None = None
-    run_dbt_build: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,8 +23,6 @@ class EodPriceBackfillRequest:
     provider_exchange_codes: list[str] | None = None
     batch_size: int = 50
     max_provider_calls: int | None = None
-    build_selection_views_if_missing: bool = False
-    run_dbt_build: bool = False
 
 
 @dataclass(frozen=True, slots=True)

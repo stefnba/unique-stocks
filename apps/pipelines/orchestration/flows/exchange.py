@@ -4,10 +4,11 @@ from datetime import date
 
 from prefect import flow
 
+from config.domains import Domain
 from domains.exchange.contracts import ExchangeCatalogRefreshRequest, ExchangeMicRegistryRefreshRequest
 from domains.exchange.service import run_exchange_catalog_refresh, run_exchange_mic_registry_refresh
 from orchestration.flows.exchange_schedule import exchange_schedule_flow
-from orchestration.post_ingestion import run_dbt_build_deployment
+from orchestration.post_ingestion import post_ingestion_build_for_domain, run_dbt_build_deployment
 
 
 @flow(
@@ -57,15 +58,16 @@ async def exchange_reference_refresh_flow(
 
     summary["exchange_catalog_rows_written"] = await exchange_catalog_flow()
     summary["exchange_mic_registry"] = await exchange_mic_registry_flow(snapshot_date=snapshot_date)
+    build = post_ingestion_build_for_domain(Domain.EXCHANGE)
 
     if run_dbt_build:
         summary["exchange_build_before_schedule"] = await run_dbt_build_deployment(
-            build="exchange-build",
+            build=build,
             parent_run_id=None,
-            tags=["exchange-reference-refresh", "exchange-build", "pre-schedule"],
+            tags=["exchange-reference-refresh", build, "pre-schedule"],
         )
     else:
-        summary["exchange_build_before_schedule"] = {"enabled": False, "triggered": False, "build": "exchange-build"}
+        summary["exchange_build_before_schedule"] = {"enabled": False, "triggered": False, "build": build}
 
     summary["exchange_schedule"] = await exchange_schedule_flow(
         snapshot_date=schedule_snapshot_date,

@@ -5,6 +5,7 @@ from uuid import UUID
 import pytest
 
 from config.settings import APP_ROOT
+from control_plane.prefect.dbt_builds import DBT_BUILD_SPECS
 from core.orchestration.deployments import (
     DEFAULT_PREFECT_YAML,
     DeploymentKey,
@@ -14,7 +15,6 @@ from core.orchestration.deployments import (
     load_prefect_yaml_deployments,
     resolve_flow_name,
 )
-from orchestration.domain_dbt import DBT_BUILD_SPECS
 
 APPS_PIPELINES = APP_ROOT
 

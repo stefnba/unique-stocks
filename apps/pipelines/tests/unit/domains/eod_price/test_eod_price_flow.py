@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from datetime import date
+from pathlib import Path
 from typing import cast
 
 import httpx
@@ -17,6 +18,7 @@ from domains.eod_price import service as flows
 from domains.eod_price.contracts import EodPriceBackfillRequest, EodPriceDailyRequest
 from domains.eod_price.models import EODBar
 from domains.eod_price.parsers import parse_instrument_bars
+from orchestration import eod_price_post_ingestion as price_post_ingestion
 from providers.eodhd.models import EODBulkPriceRaw, EODPriceBarRaw
 
 FROM_DATE = date(2026, 5, 1)
@@ -34,8 +36,8 @@ async def _daily(
         EodPriceDailyRequest(
             trade_date=trade_date,
             provider_exchange_codes=provider_exchange_codes,
-            run_dbt_build=run_dbt_build,
-        )
+        ),
+        post_ingestion=price_post_ingestion.run_price_post_ingestion_checks if run_dbt_build else None,
     )
     return result.summary
 
@@ -58,9 +60,11 @@ async def _backfill(
             provider_exchange_codes=provider_exchange_codes,
             batch_size=batch_size,
             max_provider_calls=max_provider_calls,
-            build_selection_views_if_missing=build_selection_views_if_missing,
-            run_dbt_build=run_dbt_build,
-        )
+        ),
+        preflight=(
+            price_post_ingestion.build_price_selection_views_if_missing if build_selection_views_if_missing else None
+        ),
+        post_ingestion=price_post_ingestion.run_price_post_ingestion_checks if run_dbt_build else None,
     )
     return result.summary
 
@@ -243,6 +247,14 @@ def _bulk_row(*, code: str = "AAPL", row_date: date = TO_DATE) -> EODBulkPriceRa
     )
 
 
+def test_eod_price_service_does_not_import_orchestration() -> None:
+    """EOD domain service should stay independent from app orchestration modules."""
+    assert flows.__file__ is not None
+    source = Path(flows.__file__).read_text()
+    assert "from orchestration" not in source
+    assert "import orchestration" not in source
+
+
 @pytest.mark.asyncio
 async def test_eod_daily_explicit_trade_date_skips_already_ingested_exchange(
     monkeypatch: pytest.MonkeyPatch,
@@ -332,8 +344,8 @@ async def test_eod_daily_coverage_gate_marks_run_partial(monkeypatch: pytest.Mon
     monkeypatch.setattr(flows, "write_eod_price_to_landing", write_landing)
     monkeypatch.setattr(flows, "parse_eod_price", lambda *_args, **_kwargs: ([object()], []))
     monkeypatch.setattr(flows, "write_bronze_eod_price", lambda *_args, **_kwargs: BronzeWrite(rows_written=1))
-    monkeypatch.setattr(flows, "run_dbt_build_after_ingestion", dbt_build)
-    monkeypatch.setattr(flows, "load_eod_price_coverage_gaps", load_gaps)
+    monkeypatch.setattr(price_post_ingestion, "run_dbt_build_after_ingestion", dbt_build)
+    monkeypatch.setattr(price_post_ingestion, "load_eod_price_coverage_gaps", load_gaps)
 
     summary = await _daily(trade_date=TO_DATE, provider_exchange_codes=["US"], run_dbt_build=True)
     coverage_gate = cast(dict[str, object], summary["coverage_gate"])
@@ -368,7 +380,7 @@ async def test_eod_daily_dbt_failure_preserves_ingestion_audit_status(monkeypatc
     monkeypatch.setattr(flows, "write_eod_price_to_landing", write_landing)
     monkeypatch.setattr(flows, "parse_eod_price", lambda *_args, **_kwargs: ([object()], []))
     monkeypatch.setattr(flows, "write_bronze_eod_price", lambda *_args, **_kwargs: BronzeWrite(rows_written=1))
-    monkeypatch.setattr(flows, "run_dbt_build_after_ingestion", dbt_build)
+    monkeypatch.setattr(price_post_ingestion, "run_dbt_build_after_ingestion", dbt_build)
 
     with pytest.raises(RuntimeError, match="dbt failed"):
         await _daily(trade_date=TO_DATE, provider_exchange_codes=["US"], run_dbt_build=True)
@@ -413,8 +425,8 @@ async def test_eod_daily_no_data_still_runs_coverage_gate(monkeypatch: pytest.Mo
     monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
     monkeypatch.setattr(flows, "eod_price_already_ingested", lambda *_: False)
     monkeypatch.setattr(flows, "fetch_eod_price_bulk", fetch)
-    monkeypatch.setattr(flows, "run_dbt_build_deployment", dbt_build)
-    monkeypatch.setattr(flows, "load_eod_price_coverage_gaps", load_gaps)
+    monkeypatch.setattr(price_post_ingestion, "run_dbt_build_deployment", dbt_build)
+    monkeypatch.setattr(price_post_ingestion, "load_eod_price_coverage_gaps", load_gaps)
 
     summary = await _daily(trade_date=TO_DATE, provider_exchange_codes=["US"], run_dbt_build=True)
     coverage_gate = cast(dict[str, object], summary["coverage_gate"])
@@ -429,6 +441,62 @@ async def test_eod_daily_no_data_still_runs_coverage_gate(monkeypatch: pytest.Mo
     ]
     assert run.completed_status == "partial"
     assert coverage_gate["status"] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_eod_daily_provider_latest_no_data_checks_expected_date(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Provider-latest no-data skips should still gate the latest expected exchange date."""
+    run = FakeRun()
+    build_calls: list[dict[str, object]] = []
+    gap_calls: list[dict[str, object]] = []
+
+    async def fetch(**_: object) -> list[object]:
+        return []
+
+    async def dbt_build(**kwargs: object) -> dict[str, object]:
+        build_calls.append(kwargs)
+        return {"enabled": True, "triggered": True, "build": "price-build"}
+
+    def load_gaps(**kwargs: object) -> list[dict[str, object]]:
+        gap_calls.append(kwargs)
+        return [
+            {
+                "data_provider": "eodhd",
+                "provider_exchange_code": "US",
+                "bar_date": TO_DATE,
+                "exchange_day_status": "missing_price",
+                "expected_instruments": 2,
+                "priced_instruments": 0,
+                "missing_price_instruments": 2,
+                "known_no_data_instruments": 0,
+                "unknown_calendar_instruments": 0,
+                "unknown_calendar_coverage_instruments": 0,
+                "unknown_instrument_lifecycle_instruments": 0,
+            }
+        ]
+
+    monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
+    monkeypatch.setattr(flows, "fetch_eod_price_bulk", fetch)
+    monkeypatch.setattr(price_post_ingestion, "load_eod_latest_expected_exchange_dates", lambda *_: {"US": TO_DATE})
+    monkeypatch.setattr(price_post_ingestion, "run_dbt_build_deployment", dbt_build)
+    monkeypatch.setattr(price_post_ingestion, "load_eod_price_coverage_gaps", load_gaps)
+
+    summary = await _daily(provider_exchange_codes=["US"], run_dbt_build=True)
+    exchange = cast(dict[str, dict[str, object]], summary["exchange"])
+
+    assert build_calls == [
+        {
+            "build": "price-build",
+            "parent_run_id": "run-1",
+            "idempotency_key": "run-1:price-build",
+            "tags": ["post-ingestion-dbt", "price-build"],
+        }
+    ]
+    assert gap_calls[0]["exchange_dates"] == {"US": TO_DATE}
+    assert exchange["US"]["expected_bar_date"] == TO_DATE.isoformat()
+    assert run.completed_status == "partial"
 
 
 @pytest.mark.asyncio
@@ -458,13 +526,13 @@ async def test_eod_daily_provider_latest_date_mismatch_is_partial(monkeypatch: p
         return []
 
     monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
-    monkeypatch.setattr(flows, "load_eod_latest_expected_exchange_dates", lambda *_: {"US": TO_DATE})
+    monkeypatch.setattr(price_post_ingestion, "load_eod_latest_expected_exchange_dates", lambda *_: {"US": TO_DATE})
     monkeypatch.setattr(flows, "fetch_eod_price_bulk", fetch)
     monkeypatch.setattr(flows, "write_eod_price_to_landing", write_landing)
     monkeypatch.setattr(flows, "parse_eod_price", lambda *_args, **_kwargs: ([object()], []))
     monkeypatch.setattr(flows, "write_bronze_eod_price", lambda *_args, **_kwargs: BronzeWrite(rows_written=1))
-    monkeypatch.setattr(flows, "run_dbt_build_after_ingestion", dbt_build)
-    monkeypatch.setattr(flows, "load_eod_price_coverage_gaps", load_gaps)
+    monkeypatch.setattr(price_post_ingestion, "run_dbt_build_after_ingestion", dbt_build)
+    monkeypatch.setattr(price_post_ingestion, "load_eod_price_coverage_gaps", load_gaps)
 
     summary = await _daily(provider_exchange_codes=["US"], run_dbt_build=True)
 
@@ -691,8 +759,8 @@ async def test_eod_backfill_builds_missing_selection_views_before_pending_select
         return []
 
     monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
-    monkeypatch.setattr(flows, "load_missing_eod_backfill_selection_views", load_missing_views)
-    monkeypatch.setattr(flows, "run_dbt_build_deployment", build_price)
+    monkeypatch.setattr(price_post_ingestion, "load_missing_eod_backfill_selection_views", load_missing_views)
+    monkeypatch.setattr(price_post_ingestion, "run_dbt_build_deployment", build_price)
     monkeypatch.setattr(flows, "load_backfill_pending_instruments", load_pending)
 
     summary = await _backfill(
@@ -744,8 +812,8 @@ async def test_eod_backfill_preflight_failure_is_audited(monkeypatch: pytest.Mon
         raise AssertionError("pending selection should not run after preflight failure")
 
     monkeypatch.setattr(flows, "PipelineRunTracker", lambda: FakeTracker(run))
-    monkeypatch.setattr(flows, "load_missing_eod_backfill_selection_views", load_missing_views)
-    monkeypatch.setattr(flows, "run_dbt_build_deployment", build_price)
+    monkeypatch.setattr(price_post_ingestion, "load_missing_eod_backfill_selection_views", load_missing_views)
+    monkeypatch.setattr(price_post_ingestion, "run_dbt_build_deployment", build_price)
     monkeypatch.setattr(flows, "load_backfill_pending_instruments", fail_pending)
 
     with pytest.raises(RuntimeError, match="preflight dbt failed"):

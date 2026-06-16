@@ -1,14 +1,10 @@
 """Tests for app dbt Prefect asset materialization wiring."""
 
-import pytest
-
-from config.domains import Domain
 from orchestration import dbt_assets
 from orchestration.dbt_assets import DbtAssetMaterialization, selected_dbt_asset_groups
-from orchestration.domain_dbt import DomainDbtSpec
 
 
-def test_dbt_asset_specs_follow_domain_dbt_registry_order() -> None:
+def test_dbt_asset_specs_expose_domain_asset_groups_in_order() -> None:
     """The app adapter should expose the configured domain asset groups."""
     assert [spec.group for spec in dbt_assets.DBT_ASSET_SPECS] == [
         "exchange",
@@ -28,6 +24,7 @@ def test_selected_dbt_asset_groups_delegates_to_core_specs() -> None:
     assert selected_dbt_asset_groups(["path:models/staging/exchange_schedule"]) == ["exchange_schedule"]
     assert selected_dbt_asset_groups(["provider_namespace_policy"]) == ["exchange"]
     assert selected_dbt_asset_groups(["eod_price"]) == ["price"]
+    assert selected_dbt_asset_groups(["fct_daily_price"]) == ["price"]
     assert selected_dbt_asset_groups(["+tag:ingestion_control"]) == []
 
 
@@ -85,24 +82,3 @@ def test_record_dbt_asset_materializations_uses_app_recorders(monkeypatch) -> No
             "dbt_asset_layers": ["silver"],
         }
     ]
-
-
-def test_build_dbt_asset_specs_reports_registry_drift() -> None:
-    """Registry validation should explain missing and unused app recorders."""
-
-    def record_assets(*, layers: tuple[str, ...], **metadata: object) -> None:
-        _ = (layers, metadata)
-
-    domain_specs = (
-        DomainDbtSpec(domain=Domain.EXCHANGE, asset_group="exchange", select_needles=("exchange",)),
-        DomainDbtSpec(domain=Domain.EOD_PRICE, asset_group="price", select_needles=("price",)),
-    )
-
-    with pytest.raises(
-        RuntimeError,
-        match="missing recorders for: price; unconfigured recorders for: unused",
-    ):
-        dbt_assets._build_dbt_asset_specs(
-            domain_specs=domain_specs,
-            recorders={"exchange": record_assets, "unused": record_assets},
-        )

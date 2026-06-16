@@ -6,6 +6,10 @@ from prefect import flow
 
 from domains.eod_price.contracts import EodPriceBackfillRequest, EodPriceDailyRequest
 from domains.eod_price.service import run_eod_price_backfill, run_eod_price_daily
+from orchestration.eod_price_post_ingestion import (
+    build_price_selection_views_if_missing,
+    run_price_post_ingestion_checks,
+)
 
 
 @flow(
@@ -25,8 +29,8 @@ async def eod_price_flow(
         EodPriceDailyRequest(
             trade_date=trade_date,
             provider_exchange_codes=provider_exchange_codes,
-            run_dbt_build=run_dbt_build,
-        )
+        ),
+        post_ingestion=run_price_post_ingestion_checks if run_dbt_build else None,
     )
     return result.summary
 
@@ -55,9 +59,9 @@ async def eod_price_backfill_flow(
             provider_exchange_codes=provider_exchange_codes,
             batch_size=batch_size,
             max_provider_calls=max_provider_calls,
-            build_selection_views_if_missing=build_selection_views_if_missing,
-            run_dbt_build=run_dbt_build,
-        )
+        ),
+        preflight=build_price_selection_views_if_missing if build_selection_views_if_missing else None,
+        post_ingestion=run_price_post_ingestion_checks if run_dbt_build else None,
     )
     return result.summary
 

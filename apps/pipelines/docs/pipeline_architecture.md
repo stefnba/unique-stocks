@@ -27,7 +27,7 @@ groups, or business-specific table manifests.
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | `config/`        | Environment-backed settings, stable enums, identity keys, and static non-secret defaults.                                                             | Prefect block construction, registries, factories, runtime behavior.               |
 | `control_plane/` | App-specific Prefect blocks, limit declarations, automation definitions, deployment defaults, AWS resource naming, deployment/runtime wiring.         | Generic Prefect helpers or generic S3 behavior.                                    |
-| `orchestration/` | Thin Prefect flow entrypoints, post-ingestion dbt build policy, flow-check composition, dbt/build mappings, cross-domain workflows.                   | Domain ingestion internals or provider clients.                                    |
+| `orchestration/` | Thin Prefect flow entrypoints, post-ingestion dbt build policy, flow-check composition, dbt asset mappings, cross-domain workflows.                   | Domain ingestion internals or provider clients.                                    |
 | `core/`          | Generic HTTP, storage, lake, ingestion, run tracking, schema/migration, infrastructure/orchestration helpers, dbt subprocess, and utility primitives. | App vocabulary, concrete providers, concrete domains, settings-backed composition. |
 | `providers/`     | Concrete provider clients, provider API models, provider identifier rules, provider-owned normalization.                                              | Domain table/write policy or app orchestration.                                    |
 | `domains/`       | Domain models, Bronze table specs, datasets, parsers, tasks, request/result contracts, services, and domain-specific selection logic.                 | Runtime block definitions, dbt deployment names, or cross-domain workflow wiring.  |
@@ -51,7 +51,9 @@ groups, or business-specific table manifests.
 Keep registries close to the thing they register:
 
 - Provider catalog: `providers/registry.py`
-- dbt asset and post-ingestion build mapping: `orchestration/domain_dbt.py`
+- dbt build deployment selectors: `control_plane/prefect/dbt_builds.py`
+- dbt asset materialization mapping: `orchestration/dbt_assets.py`
+- Post-ingestion build mapping: `orchestration/post_ingestion.py`
 - Generic runtime infrastructure mechanics such as Prefect block handles and health checks: `core/infrastructure/`
 - Orchestration event vocabulary, event publishing, asset materialization helpers, deployment sync mechanics, automation sync, and global-limit sync: `core/orchestration/`
 - App Prefect blocks, limits, automations, and deployment defaults: `control_plane/prefect/`
@@ -60,7 +62,7 @@ Keep registries close to the thing they register:
 Do not add a domain registry until production code consumes one. Domain identity
 keys live in `config.domains`; concrete domain behavior stays in each
 `domains/<domain>/` package; dbt/build metadata lives in
-`orchestration/domain_dbt.py`.
+`orchestration/dbt_assets.py` and `orchestration/post_ingestion.py`.
 
 ## Thin Flow Pattern
 
