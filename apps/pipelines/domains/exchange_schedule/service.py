@@ -12,7 +12,7 @@ from core.ingestion import (
     RunUnitTally,
     terminal_status,
 )
-from core.orchestration.events import publish_prefect_ingestion_summary
+from core.orchestration.events import publish_ingestion_summary
 from domains.exchange_schedule.contracts import ExchangeScheduleRefreshRequest, ExchangeScheduleRefreshResult
 from domains.exchange_schedule.tasks import (
     fetch_exchange_details,
@@ -189,7 +189,7 @@ async def run_exchange_schedule_refresh(
                 counters=_schedule_counters(tally=run.tally, summary=summary),
                 summary=summary,
             )
-            await publish_prefect_ingestion_summary(
+            await publish_ingestion_summary(
                 flow_name="exchange-schedule-refresh",
                 domain="exchange_schedule",
                 app_run_id=run.run_id,
@@ -203,7 +203,7 @@ async def run_exchange_schedule_refresh(
                     counters=_schedule_counters(tally=run.tally, summary=summary),
                     summary=summary,
                 )
-            await publish_prefect_ingestion_summary(
+            await publish_ingestion_summary(
                 flow_name="exchange-schedule-refresh",
                 domain="exchange_schedule",
                 app_run_id=run.run_id,

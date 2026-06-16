@@ -12,7 +12,7 @@ from core.ingestion import (
     RunUnitTally,
     terminal_status,
 )
-from core.orchestration.events import publish_prefect_ingestion_summary
+from core.orchestration.events import publish_ingestion_summary
 from domains.instrument.contracts import InstrumentRefreshRequest, InstrumentRefreshResult
 from domains.instrument.tasks import (
     fetch_instrument,
@@ -139,7 +139,7 @@ async def run_instrument_refresh(request: InstrumentRefreshRequest) -> Instrumen
                 counters=_instrument_counters(tally=run.tally, summary=summary),
                 summary=summary,
             )
-            await publish_prefect_ingestion_summary(
+            await publish_ingestion_summary(
                 flow_name="instrument-refresh",
                 domain="instrument",
                 app_run_id=run.run_id,
@@ -153,7 +153,7 @@ async def run_instrument_refresh(request: InstrumentRefreshRequest) -> Instrumen
                     counters=_instrument_counters(tally=run.tally, summary=summary),
                     summary=summary,
                 )
-            await publish_prefect_ingestion_summary(
+            await publish_ingestion_summary(
                 flow_name="instrument-refresh",
                 domain="instrument",
                 app_run_id=run.run_id,

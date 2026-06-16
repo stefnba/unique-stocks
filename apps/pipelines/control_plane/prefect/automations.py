@@ -12,7 +12,7 @@ from prefect.events.schemas.automations import EventTrigger, Posture
 from config.settings import get_settings
 from control_plane.prefect.blocks import BlockRegistry
 from core.orchestration.automations import CustomAutomation, define_automations
-from core.orchestration.events import APP_LABEL, PIPELINES_LABEL, PrefectEvent
+from core.orchestration.events.contracts import APP_LABEL, PIPELINES_LABEL, PrefectEvent
 
 
 @dataclass(frozen=True, slots=True)

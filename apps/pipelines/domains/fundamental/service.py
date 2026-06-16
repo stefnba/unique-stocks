@@ -17,7 +17,7 @@ from core.ingestion import (
     RunStatus,
     terminal_status,
 )
-from core.orchestration.events import publish_prefect_ingestion_summary
+from core.orchestration.events import publish_ingestion_summary
 from domains.fundamental.contracts import FundamentalRefreshRequest, FundamentalRefreshResult
 from domains.fundamental.tasks import (
     delete_fundamental_snapshot_rows,
@@ -498,7 +498,7 @@ async def run_fundamental_refresh(request: FundamentalRefreshRequest) -> Fundame
                 ),
                 summary=summary,
             )
-            await publish_prefect_ingestion_summary(
+            await publish_ingestion_summary(
                 flow_name="fundamental-quarterly",
                 domain="fundamental",
                 app_run_id=run.run_id,
@@ -524,7 +524,7 @@ async def run_fundamental_refresh(request: FundamentalRefreshRequest) -> Fundame
                     ),
                     summary=summary,
                 )
-            await publish_prefect_ingestion_summary(
+            await publish_ingestion_summary(
                 flow_name="fundamental-quarterly",
                 domain="fundamental",
                 app_run_id=run.run_id,

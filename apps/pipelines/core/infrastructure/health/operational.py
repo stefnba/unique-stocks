@@ -9,7 +9,7 @@ from typing import Any, Protocol
 
 from core.infrastructure.health.common import prefect_api_is_healthy
 from core.lake import DataLakeClient
-from core.orchestration.events import emit_prefect_stale_runs_event
+from core.orchestration.events import emit_stale_runs
 from core.utils.redaction import redact_sensitive_query_params
 
 type LakeFactory = Callable[..., "OperationalHealthLake"]
@@ -110,7 +110,7 @@ def run_operational_health(
     *,
     lake_factory: LakeFactory = DataLakeClient,
     api_health_check: PrefectApiHealthCheck = prefect_api_is_healthy,
-    stale_runs_event: StaleRunsEventEmitter = emit_prefect_stale_runs_event,
+    stale_runs_event: StaleRunsEventEmitter = emit_stale_runs,
     now: datetime | None = None,
 ) -> OperationalHealthResult:
     """Evaluate Prefect API and lake audit health."""

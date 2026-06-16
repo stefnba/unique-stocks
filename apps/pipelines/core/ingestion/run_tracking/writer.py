@@ -39,7 +39,7 @@ from core.ingestion.run_tracking.utils import (
 )
 from core.ingestion.serialization import canonical_json, jsonable
 from core.lake import DataLakeClient, get_lake_client
-from core.orchestration.events import emit_prefect_pipeline_cancelled_event
+from core.orchestration.events import emit_pipeline_cancelled
 
 log = structlog.get_logger(__name__)
 
@@ -371,7 +371,7 @@ class PipelineRunTracker:
                 str(run_id),
             ],
         )
-        emit_prefect_pipeline_cancelled_event(
+        emit_pipeline_cancelled(
             app_run_id=str(run_id),
             flow_name=flow_name,
             error_class=error_class or "Cancelled",

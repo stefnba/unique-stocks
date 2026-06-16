@@ -31,7 +31,7 @@ from core.ingestion.serialization import jsonable
 from core.lake import get_lake_client, reset_lake_client
 from core.lake.database import ensure_lake_database_for_backend
 from core.lake.limits import lake_writer_limit
-from core.orchestration.events import emit_prefect_dbt_failure_event
+from core.orchestration.events import emit_dbt_failure
 
 log = structlog.get_logger(__name__)
 
@@ -181,7 +181,7 @@ async def run_dbt_build(
                 parent_run_id=parent_run_id,
             )
             if result.return_code != 0 or failed_nodes > 0:
-                emit_prefect_dbt_failure_event(
+                emit_dbt_failure(
                     dbt_run_id=dbt_run_id,
                     app_run_id=run.run_id,
                     command=command,

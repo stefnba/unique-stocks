@@ -33,7 +33,7 @@ from core.ingestion import (
     terminal_status,
 )
 from core.lake import reset_lake_client
-from core.orchestration.events import emit_prefect_coverage_gate_failure_event, publish_prefect_ingestion_summary
+from core.orchestration.events import emit_coverage_gate_failure, publish_ingestion_summary
 from domains.eod_price.contracts import EodPriceBackfillRequest, EodPriceDailyRequest, EodPriceRefreshResult
 from domains.eod_price.models import EODBar
 from domains.eod_price.parsers import infer_bulk_bar_date
@@ -362,7 +362,7 @@ async def run_eod_price_daily(request: EodPriceDailyRequest) -> EodPriceRefreshR
                 except Exception as exc:
                     summary["post_ingestion_error"] = _exception_summary(exc)
                     run.complete(status=ingestion_status, counters=counters, summary=summary)
-                    await publish_prefect_ingestion_summary(
+                    await publish_ingestion_summary(
                         flow_name="eod-price-daily",
                         domain="eod_price",
                         app_run_id=run.run_id,
@@ -375,7 +375,7 @@ async def run_eod_price_daily(request: EodPriceDailyRequest) -> EodPriceRefreshR
                 counters=counters,
                 summary=summary,
             )
-            await publish_prefect_ingestion_summary(
+            await publish_ingestion_summary(
                 flow_name="eod-price-daily",
                 domain="eod_price",
                 app_run_id=run.run_id,
@@ -401,7 +401,7 @@ async def run_eod_price_daily(request: EodPriceDailyRequest) -> EodPriceRefreshR
                     ),
                     summary=summary,
                 )
-                await publish_prefect_ingestion_summary(
+                await publish_ingestion_summary(
                     flow_name="eod-price-daily",
                     domain="eod_price",
                     app_run_id=run.run_id,
@@ -534,7 +534,7 @@ async def _run_price_post_ingestion_checks(
             from_date=from_date,
             to_date=to_date,
         )
-        emit_prefect_coverage_gate_failure_event(
+        emit_coverage_gate_failure(
             app_run_id=parent_run_id,
             gaps_count=len(gaps),
             provider_exchange_codes=provider_exchange_codes,
@@ -1143,7 +1143,7 @@ async def run_eod_price_backfill(request: EodPriceBackfillRequest) -> EodPriceRe
                 except Exception as exc:
                     summary["post_ingestion_error"] = _exception_summary(exc)
                     run.complete(status=ingestion_status, counters=counters, summary=summary)
-                    await publish_prefect_ingestion_summary(
+                    await publish_ingestion_summary(
                         flow_name="eod-price-backfill",
                         domain="eod_price",
                         app_run_id=run.run_id,
@@ -1156,7 +1156,7 @@ async def run_eod_price_backfill(request: EodPriceBackfillRequest) -> EodPriceRe
                 counters=counters,
                 summary=summary,
             )
-            await publish_prefect_ingestion_summary(
+            await publish_ingestion_summary(
                 flow_name="eod-price-backfill",
                 domain="eod_price",
                 app_run_id=run.run_id,
@@ -1181,7 +1181,7 @@ async def run_eod_price_backfill(request: EodPriceBackfillRequest) -> EodPriceRe
                     ),
                     summary=summary,
                 )
-                await publish_prefect_ingestion_summary(
+                await publish_ingestion_summary(
                     flow_name="eod-price-backfill",
                     domain="eod_price",
                     app_run_id=run.run_id,

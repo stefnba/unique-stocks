@@ -172,7 +172,7 @@ def test_track_run_marks_cancellation_separately(monkeypatch: pytest.MonkeyPatch
     def emit_cancelled(**kwargs: object) -> None:
         events.append(kwargs)
 
-    monkeypatch.setattr(run_tracking_writer_module, "emit_prefect_pipeline_cancelled_event", emit_cancelled)
+    monkeypatch.setattr(run_tracking_writer_module, "emit_pipeline_cancelled", emit_cancelled)
 
     with (
         pytest.raises(asyncio.CancelledError, match="operator stopped"),

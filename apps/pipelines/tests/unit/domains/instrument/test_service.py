@@ -84,7 +84,7 @@ async def test_run_instrument_refresh_writes_landing_and_bronze(monkeypatch: pyt
     monkeypatch.setattr(service, "fetch_instrument", fake_fetch)
     monkeypatch.setattr(service, "write_instrument_to_landing_zone", fake_landing)
     monkeypatch.setattr(service, "write_bronze_instrument", lambda *_args, **_kwargs: BronzeWrite(rows_written=1))
-    monkeypatch.setattr(service, "publish_prefect_ingestion_summary", fake_publish)
+    monkeypatch.setattr(service, "publish_ingestion_summary", fake_publish)
 
     result = await service.run_instrument_refresh(
         InstrumentRefreshRequest(
@@ -115,7 +115,7 @@ async def test_run_instrument_refresh_respects_empty_exchange_scope(monkeypatch:
     monkeypatch.setattr(service, "fetch_instrument_provider_exchange_codes", unexpected_default_codes)
     monkeypatch.setattr(service, "instrument_already_ingested", lambda *_: pytest.fail("no exchange checks expected"))
     monkeypatch.setattr(service, "fetch_instrument", lambda *_: pytest.fail("no provider fetches expected"))
-    monkeypatch.setattr(service, "publish_prefect_ingestion_summary", fake_publish)
+    monkeypatch.setattr(service, "publish_ingestion_summary", fake_publish)
 
     result = await service.run_instrument_refresh(
         InstrumentRefreshRequest(
@@ -147,7 +147,7 @@ async def test_run_instrument_refresh_audits_default_scope_failure(monkeypatch: 
 
     monkeypatch.setattr(service, "PipelineRunTracker", lambda: FakeTracker(run))
     monkeypatch.setattr(service, "fetch_instrument_provider_exchange_codes", failing_default_codes)
-    monkeypatch.setattr(service, "publish_prefect_ingestion_summary", fake_publish)
+    monkeypatch.setattr(service, "publish_ingestion_summary", fake_publish)
 
     with pytest.raises(RuntimeError, match="exchange universe unavailable"):
         await service.run_instrument_refresh(

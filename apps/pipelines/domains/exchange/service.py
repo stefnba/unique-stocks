@@ -3,7 +3,7 @@
 from datetime import date
 
 from core.ingestion import PipelineRunTracker, RunCounters, RunStatus, terminal_status
-from core.orchestration.events import publish_prefect_ingestion_summary
+from core.orchestration.events import publish_ingestion_summary
 from domains.exchange.contracts import (
     ExchangeCatalogRefreshRequest,
     ExchangeCatalogRefreshResult,
@@ -75,7 +75,7 @@ async def run_exchange_catalog_refresh(
                 rows_written=rows_written,
                 summary=summary,
             )
-            await publish_prefect_ingestion_summary(
+            await publish_ingestion_summary(
                 flow_name="exchange-catalog-refresh",
                 domain="exchange",
                 app_run_id=run.run_id,
@@ -89,7 +89,7 @@ async def run_exchange_catalog_refresh(
                     counters=RunCounters(rows_raw=rows_raw, rows_valid=rows_written, rows_written=rows_written),
                     summary=summary,
                 )
-            await publish_prefect_ingestion_summary(
+            await publish_ingestion_summary(
                 flow_name="exchange-catalog-refresh",
                 domain="exchange",
                 app_run_id=run.run_id,
@@ -189,7 +189,7 @@ async def run_exchange_mic_registry_refresh(
                 ),
                 summary=summary,
             )
-            await publish_prefect_ingestion_summary(
+            await publish_ingestion_summary(
                 flow_name="exchange-mic-registry-refresh",
                 domain="exchange",
                 app_run_id=run.run_id,
@@ -208,7 +208,7 @@ async def run_exchange_mic_registry_refresh(
                     ),
                     summary=summary,
                 )
-            await publish_prefect_ingestion_summary(
+            await publish_ingestion_summary(
                 flow_name="exchange-mic-registry-refresh",
                 domain="exchange",
                 app_run_id=run.run_id,
