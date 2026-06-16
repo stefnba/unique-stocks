@@ -74,7 +74,7 @@ def test_lake_schema_uses_singular_domain_names() -> None:
         "fundamental_fund_metric_fact",
         "fundamental_index_component",
     )
-    assert tuple(domain.value for domain in Domain if domain != Domain.DBT) == (
+    assert tuple(domain.value for domain in Domain) == (
         "exchange",
         "exchange_schedule",
         "eod_price",

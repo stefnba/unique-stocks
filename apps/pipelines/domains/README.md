@@ -30,15 +30,31 @@ orchestration/flows/<domain>.py
   -> domains/<domain>/tasks.py
 ```
 
-`instrument` follows this shape today. `exchange`, `exchange_schedule`,
-`eod_price`, and `fundamental` still have transitional `flows.py` modules inside
-their domain packages; migrate them one domain at a time instead of adding new
-flow-heavy domain modules.
+All active ingestion domains follow this shape today. Do not add
+`domains/<domain>/flows.py`; Prefect entrypoints belong under
+`orchestration/flows/`.
+
+Some domains also own focused extension modules when the behavior would make the
+standard modules too broad:
+
+| Module pattern         | Use when                                                                |
+| ---------------------- | ----------------------------------------------------------------------- |
+| `universe.py`          | A domain needs reusable universe or selection rules.                    |
+| `coverage.py`          | A domain needs durable coverage/idempotency helpers around core tables. |
+| `batch.py`             | A domain needs resumable batch/date/quota planning.                     |
+| `writers.py`           | A domain writes several closely related Bronze tables from one payload. |
+| `provider_universe.py` | Provider-specific universe policy would crowd the domain service/tasks. |
+
+`domains/exchange/tasks/` is an accepted exception to the single `tasks.py`
+module because exchange reference ingestion has separate provider task groups.
+Keep task sub-packages rare and provider- or workflow-specific.
 
 ## Placement rules
 
 - Keep Prefect deployment names, dbt build names, and cross-domain workflow
   composition in `orchestration/`.
+- Keep domain-specific post-ingestion orchestration that composes dbt, Prefect
+  artifacts, or events in `orchestration/<domain>_post_ingestion.py`.
 - Keep block declarations and runtime control-plane wiring in `control_plane/`.
 - Keep provider-specific clients and raw provider response models in
   `providers/`.

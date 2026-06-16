@@ -1,6 +1,5 @@
 """EOD price post-ingestion dbt and coverage-gate orchestration."""
 
-import inspect
 from datetime import date
 
 import structlog
@@ -266,13 +265,11 @@ async def _emit_coverage_gate_artifact(*, gaps: list[EODPriceCoverageGap], paren
         return
     rows = [_coverage_gap_summary_row(gap) for gap in gaps[:100]]
     try:
-        artifact_id = create_table_artifact(
+        create_table_artifact(
             key=f"eod-price-coverage-{parent_run_id}",
             table=rows,
             description=f"EOD price coverage gate found {len(gaps)} gap(s).",
         )
-        if inspect.isawaitable(artifact_id):
-            await artifact_id
     except Exception:
         log.warning("price.coverage_gate_artifact_failed", parent_run_id=parent_run_id, exc_info=True)
 
