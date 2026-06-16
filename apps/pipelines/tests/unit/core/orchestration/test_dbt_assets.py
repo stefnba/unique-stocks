@@ -41,6 +41,26 @@ def test_selected_dbt_asset_specs_ignores_unknown_specific_selectors() -> None:
     assert dbt_assets.selected_dbt_asset_specs(select=["+tag:ingestion_control"], specs=_specs()) == []
 
 
+def test_selected_dbt_asset_specs_matches_whole_selector_tokens() -> None:
+    """Selector fallback should not match shorter group names inside longer names."""
+    specs = (
+        DbtAssetSpec(group="exchange", select_needles=("exchange",), recorder=lambda **_: None),
+        DbtAssetSpec(
+            group="exchange_schedule",
+            select_needles=("exchange_schedule", "schedule", "holiday"),
+            recorder=lambda **_: None,
+        ),
+    )
+
+    assert [
+        spec.group
+        for spec in dbt_assets.selected_dbt_asset_specs(
+            select=["path:models/staging/exchange_schedule"],
+            specs=specs,
+        )
+    ] == ["exchange_schedule"]
+
+
 def test_selected_dbt_asset_materializations_uses_model_paths() -> None:
     """Dbt model metadata should drive precise domain and layer materializations."""
     metadata = {
@@ -164,3 +184,24 @@ def test_record_dbt_asset_materializations_preserves_run_count_when_model_paths_
             },
         }
     ]
+
+
+def test_asset_metadata_for_materialization_ignores_models_without_unique_ids() -> None:
+    """Generic metadata shaping should tolerate compact model payload variation."""
+    payload = dbt_assets.asset_metadata_for_materialization(
+        metadata={"dbt_run_id": "run-1", "dbt_materialized_model_count": 2},
+        materialization=DbtAssetMaterialization(
+            group="price",
+            layers=("silver",),
+            models=(
+                {"original_file_path": "models/staging/price/stg_eod_price.sql"},
+                {
+                    "unique_id": "model.unique_stocks.stg_eod_price",
+                    "original_file_path": "models/staging/price/stg_eod_price.sql",
+                },
+            ),
+        ),
+    )
+
+    assert payload["dbt_asset_materialized_model_count"] == 2
+    assert payload["dbt_materialized_model_unique_ids"] == ["model.unique_stocks.stg_eod_price"]

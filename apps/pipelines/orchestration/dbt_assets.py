@@ -4,6 +4,7 @@ from collections.abc import Mapping, Sequence
 
 from core.orchestration.dbt_assets import (
     DbtAssetMaterialization,
+    DbtAssetRecorder,
     DbtAssetSpec,
     record_dbt_asset_materializations_for_specs,
     selected_dbt_asset_specs,
@@ -16,9 +17,9 @@ from domains.exchange.assets import record_exchange_dbt_materialization
 from domains.exchange_schedule.assets import record_exchange_schedule_dbt_materialization
 from domains.fundamental.assets import record_fundamental_dbt_materialization
 from domains.instrument.assets import record_instrument_dbt_materialization
-from orchestration.domain_dbt import DOMAIN_DBT_SPECS
+from orchestration.domain_dbt import DOMAIN_DBT_SPECS, DomainDbtSpec
 
-_DOMAIN_RECORDERS = {
+_DOMAIN_RECORDERS: dict[str, DbtAssetRecorder] = {
     "exchange": record_exchange_dbt_materialization,
     "exchange_schedule": record_exchange_schedule_dbt_materialization,
     "instrument": record_instrument_dbt_materialization,
@@ -26,13 +27,39 @@ _DOMAIN_RECORDERS = {
     "fundamental": record_fundamental_dbt_materialization,
 }
 
-DBT_ASSET_SPECS: tuple[DbtAssetSpec, ...] = tuple(
-    DbtAssetSpec(
-        group=spec.asset_group,
-        select_needles=spec.select_needles,
-        recorder=_DOMAIN_RECORDERS[spec.asset_group],
+
+def _build_dbt_asset_specs(
+    *,
+    domain_specs: Sequence[DomainDbtSpec],
+    recorders: Mapping[str, DbtAssetRecorder],
+) -> tuple[DbtAssetSpec, ...]:
+    """Build app dbt asset specs, failing clearly when registry wiring drifts."""
+    configured = {spec.asset_group for spec in domain_specs}
+    implemented = set(recorders)
+    missing = sorted(configured - implemented)
+    extra = sorted(implemented - configured)
+    if missing or extra:
+        details = []
+        if missing:
+            details.append(f"missing recorders for: {', '.join(missing)}")
+        if extra:
+            details.append(f"unconfigured recorders for: {', '.join(extra)}")
+        msg = "Dbt asset registry does not match domain registry: " + "; ".join(details)
+        raise RuntimeError(msg)
+
+    return tuple(
+        DbtAssetSpec(
+            group=spec.asset_group,
+            select_needles=spec.select_needles,
+            recorder=recorders[spec.asset_group],
+        )
+        for spec in domain_specs
     )
-    for spec in DOMAIN_DBT_SPECS
+
+
+DBT_ASSET_SPECS: tuple[DbtAssetSpec, ...] = _build_dbt_asset_specs(
+    domain_specs=DOMAIN_DBT_SPECS,
+    recorders=_DOMAIN_RECORDERS,
 )
 
 

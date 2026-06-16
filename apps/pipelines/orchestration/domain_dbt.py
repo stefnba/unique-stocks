@@ -83,7 +83,7 @@ DOMAIN_DBT_SPECS: tuple[DomainDbtSpec, ...] = (
     DomainDbtSpec(
         domain=Domain.EXCHANGE,
         asset_group="exchange",
-        select_needles=("exchange", "provider_namespace"),
+        select_needles=("exchange", "provider_namespace_policy", "eodhd_provider_namespaces"),
         post_ingestion_build="exchange-build",
     ),
     DomainDbtSpec(
@@ -101,7 +101,7 @@ DOMAIN_DBT_SPECS: tuple[DomainDbtSpec, ...] = (
     DomainDbtSpec(
         domain=Domain.EOD_PRICE,
         asset_group="price",
-        select_needles=("price", "eod"),
+        select_needles=("price", "eod", "eod_price", "stg_eod_price", "fct_daily_price"),
         post_ingestion_build="price-build",
     ),
     DomainDbtSpec(

@@ -1,11 +1,14 @@
 """Generic dbt asset materialization selection helpers."""
 
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
 type DbtAssetGroup = str
 type DbtAssetLayer = Literal["silver", "gold"]
+
+_SELECTOR_TOKEN_RE = re.compile(r"[a-z0-9_]+")
 
 
 class DbtAssetRecorder(Protocol):
@@ -73,8 +76,8 @@ def selected_dbt_asset_specs(*, select: Sequence[str], specs: Sequence[DbtAssetS
     if not select:
         return specs
 
-    joined = " ".join(select).lower()
-    return [spec for spec in specs if any(needle in joined for needle in spec.select_needles)]
+    selector_tokens = _selector_tokens(select)
+    return [spec for spec in specs if selector_tokens.intersection(needle.lower() for needle in spec.select_needles)]
 
 
 def selected_layers_from_select(select: Sequence[str]) -> tuple[DbtAssetLayer, ...]:
@@ -82,11 +85,11 @@ def selected_layers_from_select(select: Sequence[str]) -> tuple[DbtAssetLayer, .
     if not select:
         return ("silver", "gold")
 
-    joined = " ".join(select).lower()
+    selector_tokens = _selector_tokens(select)
     layers: set[DbtAssetLayer] = set()
-    if any(needle in joined for needle in ("staging", "intermediate", "silver")):
+    if selector_tokens.intersection(("staging", "intermediate", "silver")):
         layers.add("silver")
-    if any(needle in joined for needle in ("mart", "marts", "gold")):
+    if selector_tokens.intersection(("mart", "marts", "gold")):
         layers.add("gold")
     return _ordered_layers(layers) if layers else ("silver", "gold")
 
@@ -115,7 +118,9 @@ def asset_metadata_for_materialization(
         payload["dbt_asset_materialized_model_count"] = len(materialization.models)
         payload["dbt_materialized_model_count"] = len(materialization.models)
         payload["dbt_materialized_models"] = list(materialization.models)
-        payload["dbt_materialized_model_unique_ids"] = [str(model["unique_id"]) for model in materialization.models]
+        unique_ids = [str(unique_id) for model in materialization.models if (unique_id := model.get("unique_id"))]
+        if unique_ids:
+            payload["dbt_materialized_model_unique_ids"] = unique_ids
     return payload
 
 
@@ -165,6 +170,10 @@ def _selected_materializations_from_models(
 
 def _ordered_layers(layers: set[DbtAssetLayer]) -> tuple[DbtAssetLayer, ...]:
     return tuple(layer for layer in ("silver", "gold") if layer in layers)
+
+
+def _selector_tokens(select: Sequence[str]) -> set[str]:
+    return {token for expression in select for token in _SELECTOR_TOKEN_RE.findall(expression.lower())}
 
 
 def _dbt_asset_group_for_model(
