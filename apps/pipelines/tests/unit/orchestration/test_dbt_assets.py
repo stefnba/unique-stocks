@@ -1,12 +1,12 @@
-"""Tests for app dbt Prefect asset materialization mapping."""
+"""Tests for app dbt Prefect asset materialization wiring."""
 
 from orchestration import dbt_assets
 from orchestration.dbt_assets import DbtAssetMaterialization, selected_dbt_asset_groups
 
 
-def test_selected_dbt_asset_groups_defaults_to_all_for_full_build() -> None:
-    """A full dbt build should record all configured Silver/Gold asset groups."""
-    assert selected_dbt_asset_groups([]) == [
+def test_dbt_asset_specs_follow_domain_dbt_registry_order() -> None:
+    """The app adapter should expose the configured domain asset groups."""
+    assert [spec.group for spec in dbt_assets.DBT_ASSET_SPECS] == [
         "exchange",
         "exchange_schedule",
         "instrument",
@@ -15,127 +15,66 @@ def test_selected_dbt_asset_groups_defaults_to_all_for_full_build() -> None:
     ]
 
 
-def test_selected_dbt_asset_groups_matches_domain_selectors() -> None:
-    """Dbt selector strings should map to the domain-owned asset groups they touch."""
+def test_selected_dbt_asset_groups_delegates_to_core_specs() -> None:
+    """The app adapter should keep selector matching behavior at its public edge."""
     assert selected_dbt_asset_groups(["path:models/staging/price", "+path:models/marts/instrument"]) == [
         "instrument",
         "price",
     ]
-
-
-def test_selected_dbt_asset_groups_ignores_unknown_specific_selectors() -> None:
-    """Specific non-domain selectors should not record every Silver/Gold asset."""
     assert selected_dbt_asset_groups(["+tag:ingestion_control"]) == []
 
 
-def test_selected_dbt_asset_materializations_uses_model_paths() -> None:
-    """Dbt model metadata should drive precise domain and layer materializations."""
+def test_selected_dbt_asset_materializations_uses_app_specs() -> None:
+    """The app adapter should expose core materialization results with app specs."""
     metadata = {
         "dbt_materialized_models": [
             {
                 "unique_id": "model.unique_stocks.stg_eod_price",
                 "original_file_path": "models/staging/price/stg_eod_price.sql",
-            },
-            {
-                "unique_id": "model.unique_stocks.fct_daily_price",
-                "original_file_path": "models/marts/price/fct_daily_price.sql",
-            },
-            {
-                "unique_id": "model.unique_stocks.dim_instrument",
-                "original_file_path": "models/marts/instrument/dim_instrument.sql",
-            },
+            }
         ]
     }
 
     assert dbt_assets.selected_dbt_asset_materializations(select=["tag:any"], metadata=metadata) == [
-        DbtAssetMaterialization(group="instrument", layers=("gold",)),
-        DbtAssetMaterialization(group="price", layers=("silver", "gold")),
-    ]
-
-
-def test_record_dbt_asset_materializations_filters_metadata_by_asset(monkeypatch) -> None:
-    """Each domain recorder should receive only the models for its group and selected layers."""
-    calls: list[dict[str, object]] = []
-
-    def record_price(*, layers: tuple[str, ...], **metadata: object) -> None:
-        calls.append({"group": "price", "layers": layers, "metadata": metadata})
-
-    monkeypatch.setitem(dbt_assets._DBT_ASSET_RECORDERS, "price", record_price)
-
-    dbt_assets.record_dbt_asset_materializations(
-        select=[],
-        metadata={
-            "dbt_run_id": "run-1",
-            "dbt_materialized_model_count": 2,
-            "dbt_materialized_models": [
+        DbtAssetMaterialization(
+            group="price",
+            layers=("silver",),
+            models=(
                 {
                     "unique_id": "model.unique_stocks.stg_eod_price",
                     "original_file_path": "models/staging/price/stg_eod_price.sql",
                 },
-                {
-                    "unique_id": "model.unique_stocks.dim_exchange",
-                    "original_file_path": "models/marts/exchange/dim_exchange.sql",
-                },
-            ],
-        },
-    )
-
-    assert calls == [
-        {
-            "group": "price",
-            "layers": ("silver",),
-            "metadata": {
-                "dbt_run_id": "run-1",
-                "dbt_materialized_model_count": 1,
-                "dbt_run_materialized_model_count": 2,
-                "dbt_asset_group": "price",
-                "dbt_asset_layers": ["silver"],
-                "dbt_asset_materialized_model_count": 1,
-                "dbt_materialized_models": [
-                    {
-                        "unique_id": "model.unique_stocks.stg_eod_price",
-                        "original_file_path": "models/staging/price/stg_eod_price.sql",
-                    }
-                ],
-                "dbt_materialized_model_unique_ids": ["model.unique_stocks.stg_eod_price"],
-            },
-        }
+            ),
+        )
     ]
 
 
-def test_record_dbt_asset_materializations_preserves_run_count_when_model_paths_are_unavailable(
-    monkeypatch,
-) -> None:
-    """Selector fallback should not report zero asset models when manifest path metadata is missing."""
+def test_record_dbt_asset_materializations_uses_app_recorders(monkeypatch) -> None:
+    """The public hook should delegate through the app spec registry."""
     calls: list[dict[str, object]] = []
 
-    def record_price(*, layers: tuple[str, ...], **metadata: object) -> None:
-        calls.append({"group": "price", "layers": layers, "metadata": metadata})
+    def record_price(**metadata: object) -> None:
+        calls.append(metadata)
 
-    monkeypatch.setitem(dbt_assets._DBT_ASSET_RECORDERS, "price", record_price)
+    specs = tuple(
+        spec if spec.group != "price" else spec.__class__(spec.group, spec.select_needles, record_price)
+        for spec in dbt_assets.DBT_ASSET_SPECS
+    )
+
+    monkeypatch.setattr(dbt_assets, "DBT_ASSET_SPECS", specs)
 
     dbt_assets.record_dbt_asset_materializations(
-        select=["path:models/marts/price"],
-        metadata={
-            "dbt_run_id": "run-1",
-            "dbt_materialized_model_count": 2,
-            "dbt_materialized_models": [
-                {"unique_id": "model.unique_stocks.fct_daily_price"},
-                {"unique_id": "model.unique_stocks.dim_instrument"},
-            ],
-        },
+        select=["path:models/staging/price"],
+        metadata={"dbt_run_id": "run-1", "dbt_materialized_model_count": 1},
     )
 
     assert calls == [
         {
-            "group": "price",
-            "layers": ("gold",),
-            "metadata": {
-                "dbt_run_id": "run-1",
-                "dbt_materialized_model_count": 2,
-                "dbt_run_materialized_model_count": 2,
-                "dbt_asset_group": "price",
-                "dbt_asset_layers": ["gold"],
-            },
+            "layers": ("silver",),
+            "dbt_run_id": "run-1",
+            "dbt_materialized_model_count": 1,
+            "dbt_run_materialized_model_count": 1,
+            "dbt_asset_group": "price",
+            "dbt_asset_layers": ["silver"],
         }
     ]
